@@ -1,0 +1,411 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 62
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [],
+    "tags": [
+      "project",
+      "someday"
+    ],
+    "template": null,
+    "icon": null,
+    "properties": [
+      {
+        "key": "type",
+        "raw": "project",
+        "value": {
+          "type": "text",
+          "value": "project"
+        },
+        "span": {
+          "start": 29,
+          "end": 43
+        },
+        "key_span": {
+          "start": 29,
+          "end": 33
+        },
+        "value_span": {
+          "start": 35,
+          "end": 42
+        }
+      },
+      {
+        "key": "status",
+        "raw": "paused",
+        "value": {
+          "type": "text",
+          "value": "paused"
+        },
+        "span": {
+          "start": 43,
+          "end": 58
+        },
+        "key_span": {
+          "start": 43,
+          "end": 49
+        },
+        "value_span": {
+          "start": 51,
+          "end": 57
+        }
+      }
+    ],
+    "entries": [
+      {
+        "key": "tags",
+        "raw": "[project, someday]",
+        "value": {
+          "type": "list",
+          "value": [
+            {
+              "type": "text",
+              "value": "project"
+            },
+            {
+              "type": "text",
+              "value": "someday"
+            }
+          ]
+        },
+        "span": {
+          "start": 4,
+          "end": 29
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 28
+        }
+      },
+      {
+        "key": "type",
+        "raw": "project",
+        "value": {
+          "type": "text",
+          "value": "project"
+        },
+        "span": {
+          "start": 29,
+          "end": 43
+        },
+        "key_span": {
+          "start": 29,
+          "end": 33
+        },
+        "value_span": {
+          "start": 35,
+          "end": 42
+        }
+      },
+      {
+        "key": "status",
+        "raw": "paused",
+        "value": {
+          "type": "text",
+          "value": "paused"
+        },
+        "span": {
+          "start": 43,
+          "end": 58
+        },
+        "key_span": {
+          "start": 43,
+          "end": 49
+        },
+        "value_span": {
+          "start": 51,
+          "end": 57
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 63,
+        "end": 109
+      },
+      "own_span": {
+        "start": 63,
+        "end": 109
+      },
+      "indent_span": {
+        "start": 63,
+        "end": 63
+      },
+      "bullet_span": {
+        "start": 63,
+        "end": 64
+      },
+      "first_line": {
+        "start": 65,
+        "end": 91
+      },
+      "props_span": {
+        "start": 92,
+        "end": 109
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "priority",
+          "raw": "low",
+          "value": {
+            "type": "text",
+            "value": "low"
+          },
+          "span": {
+            "start": 92,
+            "end": 109
+          },
+          "key_span": {
+            "start": 94,
+            "end": 102
+          },
+          "value_span": {
+            "start": 105,
+            "end": 108
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 65,
+          "end": 69
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": "low",
+        "repeat": null,
+        "done": null
+      },
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "someday",
+          "span": {
+            "start": 83,
+            "end": 91
+          },
+          "target_span": {
+            "start": 84,
+            "end": 91
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 109,
+        "end": 156
+      },
+      "own_span": {
+        "start": 109,
+        "end": 156
+      },
+      "indent_span": {
+        "start": 109,
+        "end": 109
+      },
+      "bullet_span": {
+        "start": 109,
+        "end": 110
+      },
+      "first_line": {
+        "start": 111,
+        "end": 131
+      },
+      "props_span": {
+        "start": 132,
+        "end": 156
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "deadline",
+          "raw": "2026-10-20",
+          "value": {
+            "type": "date",
+            "value": "2026-10-20"
+          },
+          "span": {
+            "start": 132,
+            "end": 156
+          },
+          "key_span": {
+            "start": 134,
+            "end": 142
+          },
+          "value_span": {
+            "start": 145,
+            "end": 155
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "WAITING",
+        "marker_span": {
+          "start": 111,
+          "end": 118
+        },
+        "scheduled": null,
+        "deadline": "2026-10-20",
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 156,
+        "end": 176
+      },
+      "own_span": {
+        "start": 156,
+        "end": 176
+      },
+      "indent_span": {
+        "start": 156,
+        "end": 156
+      },
+      "bullet_span": {
+        "start": 156,
+        "end": 157
+      },
+      "first_line": {
+        "start": 158,
+        "end": 175
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "CANCELED",
+        "marker_span": {
+          "start": 158,
+          "end": 166
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 176,
+        "end": 219
+      },
+      "own_span": {
+        "start": 176,
+        "end": 219
+      },
+      "indent_span": {
+        "start": 176,
+        "end": 176
+      },
+      "bullet_span": {
+        "start": 176,
+        "end": 177
+      },
+      "first_line": {
+        "start": 178,
+        "end": 188
+      },
+      "props_span": {
+        "start": 189,
+        "end": 219
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "rating",
+          "raw": "5",
+          "value": {
+            "type": "number",
+            "value": 5.0
+          },
+          "span": {
+            "start": 189,
+            "end": 202
+          },
+          "key_span": {
+            "start": 191,
+            "end": 197
+          },
+          "value_span": {
+            "start": 200,
+            "end": 201
+          }
+        },
+        {
+          "key": "status",
+          "raw": "draft",
+          "value": {
+            "type": "text",
+            "value": "draft"
+          },
+          "span": {
+            "start": 202,
+            "end": 219
+          },
+          "key_span": {
+            "start": 204,
+            "end": 210
+          },
+          "value_span": {
+            "start": 213,
+            "end": 218
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 219
+}

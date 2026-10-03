@@ -1,0 +1,145 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 21
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [],
+    "tags": [],
+    "template": null,
+    "icon": null,
+    "properties": [
+      {
+        "key": "type",
+        "raw": "person",
+        "value": {
+          "type": "text",
+          "value": "person"
+        },
+        "span": {
+          "start": 4,
+          "end": 17
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 16
+        }
+      }
+    ],
+    "entries": [
+      {
+        "key": "type",
+        "raw": "person",
+        "value": {
+          "type": "text",
+          "value": "person"
+        },
+        "span": {
+          "start": 4,
+          "end": 17
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 16
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 22,
+        "end": 93
+      },
+      "own_span": {
+        "start": 22,
+        "end": 93
+      },
+      "indent_span": {
+        "start": 22,
+        "end": 22
+      },
+      "bullet_span": {
+        "start": 22,
+        "end": 23
+      },
+      "first_line": {
+        "start": 24,
+        "end": 65
+      },
+      "props_span": {
+        "start": 66,
+        "end": 93
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "email",
+          "raw": "anna@example.com",
+          "value": {
+            "type": "text",
+            "value": "anna@example.com"
+          },
+          "span": {
+            "start": 66,
+            "end": 93
+          },
+          "key_span": {
+            "start": 68,
+            "end": 73
+          },
+          "value_span": {
+            "start": 76,
+            "end": 92
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "work/projects/alpha",
+          "span": {
+            "start": 42,
+            "end": 65
+          },
+          "target_span": {
+            "start": 44,
+            "end": 63
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 93
+}

@@ -1,0 +1,350 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 19
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [],
+    "tags": [],
+    "template": null,
+    "icon": null,
+    "properties": [
+      {
+        "key": "type",
+        "raw": "book",
+        "value": {
+          "type": "text",
+          "value": "book"
+        },
+        "span": {
+          "start": 4,
+          "end": 15
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 14
+        }
+      }
+    ],
+    "entries": [
+      {
+        "key": "type",
+        "raw": "book",
+        "value": {
+          "type": "text",
+          "value": "book"
+        },
+        "span": {
+          "start": 4,
+          "end": 15
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 14
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 20,
+        "end": 81
+      },
+      "own_span": {
+        "start": 20,
+        "end": 81
+      },
+      "indent_span": {
+        "start": 20,
+        "end": 20
+      },
+      "bullet_span": {
+        "start": 20,
+        "end": 21
+      },
+      "first_line": {
+        "start": 22,
+        "end": 26
+      },
+      "props_span": {
+        "start": 27,
+        "end": 81
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "author",
+          "raw": "Frank Herbert",
+          "value": {
+            "type": "text",
+            "value": "Frank Herbert"
+          },
+          "span": {
+            "start": 27,
+            "end": 52
+          },
+          "key_span": {
+            "start": 29,
+            "end": 35
+          },
+          "value_span": {
+            "start": 38,
+            "end": 51
+          }
+        },
+        {
+          "key": "rating",
+          "raw": "5",
+          "value": {
+            "type": "number",
+            "value": 5.0
+          },
+          "span": {
+            "start": 52,
+            "end": 65
+          },
+          "key_span": {
+            "start": 54,
+            "end": 60
+          },
+          "value_span": {
+            "start": 63,
+            "end": 64
+          }
+        },
+        {
+          "key": "status",
+          "raw": "done",
+          "value": {
+            "type": "text",
+            "value": "done"
+          },
+          "span": {
+            "start": 65,
+            "end": 81
+          },
+          "key_span": {
+            "start": 67,
+            "end": 73
+          },
+          "value_span": {
+            "start": 76,
+            "end": 80
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 81,
+        "end": 149
+      },
+      "own_span": {
+        "start": 81,
+        "end": 149
+      },
+      "indent_span": {
+        "start": 81,
+        "end": 81
+      },
+      "bullet_span": {
+        "start": 81,
+        "end": 82
+      },
+      "first_line": {
+        "start": 83,
+        "end": 90
+      },
+      "props_span": {
+        "start": 91,
+        "end": 149
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "author",
+          "raw": "Stanisław Lem",
+          "value": {
+            "type": "text",
+            "value": "Stanisław Lem"
+          },
+          "span": {
+            "start": 91,
+            "end": 117
+          },
+          "key_span": {
+            "start": 93,
+            "end": 99
+          },
+          "value_span": {
+            "start": 102,
+            "end": 116
+          }
+        },
+        {
+          "key": "rating",
+          "raw": "4",
+          "value": {
+            "type": "number",
+            "value": 4.0
+          },
+          "span": {
+            "start": 117,
+            "end": 130
+          },
+          "key_span": {
+            "start": 119,
+            "end": 125
+          },
+          "value_span": {
+            "start": 128,
+            "end": 129
+          }
+        },
+        {
+          "key": "status",
+          "raw": "reading",
+          "value": {
+            "type": "text",
+            "value": "reading"
+          },
+          "span": {
+            "start": 130,
+            "end": 149
+          },
+          "key_span": {
+            "start": 132,
+            "end": 138
+          },
+          "value_span": {
+            "start": 141,
+            "end": 148
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 149,
+        "end": 221
+      },
+      "own_span": {
+        "start": 149,
+        "end": 221
+      },
+      "indent_span": {
+        "start": 149,
+        "end": 149
+      },
+      "bullet_span": {
+        "start": 149,
+        "end": 150
+      },
+      "first_line": {
+        "start": 151,
+        "end": 170
+      },
+      "props_span": {
+        "start": 171,
+        "end": 221
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "rating",
+          "raw": "2",
+          "value": {
+            "type": "number",
+            "value": 2.0
+          },
+          "span": {
+            "start": 171,
+            "end": 184
+          },
+          "key_span": {
+            "start": 173,
+            "end": 179
+          },
+          "value_span": {
+            "start": 182,
+            "end": 183
+          }
+        },
+        {
+          "key": "completed",
+          "raw": "2026-09-20, 2026-10-03",
+          "value": {
+            "type": "list",
+            "value": [
+              {
+                "type": "date",
+                "value": "2026-09-20"
+              },
+              {
+                "type": "date",
+                "value": "2026-10-03"
+              }
+            ]
+          },
+          "span": {
+            "start": 184,
+            "end": 221
+          },
+          "key_span": {
+            "start": 186,
+            "end": 195
+          },
+          "value_span": {
+            "start": 198,
+            "end": 220
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 221
+}

@@ -1,0 +1,604 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 53
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [],
+    "tags": [
+      "project"
+    ],
+    "template": null,
+    "icon": null,
+    "properties": [
+      {
+        "key": "type",
+        "raw": "project",
+        "value": {
+          "type": "text",
+          "value": "project"
+        },
+        "span": {
+          "start": 20,
+          "end": 34
+        },
+        "key_span": {
+          "start": 20,
+          "end": 24
+        },
+        "value_span": {
+          "start": 26,
+          "end": 33
+        }
+      },
+      {
+        "key": "status",
+        "raw": "active",
+        "value": {
+          "type": "text",
+          "value": "active"
+        },
+        "span": {
+          "start": 34,
+          "end": 49
+        },
+        "key_span": {
+          "start": 34,
+          "end": 40
+        },
+        "value_span": {
+          "start": 42,
+          "end": 48
+        }
+      }
+    ],
+    "entries": [
+      {
+        "key": "tags",
+        "raw": "[project]",
+        "value": {
+          "type": "list",
+          "value": [
+            {
+              "type": "text",
+              "value": "project"
+            }
+          ]
+        },
+        "span": {
+          "start": 4,
+          "end": 20
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 19
+        }
+      },
+      {
+        "key": "type",
+        "raw": "project",
+        "value": {
+          "type": "text",
+          "value": "project"
+        },
+        "span": {
+          "start": 20,
+          "end": 34
+        },
+        "key_span": {
+          "start": 20,
+          "end": 24
+        },
+        "value_span": {
+          "start": 26,
+          "end": 33
+        }
+      },
+      {
+        "key": "status",
+        "raw": "active",
+        "value": {
+          "type": "text",
+          "value": "active"
+        },
+        "span": {
+          "start": 34,
+          "end": 49
+        },
+        "key_span": {
+          "start": 34,
+          "end": 40
+        },
+        "value_span": {
+          "start": 42,
+          "end": 48
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 54,
+        "end": 122
+      },
+      "own_span": {
+        "start": 54,
+        "end": 122
+      },
+      "indent_span": {
+        "start": 54,
+        "end": 54
+      },
+      "bullet_span": {
+        "start": 54,
+        "end": 55
+      },
+      "first_line": {
+        "start": 56,
+        "end": 79
+      },
+      "props_span": {
+        "start": 80,
+        "end": 122
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "deadline",
+          "raw": "2026-10-01",
+          "value": {
+            "type": "date",
+            "value": "2026-10-01"
+          },
+          "span": {
+            "start": 80,
+            "end": 104
+          },
+          "key_span": {
+            "start": 82,
+            "end": 90
+          },
+          "value_span": {
+            "start": 93,
+            "end": 103
+          }
+        },
+        {
+          "key": "priority",
+          "raw": "high",
+          "value": {
+            "type": "text",
+            "value": "high"
+          },
+          "span": {
+            "start": 104,
+            "end": 122
+          },
+          "key_span": {
+            "start": 106,
+            "end": 114
+          },
+          "value_span": {
+            "start": 117,
+            "end": 121
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 56,
+          "end": 60
+        },
+        "scheduled": null,
+        "deadline": "2026-10-01",
+        "priority": "high",
+        "repeat": null,
+        "done": null
+      },
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "urgent",
+          "span": {
+            "start": 72,
+            "end": 79
+          },
+          "target_span": {
+            "start": 73,
+            "end": 79
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 122,
+        "end": 192
+      },
+      "own_span": {
+        "start": 122,
+        "end": 192
+      },
+      "indent_span": {
+        "start": 122,
+        "end": 122
+      },
+      "bullet_span": {
+        "start": 122,
+        "end": 123
+      },
+      "first_line": {
+        "start": 124,
+        "end": 142
+      },
+      "props_span": {
+        "start": 143,
+        "end": 192
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "scheduled",
+          "raw": "2026-10-05",
+          "value": {
+            "type": "date",
+            "value": "2026-10-05"
+          },
+          "span": {
+            "start": 143,
+            "end": 168
+          },
+          "key_span": {
+            "start": 145,
+            "end": 154
+          },
+          "value_span": {
+            "start": 157,
+            "end": 167
+          }
+        },
+        {
+          "key": "deadline",
+          "raw": "2026-10-09",
+          "value": {
+            "type": "date",
+            "value": "2026-10-09"
+          },
+          "span": {
+            "start": 168,
+            "end": 192
+          },
+          "key_span": {
+            "start": 170,
+            "end": 178
+          },
+          "value_span": {
+            "start": 181,
+            "end": 191
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 124,
+          "end": 128
+        },
+        "scheduled": "2026-10-05",
+        "deadline": "2026-10-09",
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 192,
+        "end": 269
+      },
+      "own_span": {
+        "start": 192,
+        "end": 269
+      },
+      "indent_span": {
+        "start": 192,
+        "end": 192
+      },
+      "bullet_span": {
+        "start": 192,
+        "end": 193
+      },
+      "first_line": {
+        "start": 194,
+        "end": 224
+      },
+      "props_span": {
+        "start": 225,
+        "end": 269
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "deadline",
+          "raw": "2026-10-04",
+          "value": {
+            "type": "date",
+            "value": "2026-10-04"
+          },
+          "span": {
+            "start": 225,
+            "end": 249
+          },
+          "key_span": {
+            "start": 227,
+            "end": 235
+          },
+          "value_span": {
+            "start": 238,
+            "end": 248
+          }
+        },
+        {
+          "key": "priority",
+          "raw": "medium",
+          "value": {
+            "type": "text",
+            "value": "medium"
+          },
+          "span": {
+            "start": 249,
+            "end": 269
+          },
+          "key_span": {
+            "start": 251,
+            "end": 259
+          },
+          "value_span": {
+            "start": 262,
+            "end": 268
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "DOING",
+        "marker_span": {
+          "start": 194,
+          "end": 199
+        },
+        "scheduled": null,
+        "deadline": "2026-10-04",
+        "priority": "medium",
+        "repeat": null,
+        "done": null
+      },
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "urgent",
+          "span": {
+            "start": 217,
+            "end": 224
+          },
+          "target_span": {
+            "start": 218,
+            "end": 224
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 269,
+        "end": 342
+      },
+      "own_span": {
+        "start": 269,
+        "end": 342
+      },
+      "indent_span": {
+        "start": 269,
+        "end": 269
+      },
+      "bullet_span": {
+        "start": 269,
+        "end": 270
+      },
+      "first_line": {
+        "start": 271,
+        "end": 291
+      },
+      "props_span": {
+        "start": 292,
+        "end": 342
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "done",
+          "raw": "2026-09-01T10:00",
+          "value": {
+            "type": "date_time",
+            "value": "2026-09-01T10:00:00"
+          },
+          "span": {
+            "start": 292,
+            "end": 318
+          },
+          "key_span": {
+            "start": 294,
+            "end": 298
+          },
+          "value_span": {
+            "start": 301,
+            "end": 317
+          }
+        },
+        {
+          "key": "deadline",
+          "raw": "2026-09-01",
+          "value": {
+            "type": "date",
+            "value": "2026-09-01"
+          },
+          "span": {
+            "start": 318,
+            "end": 342
+          },
+          "key_span": {
+            "start": 320,
+            "end": 328
+          },
+          "value_span": {
+            "start": 331,
+            "end": 341
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "DONE",
+        "marker_span": {
+          "start": 271,
+          "end": 275
+        },
+        "scheduled": null,
+        "deadline": "2026-09-01",
+        "priority": null,
+        "repeat": null,
+        "done": "2026-09-01T10:00:00"
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 342,
+        "end": 413
+      },
+      "own_span": {
+        "start": 342,
+        "end": 413
+      },
+      "indent_span": {
+        "start": 342,
+        "end": 342
+      },
+      "bullet_span": {
+        "start": 342,
+        "end": 343
+      },
+      "first_line": {
+        "start": 344,
+        "end": 382
+      },
+      "props_span": {
+        "start": 383,
+        "end": 413
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "status",
+          "raw": "draft",
+          "value": {
+            "type": "text",
+            "value": "draft"
+          },
+          "span": {
+            "start": 383,
+            "end": 400
+          },
+          "key_span": {
+            "start": 385,
+            "end": 391
+          },
+          "value_span": {
+            "start": 394,
+            "end": 399
+          }
+        },
+        {
+          "key": "rating",
+          "raw": "3",
+          "value": {
+            "type": "number",
+            "value": 3.0
+          },
+          "span": {
+            "start": 400,
+            "end": 413
+          },
+          "key_span": {
+            "start": 402,
+            "end": 408
+          },
+          "value_span": {
+            "start": 411,
+            "end": 412
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "people/anna",
+          "span": {
+            "start": 367,
+            "end": 382
+          },
+          "target_span": {
+            "start": 369,
+            "end": 380
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 413
+}

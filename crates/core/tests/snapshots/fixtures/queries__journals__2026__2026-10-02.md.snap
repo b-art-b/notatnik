@@ -1,6 +1,5 @@
 ---
 source: crates/core/tests/parse_fixtures.rs
-assertion_line: 73
 expression: page
 ---
 {
