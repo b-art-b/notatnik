@@ -15,7 +15,7 @@ pub use error::{Error, Result};
 pub use fuzzy::FuzzyHit;
 pub use ingest::{DuplicateId, FileStat, ReconcileStats, ReindexOutcome};
 pub use qsql::{CompileError, CompiledQuery, QueryContext, QueryResults, QueryRow, compile};
-pub use read::{Backlink, Counts, IssueRow, PageInfo, SearchHit, SearchKind};
+pub use read::{Backlink, Counts, IssueRow, NamespaceRow, PageInfo, SearchHit, SearchKind};
 pub use schema::SCHEMA_VERSION;
 
 use std::collections::BTreeMap;

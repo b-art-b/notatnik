@@ -3,6 +3,7 @@
 use serde::Serialize;
 
 /// A half-open byte range `start..end` into the original source text.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, serde::Deserialize, Default,
 )]

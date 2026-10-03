@@ -57,8 +57,23 @@ fn is_hidden(rel: &Path) -> bool {
 }
 
 impl Graph {
-    /// Starts watching the graph folder. Events are debounced by `debounce` (≈200 ms in the app).
+    /// Starts watching the graph folder. Events are debounced by `debounce` (≈200 ms in the app) and
+    /// delivered on [`Watcher::events`].
     pub fn watch(&self, debounce: Duration) -> Result<Watcher> {
+        let (tx, rx) = mpsc::channel::<GraphChanged>();
+        let mut w = self.watch_with(debounce, move |ev| {
+            let _ = tx.send(ev);
+        })?;
+        w.rx = rx;
+        Ok(w)
+    }
+
+    /// Like [`Graph::watch`], but calls `sink` (on the watcher thread) for every change set.
+    pub fn watch_with(
+        &self,
+        debounce: Duration,
+        sink: impl Fn(GraphChanged) + Send + 'static,
+    ) -> Result<Watcher> {
         let (raw_tx, raw_rx) = mpsc::channel::<notify::Result<notify::Event>>();
         let mut watcher = notify::recommended_watcher(move |res| {
             let _ = raw_tx.send(res);
@@ -67,7 +82,7 @@ impl Graph {
         watcher
             .watch(self.root(), RecursiveMode::Recursive)
             .map_err(|e| Error::Io(std::io::Error::other(e)))?;
-        let (tx, rx) = mpsc::channel::<GraphChanged>();
+        let (_unused_tx, rx) = mpsc::channel::<GraphChanged>();
         let stop = Arc::new(AtomicBool::new(false));
         let graph = self.clone();
         let stop2 = stop.clone();
@@ -89,7 +104,7 @@ impl Graph {
                 if !pending.is_empty() && last.elapsed() >= debounce {
                     let paths: Vec<PathBuf> = pending.drain().collect();
                     if let Some(ev) = graph.process_events(&paths) {
-                        let _ = tx.send(ev);
+                        sink(ev);
                     }
                 }
             }

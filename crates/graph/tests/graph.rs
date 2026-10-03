@@ -658,7 +658,7 @@ fn edit_page_applies_ops_with_guard() {
     let out = g
         .edit_page(
             rel,
-            &f.hash,
+            Some(&f.hash),
             &[BlockOp::SetTaskState {
                 block: BlockRef::at(&[0, 0]),
                 state: Some(notatnik_core::TaskState::Todo),
@@ -671,7 +671,7 @@ fn edit_page_applies_ops_with_guard() {
     let err = g
         .edit_page(
             rel,
-            &f.hash,
+            Some(&f.hash),
             &[BlockOp::Delete {
                 block: BlockRef::at(&[0]),
             }],
@@ -683,7 +683,7 @@ fn edit_page_applies_ops_with_guard() {
     let err = g
         .edit_page(
             rel,
-            &cur.hash,
+            Some(&cur.hash),
             &[BlockOp::Indent {
                 block: BlockRef::at(&[0]),
             }],
@@ -691,4 +691,22 @@ fn edit_page_applies_ops_with_guard() {
         .unwrap_err();
     assert!(matches!(err, Error::Edit(_)));
     assert_eq!(g.read_page(rel).unwrap().text, cur.text);
+    // None creates the page from nothing; an existing file with None is a conflict
+    let out = g
+        .edit_page(
+            "pages/created/by-edit.md",
+            None,
+            &[BlockOp::Insert {
+                parent: vec![],
+                index: 0,
+                text: "first".into(),
+            }],
+        )
+        .unwrap();
+    assert_eq!(out.new_text, "- first\n");
+    assert!(e.graph_dir.join("pages/created/by-edit.md").exists());
+    assert!(matches!(
+        g.edit_page("pages/created/by-edit.md", None, &[]),
+        Err(Error::Conflict { .. })
+    ));
 }

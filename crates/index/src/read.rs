@@ -526,3 +526,54 @@ impl Index {
             .optional()?)
     }
 }
+
+/// One entry of the namespace tree.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NamespaceRow {
+    /// Full page name.
+    pub name: String,
+    /// No file behind it.
+    pub is_virtual: bool,
+    /// Number of pages below it, at any depth.
+    pub descendants: usize,
+}
+
+impl Index {
+    /// Direct children of `parent` in the namespace tree (`None` = top level, journals excluded),
+    /// with the number of pages below each.
+    pub fn namespace_entries(&self, parent: Option<&str>) -> Result<Vec<NamespaceRow>> {
+        let parent_id: Option<i64> = match parent {
+            Some(p) => {
+                let Ok(n) = PageName::parse(p) else {
+                    return Ok(Vec::new());
+                };
+                match self.resolve_page_id(&n.lookup_key())? {
+                    Some(id) => Some(id),
+                    None => return Ok(Vec::new()),
+                }
+            }
+            None => None,
+        };
+        let sql = "SELECT c.name, c.is_virtual,
+                          (SELECT COUNT(*) FROM pages d WHERE d.key > c.key || '/' AND d.key < c.key || '0')
+                   FROM pages c
+                   WHERE c.ns_parent_id IS ?1 AND c.is_journal = 0
+                   ORDER BY c.key";
+        let mut st = self.conn.prepare_cached(sql)?;
+        let rows = st
+            .query_map([parent_id], |r| {
+                Ok(NamespaceRow {
+                    name: r.get(0)?,
+                    is_virtual: r.get::<_, i64>(1)? != 0,
+                    descendants: r.get::<_, i64>(2)? as usize,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Whether a page with this name exists as a file.
+    pub fn page_has_file(&self, name: &str) -> Result<bool> {
+        Ok(self.page_info(name)?.is_some_and(|p| !p.is_virtual))
+    }
+}

@@ -391,25 +391,73 @@ impl Graph {
         })
     }
 
-    /// Applies edit operations to a page file: reads it, applies the ops in order (reparsing between
-    /// them), and writes the result with the base-hash guard.
-    pub fn edit_page(&self, rel: &str, base_hash: &str, ops: &[BlockOp]) -> Result<EditOutcome> {
-        let file = self.read_page(rel)?;
-        if file.hash != base_hash {
+    /// Deletes a page file if it still has the content with hash `base_hash` (used by undo of a page creation).
+    pub fn delete_page(&self, rel: &str, base_hash: &str) -> Result<()> {
+        check_rel(rel)?;
+        let abs = self.root.join(rel);
+        let bytes = std::fs::read(&abs).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Error::NotFound(rel.into())
+            } else {
+                Error::Io(e)
+            }
+        })?;
+        if hash_bytes(&bytes) != base_hash {
             return Err(Error::Conflict { path: rel.into() });
         }
+        std::fs::remove_file(&abs)?;
+        if let Some(parent) = abs.parent() {
+            sync_dir(parent);
+            // tidy empty folders below pages/
+            let mut dir = Some(parent.to_path_buf());
+            while let Some(d) = dir {
+                if d == self.root.join("pages")
+                    || d == self.root.join("journals")
+                    || !d.starts_with(&self.root)
+                    || std::fs::remove_dir(&d).is_err()
+                {
+                    break;
+                }
+                dir = d.parent().map(Path::to_path_buf);
+            }
+        }
+        let mut g = self.lock();
+        let root = g.root.clone();
+        g.index.reindex_file(&root, rel)?;
+        g.remove_snapshot(rel);
+        Ok(())
+    }
+
+    /// Applies edit operations to a page file: reads it, applies the ops in order (reparsing between
+    /// them), and writes the result with the base-hash guard.
+    ///
+    /// `base_hash = None` means the file must not exist yet: the ops are applied to an empty page and
+    /// the file is created (a virtual page becomes a file on its first content, LN-1).
+    pub fn edit_page(
+        &self,
+        rel: &str,
+        base_hash: Option<&str>,
+        ops: &[BlockOp],
+    ) -> Result<EditOutcome> {
+        let (old_text, base) = match (self.read_page(rel), base_hash) {
+            (Ok(file), Some(h)) if file.hash == h => (file.text, Some(h.to_string())),
+            (Ok(_), _) => return Err(Error::Conflict { path: rel.into() }),
+            (Err(Error::NotFound(_)), None) => (String::new(), None),
+            (Err(Error::NotFound(_)), Some(_)) => return Err(Error::Conflict { path: rel.into() }),
+            (Err(e), _) => return Err(e),
+        };
         let opts = notatnik_core::ParseOptions {
             property_types: self.config().property_types(),
         };
-        let mut text = file.text.clone();
+        let mut text = old_text.clone();
         for op in ops {
             let page = notatnik_core::parse_page_with(&text, &opts);
             text = notatnik_core::apply(&text, &page, op)
                 .map_err(Error::Edit)?
                 .new_source;
         }
-        let patches = whole_diff(&file.text, &text);
-        let out = self.write_page(rel, &text, Some(base_hash))?;
+        let patches = whole_diff(&old_text, &text);
+        let out = self.write_page(rel, &text, base.as_deref())?;
         let final_text = self.read_page(rel)?.text;
         Ok(EditOutcome {
             hash: out.hash,

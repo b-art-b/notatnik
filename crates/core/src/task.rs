@@ -6,6 +6,7 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use serde::{Serialize, Serializer};
 
 /// Task state marker at the start of a block's first line.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, serde::Deserialize,
 )]

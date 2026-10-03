@@ -10,6 +10,7 @@ use crate::{Block, Page, Span, TaskState, ids::is_valid_block_id, props::is_vali
 
 /// Addresses a block by its child-index path, optionally guarded by the content hash the caller saw.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BlockRef {
     /// Child indices from the page root, e.g. `[2, 0]` = first child of the third top-level block.
     pub path: Vec<usize>,
@@ -30,6 +31,7 @@ impl BlockRef {
 
 /// One edit to a page.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum BlockOp {
     /// Inserts a new block as child `index` of `parent` (empty path = page root).
@@ -121,6 +123,7 @@ pub enum BlockOp {
 
 /// A replacement of `range` (in the source the patch applies to) by `new_text`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TextPatch {
     /// Range in the source this patch applies to.
     pub range: Span,
