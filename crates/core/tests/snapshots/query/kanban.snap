@@ -1,0 +1,84 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "task",
+        "values": [
+          {
+            "state": "TODO"
+          },
+          {
+            "state": "DOING"
+          }
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "ns",
+        "values": [
+          "work"
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "tag",
+        "values": [
+          "urgent"
+        ]
+      }
+    },
+    {
+      "negated": true,
+      "kind": {
+        "kind": "tag",
+        "values": [
+          "someday"
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "deadline",
+        "values": [
+          {
+            "op": "lt",
+            "a": {
+              "type": "rel",
+              "value": {
+                "kind": "offset",
+                "n": 7,
+                "unit": "day"
+              }
+            },
+            "b": null
+          }
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [
+    {
+      "field": {
+        "field": "deadline"
+      },
+      "desc": false
+    }
+  ],
+  "limit": null,
+  "group": {
+    "by": "task"
+  },
+  "view": "kanban",
+  "columns": []
+}

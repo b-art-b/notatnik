@@ -1,0 +1,172 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "crlf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 89
+      },
+      "own_span": {
+        "start": 0,
+        "end": 33
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 16
+      },
+      "props_span": {
+        "start": 18,
+        "end": 33
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "key",
+          "raw": "value",
+          "value": {
+            "type": "text",
+            "value": "value"
+          },
+          "span": {
+            "start": 18,
+            "end": 33
+          },
+          "key_span": {
+            "start": 20,
+            "end": 23
+          },
+          "value_span": {
+            "start": 26,
+            "end": 31
+          }
+        }
+      ],
+      "block_id": {
+        "id": "abc123",
+        "span": {
+          "start": 8,
+          "end": 16
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": [
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 33,
+            "end": 67
+          },
+          "own_span": {
+            "start": 33,
+            "end": 67
+          },
+          "indent_span": {
+            "start": 33,
+            "end": 35
+          },
+          "bullet_span": {
+            "start": 35,
+            "end": 36
+          },
+          "first_line": {
+            "start": 37,
+            "end": 65
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [
+            {
+              "kind": "page",
+              "target": "Link",
+              "span": {
+                "start": 48,
+                "end": 56
+              },
+              "target_span": {
+                "start": 50,
+                "end": 54
+              },
+              "label_span": null
+            },
+            {
+              "kind": "tag",
+              "target": "tag",
+              "span": {
+                "start": 61,
+                "end": 65
+              },
+              "target_span": {
+                "start": 62,
+                "end": 65
+              },
+              "label_span": null
+            }
+          ],
+          "children": []
+        },
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 67,
+            "end": 89
+          },
+          "own_span": {
+            "start": 67,
+            "end": 89
+          },
+          "indent_span": {
+            "start": 67,
+            "end": 69
+          },
+          "bullet_span": {
+            "start": 69,
+            "end": 70
+          },
+          "first_line": {
+            "start": 71,
+            "end": 87
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 89
+}

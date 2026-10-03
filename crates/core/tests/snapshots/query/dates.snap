@@ -1,0 +1,80 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "scheduled",
+        "values": [
+          {
+            "op": "range",
+            "a": {
+              "type": "rel",
+              "value": {
+                "kind": "today"
+              }
+            },
+            "b": {
+              "type": "rel",
+              "value": {
+                "kind": "offset",
+                "n": 7,
+                "unit": "day"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "deadline",
+        "values": [
+          {
+            "op": "none",
+            "a": null,
+            "b": null
+          },
+          {
+            "op": "lt",
+            "a": {
+              "type": "rel",
+              "value": {
+                "kind": "today"
+              }
+            },
+            "b": null
+          }
+        ]
+      }
+    },
+    {
+      "negated": true,
+      "kind": {
+        "kind": "scheduled",
+        "values": [
+          {
+            "op": "eq",
+            "a": {
+              "type": "rel",
+              "value": {
+                "kind": "this_week"
+              }
+            },
+            "b": null
+          }
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

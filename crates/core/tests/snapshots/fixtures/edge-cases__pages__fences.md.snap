@@ -1,0 +1,288 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 97
+      },
+      "own_span": {
+        "start": 0,
+        "end": 97
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 16
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 17,
+        "end": 97
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 97,
+        "end": 145
+      },
+      "own_span": {
+        "start": 97,
+        "end": 145
+      },
+      "indent_span": {
+        "start": 97,
+        "end": 97
+      },
+      "bullet_span": {
+        "start": 97,
+        "end": 98
+      },
+      "first_line": {
+        "start": 99,
+        "end": 110
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 111,
+        "end": 145
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 145,
+        "end": 194
+      },
+      "own_span": {
+        "start": 145,
+        "end": 194
+      },
+      "indent_span": {
+        "start": 145,
+        "end": 145
+      },
+      "bullet_span": {
+        "start": 145,
+        "end": 146
+      },
+      "first_line": {
+        "start": 147,
+        "end": 157
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 158,
+        "end": 194
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 194,
+        "end": 218
+      },
+      "own_span": {
+        "start": 194,
+        "end": 218
+      },
+      "indent_span": {
+        "start": 194,
+        "end": 194
+      },
+      "bullet_span": {
+        "start": 194,
+        "end": 195
+      },
+      "first_line": {
+        "start": 196,
+        "end": 217
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "real",
+          "span": {
+            "start": 209,
+            "end": 217
+          },
+          "target_span": {
+            "start": 211,
+            "end": 215
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 218,
+        "end": 273
+      },
+      "own_span": {
+        "start": 218,
+        "end": 273
+      },
+      "indent_span": {
+        "start": 218,
+        "end": 218
+      },
+      "bullet_span": {
+        "start": 218,
+        "end": 219
+      },
+      "first_line": {
+        "start": 220,
+        "end": 272
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "inline",
+          "span": {
+            "start": 262,
+            "end": 272
+          },
+          "target_span": {
+            "start": 264,
+            "end": 270
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 273,
+        "end": 360
+      },
+      "own_span": {
+        "start": 273,
+        "end": 360
+      },
+      "indent_span": {
+        "start": 273,
+        "end": 273
+      },
+      "bullet_span": {
+        "start": 273,
+        "end": 274
+      },
+      "first_line": {
+        "start": 275,
+        "end": 289
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 290,
+        "end": 360
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 360,
+        "end": 389
+      },
+      "own_span": {
+        "start": 360,
+        "end": 389
+      },
+      "indent_span": {
+        "start": 360,
+        "end": 360
+      },
+      "bullet_span": {
+        "start": 360,
+        "end": 361
+      },
+      "first_line": {
+        "start": 362,
+        "end": 388
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "start": 292,
+        "end": 295
+      },
+      "severity": "warning",
+      "code": "unclosed-fence",
+      "message": "code fence is never closed"
+    }
+  ],
+  "source_len": 389
+}

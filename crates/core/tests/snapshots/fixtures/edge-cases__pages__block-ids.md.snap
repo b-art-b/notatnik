@@ -1,0 +1,272 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 24
+      },
+      "own_span": {
+        "start": 0,
+        "end": 24
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 23
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": {
+        "id": "abc123",
+        "span": {
+          "start": 15,
+          "end": 23
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 24,
+        "end": 71
+      },
+      "own_span": {
+        "start": 24,
+        "end": 71
+      },
+      "indent_span": {
+        "start": 24,
+        "end": 24
+      },
+      "bullet_span": {
+        "start": 24,
+        "end": 25
+      },
+      "first_line": {
+        "start": 26,
+        "end": 70
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 71,
+        "end": 90
+      },
+      "own_span": {
+        "start": 71,
+        "end": 90
+      },
+      "indent_span": {
+        "start": 71,
+        "end": 71
+      },
+      "bullet_span": {
+        "start": 71,
+        "end": 72
+      },
+      "first_line": {
+        "start": 73,
+        "end": 89
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 90,
+        "end": 110
+      },
+      "own_span": {
+        "start": 90,
+        "end": 110
+      },
+      "indent_span": {
+        "start": 90,
+        "end": 90
+      },
+      "bullet_span": {
+        "start": 90,
+        "end": 91
+      },
+      "first_line": {
+        "start": 92,
+        "end": 109
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 110,
+        "end": 145
+      },
+      "own_span": {
+        "start": 110,
+        "end": 145
+      },
+      "indent_span": {
+        "start": 110,
+        "end": 110
+      },
+      "bullet_span": {
+        "start": 110,
+        "end": 111
+      },
+      "first_line": {
+        "start": 112,
+        "end": 144
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": {
+        "id": "def456",
+        "span": {
+          "start": 135,
+          "end": 143
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 145,
+        "end": 155
+      },
+      "own_span": {
+        "start": 145,
+        "end": 155
+      },
+      "indent_span": {
+        "start": 145,
+        "end": 145
+      },
+      "bullet_span": {
+        "start": 145,
+        "end": 146
+      },
+      "first_line": {
+        "start": 147,
+        "end": 154
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": {
+        "id": "ghi789",
+        "span": {
+          "start": 147,
+          "end": 154
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 155,
+        "end": 175
+      },
+      "own_span": {
+        "start": 155,
+        "end": 175
+      },
+      "indent_span": {
+        "start": 155,
+        "end": 155
+      },
+      "bullet_span": {
+        "start": 155,
+        "end": 156
+      },
+      "first_line": {
+        "start": 157,
+        "end": 174
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": {
+        "id": "abc123",
+        "span": {
+          "start": 166,
+          "end": 174
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "start": 166,
+        "end": 174
+      },
+      "severity": "warning",
+      "code": "duplicate-block-id",
+      "message": "block id `abc123` is used more than once"
+    }
+  ],
+  "source_len": 175
+}

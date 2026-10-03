@@ -1,0 +1,1 @@
+- Raw <b>html</b> and <script>alert(1)</script> stay text, [[link]] still works

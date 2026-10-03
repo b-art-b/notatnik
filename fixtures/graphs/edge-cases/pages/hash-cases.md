@@ -1,0 +1,7 @@
+- Url https://example.com/#frag is not a tag
+- Markdown link [text](#anchor) is not a tag
+- Inline code `#notatag` and `[[nolink]]`
+- # Heading-like text
+- a#b has no preceding whitespace
+- Real tags: #tag, (#paren) #tag. #123 #tag_name #tagName #tag-name #zażółć #a/b/ #[[multi word]]
+- Trailing dash #tag- and #-

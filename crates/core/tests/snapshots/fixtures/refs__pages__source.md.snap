@@ -1,0 +1,205 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 35
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [
+      "src",
+      "the source"
+    ],
+    "tags": [],
+    "template": null,
+    "icon": null,
+    "properties": [],
+    "entries": [
+      {
+        "key": "aliases",
+        "raw": "[src, the source]",
+        "value": {
+          "type": "list",
+          "value": [
+            {
+              "type": "text",
+              "value": "src"
+            },
+            {
+              "type": "text",
+              "value": "the source"
+            }
+          ]
+        },
+        "span": {
+          "start": 4,
+          "end": 31
+        },
+        "key_span": {
+          "start": 4,
+          "end": 11
+        },
+        "value_span": {
+          "start": 13,
+          "end": 30
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 36,
+        "end": 119
+      },
+      "own_span": {
+        "start": 36,
+        "end": 67
+      },
+      "indent_span": {
+        "start": 36,
+        "end": 36
+      },
+      "bullet_span": {
+        "start": 36,
+        "end": 37
+      },
+      "first_line": {
+        "start": 38,
+        "end": 66
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": {
+        "id": "aaa111",
+        "span": {
+          "start": 58,
+          "end": 66
+        }
+      },
+      "task": null,
+      "refs": [],
+      "children": [
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 67,
+            "end": 119
+          },
+          "own_span": {
+            "start": 67,
+            "end": 94
+          },
+          "indent_span": {
+            "start": 67,
+            "end": 69
+          },
+          "bullet_span": {
+            "start": 69,
+            "end": 70
+          },
+          "first_line": {
+            "start": 71,
+            "end": 93
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [],
+          "children": [
+            {
+              "kind": "bullet",
+              "level": 2,
+              "span": {
+                "start": 94,
+                "end": 119
+              },
+              "own_span": {
+                "start": 94,
+                "end": 119
+              },
+              "indent_span": {
+                "start": 94,
+                "end": 98
+              },
+              "bullet_span": {
+                "start": 98,
+                "end": 99
+              },
+              "first_line": {
+                "start": 100,
+                "end": 118
+              },
+              "props_span": null,
+              "rest_span": null,
+              "properties": [],
+              "block_id": {
+                "id": "bbb222",
+                "span": {
+                  "start": 110,
+                  "end": 118
+                }
+              },
+              "task": null,
+              "refs": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 119,
+        "end": 135
+      },
+      "own_span": {
+        "start": 119,
+        "end": 135
+      },
+      "indent_span": {
+        "start": 119,
+        "end": 119
+      },
+      "bullet_span": {
+        "start": 119,
+        "end": 120
+      },
+      "first_line": {
+        "start": 121,
+        "end": 134
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 135
+}

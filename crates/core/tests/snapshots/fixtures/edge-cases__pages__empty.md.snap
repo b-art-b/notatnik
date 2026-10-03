@@ -1,0 +1,20 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [],
+  "diagnostics": [],
+  "source_len": 0
+}

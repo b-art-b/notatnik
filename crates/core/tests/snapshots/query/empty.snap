@@ -1,0 +1,13 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

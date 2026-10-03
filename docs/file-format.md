@@ -256,4 +256,53 @@ None. Resolved on 2026-10-03:
 - Weeks start on Monday, configurable (§6).
 - All links are global (§4); tag rules (§4); raw HTML escaped (§4); repeating tasks use `completed::` (§5); `ns:` includes everything below (§6).
 
-Remaining before **v0 frozen**: the edge-case section (phase 1, P1.2) and your review of the whole spec.
+Remaining before **v0 frozen**: your review of the whole spec (the edge-case section, §10, is written).
+
+## 10. Edge cases
+
+The parser never fails: any input gives a page plus diagnostics. Each rule below has a fixture in
+`fixtures/graphs/edge-cases/pages/` and a test in `crates/core/tests/parse_fixtures.rs`.
+
+| Case | Behaviour | Fixture |
+|---|---|---|
+| CRLF | Detected from the first line break; kept on every edit. Spans exclude the `\r\n`. | `crlf.md` |
+| UTF-8 BOM | Skipped when parsing (frontmatter may follow it), kept on edits. | `bom.md` |
+| No trailing newline | Kept: appends add a line break before the new line and none after it; deleting the last block removes the preceding break. | `no-trailing-newline.md` |
+| Empty file | A page with no blocks, no diagnostics. | `empty.md` |
+| Only frontmatter | Frontmatter, no blocks. | `only-frontmatter.md` |
+| Tabs | A tab counts as width 4 (next multiple of 4). Nesting is decided by comparing widths with a stack, so any consistent style works. | `tabs.md`, `four-space.md` |
+| Mixed indentation | Same stack rule: a line is a child of the nearest earlier bullet with a smaller width. | `mixed-indent.md` |
+| Indent jumps | A child indented by 6 under a parent at 0 is simply a child; levels are by tree depth, not by width. | `indent-jump.md` |
+| Nesting deeper than 100 | Deeper bullets become siblings at level 100, with a `too-deep` warning. | (generated in tests) |
+| `*` and `+` bullets | Accepted as bullets; kept as written; new lines use `-`. | `bullets.md` |
+| Numbered lists (`1. x`) | Not blocks: plain continuation text of the block above. | `bullets.md` |
+| Empty bullet `-` | A block with empty text. It may have properties. | `bullets.md` |
+| Code fences (`` ``` `` and `~~~`) | Everything inside is opaque: no bullets, properties, links, tags or task markers. A fence closes on a line with the same character and at least the same length. | `fences.md` |
+| Fence opener inside text on the first line (`` ```x``` ``) | Not a fence (the info string of a backtick fence can't contain backticks). | `fences.md` |
+| Unclosed fence | Ends at the next bullet at the same or a lower indentation than its block, or at the end of the file. `unclosed-fence` warning. | `fences.md` |
+| Invalid YAML frontmatter | The page loads; the frontmatter span is preserved; nothing is extracted from it; `invalid-frontmatter` error pointing at the offending line. Structural edits work; frontmatter edits are refused. | `bad-frontmatter.md` |
+| Frontmatter never closed | Not frontmatter: the `---` is ordinary preamble text. | `unclosed-frontmatter.md` |
+| `---` later in the file | Ordinary text (a horizontal rule). Frontmatter is only recognised at byte 0 (after a BOM). | `hr-later.md` |
+| Text before the first bullet | The preamble block (headings, paragraphs, fences). | `text-between.md` |
+| Non-bullet lines after a bullet (including `# Heading` at column 0) | Lazy continuation: part of the block above. | `text-between.md` |
+| `- ## Heading` | An ordinary block whose text is a heading. | `text-between.md` |
+| Very long lines | No limit; linear time. | (generated in tests) |
+| `[[` without `]]` | Plain text. | `brackets.md` |
+| Nested `[[a [[b]]]]` | No nesting: the inner link `b` wins; the outer brackets are text. | `brackets.md` |
+| Escapes `\[[x]]`, `\#tag` | Not links or tags. A backslash escapes any ASCII punctuation. | `brackets.md` |
+| `[[]]`, `[[./x]]`, `[[../y]]` | Not links: `empty-link` / `relative-link` warnings. | `brackets.md` |
+| `#` in URLs, `[text](#anchor)`, inline code, `a#b`, `# Heading` | Not tags. Markdown link destinations and inline code spans are skipped. | `hash-cases.md` |
+| `#tag.` `(#tag)` `#tag-` | Tag `tag` (trailing punctuation, `-` and `/` are not part of the tag). | `hash-cases.md` |
+| Raw HTML | Plain text; links and tags inside it still work. | `html.md` |
+| `^id` not at the end, wrong length, uppercase | Not an ID. | `block-ids.md` |
+| Duplicate ID in one file | Both parse; a `duplicate-block-id` warning on the second. Cross-file duplicates are handled by the index (§3.4). | `block-ids.md` |
+| `key:: value` after content, in a fence, or after a blank line | Not a property (content). | tests in `parse_features.rs` |
+| `std::fmt` (`::` without a following space) | Not a property. | `props.rs` tests |
+| Invalid `scheduled`/`deadline` date, unknown `repeat`, bad `priority` | Warning diagnostic; the task still parses with that field empty. | `tasks/pages/dates.md`, `repeats.md` |
+
+Parsing details worth knowing:
+
+- Inline code spans are matched per line (a span never crosses a line break).
+- A block's own lines end at its last non-blank line; blank lines between blocks belong to no block.
+- Property keys are `[a-z0-9_-]+`; `Status:: x` is not a property.
+- A block ID may be the whole first line (`- ^abc123`).

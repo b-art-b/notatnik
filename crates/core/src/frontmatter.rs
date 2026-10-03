@@ -1,0 +1,183 @@
+//! YAML frontmatter (file-format.md §3.1).
+
+use yaml_rust2::{Yaml, YamlLoader};
+
+use crate::{
+    Diagnostic, Frontmatter, Property, PropertyValue, Severity, Span,
+    props::{infer_scalar, infer_value},
+};
+
+fn line_end(src: &str, pos: usize) -> (usize, usize) {
+    let rest = src.get(pos..).unwrap_or("");
+    match rest.find('\n') {
+        Some(i) => {
+            let end = pos + i + 1;
+            let ce = if i > 0 && rest.as_bytes().get(i - 1) == Some(&b'\r') {
+                pos + i - 1
+            } else {
+                pos + i
+            };
+            (ce, end)
+        }
+        None => (src.len(), src.len()),
+    }
+}
+
+fn yaml_to_value(y: &Yaml, raw: &str) -> PropertyValue {
+    match y {
+        Yaml::String(s) => infer_scalar(s),
+        Yaml::Integer(i) => PropertyValue::Number(*i as f64),
+        Yaml::Real(r) => r
+            .parse()
+            .map(PropertyValue::Number)
+            .unwrap_or_else(|_| PropertyValue::Text(r.clone())),
+        Yaml::Boolean(b) => PropertyValue::Bool(*b),
+        Yaml::Array(a) => PropertyValue::List(a.iter().map(|i| yaml_to_value(i, "")).collect()),
+        Yaml::Null => PropertyValue::Text(String::new()),
+        _ => infer_value(raw),
+    }
+}
+
+fn as_strings(v: &PropertyValue) -> Vec<String> {
+    match v {
+        PropertyValue::List(items) => items.iter().flat_map(as_strings).collect(),
+        PropertyValue::Text(s) => s
+            .split(',')
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect(),
+        PropertyValue::Links(l) => l.clone(),
+        PropertyValue::Number(n) => vec![n.to_string()],
+        PropertyValue::Bool(b) => vec![b.to_string()],
+        PropertyValue::Date(d) => vec![d.format("%Y-%m-%d").to_string()],
+        PropertyValue::DateTime(d) => vec![d.format("%Y-%m-%d %H:%M").to_string()],
+    }
+}
+
+fn first_string(v: &PropertyValue) -> Option<String> {
+    as_strings(v).into_iter().next()
+}
+
+fn key_of_line(line: &str) -> Option<(&str, usize)> {
+    let first = line.chars().next()?;
+    if first.is_whitespace() || first == '#' || first == '-' {
+        return None;
+    }
+    let colon = line.find(':')?;
+    let key = line.get(..colon)?;
+    let after = line.get(colon + 1..)?;
+    if !(after.is_empty() || after.starts_with([' ', '\t'])) {
+        return None;
+    }
+    if key.is_empty() || key.contains(char::is_whitespace) || key.starts_with(['"', '\'']) {
+        return None;
+    }
+    Some((key, colon))
+}
+
+/// Detects and parses frontmatter at `start` (after an optional BOM).
+/// Returns the frontmatter (if any) and the offset where the body starts.
+pub fn parse(src: &str, start: usize, diags: &mut Vec<Diagnostic>) -> (Option<Frontmatter>, usize) {
+    let (ce, mut pos) = line_end(src, start);
+    if src.get(start..ce).map(str::trim_end) != Some("---")
+        || ce == src.len() && pos == ce && start == ce
+    {
+        return (None, start);
+    }
+    let yaml_start = pos;
+    let mut closing: Option<(usize, usize)> = None;
+    while pos < src.len() {
+        let (lce, lend) = line_end(src, pos);
+        let t = src.get(pos..lce).unwrap_or("").trim_end();
+        if t == "---" || t == "..." {
+            closing = Some((pos, lend));
+            break;
+        }
+        pos = lend;
+    }
+    let Some((yaml_end, fm_end)) = closing else {
+        return (None, start);
+    };
+    let span = Span::new(start, fm_end);
+    let yaml = src.get(yaml_start..yaml_end).unwrap_or("");
+    let mut fm = Frontmatter {
+        span,
+        valid: true,
+        ..Frontmatter::default()
+    };
+    if yaml.trim().is_empty() {
+        return (Some(fm), fm_end);
+    }
+    let doc = match YamlLoader::load_from_str(yaml) {
+        Ok(d) => d,
+        Err(e) => {
+            let line = e.marker().line().saturating_sub(1);
+            let mut off = yaml_start;
+            for (i, l) in yaml.split_inclusive('\n').enumerate() {
+                if i == line {
+                    break;
+                }
+                off += l.len();
+            }
+            let (lce, _) = line_end(src, off.min(yaml_end));
+            diags.push(Diagnostic::new(
+                Span::new(off.min(yaml_end), lce.max(off.min(yaml_end))),
+                Severity::Error,
+                "invalid-frontmatter",
+                format!("invalid YAML in frontmatter: {e}"),
+            ));
+            fm.valid = false;
+            return (Some(fm), fm_end);
+        }
+    };
+    let Some(Yaml::Hash(map)) = doc.first() else {
+        diags.push(Diagnostic::new(
+            span,
+            Severity::Error,
+            "invalid-frontmatter",
+            "frontmatter must be a mapping of keys to values",
+        ));
+        fm.valid = false;
+        return (Some(fm), fm_end);
+    };
+
+    // Top-level key spans by line scanning.
+    let mut keys: Vec<(String, usize, usize, usize)> = Vec::new(); // key, line start, colon abs, value start abs
+    let mut pos = yaml_start;
+    for line in yaml.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\n', '\r']);
+        if let Some((k, colon)) = key_of_line(body) {
+            keys.push((k.to_string(), pos, pos + colon, pos + colon + 1));
+        }
+        pos += line.len();
+    }
+    for (idx, (key, lstart, colon, vstart)) in keys.iter().enumerate() {
+        let end = keys.get(idx + 1).map_or(yaml_end, |n| n.1);
+        let (lce, _) = line_end(src, *lstart);
+        let raw = src.get(*vstart..lce).unwrap_or("").trim().to_string();
+        let value = match map.get(&Yaml::String(key.clone())) {
+            Some(y) => yaml_to_value(y, &raw),
+            None => PropertyValue::Text(raw.clone()),
+        };
+        let ws = src.get(*vstart..lce).unwrap_or("").len()
+            - src.get(*vstart..lce).unwrap_or("").trim_start().len();
+        let prop = Property {
+            key: key.clone(),
+            raw,
+            value: value.clone(),
+            span: Span::new(*lstart, end),
+            key_span: Span::new(*lstart, *colon),
+            value_span: Span::new(*vstart + ws, lce),
+        };
+        match key.as_str() {
+            "title" => fm.title = first_string(&value),
+            "aliases" => fm.aliases = as_strings(&value),
+            "tags" => fm.tags = as_strings(&value),
+            "template" => fm.template = first_string(&value),
+            "icon" => fm.icon = first_string(&value),
+            _ => fm.properties.push(prop.clone()),
+        }
+        fm.entries.push(prop);
+    }
+    (Some(fm), fm_end)
+}

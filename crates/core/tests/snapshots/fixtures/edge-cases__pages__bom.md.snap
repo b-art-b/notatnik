@@ -1,0 +1,118 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": true,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 3,
+      "end": 27
+    },
+    "valid": true,
+    "title": "With BOM",
+    "aliases": [],
+    "tags": [],
+    "template": null,
+    "icon": null,
+    "properties": [],
+    "entries": [
+      {
+        "key": "title",
+        "raw": "With BOM",
+        "value": {
+          "type": "text",
+          "value": "With BOM"
+        },
+        "span": {
+          "start": 7,
+          "end": 23
+        },
+        "key_span": {
+          "start": 7,
+          "end": 12
+        },
+        "value_span": {
+          "start": 14,
+          "end": 22
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 28,
+        "end": 52
+      },
+      "own_span": {
+        "start": 28,
+        "end": 42
+      },
+      "indent_span": {
+        "start": 28,
+        "end": 28
+      },
+      "bullet_span": {
+        "start": 28,
+        "end": 29
+      },
+      "first_line": {
+        "start": 30,
+        "end": 41
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": [
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 42,
+            "end": 52
+          },
+          "own_span": {
+            "start": 42,
+            "end": 52
+          },
+          "indent_span": {
+            "start": 42,
+            "end": 44
+          },
+          "bullet_span": {
+            "start": 44,
+            "end": 45
+          },
+          "first_line": {
+            "start": 46,
+            "end": 51
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 52
+}

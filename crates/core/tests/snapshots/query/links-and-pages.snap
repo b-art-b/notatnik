@@ -1,0 +1,42 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "links",
+        "values": [
+          "people/anna",
+          "a, b"
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "page",
+        "values": [
+          "work/projects"
+        ]
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "ns",
+        "values": [
+          "work"
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

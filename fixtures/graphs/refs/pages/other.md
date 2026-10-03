@@ -1,0 +1,3 @@
+- Parent block
+  - Child linking to [[source]] ^ccc333
+- Labelled link [[source|my label]]

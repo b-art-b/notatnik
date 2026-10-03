@@ -1,0 +1,150 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 65
+      },
+      "own_span": {
+        "start": 0,
+        "end": 23
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 22
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": [
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 23,
+            "end": 65
+          },
+          "own_span": {
+            "start": 23,
+            "end": 65
+          },
+          "indent_span": {
+            "start": 23,
+            "end": 25
+          },
+          "bullet_span": {
+            "start": 25,
+            "end": 26
+          },
+          "first_line": {
+            "start": 27,
+            "end": 64
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 65,
+        "end": 119
+      },
+      "own_span": {
+        "start": 65,
+        "end": 119
+      },
+      "indent_span": {
+        "start": 65,
+        "end": 65
+      },
+      "bullet_span": {
+        "start": 65,
+        "end": 66
+      },
+      "first_line": {
+        "start": 67,
+        "end": 92
+      },
+      "props_span": {
+        "start": 93,
+        "end": 119
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "done",
+          "raw": "2026-10-02T18:20",
+          "value": {
+            "type": "date_time",
+            "value": "2026-10-02T18:20:00"
+          },
+          "span": {
+            "start": 93,
+            "end": 119
+          },
+          "key_span": {
+            "start": 95,
+            "end": 99
+          },
+          "value_span": {
+            "start": 102,
+            "end": 118
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "DONE",
+        "marker_span": {
+          "start": 67,
+          "end": 71
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": "2026-10-02T18:20:00"
+      },
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 119
+}

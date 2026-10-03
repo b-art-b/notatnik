@@ -1,0 +1,3 @@
+- Żółw i zając: a Polish fable about a tortoise
+- Łódź is a city #places
+- Notatki o projekcie i o zażółć

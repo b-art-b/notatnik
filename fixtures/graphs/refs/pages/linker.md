@@ -1,0 +1,6 @@
+- Reference to ((aaa111)) inline
+- Embed: !((bbb222))
+- Page embed: ![[source]]
+- Via alias: [[src]] and [[The Source]]
+- Tag to the page: #source
+- Dangling reference ((zzz999))

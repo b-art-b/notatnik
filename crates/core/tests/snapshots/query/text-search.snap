@@ -1,0 +1,24 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "text",
+        "values": [
+          "żółw",
+          "rust language"
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

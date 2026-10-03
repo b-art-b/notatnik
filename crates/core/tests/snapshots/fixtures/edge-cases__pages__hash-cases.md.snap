@@ -1,0 +1,383 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 45
+      },
+      "own_span": {
+        "start": 0,
+        "end": 45
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 44
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 45,
+        "end": 90
+      },
+      "own_span": {
+        "start": 45,
+        "end": 90
+      },
+      "indent_span": {
+        "start": 45,
+        "end": 45
+      },
+      "bullet_span": {
+        "start": 45,
+        "end": 46
+      },
+      "first_line": {
+        "start": 47,
+        "end": 89
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 90,
+        "end": 132
+      },
+      "own_span": {
+        "start": 90,
+        "end": 132
+      },
+      "indent_span": {
+        "start": 90,
+        "end": 90
+      },
+      "bullet_span": {
+        "start": 90,
+        "end": 91
+      },
+      "first_line": {
+        "start": 92,
+        "end": 131
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 132,
+        "end": 154
+      },
+      "own_span": {
+        "start": 132,
+        "end": 154
+      },
+      "indent_span": {
+        "start": 132,
+        "end": 132
+      },
+      "bullet_span": {
+        "start": 132,
+        "end": 133
+      },
+      "first_line": {
+        "start": 134,
+        "end": 153
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 154,
+        "end": 188
+      },
+      "own_span": {
+        "start": 154,
+        "end": 188
+      },
+      "indent_span": {
+        "start": 154,
+        "end": 154
+      },
+      "bullet_span": {
+        "start": 154,
+        "end": 155
+      },
+      "first_line": {
+        "start": 156,
+        "end": 187
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 188,
+        "end": 290
+      },
+      "own_span": {
+        "start": 188,
+        "end": 290
+      },
+      "indent_span": {
+        "start": 188,
+        "end": 188
+      },
+      "bullet_span": {
+        "start": 188,
+        "end": 189
+      },
+      "first_line": {
+        "start": 190,
+        "end": 289
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "tag",
+          "span": {
+            "start": 201,
+            "end": 205
+          },
+          "target_span": {
+            "start": 202,
+            "end": 205
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "paren",
+          "span": {
+            "start": 208,
+            "end": 214
+          },
+          "target_span": {
+            "start": 209,
+            "end": 214
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "tag",
+          "span": {
+            "start": 216,
+            "end": 220
+          },
+          "target_span": {
+            "start": 217,
+            "end": 220
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "123",
+          "span": {
+            "start": 222,
+            "end": 226
+          },
+          "target_span": {
+            "start": 223,
+            "end": 226
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "tag_name",
+          "span": {
+            "start": 227,
+            "end": 236
+          },
+          "target_span": {
+            "start": 228,
+            "end": 236
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "tagName",
+          "span": {
+            "start": 237,
+            "end": 245
+          },
+          "target_span": {
+            "start": 238,
+            "end": 245
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "tag-name",
+          "span": {
+            "start": 246,
+            "end": 255
+          },
+          "target_span": {
+            "start": 247,
+            "end": 255
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "zażółć",
+          "span": {
+            "start": 256,
+            "end": 267
+          },
+          "target_span": {
+            "start": 257,
+            "end": 267
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "a/b",
+          "span": {
+            "start": 268,
+            "end": 272
+          },
+          "target_span": {
+            "start": 269,
+            "end": 272
+          },
+          "label_span": null
+        },
+        {
+          "kind": "tag",
+          "target": "multi word",
+          "span": {
+            "start": 274,
+            "end": 289
+          },
+          "target_span": {
+            "start": 277,
+            "end": 287
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 290,
+        "end": 319
+      },
+      "own_span": {
+        "start": 290,
+        "end": 319
+      },
+      "indent_span": {
+        "start": 290,
+        "end": 290
+      },
+      "bullet_span": {
+        "start": 290,
+        "end": 291
+      },
+      "first_line": {
+        "start": 292,
+        "end": 318
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "tag",
+          "span": {
+            "start": 306,
+            "end": 310
+          },
+          "target_span": {
+            "start": 307,
+            "end": 310
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 319
+}

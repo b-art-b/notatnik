@@ -1,0 +1,2 @@
+- No trailing newline
+  - Last child

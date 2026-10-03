@@ -1,0 +1,113 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "status",
+          "conds": [
+            {
+              "op": "eq",
+              "value": {
+                "type": "text",
+                "value": "active"
+              }
+            },
+            {
+              "op": "eq",
+              "value": {
+                "type": "text",
+                "value": "paused"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "rating",
+          "conds": [
+            {
+              "op": "ge",
+              "value": {
+                "type": "number",
+                "value": 4.0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "completed",
+          "conds": [
+            {
+              "op": "contains",
+              "value": {
+                "type": "date",
+                "value": {
+                  "type": "abs",
+                  "value": "2026-10-03"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "negated": false,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "owner",
+          "conds": [
+            {
+              "op": "eq",
+              "value": {
+                "type": "link",
+                "value": "people/anna"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "negated": true,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "draft",
+          "conds": [
+            {
+              "op": "eq",
+              "value": {
+                "type": "any"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

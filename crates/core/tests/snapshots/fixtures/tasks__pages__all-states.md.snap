@@ -1,0 +1,359 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 18
+      },
+      "own_span": {
+        "start": 0,
+        "end": 18
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 17
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 2,
+          "end": 6
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 18,
+        "end": 38
+      },
+      "own_span": {
+        "start": 18,
+        "end": 38
+      },
+      "indent_span": {
+        "start": 18,
+        "end": 18
+      },
+      "bullet_span": {
+        "start": 18,
+        "end": 19
+      },
+      "first_line": {
+        "start": 20,
+        "end": 37
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "DOING",
+        "marker_span": {
+          "start": 20,
+          "end": 25
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 38,
+        "end": 68
+      },
+      "own_span": {
+        "start": 38,
+        "end": 68
+      },
+      "indent_span": {
+        "start": 38,
+        "end": 38
+      },
+      "bullet_span": {
+        "start": 38,
+        "end": 39
+      },
+      "first_line": {
+        "start": 40,
+        "end": 67
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "WAITING",
+        "marker_span": {
+          "start": 40,
+          "end": 47
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 68,
+        "end": 110
+      },
+      "own_span": {
+        "start": 68,
+        "end": 110
+      },
+      "indent_span": {
+        "start": 68,
+        "end": 68
+      },
+      "bullet_span": {
+        "start": 68,
+        "end": 69
+      },
+      "first_line": {
+        "start": 70,
+        "end": 83
+      },
+      "props_span": {
+        "start": 84,
+        "end": 110
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "done",
+          "raw": "2026-10-01T09:00",
+          "value": {
+            "type": "date_time",
+            "value": "2026-10-01T09:00:00"
+          },
+          "span": {
+            "start": 84,
+            "end": 110
+          },
+          "key_span": {
+            "start": 86,
+            "end": 90
+          },
+          "value_span": {
+            "start": 93,
+            "end": 109
+          }
+        }
+      ],
+      "block_id": null,
+      "task": {
+        "state": "DONE",
+        "marker_span": {
+          "start": 70,
+          "end": 74
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": "2026-10-01T09:00:00"
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 110,
+        "end": 129
+      },
+      "own_span": {
+        "start": 110,
+        "end": 129
+      },
+      "indent_span": {
+        "start": 110,
+        "end": 110
+      },
+      "bullet_span": {
+        "start": 110,
+        "end": 111
+      },
+      "first_line": {
+        "start": 112,
+        "end": 128
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "CANCELED",
+        "marker_span": {
+          "start": 112,
+          "end": 120
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 129,
+        "end": 160
+      },
+      "own_span": {
+        "start": 129,
+        "end": 160
+      },
+      "indent_span": {
+        "start": 129,
+        "end": 129
+      },
+      "bullet_span": {
+        "start": 129,
+        "end": 130
+      },
+      "first_line": {
+        "start": 131,
+        "end": 159
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 160,
+        "end": 179
+      },
+      "own_span": {
+        "start": 160,
+        "end": 179
+      },
+      "indent_span": {
+        "start": 160,
+        "end": 160
+      },
+      "bullet_span": {
+        "start": 160,
+        "end": 161
+      },
+      "first_line": {
+        "start": 162,
+        "end": 178
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 179,
+        "end": 186
+      },
+      "own_span": {
+        "start": 179,
+        "end": 186
+      },
+      "indent_span": {
+        "start": 179,
+        "end": 179
+      },
+      "bullet_span": {
+        "start": 179,
+        "end": 180
+      },
+      "first_line": {
+        "start": 181,
+        "end": 185
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 181,
+          "end": 185
+        },
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 186
+}

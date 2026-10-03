@@ -1,0 +1,304 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 33
+      },
+      "own_span": {
+        "start": 0,
+        "end": 33
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 32
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "block",
+          "target": "aaa111",
+          "span": {
+            "start": 15,
+            "end": 25
+          },
+          "target_span": {
+            "start": 17,
+            "end": 23
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 33,
+        "end": 54
+      },
+      "own_span": {
+        "start": 33,
+        "end": 54
+      },
+      "indent_span": {
+        "start": 33,
+        "end": 33
+      },
+      "bullet_span": {
+        "start": 33,
+        "end": 34
+      },
+      "first_line": {
+        "start": 35,
+        "end": 53
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "block_embed",
+          "target": "bbb222",
+          "span": {
+            "start": 42,
+            "end": 53
+          },
+          "target_span": {
+            "start": 45,
+            "end": 51
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 54,
+        "end": 80
+      },
+      "own_span": {
+        "start": 54,
+        "end": 80
+      },
+      "indent_span": {
+        "start": 54,
+        "end": 54
+      },
+      "bullet_span": {
+        "start": 54,
+        "end": 55
+      },
+      "first_line": {
+        "start": 56,
+        "end": 79
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page_embed",
+          "target": "source",
+          "span": {
+            "start": 68,
+            "end": 79
+          },
+          "target_span": {
+            "start": 71,
+            "end": 77
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 80,
+        "end": 120
+      },
+      "own_span": {
+        "start": 80,
+        "end": 120
+      },
+      "indent_span": {
+        "start": 80,
+        "end": 80
+      },
+      "bullet_span": {
+        "start": 80,
+        "end": 81
+      },
+      "first_line": {
+        "start": 82,
+        "end": 119
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "src",
+          "span": {
+            "start": 93,
+            "end": 100
+          },
+          "target_span": {
+            "start": 95,
+            "end": 98
+          },
+          "label_span": null
+        },
+        {
+          "kind": "page",
+          "target": "The Source",
+          "span": {
+            "start": 105,
+            "end": 119
+          },
+          "target_span": {
+            "start": 107,
+            "end": 117
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 120,
+        "end": 147
+      },
+      "own_span": {
+        "start": 120,
+        "end": 147
+      },
+      "indent_span": {
+        "start": 120,
+        "end": 120
+      },
+      "bullet_span": {
+        "start": 120,
+        "end": 121
+      },
+      "first_line": {
+        "start": 122,
+        "end": 146
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "tag",
+          "target": "source",
+          "span": {
+            "start": 139,
+            "end": 146
+          },
+          "target_span": {
+            "start": 140,
+            "end": 146
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 147,
+        "end": 179
+      },
+      "own_span": {
+        "start": 147,
+        "end": 179
+      },
+      "indent_span": {
+        "start": 147,
+        "end": 147
+      },
+      "bullet_span": {
+        "start": 147,
+        "end": 148
+      },
+      "first_line": {
+        "start": 149,
+        "end": 178
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "block",
+          "target": "zzz999",
+          "span": {
+            "start": 168,
+            "end": 178
+          },
+          "target_span": {
+            "start": 170,
+            "end": 176
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 179
+}

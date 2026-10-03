@@ -1,0 +1,85 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": {
+    "kind": "preamble",
+    "level": 0,
+    "span": {
+      "start": 0,
+      "end": 24
+    },
+    "own_span": {
+      "start": 0,
+      "end": 24
+    },
+    "indent_span": {
+      "start": 0,
+      "end": 0
+    },
+    "bullet_span": {
+      "start": 0,
+      "end": 0
+    },
+    "first_line": {
+      "start": 0,
+      "end": 3
+    },
+    "props_span": null,
+    "rest_span": {
+      "start": 4,
+      "end": 24
+    },
+    "properties": [],
+    "block_id": null,
+    "task": null,
+    "refs": [],
+    "children": []
+  },
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 25,
+        "end": 33
+      },
+      "own_span": {
+        "start": 25,
+        "end": 33
+      },
+      "indent_span": {
+        "start": 25,
+        "end": 25
+      },
+      "bullet_span": {
+        "start": 25,
+        "end": 26
+      },
+      "first_line": {
+        "start": 27,
+        "end": 32
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 33
+}

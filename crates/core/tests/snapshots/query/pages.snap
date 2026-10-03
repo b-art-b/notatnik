@@ -1,0 +1,50 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "prop",
+        "values": {
+          "key": "type",
+          "conds": [
+            {
+              "op": "eq",
+              "value": {
+                "type": "text",
+                "value": "book"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "target": "page",
+  "sort": [
+    {
+      "field": {
+        "field": "prop",
+        "key": "rating"
+      },
+      "desc": true
+    },
+    {
+      "field": {
+        "field": "page"
+      },
+      "desc": false
+    }
+  ],
+  "limit": 20,
+  "group": null,
+  "view": null,
+  "columns": [
+    "page",
+    "prop.rating",
+    "prop.author"
+  ]
+}

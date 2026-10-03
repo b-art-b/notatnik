@@ -1,0 +1,136 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": {
+    "kind": "preamble",
+    "level": 0,
+    "span": {
+      "start": 0,
+      "end": 80
+    },
+    "own_span": {
+      "start": 0,
+      "end": 80
+    },
+    "indent_span": {
+      "start": 0,
+      "end": 0
+    },
+    "bullet_span": {
+      "start": 0,
+      "end": 0
+    },
+    "first_line": {
+      "start": 0,
+      "end": 29
+    },
+    "props_span": null,
+    "rest_span": {
+      "start": 31,
+      "end": 80
+    },
+    "properties": [],
+    "block_id": null,
+    "task": null,
+    "refs": [
+      {
+        "kind": "page",
+        "target": "a link",
+        "span": {
+          "start": 68,
+          "end": 78
+        },
+        "target_span": {
+          "start": 70,
+          "end": 76
+        },
+        "label_span": null
+      }
+    ],
+    "children": []
+  },
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 81,
+        "end": 156
+      },
+      "own_span": {
+        "start": 81,
+        "end": 156
+      },
+      "indent_span": {
+        "start": 81,
+        "end": 81
+      },
+      "bullet_span": {
+        "start": 81,
+        "end": 82
+      },
+      "first_line": {
+        "start": 83,
+        "end": 94
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 95,
+        "end": 156
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 156,
+        "end": 196
+      },
+      "own_span": {
+        "start": 156,
+        "end": 196
+      },
+      "indent_span": {
+        "start": 156,
+        "end": 156
+      },
+      "bullet_span": {
+        "start": 156,
+        "end": 157
+      },
+      "first_line": {
+        "start": 158,
+        "end": 183
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 184,
+        "end": 196
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 196
+}

@@ -1,0 +1,293 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 18
+      },
+      "own_span": {
+        "start": 0,
+        "end": 18
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 17
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 18,
+        "end": 48
+      },
+      "own_span": {
+        "start": 18,
+        "end": 48
+      },
+      "indent_span": {
+        "start": 18,
+        "end": 18
+      },
+      "bullet_span": {
+        "start": 18,
+        "end": 19
+      },
+      "first_line": {
+        "start": 20,
+        "end": 47
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "b",
+          "span": {
+            "start": 31,
+            "end": 36
+          },
+          "target_span": {
+            "start": 33,
+            "end": 34
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 48,
+        "end": 88
+      },
+      "own_span": {
+        "start": 48,
+        "end": 88
+      },
+      "indent_span": {
+        "start": 48,
+        "end": 48
+      },
+      "bullet_span": {
+        "start": 48,
+        "end": 49
+      },
+      "first_line": {
+        "start": 50,
+        "end": 87
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 88,
+        "end": 135
+      },
+      "own_span": {
+        "start": 88,
+        "end": 135
+      },
+      "indent_span": {
+        "start": 88,
+        "end": 88
+      },
+      "bullet_span": {
+        "start": 88,
+        "end": 89
+      },
+      "first_line": {
+        "start": 90,
+        "end": 134
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 135,
+        "end": 163
+      },
+      "own_span": {
+        "start": 135,
+        "end": 163
+      },
+      "indent_span": {
+        "start": 135,
+        "end": 135
+      },
+      "bullet_span": {
+        "start": 135,
+        "end": 136
+      },
+      "first_line": {
+        "start": 137,
+        "end": 162
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "work/alpha",
+          "span": {
+            "start": 144,
+            "end": 162
+          },
+          "target_span": {
+            "start": 146,
+            "end": 160
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 163,
+        "end": 211
+      },
+      "own_span": {
+        "start": 163,
+        "end": 211
+      },
+      "indent_span": {
+        "start": 163,
+        "end": 163
+      },
+      "bullet_span": {
+        "start": 163,
+        "end": 164
+      },
+      "first_line": {
+        "start": 165,
+        "end": 210
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "page",
+          "span": {
+            "start": 171,
+            "end": 190
+          },
+          "target_span": {
+            "start": 173,
+            "end": 177
+          },
+          "label_span": {
+            "start": 178,
+            "end": 188
+          }
+        },
+        {
+          "kind": "page_embed",
+          "target": "page",
+          "span": {
+            "start": 201,
+            "end": 210
+          },
+          "target_span": {
+            "start": 204,
+            "end": 208
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    }
+  ],
+  "diagnostics": [
+    {
+      "span": {
+        "start": 96,
+        "end": 100
+      },
+      "severity": "warning",
+      "code": "empty-link",
+      "message": "empty page name"
+    },
+    {
+      "span": {
+        "start": 114,
+        "end": 121
+      },
+      "severity": "warning",
+      "code": "relative-link",
+      "message": "relative links are not supported; use the full page name"
+    },
+    {
+      "span": {
+        "start": 126,
+        "end": 134
+      },
+      "severity": "warning",
+      "code": "relative-link",
+      "message": "relative links are not supported; use the full page name"
+    }
+  ],
+  "source_len": 211
+}

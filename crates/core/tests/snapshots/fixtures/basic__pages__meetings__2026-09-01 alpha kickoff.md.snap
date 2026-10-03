@@ -1,0 +1,195 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": null,
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 0,
+        "end": 29
+      },
+      "own_span": {
+        "start": 0,
+        "end": 29
+      },
+      "indent_span": {
+        "start": 0,
+        "end": 0
+      },
+      "bullet_span": {
+        "start": 0,
+        "end": 1
+      },
+      "first_line": {
+        "start": 2,
+        "end": 28
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [
+        {
+          "kind": "page",
+          "target": "people/anna",
+          "span": {
+            "start": 13,
+            "end": 28
+          },
+          "target_span": {
+            "start": 15,
+            "end": 26
+          },
+          "label_span": null
+        }
+      ],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 29,
+        "end": 150
+      },
+      "own_span": {
+        "start": 29,
+        "end": 41
+      },
+      "indent_span": {
+        "start": 29,
+        "end": 29
+      },
+      "bullet_span": {
+        "start": 29,
+        "end": 30
+      },
+      "first_line": {
+        "start": 31,
+        "end": 40
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": [
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 41,
+            "end": 87
+          },
+          "own_span": {
+            "start": 41,
+            "end": 87
+          },
+          "indent_span": {
+            "start": 41,
+            "end": 43
+          },
+          "bullet_span": {
+            "start": 43,
+            "end": 44
+          },
+          "first_line": {
+            "start": 45,
+            "end": 86
+          },
+          "props_span": null,
+          "rest_span": null,
+          "properties": [],
+          "block_id": null,
+          "task": null,
+          "refs": [],
+          "children": []
+        },
+        {
+          "kind": "bullet",
+          "level": 1,
+          "span": {
+            "start": 87,
+            "end": 150
+          },
+          "own_span": {
+            "start": 87,
+            "end": 150
+          },
+          "indent_span": {
+            "start": 87,
+            "end": 89
+          },
+          "bullet_span": {
+            "start": 89,
+            "end": 90
+          },
+          "first_line": {
+            "start": 91,
+            "end": 122
+          },
+          "props_span": {
+            "start": 123,
+            "end": 150
+          },
+          "rest_span": null,
+          "properties": [
+            {
+              "key": "scheduled",
+              "raw": "2026-09-02",
+              "value": {
+                "type": "date",
+                "value": "2026-09-02"
+              },
+              "span": {
+                "start": 123,
+                "end": 150
+              },
+              "key_span": {
+                "start": 127,
+                "end": 136
+              },
+              "value_span": {
+                "start": 139,
+                "end": 149
+              }
+            }
+          ],
+          "block_id": null,
+          "task": {
+            "state": "TODO",
+            "marker_span": {
+              "start": 91,
+              "end": 95
+            },
+            "scheduled": "2026-09-02",
+            "deadline": null,
+            "priority": null,
+            "repeat": null,
+            "done": null
+          },
+          "refs": [],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 150
+}

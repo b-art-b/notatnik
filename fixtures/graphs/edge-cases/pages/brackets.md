@@ -1,0 +1,6 @@
+- Unclosed [[link
+- Nested [[a [[b]]]] brackets
+- Escaped \[[not a link]] and \#notatag
+- Empty [[]] and relative [[./x]] and [[../y]]
+- Spaces [[ work / alpha ]]
+- Label [[page|shown text]] and embed ![[page]]

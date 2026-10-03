@@ -1,0 +1,28 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "task",
+        "values": [
+          {
+            "state": "TODO"
+          },
+          {
+            "state": "DOING"
+          }
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": null,
+  "group": null,
+  "view": null,
+  "columns": []
+}

@@ -1,0 +1,148 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 23
+    },
+    "valid": true,
+    "title": null,
+    "aliases": [],
+    "tags": [
+      "person"
+    ],
+    "template": null,
+    "icon": null,
+    "properties": [],
+    "entries": [
+      {
+        "key": "tags",
+        "raw": "[person]",
+        "value": {
+          "type": "list",
+          "value": [
+            {
+              "type": "text",
+              "value": "person"
+            }
+          ]
+        },
+        "span": {
+          "start": 4,
+          "end": 19
+        },
+        "key_span": {
+          "start": 4,
+          "end": 8
+        },
+        "value_span": {
+          "start": 10,
+          "end": 18
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 24,
+        "end": 81
+      },
+      "own_span": {
+        "start": 24,
+        "end": 81
+      },
+      "indent_span": {
+        "start": 24,
+        "end": 24
+      },
+      "bullet_span": {
+        "start": 24,
+        "end": 25
+      },
+      "first_line": {
+        "start": 26,
+        "end": 53
+      },
+      "props_span": {
+        "start": 54,
+        "end": 81
+      },
+      "rest_span": null,
+      "properties": [
+        {
+          "key": "email",
+          "raw": "anna@example.com",
+          "value": {
+            "type": "text",
+            "value": "anna@example.com"
+          },
+          "span": {
+            "start": 54,
+            "end": 81
+          },
+          "key_span": {
+            "start": 56,
+            "end": 61
+          },
+          "value_span": {
+            "start": 64,
+            "end": 80
+          }
+        }
+      ],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 81,
+        "end": 115
+      },
+      "own_span": {
+        "start": 81,
+        "end": 115
+      },
+      "indent_span": {
+        "start": 81,
+        "end": 81
+      },
+      "bullet_span": {
+        "start": 81,
+        "end": 82
+      },
+      "first_line": {
+        "start": 83,
+        "end": 114
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 115
+}

@@ -1,0 +1,81 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": true
+  },
+  "frontmatter": {
+    "span": {
+      "start": 0,
+      "end": 42
+    },
+    "valid": true,
+    "title": "Only frontmatter",
+    "aliases": [],
+    "tags": [
+      "a"
+    ],
+    "template": null,
+    "icon": null,
+    "properties": [],
+    "entries": [
+      {
+        "key": "title",
+        "raw": "Only frontmatter",
+        "value": {
+          "type": "text",
+          "value": "Only frontmatter"
+        },
+        "span": {
+          "start": 4,
+          "end": 28
+        },
+        "key_span": {
+          "start": 4,
+          "end": 9
+        },
+        "value_span": {
+          "start": 11,
+          "end": 27
+        }
+      },
+      {
+        "key": "tags",
+        "raw": "[a]",
+        "value": {
+          "type": "list",
+          "value": [
+            {
+              "type": "text",
+              "value": "a"
+            }
+          ]
+        },
+        "span": {
+          "start": 28,
+          "end": 38
+        },
+        "key_span": {
+          "start": 28,
+          "end": 32
+        },
+        "value_span": {
+          "start": 34,
+          "end": 37
+        }
+      }
+    ]
+  },
+  "preamble": null,
+  "blocks": [],
+  "diagnostics": [],
+  "source_len": 42
+}

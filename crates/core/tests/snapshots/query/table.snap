@@ -1,0 +1,26 @@
+---
+source: crates/core/tests/query_parse.rs
+expression: q
+---
+{
+  "filters": [
+    {
+      "negated": false,
+      "kind": {
+        "kind": "tag",
+        "values": [
+          "book"
+        ]
+      }
+    }
+  ],
+  "target": "block",
+  "sort": [],
+  "limit": 100,
+  "group": {
+    "by": "prop",
+    "key": "status"
+  },
+  "view": "table",
+  "columns": []
+}
