@@ -1,0 +1,9 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+inbox#0.1: TODO Renew passport
+2026-10-01#1: TODO Review the roadmap
+2026-10-03#0.0: TODO Water the plants
+meetings/2026-09-01 alpha kickoff#1.1: TODO Send the notes to everyone
+work/projects/alpha#1: TODO Write the spec

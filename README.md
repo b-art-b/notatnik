@@ -18,6 +18,9 @@ A local-first, block-based outliner for personal knowledge management, inspired 
 | [docs/architecture.md](docs/architecture.md) | Tech stack, components, data flow, key design decisions |
 | [docs/file-format.md](docs/file-format.md) | On-disk graph layout and Markdown dialect (draft spec) |
 | [docs/testing.md](docs/testing.md) | Testing strategy: test levels, fixtures, mock backend, check script |
+| [docs/benchmarks.md](docs/benchmarks.md) | Measured performance and WASM size |
+| [docs/nextcloud.md](docs/nextcloud.md) | Using a graph in a Nextcloud folder (what syncs, the temp-folder exclude) |
+| [docs/spikes/](docs/spikes/) | Findings of the risk spikes |
 | [docs/TODO.md](docs/TODO.md) | Roadmap: phase overview and status |
 | [docs/phases/](docs/phases/) | One document per phase: tasks, verification steps, exit criteria |
 

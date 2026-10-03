@@ -1,0 +1,6 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+2026-10-03#0.1: Long walk #health
+inbox#0.0: Call the dentist #health

@@ -514,3 +514,15 @@ impl Index {
         Ok(rows)
     }
 }
+
+impl Index {
+    /// The content hash (blake3 hex) stored for a file, if it is indexed.
+    pub fn file_hash(&self, rel: &str) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row("SELECT hash FROM files WHERE path = ?1", [rel], |r| {
+                r.get(0)
+            })
+            .optional()?)
+    }
+}

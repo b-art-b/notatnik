@@ -8,8 +8,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done
 
 | Phase | Document | Goal | Status |
 |---|---|---|---|
-| 0 | [Environment, setup, risk spikes](phases/phase-0.md) | Toolchain, buildable empty workspace, check script; spikes on WebKitGTK performance, parser choice, CalDAV | 🟨 |
-| 1 | [Core without UI](phases/phase-1.md) | File format frozen; parser, edit ops, query language, SQLite index, graph service (atomic writes, watcher), CLI, benchmarks | ⬜ |
+| 0 | [Environment, setup, risk spikes](phases/phase-0.md) | Toolchain, buildable empty workspace, check script; spikes on WebKitGTK performance, parser choice, CalDAV | 🟨 (S2 done; S1, S3 and editor setup need you) |
+| 1 | [Core without UI](phases/phase-1.md) | File format frozen; parser, edit ops, query language, SQLite index, graph service (atomic writes, watcher), CLI, benchmarks | 🟨 (all tasks done and verified; waiting for your spec review and manual acceptance) |
 | 2 | [Desktop app MVP](phases/phase-2.md) | Tauri + Svelte outliner: editing, keyboard model, undo, links, backlinks, namespaces, journals, search, packaging | ⬜ |
 | 3 | [Tasks, queries, views](phases/phase-3.md) | Task states and dates, agenda, live query blocks, list/table/kanban/timeline views, repeating tasks | ⬜ |
 | 4 | [Calendar (CalDAV)](phases/phase-4.md) | Two-way task sync and event display with Nextcloud, safe conflict/deletion handling | ⬜ |

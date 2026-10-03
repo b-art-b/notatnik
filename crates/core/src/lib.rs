@@ -5,6 +5,7 @@
 //! unit-tested in isolation and compiled to `wasm32-unknown-unknown` for the UI.
 //! See `docs/architecture.md` §2.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
+#![deny(missing_docs)]
 
 pub mod edit;
 pub mod frontmatter;
@@ -22,6 +23,7 @@ pub mod task;
 
 pub use edit::{
     BlockOp, BlockRef, EditError, EditResult, TextPatch, apply, apply_patches, invert_patches,
+    replace_block_id,
 };
 pub use identity::{BlockIdentity, Tracked};
 pub use model::*;

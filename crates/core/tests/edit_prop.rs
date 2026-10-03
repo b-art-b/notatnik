@@ -111,6 +111,16 @@ fn all_paths(nodes: &[Node]) -> Vec<Vec<usize>> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
+    fn canonical_serialisation_parses_back_to_the_same_tree(tree in tree_strategy()) {
+        let mut src = String::new();
+        serialize(&tree, 0, &mut src);
+        let page = parse_page(&src);
+        prop_assert!(page.diagnostics.is_empty());
+        prop_assert_eq!(from_page(&page.blocks, &src), flatten(&tree));
+        prop_assert_eq!(page.rebuild(&src), src);
+    }
+
+    #[test]
     fn ops_match_reference(tree in tree_strategy(), steps in prop::collection::vec((0u8..6, any::<usize>(), any::<usize>()), 20)) {
         let mut model = tree;
         let mut next_id = 10_000;
@@ -203,4 +213,41 @@ proptest! {
             src = result.new_source;
         }
     }
+}
+
+#[test]
+fn stale_ops_are_rejected_and_leave_the_source_alone() {
+    use notatnik_core::EditError;
+    let src = "- alpha\n- beta\n";
+    let page = parse_page(src);
+    let hash = page.blocks[0].content_hash(src);
+    // the block is edited behind the caller's back
+    let edited = "- alpha changed\n- beta\n";
+    let edited_page = parse_page(edited);
+    let op = BlockOp::Delete {
+        block: BlockRef {
+            path: vec![0],
+            hash: Some(hash.clone()),
+        },
+    };
+    assert_eq!(apply(edited, &edited_page, &op), Err(EditError::Stale));
+    // with the matching hash it applies
+    assert!(apply(src, &page, &op).is_ok());
+    // a hash of another block also rejects (wrong block at that path)
+    let wrong = BlockOp::UpdateText {
+        block: BlockRef {
+            path: vec![1],
+            hash: Some(hash),
+        },
+        text: "x".into(),
+    };
+    assert_eq!(apply(src, &page, &wrong), Err(EditError::Stale));
+    // an unknown path is an error, not a panic
+    let missing = BlockOp::Delete {
+        block: BlockRef::at(&[9]),
+    };
+    assert!(matches!(
+        apply(src, &page, &missing),
+        Err(EditError::NoSuchBlock(_))
+    ));
 }

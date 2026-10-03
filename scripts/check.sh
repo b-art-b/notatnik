@@ -22,11 +22,13 @@ step() {
 step "fmt"    cargo fmt --all --check
 step "clippy" cargo clippy --workspace --all-targets -- -D warnings
 step "test"   cargo test --workspace
+step "doc"    env RUSTDOCFLAGS="-D warnings" cargo doc -p notatnik-core --no-deps --quiet
 step "wasm"   cargo check -p notatnik-core --target wasm32-unknown-unknown
 step "wasm-pack" wasm-pack build crates/core-wasm --target nodejs --release --out-dir pkg-node --quiet
 step "wasm smoke test" node --test crates/core-wasm/tests/smoke.mjs
 
 if [[ $FULL -eq 1 ]]; then
-  echo "==> full: no slow suites yet"
+  step "perf targets (NF-2, NF-3, NF-5)" cargo test --release -p notatnik-graph --test perf -- --ignored
+  step "benchmarks" cargo bench -p notatnik-graph --bench synthetic -- --quick
 fi
 echo "All checks passed."

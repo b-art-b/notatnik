@@ -1,0 +1,7 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+2026-10-01#0.0: Started the week > Met [[people/anna]] about [[work/projects/alpha]]
+meetings/2026-09-01 alpha kickoff#0: Attendees: [[people/anna]]
+work/projects/alpha#0.0: Goal: ship the MVP by [[2026-12-01]] #milestone > Owner:: [[people/anna]]

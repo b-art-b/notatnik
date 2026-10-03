@@ -1,0 +1,3 @@
+- A ==highlight== next to **bold**, *italic*, ~~strike~~ and `code`
+- Not a highlight: a == b == c
+- A [Markdown link](https://example.com/page#section) and an image ![alt](../assets/pic.png)

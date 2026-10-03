@@ -11,9 +11,19 @@ name = "notatnik"
 path = "src/main.rs"
 
 [dependencies]
-notatnik-core.workspace = true
-notatnik-index.workspace = true
-notatnik-graph.workspace = true
+notatnik-core = { workspace = true }
+notatnik-index = { workspace = true }
+notatnik-graph = { workspace = true }
+clap = { version = "4.6.7", features = ["derive"] }
+serde_json = "1.0.151"
+chrono = "0.4.45"
+serde = "1.0.229"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+assert_cmd = "2"
+insta = "1.49.0"
+serde_json = "1.0.151"
+tempfile = "3"

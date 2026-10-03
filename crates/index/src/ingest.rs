@@ -57,6 +57,10 @@ pub struct ReconcileStats {
     pub hashed: usize,
     /// Duplicate block IDs found (the caller rewrites them).
     pub duplicates: Vec<(String, Vec<DuplicateId>)>,
+    /// Paths that were (re)indexed.
+    pub reindexed_paths: Vec<String>,
+    /// Paths that were removed from the index.
+    pub deleted_paths: Vec<String>,
 }
 
 pub(crate) struct Parsed {
@@ -749,15 +753,17 @@ impl Index {
             )?;
             stats.touched += 1;
         }
-        for (rel, _) in stored.keys().map(|k| (k.clone(), ())) {
+        for rel in stored.keys().cloned() {
             remove_path(&tx, &rel)?;
             stats.deleted += 1;
+            stats.deleted_paths.push(rel);
         }
         for ((rel, is_new), r) in to_index.iter().zip(parsed) {
             match r {
                 ReadResult::Ok(p) => {
                     let out = write_page(&tx, &p)?;
                     stats.reindexed += 1;
+                    stats.reindexed_paths.push(rel.clone());
                     if *is_new {
                         stats.added += 1;
                     }

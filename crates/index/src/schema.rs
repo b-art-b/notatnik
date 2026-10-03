@@ -1,7 +1,7 @@
 //! Database schema. Bump [`SCHEMA_VERSION`] on any change: old databases are deleted and rebuilt.
 
 /// Current schema version (`PRAGMA user_version`).
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 
 pub(crate) const SCHEMA: &str = r#"
 CREATE TABLE files(
@@ -58,7 +58,7 @@ CREATE TABLE props(
     value_num REAL,
     value_date TEXT
 );
-CREATE INDEX props_owner ON props(owner_kind, owner_id);
+CREATE INDEX props_owner ON props(owner_kind, owner_id, key);
 CREATE INDEX props_key ON props(key, value_fold);
 CREATE TABLE refs(
     src_page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,

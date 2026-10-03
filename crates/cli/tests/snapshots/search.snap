@@ -1,0 +1,5 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+reading/zażółć gęślą jaźń#0: Żółw i zając: a Polish fable about a tortoise

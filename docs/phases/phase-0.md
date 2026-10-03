@@ -5,7 +5,7 @@ answers to the biggest technical risks *before* real implementation starts.
 
 **Requirements covered:** none directly (foundation for NF-9).
 **Depends on:** nothing.
-**Status:** in progress
+**Status:** in progress. Done: toolchain, repo, workspace, `check.sh`, docs, spike S2. Open (need you): editor setup (0.3), spike S1 (needs a display), spike S3 (needs your Nextcloud app password), optional S4, manual acceptance.
 
 ## Exit criteria
 

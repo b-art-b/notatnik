@@ -169,11 +169,13 @@ fn prop_cond_sql(
 ) -> String {
     let base = |b: &mut B| {
         format!(
-            "x.owner_kind = '{owner_kind}' AND x.owner_id = {owner} AND x.key = {}",
+            "x.owner_kind = '{owner_kind}' AND x.key = {}",
             b.p(key.to_string())
         )
     };
-    let exists = |cond: String| format!("EXISTS (SELECT 1 FROM props x WHERE {cond})");
+    // Positive conditions drive from `props` (`owner IN (SELECT ...)`), so SQLite can start from the
+    // few matching rows instead of probing every block.
+    let exists = |cond: String| format!("{owner} IN (SELECT x.owner_id FROM props x WHERE {cond})");
     match (&c.value, c.op) {
         (PropOperand::Any, _) => {
             let k = base(b);
@@ -181,7 +183,7 @@ fn prop_cond_sql(
         }
         (PropOperand::None, _) => {
             let k = base(b);
-            format!("NOT {}", exists(k))
+            format!("{owner} NOT IN (SELECT x.owner_id FROM props x WHERE {k})")
         }
         (v, CmpOp::Ne) => {
             let inner = prop_cond_sql(
@@ -207,11 +209,20 @@ fn prop_cond_sql(
                 (PropOperand::Date(d), op) => {
                     let rg = d.resolve(ctx.today, ctx.week_start);
                     match op {
-                        CmpOp::Eq | CmpOp::Contains => format!(
-                            "x.value_date BETWEEN {} AND {}",
-                            b.p(day(rg.start)),
-                            b.p(day(rg.end))
-                        ),
+                        CmpOp::Eq | CmpOp::Contains => {
+                            let by_date = format!(
+                                "x.value_date BETWEEN {} AND {}",
+                                b.p(day(rg.start)),
+                                b.p(day(rg.end))
+                            );
+                            match d {
+                                // a property declared as text keeps no date column: match its text too
+                                DateExpr::Abs(a) => {
+                                    format!("({by_date} OR x.value_fold = {})", b.p(day(*a)))
+                                }
+                                DateExpr::Rel(_) => by_date,
+                            }
+                        }
                         CmpOp::Lt => format!("x.value_date < {}", b.p(day(rg.start))),
                         CmpOp::Le => format!("x.value_date <= {}", b.p(day(rg.end))),
                         CmpOp::Gt => format!("x.value_date > {}", b.p(day(rg.end))),
@@ -330,11 +341,11 @@ pub fn compile(
                     )
                 } else if is_tag {
                     format!(
-                        "(EXISTS (SELECT 1 FROM refs r WHERE r.src_block_id = b.id AND r.kind = 'tag' AND r.target_key IN {list}) OR EXISTS (SELECT 1 FROM refs r WHERE r.src_page_id = b.page_id AND r.src_block_id IS NULL AND r.kind = 'tag' AND r.target_key IN {list}))"
+                        "b.id IN (SELECT r.src_block_id FROM refs r WHERE r.kind = 'tag' AND r.src_block_id IS NOT NULL AND r.target_key IN {list} UNION SELECT bb.id FROM blocks bb WHERE bb.page_id IN (SELECT r.src_page_id FROM refs r WHERE r.kind = 'tag' AND r.src_block_id IS NULL AND r.target_key IN {list}))"
                     )
                 } else {
                     format!(
-                        "EXISTS (SELECT 1 FROM refs r WHERE r.src_block_id = b.id AND r.kind IN ({kinds}) AND r.target_key IN {list})"
+                        "b.id IN (SELECT r.src_block_id FROM refs r WHERE r.kind IN ({kinds}) AND r.src_block_id IS NOT NULL AND r.target_key IN {list})"
                     )
                 }
             }

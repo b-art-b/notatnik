@@ -1,0 +1,13 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+rename `people/anna` -> `team/anna`
+  move pages/people/anna.md -> pages/team/anna.md
+  rewrite journals/2026/2026-10-01.md (1 reference(s))
+      "people/anna" -> "team/anna"
+  rewrite pages/meetings/2026-09-01 alpha kickoff.md (1 reference(s))
+      "people/anna" -> "team/anna"
+  rewrite pages/work/projects/alpha.md (1 reference(s))
+      "people/anna" -> "team/anna"
+(dry run: nothing was changed)

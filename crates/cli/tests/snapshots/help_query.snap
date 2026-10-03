@@ -1,0 +1,16 @@
+---
+source: crates/cli/tests/cli.rs
+expression: text
+---
+Run a query (text, or @file to read it from a file)
+
+Usage: notatnik query [OPTIONS] <GRAPH> <QUERY>
+
+Arguments:
+  <GRAPH>  Graph folder
+  <QUERY>  Query text, or @path
+
+Options:
+      --today <TODAY>  Treat this date as today (YYYY-MM-DD); default: the system date
+      --json           Print JSON instead of text
+  -h, --help           Print help

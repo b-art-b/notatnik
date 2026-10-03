@@ -814,3 +814,49 @@ fn set_page_property(
         }
     }
 }
+
+/// Replaces the block ID of the block at `path` with `new_id` (used to fix duplicate IDs, §3.4).
+/// If the block has no ID yet, the ID is added.
+pub fn replace_block_id(
+    source: &str,
+    page: &Page,
+    path: &[usize],
+    new_id: &str,
+) -> Result<EditResult, EditError> {
+    if !is_valid_block_id(new_id) {
+        return Err(EditError::InvalidValue(format!(
+            "`{new_id}` is not a valid block id"
+        )));
+    }
+    let b = find(page, path).ok_or_else(|| EditError::NoSuchBlock(path.to_vec()))?;
+    let patches = match &b.block_id {
+        Some(id) => vec![patch(
+            source,
+            Span::new(id.span.end - 6, id.span.end),
+            new_id,
+        )],
+        None => {
+            let at = b.first_line.start + b.first_line.slice(source).trim_end().len();
+            vec![patch(source, Span::new(at, at), format!(" ^{new_id}"))]
+        }
+    };
+    Ok(finish(source, patches))
+}
+
+#[cfg(test)]
+mod replace_id_tests {
+    use super::*;
+    use crate::parse_page;
+
+    #[test]
+    fn replaces_and_adds() {
+        let src = "- a ^abc123\n  - b\n";
+        let p = parse_page(src);
+        let r = replace_block_id(src, &p, &[0], "zzz999").unwrap();
+        assert_eq!(r.new_source, "- a ^zzz999\n  - b\n");
+        let r = replace_block_id(src, &p, &[0, 0], "qqq111").unwrap();
+        assert_eq!(r.new_source, "- a ^abc123\n  - b ^qqq111\n");
+        assert!(replace_block_id(src, &p, &[3], "zzz999").is_err());
+        assert!(replace_block_id(src, &p, &[0], "BAD").is_err());
+    }
+}
