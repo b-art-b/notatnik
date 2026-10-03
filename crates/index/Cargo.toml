@@ -1,0 +1,13 @@
+[package]
+name = "notatnik-index"
+description = "SQLite index: schema, incremental indexing, full-text search, query compilation."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+notatnik-core.workspace = true
+
+[lints]
+workspace = true

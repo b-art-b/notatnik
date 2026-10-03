@@ -1,0 +1,12 @@
+[package]
+name = "notatnik-core"
+description = "Pure logic: file format parser, block model, edit operations, page names, query language. No I/O; compiles to wasm32."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

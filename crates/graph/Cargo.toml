@@ -1,0 +1,14 @@
+[package]
+name = "notatnik-graph"
+description = "Graph service: file I/O, atomic writes, file watching, conflict detection."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+notatnik-core.workspace = true
+notatnik-index.workspace = true
+
+[lints]
+workspace = true

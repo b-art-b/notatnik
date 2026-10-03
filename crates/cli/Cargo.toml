@@ -1,0 +1,19 @@
+[package]
+name = "notatnik-cli"
+description = "Command-line interface for indexing, searching and querying a graph."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "notatnik"
+path = "src/main.rs"
+
+[dependencies]
+notatnik-core.workspace = true
+notatnik-index.workspace = true
+notatnik-graph.workspace = true
+
+[lints]
+workspace = true
