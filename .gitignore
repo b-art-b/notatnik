@@ -5,3 +5,4 @@ node_modules/
 *.sqlite
 *.sqlite-*
 .DS_Store
+/crates/core-wasm/pkg*/

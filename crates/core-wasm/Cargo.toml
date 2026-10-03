@@ -1,0 +1,27 @@
+[package]
+name = "notatnik-core-wasm"
+description = "wasm-bindgen wrapper around notatnik-core for the UI (parse page, parse query, resolve link, apply op)."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+notatnik-core = { workspace = true }
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# wasm-bindgen's generated glue needs `unsafe`, so this crate does not use the workspace's
+# `unsafe_code = "forbid"`. Hand-written code here contains none.
+[lints.rust]
+unsafe_code = "deny"
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz"]

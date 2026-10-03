@@ -1,0 +1,11 @@
+---
+source: crates/index/tests/queries.rs
+expression: dump
+---
+page: work/tasks, work
+-ns: workshop
+group: page
+---
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, p.name AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE p.key IN (?1, ?2) AND NOT COALESCE((p.key = ?3 OR (p.key >= ?4 AND p.key < ?5)), 0) ORDER BY p.key, p.key, b.id
+---
+[Text("work/tasks"), Text("work"), Text("workshop"), Text("workshop/"), Text("workshop0")]

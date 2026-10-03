@@ -104,6 +104,26 @@ pub fn normalize_link(raw: &str) -> Result<PageName, LinkError> {
     PageName::parse(raw)
 }
 
+/// Folds one char for search: lower-case, base letter without diacritics (`Ż` → `z`, `ł` → `l`).
+/// Always yields exactly one char, so folded and original texts align char by char.
+pub fn fold_char(c: char) -> char {
+    match c {
+        'ł' | 'Ł' => 'l',
+        'ø' | 'Ø' => 'o',
+        'đ' | 'Đ' => 'd',
+        'ß' => 's',
+        _ => {
+            let base = std::iter::once(c).nfd().next().unwrap_or(c);
+            base.to_lowercase().next().unwrap_or(base)
+        }
+    }
+}
+
+/// Folds text for case- and diacritic-insensitive matching (same char count as the input).
+pub fn search_fold(s: &str) -> String {
+    s.chars().map(fold_char).collect()
+}
+
 fn parse_journal_date(s: &str) -> Option<NaiveDate> {
     let b = s.as_bytes();
     if b.len() != 10 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
@@ -203,6 +223,21 @@ pub fn path_to_page(path: &str) -> Option<PageName> {
         return None;
     }
     Some(name)
+}
+
+#[cfg(test)]
+mod fold_tests {
+    use super::*;
+
+    #[test]
+    fn folds_polish_and_keeps_length() {
+        assert_eq!(
+            search_fold("Zażółć gęślą jaźń ŁÓDŹ"),
+            "zazolc gesla jazn lodz"
+        );
+        let s = "żółw";
+        assert_eq!(search_fold(s).chars().count(), s.chars().count());
+    }
 }
 
 #[cfg(test)]

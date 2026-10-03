@@ -1,0 +1,10 @@
+---
+source: crates/index/tests/queries.rs
+expression: dump
+---
+prop.completed: contains 2026-10-03
+group: prop.status
+---
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, (SELECT x.value_text FROM props x WHERE x.owner_kind = 'block' AND x.owner_id = b.id AND x.key = ?4 ORDER BY x.ord LIMIT 1) AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE EXISTS (SELECT 1 FROM props x WHERE x.owner_kind = 'block' AND x.owner_id = b.id AND x.key = ?1 AND x.value_date BETWEEN ?2 AND ?3) ORDER BY (SELECT x.value_text FROM props x WHERE x.owner_kind = 'block' AND x.owner_id = b.id AND x.key = ?4 ORDER BY x.ord LIMIT 1) IS NULL, (SELECT x.value_text FROM props x WHERE x.owner_kind = 'block' AND x.owner_id = b.id AND x.key = ?4 ORDER BY x.ord LIMIT 1) COLLATE NOCASE, p.key, b.id
+---
+[Text("completed"), Text("2026-10-03"), Text("2026-10-03"), Text("status")]

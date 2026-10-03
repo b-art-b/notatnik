@@ -1,0 +1,10 @@
+---
+source: crates/index/tests/queries.rs
+expression: dump
+---
+-task: any
+-deadline: any
+---
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE NOT COALESCE(b.task_state IS NOT NULL, 0) AND NOT COALESCE(b.deadline IS NOT NULL, 0) ORDER BY p.key, b.id
+---
+[]

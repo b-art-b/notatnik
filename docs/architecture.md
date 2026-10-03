@@ -175,6 +175,10 @@ Plugin bundle (.notatnik/plugins/<id>/manifest.json + main.js [+ ui.html])
 | D13 | Raw HTML is escaped, never rendered | Sanitised HTML rendering | Safety (no XSS through notes or synced files) and simplicity. |
 | D14 | Licence AGPL-3.0-or-later | GPL-3.0, MIT/Apache-2.0 | Keeps all forks open, including hosted ones. |
 | D15 | Hand-written outline parser + pulldown-cmark for inline only (spike S2) | pulldown-cmark/comrak for the whole file | Exact spans for tabs/CRLF; 70x faster; no CommonMark list quirks. See [spikes/s2-parser](spikes/s2-parser.md). |
+| D16 | Runtime block identity by tree matching (path+text, then text, then path), session-only | Persisting generated IDs in files | Blocks keep stable UI keys across edits, moves and external rewrites without touching the files (P1.26). |
+| D17 | Inline scanner written by hand (links, tags, refs, highlights; skips code spans, escapes and Markdown link targets) instead of pulldown-cmark events | pulldown-cmark for inline | The scanner is ~250 lines and needs no dependency; pulldown-cmark is still the plan for *rendering* emphasis and code spans in the UI (phase 2). |
+| D18 | Index resolves links at read time: `refs` store the target's lookup key; aliases/virtual pages are resolved through `keys_for` | Materialised target page ids | No stale ids when an alias or page appears later; virtual pages are garbage-collected after each reindex. |
+| D19 | Search text is folded char-by-char (`search_fold`: lower-case, no diacritics, `ł`→`l`) before it goes into FTS5 and into query terms | FTS5's own diacritics removal alone | `unicode61` doesn't fold `ł`; our fold keeps char positions so highlights map back to the original text. |
 
 ## 10. Known risks
 

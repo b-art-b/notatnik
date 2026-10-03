@@ -32,7 +32,8 @@ pub fn split_property_line(line: &str) -> Option<(&str, &str)> {
     None
 }
 
-fn split_top_level_commas(s: &str) -> Vec<&str> {
+/// Splits a property value on commas that are outside `[[ ]]`.
+pub fn split_top_level_commas(s: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut depth = 0usize;
     let mut start = 0;

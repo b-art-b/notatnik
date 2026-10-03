@@ -1,0 +1,106 @@
+{
+ "source": [
+  {
+   "source_page": "linker",
+   "block_path": "2",
+   "kind": "page_embed",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "3",
+   "kind": "page",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "4",
+   "kind": "tag",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "other",
+   "block_path": "0.0",
+   "kind": "page",
+   "breadcrumbs": [
+    "Parent block"
+   ]
+  },
+  {
+   "source_page": "other",
+   "block_path": "1",
+   "kind": "page",
+   "breadcrumbs": []
+  }
+ ],
+ "src": [
+  {
+   "source_page": "linker",
+   "block_path": "2",
+   "kind": "page_embed",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "3",
+   "kind": "page",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "4",
+   "kind": "tag",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "other",
+   "block_path": "0.0",
+   "kind": "page",
+   "breadcrumbs": [
+    "Parent block"
+   ]
+  },
+  {
+   "source_page": "other",
+   "block_path": "1",
+   "kind": "page",
+   "breadcrumbs": []
+  }
+ ],
+ "The Source": [
+  {
+   "source_page": "linker",
+   "block_path": "2",
+   "kind": "page_embed",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "3",
+   "kind": "page",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "linker",
+   "block_path": "4",
+   "kind": "tag",
+   "breadcrumbs": []
+  },
+  {
+   "source_page": "other",
+   "block_path": "0.0",
+   "kind": "page",
+   "breadcrumbs": [
+    "Parent block"
+   ]
+  },
+  {
+   "source_page": "other",
+   "block_path": "1",
+   "kind": "page",
+   "breadcrumbs": []
+  }
+ ],
+ "linker": [],
+ "other": []
+}

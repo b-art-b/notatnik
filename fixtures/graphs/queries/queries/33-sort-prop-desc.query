@@ -1,0 +1,2 @@
+prop.rating: any
+sort: prop.rating desc

@@ -9,6 +9,7 @@
 pub mod edit;
 pub mod frontmatter;
 pub mod hash;
+pub mod identity;
 pub mod ids;
 pub mod inline;
 pub mod model;
@@ -22,8 +23,11 @@ pub mod task;
 pub use edit::{
     BlockOp, BlockRef, EditError, EditResult, TextPatch, apply, apply_patches, invert_patches,
 };
+pub use identity::{BlockIdentity, Tracked};
 pub use model::*;
-pub use names::{LinkError, PageName, normalize_link, page_to_path, path_to_page};
+pub use names::{
+    LinkError, PageName, fold_char, normalize_link, page_to_path, path_to_page, search_fold,
+};
 pub use outline::{parse_page, parse_page_with};
 pub use query::{DateRange, Query, QueryError, WeekStart, parse_query, parse_query_partial};
 pub use span::{Diagnostic, Severity, Span};

@@ -1,0 +1,11 @@
+---
+source: crates/index/tests/queries.rs
+expression: dump
+---
+links: people/anna
+text: parser, spec
+limit: 5
+---
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE EXISTS (SELECT 1 FROM refs r WHERE r.src_block_id = b.id AND r.kind IN ('page','tag','page_embed') AND r.target_key IN (?1)) AND b.id IN (SELECT rowid FROM fts WHERE rowid > 0 AND fts MATCH ?2) ORDER BY p.key, b.id LIMIT 5
+---
+[Text("people/anna"), Text("(\"parser\") OR (\"spec\")")]
