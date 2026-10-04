@@ -17,7 +17,11 @@ export function slashCommands(): SlashCommand[] {
     { name: 'today', title: "Insert today's date", insert: () => ({ text: link(day('today')) }) },
     { name: 'tomorrow', title: "Insert tomorrow's date", insert: () => ({ text: link(day('tomorrow')) }) },
     { name: 'yesterday', title: "Insert yesterday's date", insert: () => ({ text: link(day('yesterday')) }) },
-    { name: 'date', title: 'Insert a date (type e.g. next monday)', insert: () => ({ text: '[[]]', cursor: 2 }) },
+    {
+      name: 'date',
+      title: 'Insert a date (type e.g. next monday)',
+      insert: () => ({ text: '[[]]', cursor: 2 }),
+    },
     { name: 'todo', title: 'Make this a task', insert: () => ({ text: 'TODO ' }) },
     { name: 'doing', title: 'Mark as doing', insert: () => ({ text: 'DOING ' }) },
     { name: 'code', title: 'Code block', insert: () => ({ text: '```\n\n```', cursor: 4 }) },

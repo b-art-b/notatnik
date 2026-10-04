@@ -4,9 +4,24 @@
   import { onMount } from 'svelte'
   import { EditorState, Prec, type Extension } from '@codemirror/state'
   import {
-    Decoration, EditorView, keymap, MatchDecorator, ViewPlugin, type DecorationSet, type ViewUpdate,
+    Decoration,
+    EditorView,
+    keymap,
+    MatchDecorator,
+    ViewPlugin,
+    type DecorationSet,
+    type ViewUpdate,
   } from '@codemirror/view'
-  import { defaultKeymap, history, historyKeymap, insertNewline, redoDepth, undoDepth, undo as cmUndo, redo as cmRedo } from '@codemirror/commands'
+  import {
+    defaultKeymap,
+    history,
+    historyKeymap,
+    insertNewline,
+    redoDepth,
+    undoDepth,
+    undo as cmUndo,
+    redo as cmRedo,
+  } from '@codemirror/commands'
   import { markdown } from '@codemirror/lang-markdown'
   import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
   import type { Cursor } from '../tree'
@@ -33,10 +48,19 @@
   let lastSent = text
 
   const wiki = new MatchDecorator({
-    regexp: /\[\[[^\]\n]*\]\]|(?<=^|[\s(])#\[\[[^\]\n]*\]\]|(?<=^|[\s(])#[\p{L}\p{N}_/-]+|\(\([a-z0-9]{6}\)\)|\^[a-z0-9]{6}$|==[^=\n]+==/gu,
+    regexp:
+      /\[\[[^\]\n]*\]\]|(?<=^|[\s(])#\[\[[^\]\n]*\]\]|(?<=^|[\s(])#[\p{L}\p{N}_/-]+|\(\([a-z0-9]{6}\)\)|\^[a-z0-9]{6}$|==[^=\n]+==/gu,
     decoration: (m) => {
       const s = m[0]
-      const cls = s.startsWith('[[') ? 'cm-wikilink' : s.startsWith('#') ? 'cm-tag' : s.startsWith('((') ? 'cm-blockref' : s.startsWith('==') ? 'cm-hl' : 'cm-blockid'
+      const cls = s.startsWith('[[')
+        ? 'cm-wikilink'
+        : s.startsWith('#')
+          ? 'cm-tag'
+          : s.startsWith('((')
+            ? 'cm-blockref'
+            : s.startsWith('==')
+              ? 'cm-hl'
+              : 'cm-blockid'
       return Decoration.mark({ class: cls })
     },
   })
@@ -69,7 +93,13 @@
   function lineInfo(v: EditorView) {
     const head = v.state.selection.main.head
     const line = v.state.doc.lineAt(head)
-    return { head, line, first: line.number === 1, last: line.number === v.state.doc.lines, column: head - line.from }
+    return {
+      head,
+      line,
+      first: line.number === 1,
+      last: line.number === v.state.doc.lines,
+      column: head - line.from,
+    }
   }
 
   const act = (v: EditorView, build: (t: string) => EditorAction) => {

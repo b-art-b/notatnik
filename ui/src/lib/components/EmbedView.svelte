@@ -38,7 +38,14 @@
     {:else if block === null}
       <span class="chip error">broken embed</span>
     {:else}
-      <BlockList blocks={[block.block]} docName={block.page} viewKey={`embed-${target}`} readonly chain={[...chain, key]} basePath={[]} />
+      <BlockList
+        blocks={[block.block]}
+        docName={block.page}
+        viewKey={`embed-${target}`}
+        readonly
+        chain={[...chain, key]}
+        basePath={[]}
+      />
     {/if}
   </div>
 {:else}
@@ -49,7 +56,14 @@
       <span class="chip error">broken embed</span>
     {:else}
       <a class="embed-title" href={pageHash(page.name)}>{page.title}</a>
-      <BlockList blocks={page.blocks} docName={page.name} viewKey={`embed-${target}`} readonly chain={[...chain, key]} basePath={[]} />
+      <BlockList
+        blocks={page.blocks}
+        docName={page.name}
+        viewKey={`embed-${target}`}
+        readonly
+        chain={[...chain, key]}
+        basePath={[]}
+      />
     {/if}
   </div>
 {/if}

@@ -4,8 +4,26 @@ import { editing, startEditing, startSelecting, stopEditing } from '../stores/ed
 import { undoRedo, type PageDoc } from '../stores/pages.svelte'
 import { navigate } from '../stores/app.svelte'
 import {
-  deleteBlocks, findById, getBlock, indent, indentMany, mergeWithNext, mergeWithPrevious, moveDown, moveUp, nextVisible, outdent,
-  outdentMany, previousVisible, split, toMarkdown, visibleBlocks, type Path, type Plan,
+  deleteBlocks,
+  findById,
+  getBlock,
+  indent,
+  indentMany,
+  mergeWithNext,
+  mergeWithPrevious,
+  moveDown,
+  moveUp,
+  nextVisible,
+  outdent,
+  outdentMany,
+  parsePasted,
+  previousVisible,
+  split,
+  toMarkdown,
+  visibleBlocks,
+  type PastedBlock,
+  type Path,
+  type Plan,
 } from '../tree'
 
 /** Everything a command needs to know about where it was triggered. */
@@ -20,7 +38,10 @@ function withText(doc: PageDoc, blockId: number, text: string | undefined, plan:
   if (!view || text === undefined) return plan
   const hit = findById(view.blocks, blockId)
   if (!hit || hit.block.text === text) return plan
-  return { ...plan, ops: [{ op: 'update_text', block: { path: hit.path, hash: null }, text } as BlockOp, ...plan.ops] }
+  return {
+    ...plan,
+    ops: [{ op: 'update_text', block: { path: hit.path, hash: null }, text } as BlockOp, ...plan.ops],
+  }
 }
 
 export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
@@ -35,7 +56,9 @@ export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
 export async function commitText(ctx: Ctx, blockId: number, text: string): Promise<void> {
   const view = ctx.doc.view
   if (!view) return
-  const hit = findById(view.blocks, blockId) ?? (view.preamble?.id === blockId ? { path: [], block: view.preamble } : undefined)
+  const hit =
+    findById(view.blocks, blockId) ??
+    (view.preamble?.id === blockId ? { path: [], block: view.preamble } : undefined)
   if (!hit || hit.block.text === text) return
   await ctx.doc.apply([{ op: 'update_text', block: { path: hit.path, hash: null }, text }])
 }
@@ -97,7 +120,16 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       await commitText(ctx, blockId, a.text)
       const fresh = ctx.doc.view
       const hit = fresh ? getBlock(fresh.blocks, target.path) : undefined
-      if (hit) startEditing(ctx.viewKey, ctx.doc.name, hit.id, Math.min(a.column, hit.text.split('\n')[a.kind === 'nav-up' ? hit.text.split('\n').length - 1 : 0].length) )
+      if (hit)
+        startEditing(
+          ctx.viewKey,
+          ctx.doc.name,
+          hit.id,
+          Math.min(
+            a.column,
+            hit.text.split('\n')[a.kind === 'nav-up' ? hit.text.split('\n').length - 1 : 0].length,
+          ),
+        )
       return true
     }
     case 'escape': {
@@ -123,7 +155,10 @@ export function selectionMarkdown(ctx: Ctx): string {
   return toMarkdown(blocks)
 }
 
-async function runOnSelection(ctx: Ctx, f: (blocks: NonNullable<PageDoc['view']>['blocks'], paths: Path[]) => Plan | null) {
+async function runOnSelection(
+  ctx: Ctx,
+  f: (blocks: NonNullable<PageDoc['view']>['blocks'], paths: Path[]) => Plan | null,
+) {
   const view = ctx.doc.view
   if (!view) return
   const paths = selectedPaths(ctx)
@@ -133,7 +168,12 @@ async function runOnSelection(ctx: Ctx, f: (blocks: NonNullable<PageDoc['view']>
   const after = await ctx.doc.apply(plan.ops)
   if (after) {
     // keep the same blocks selected (runtime ids survive the edit)
-    startSelecting(ctx.viewKey, ctx.doc.name, ids.filter((id) => findById(after.blocks, id)), editing.anchorId)
+    startSelecting(
+      ctx.viewKey,
+      ctx.doc.name,
+      ids.filter((id) => findById(after.blocks, id)),
+      editing.anchorId,
+    )
   }
 }
 
@@ -182,8 +222,18 @@ export function selectionStep(ctx: Ctx, dir: 'up' | 'down', extend: boolean) {
   const anchor = all.findIndex((v) => v.block.id === editing.anchorId)
   const lo = Math.min(anchor, j)
   const hi = Math.max(anchor, j)
-  const sibs = all.slice(lo, hi + 1).filter((v) => v.path.length === curPath.length && v.path.slice(0, -1).join('.') === curPath.slice(0, -1).join('.'))
-  startSelecting(ctx.viewKey, ctx.doc.name, sibs.map((v) => v.block.id), editing.anchorId)
+  const sibs = all
+    .slice(lo, hi + 1)
+    .filter(
+      (v) =>
+        v.path.length === curPath.length && v.path.slice(0, -1).join('.') === curPath.slice(0, -1).join('.'),
+    )
+  startSelecting(
+    ctx.viewKey,
+    ctx.doc.name,
+    sibs.map((v) => v.block.id),
+    editing.anchorId,
+  )
   editing.blockId = target
 }
 
@@ -196,10 +246,41 @@ export async function globalUndo(kind: 'undo' | 'redo') {
   const name = await undoRedo(kind)
   if (name) {
     stopEditing()
-    if (name !== (window.location.hash.startsWith('#/page/') ? decodeURIComponent(window.location.hash.slice(7).split('?')[0]) : '')) {
+    if (
+      name !==
+      (window.location.hash.startsWith('#/page/')
+        ? decodeURIComponent(window.location.hash.slice(7).split('?')[0])
+        : '')
+    ) {
       // undo happened on another page: show it
       const onJournals = window.location.hash.startsWith('#/journals') || window.location.hash === ''
       if (!onJournals) navigate({ kind: 'page', name, zoom: [] })
     }
   }
+}
+
+/** Multi-line paste: the pasted outline replaces an empty block or follows the current one. */
+export async function pasteBlocks(ctx: Ctx, blockId: number, text: string): Promise<boolean> {
+  const view = ctx.doc.view
+  const path = pathOf(ctx, blockId)
+  const block = view && path ? getBlock(view.blocks, path) : undefined
+  const pasted = parsePasted(text)
+  if (!view || !path || !block || pasted.length === 0) return false
+  const ops: BlockOp[] = []
+  const parent = path.slice(0, -1)
+  let at = path[path.length - 1] + 1
+  const replaceCurrent = block.text.trim() === ''
+  const emit = (list: PastedBlock[], par: Path, start: number) => {
+    list.forEach((p, i) => {
+      ops.push({ op: 'insert', parent: par, index: start + i, text: p.text })
+      emit(p.children, [...par, start + i], 0)
+    })
+  }
+  emit(pasted, parent, at)
+  if (replaceCurrent) ops.push({ op: 'delete', block: { path, hash: null } })
+  void at
+  at = 0
+  await ctx.doc.apply(ops)
+  stopEditing()
+  return true
 }

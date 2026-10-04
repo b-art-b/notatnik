@@ -43,7 +43,11 @@ export class PageDoc {
     this.status = 'saving'
     const run = async (): Promise<PageView | null> => {
       try {
-        const r = await backend.call('apply_ops', { page: this.name, base_hash: this.view?.hash ?? null, ops })
+        const r = await backend.call('apply_ops', {
+          page: this.name,
+          base_hash: this.view?.hash ?? null,
+          ops,
+        })
         this.view = r.page
         return r.page
       } catch (e) {
@@ -101,7 +105,9 @@ export class PageDoc {
       }
     }
     walk(v.blocks)
-    return backend.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) }).then(() => undefined)
+    return backend
+      .call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) })
+      .then(() => undefined)
   }
 }
 

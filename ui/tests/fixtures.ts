@@ -1,0 +1,91 @@
+import { fileURLToPath } from 'node:url'
+import { test as base, expect, type Page } from '@playwright/test'
+import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const bin = path.join(root, 'target/debug/notatnik-dev-server')
+
+function copyDir(from: string, to: string) {
+  fs.mkdirSync(to, { recursive: true })
+  for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+    const s = path.join(from, e.name)
+    if (e.isDirectory()) copyDir(s, path.join(to, e.name))
+    else fs.copyFileSync(s, path.join(to, e.name))
+  }
+}
+
+export interface Backend {
+  /** Graph folder on disk (a temp copy). */
+  dir: string
+  api: string
+  read(rel: string): string
+  write(rel: string, text: string): void
+  exists(rel: string): boolean
+  call<T = unknown>(name: string, args?: unknown): Promise<T>
+  open(route?: string): Promise<void>
+}
+
+async function startBackend(
+  fixture: string,
+  today: string,
+  page: Page,
+): Promise<{ b: Backend; stop: () => void }> {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'notatnik-e2e-'))
+  const dir = path.join(tmp, 'graph')
+  copyDir(path.join(root, 'fixtures/graphs', fixture), dir)
+  const proc: ChildProcess = spawn(
+    bin,
+    ['--graph', dir, '--today', today, '--device-dir', path.join(tmp, 'device')],
+    { stdio: ['ignore', 'pipe', 'inherit'] },
+  )
+  const api = await new Promise<string>((resolve, reject) => {
+    let buf = ''
+    proc.stdout!.on('data', (d) => {
+      buf += d
+      const m = /listening on (http:\/\/\S+)/.exec(buf)
+      if (m) resolve(m[1])
+    })
+    proc.on('exit', (c) => reject(new Error(`dev server exited early (${c})`)))
+  })
+  const call = async <T>(name: string, args: unknown = {}) => {
+    const r = await fetch(`${api}/api/${name}`, { method: 'POST', body: JSON.stringify(args) })
+    return (await r.json()) as T
+  }
+  const b: Backend = {
+    dir,
+    api,
+    read: (rel) => fs.readFileSync(path.join(dir, rel), 'utf8'),
+    write: (rel, text) => {
+      fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true })
+      fs.writeFileSync(path.join(dir, rel), text)
+    },
+    exists: (rel) => fs.existsSync(path.join(dir, rel)),
+    call,
+    open: async (route = '') => {
+      await page.goto(`/?api=${encodeURIComponent(api)}#${route}`)
+      await page.waitForSelector('main, .welcome')
+    },
+  }
+  return {
+    b,
+    stop: () => {
+      proc.kill()
+      fs.rmSync(tmp, { recursive: true, force: true })
+    },
+  }
+}
+
+type Opts = { fixture: string; today: string }
+export const test = base.extend<{ backend: Backend } & Opts>({
+  fixture: ['basic', { option: true }],
+  today: ['2026-10-03', { option: true }],
+  backend: async ({ page, fixture, today }, use) => {
+    const { b, stop } = await startBackend(fixture, today, page)
+    await use(b)
+    stop()
+  },
+})
+export { expect }

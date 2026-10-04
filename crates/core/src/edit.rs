@@ -617,7 +617,11 @@ fn update_text(
             lines.push(format!("{cont_indent}{line}"));
         }
     }
-    let new = lines.join(eol);
+    let mut new = lines.join(eol);
+    // a bare `-` has no space before the text yet: `-x` would no longer be a bullet
+    if region.is_empty() && b.first_line.start == b.bullet_span.end && !new.is_empty() {
+        new.insert(0, ' ');
+    }
     Ok(diff_patch(region.slice(source), &new, region.start))
 }
 

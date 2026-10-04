@@ -31,6 +31,14 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done
 | 7 | Search and ask questions by meaning |
 | 8 | Use the app on Android |
 
+## Known issues
+
+- UI e2e flake (~1 in 10 runs, hidden by `retries: 2`): in `ui/tests/editing.spec.ts` the first Ctrl+Z pressed after Esc, Esc sometimes
+  doesn't reach the global key handler (no request is sent, no toast). Investigate the focus/mode transition in `App.svelte` `globalKey`.
+- Phase 2 is incomplete: see `docs/phases/phase-2.md` (rendering, basic editing, undo, search, journals, namespace tree, rename and
+  conflict banner exist; selection tests, Tauri crate, settings, a11y tests, packaging, perf measurements and the manual checklist are open).
+  UI tests run against the real Rust backend through `notatnik-dev-server` instead of a WASM mock (decision pending in architecture.md).
+
 ## Later / ideas backlog
 
 Not scheduled; may become phase 9+ or plugins.

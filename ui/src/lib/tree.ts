@@ -73,7 +73,10 @@ export function indent(blocks: BlockView[], path: Path): Plan | null {
   const prevPath = [...parentOf(path), idx - 1]
   const prev = getBlock(blocks, prevPath)
   if (!prev) return null
-  return { ops: [{ op: 'indent', block: ref(path) }], focus: { path: [...prevPath, prev.children.length], cursor: 'end' } }
+  return {
+    ops: [{ op: 'indent', block: ref(path) }],
+    focus: { path: [...prevPath, prev.children.length], cursor: 'end' },
+  }
 }
 
 /** Move the block up one level, after its parent. */
@@ -81,7 +84,10 @@ export function outdent(blocks: BlockView[], path: Path): Plan | null {
   if (path.length < 2) return null
   // Note: later siblings become children of the outdented block (semantics of the Outdent op).
   const parent = parentOf(path)
-  return { ops: [{ op: 'outdent', block: ref(path) }], focus: { path: [...parentOf(parent), parent[parent.length - 1] + 1], cursor: 'end' } }
+  return {
+    ops: [{ op: 'outdent', block: ref(path) }],
+    focus: { path: [...parentOf(parent), parent[parent.length - 1] + 1], cursor: 'end' },
+  }
 }
 
 export function moveUp(blocks: BlockView[], path: Path): Plan | null {
@@ -132,7 +138,12 @@ export function split(blocks: BlockView[], path: Path, text: string, cursor: num
   const ops: BlockOp[] = []
   if (keep !== block.text) ops.push({ op: 'update_text', block: ref(path), text: keep })
   const newPath = expanded ? [...path, 0] : [...parentOf(path), path[path.length - 1] + 1]
-  ops.push({ op: 'insert', parent: expanded ? path : parentOf(path), index: expanded ? 0 : path[path.length - 1] + 1, text: firstLineRest })
+  ops.push({
+    op: 'insert',
+    parent: expanded ? path : parentOf(path),
+    index: expanded ? 0 : path[path.length - 1] + 1,
+    text: firstLineRest,
+  })
   return { ops, focus: { path: newPath, cursor: 'start' } }
 }
 
@@ -144,7 +155,8 @@ export function mergeWithPrevious(blocks: BlockView[], path: Path, text: string)
   if (block.children.length > 0) return null
   const prevText = prev.block.text
   const firstLineEnd = prevText.indexOf('\n') === -1 ? prevText.length : prevText.indexOf('\n')
-  const joined = text === '' ? prevText : prevText.slice(0, firstLineEnd) + text + prevText.slice(firstLineEnd)
+  const joined =
+    text === '' ? prevText : prevText.slice(0, firstLineEnd) + text + prevText.slice(firstLineEnd)
   const ops: BlockOp[] = []
   if (joined !== prevText) ops.push({ op: 'update_text', block: ref(prev.path), text: joined })
   ops.push({ op: 'delete', block: ref(path) })
@@ -174,7 +186,10 @@ export function deleteBlocks(blocks: BlockView[], paths: Path[]): Plan | null {
   const sorted = [...paths].sort((a, b) => b[b.length - 1] - a[a.length - 1])
   const first = [...paths].sort((a, b) => a[a.length - 1] - b[b.length - 1])[0]
   const prev = previousVisible(blocks, first)
-  return { ops: sorted.map((p) => ({ op: 'delete' as const, block: ref(p) })), focus: prev ? { path: prev.path, cursor: 'end' } : undefined }
+  return {
+    ops: sorted.map((p) => ({ op: 'delete' as const, block: ref(p) })),
+    focus: prev ? { path: prev.path, cursor: 'end' } : undefined,
+  }
 }
 
 /** Indent a selection of siblings under the previous sibling, keeping their order. */
@@ -184,7 +199,10 @@ export function indentMany(blocks: BlockView[], paths: Path[]): Plan | null {
   const firstIdx = sorted[0][sorted[0].length - 1]
   if (firstIdx === 0) return null
   // after each indent the next selected sibling shifts down by one position
-  const ops: BlockOp[] = sorted.map((p, k) => ({ op: 'indent' as const, block: ref([...parentOf(p), p[p.length - 1] - k]) }))
+  const ops: BlockOp[] = sorted.map((p, k) => ({
+    op: 'indent' as const,
+    block: ref([...parentOf(p), p[p.length - 1] - k]),
+  }))
   return { ops }
 }
 

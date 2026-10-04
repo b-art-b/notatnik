@@ -38,9 +38,12 @@ struct Args {
 }
 
 /// Recent events for long-polling clients: `(id, name, payload)`.
+/// `(last id, recent events)`
+type EventLog = (u64, Vec<(u64, String, Value)>);
+
 #[derive(Default)]
 struct Events {
-    log: Mutex<(u64, Vec<(u64, String, Value)>)>,
+    log: Mutex<EventLog>,
     changed: Condvar,
 }
 

@@ -1,13 +1,39 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockView } from './api'
 import {
-  deleteBlocks, getBlock, indent, indentMany, insideFence, mergeWithNext, mergeWithPrevious, moveDown, moveUp, nextVisible,
-  outdent, parsePasted, previousVisible, split, toMarkdown, visibleBlocks,
+  deleteBlocks,
+  getBlock,
+  indent,
+  indentMany,
+  insideFence,
+  mergeWithNext,
+  mergeWithPrevious,
+  moveDown,
+  moveUp,
+  nextVisible,
+  outdent,
+  parsePasted,
+  previousVisible,
+  split,
+  toMarkdown,
+  visibleBlocks,
 } from './tree'
 
 let nextId = 1
 function b(text: string, children: BlockView[] = [], extra: Partial<BlockView> = {}): BlockView {
-  return { id: nextId++, path: [], hash: 'h' + text, uid: null, text, content: [], task: null, props: [], collapsed: false, children, ...extra }
+  return {
+    id: nextId++,
+    path: [],
+    hash: 'h' + text,
+    uid: null,
+    text,
+    content: [],
+    task: null,
+    props: [],
+    collapsed: false,
+    children,
+    ...extra,
+  }
 }
 
 // - a
@@ -56,7 +82,12 @@ describe('move', () => {
   it('moves within siblings and is a no-op at the ends', () => {
     expect(moveUp(tree(), [0])).toBeNull()
     expect(moveDown(tree(), [2])).toBeNull()
-    expect(moveDown(tree(), [0, 0])!.ops[0]).toEqual({ op: 'move', block: { path: [0, 0], hash: null }, new_parent: [0], index: 1 })
+    expect(moveDown(tree(), [0, 0])!.ops[0]).toEqual({
+      op: 'move',
+      block: { path: [0, 0], hash: null },
+      new_parent: [0],
+      index: 1,
+    })
     expect(moveUp(tree(), [2])!.focus).toEqual({ path: [1], cursor: 'end' })
   })
 })
@@ -86,7 +117,11 @@ describe('split (Enter)', () => {
   it('keeps property lines with the original block', () => {
     const t = [b('TODO write\ndeadline:: 2026-10-05')]
     const plan = split(t, [0], 'TODO write\ndeadline:: 2026-10-05', 4)!
-    expect(plan.ops[0]).toEqual({ op: 'update_text', block: { path: [0], hash: null }, text: 'TODO\ndeadline:: 2026-10-05' })
+    expect(plan.ops[0]).toEqual({
+      op: 'update_text',
+      block: { path: [0], hash: null },
+      text: 'TODO\ndeadline:: 2026-10-05',
+    })
     expect(plan.ops[1]).toMatchObject({ op: 'insert', text: 'write' })
   })
   it('does nothing outside the first line and inside code fences', () => {

@@ -10,7 +10,9 @@
   {#if n.type === 'paragraph'}
     <p><Inlines items={n.children} {chain} /></p>
   {:else if n.type === 'heading'}
-    <svelte:element this={`h${Math.min(n.level, 6)}`} class="md-heading"><Inlines items={n.children} {chain} /></svelte:element>
+    <svelte:element this={`h${Math.min(n.level, 6)}`} class="md-heading"
+      ><Inlines items={n.children} {chain} /></svelte:element
+    >
   {:else if n.type === 'code_block'}
     <pre class="code-block" data-lang={n.lang ?? ''}><code>{n.code}</code></pre>
   {:else if n.type === 'query'}
@@ -28,7 +30,9 @@
       <thead>
         <tr>
           {#each n.header as cell, j (j)}
-            <th style:text-align={n.aligns[j] === 'none' ? undefined : n.aligns[j]}><Inlines items={cell} {chain} /></th>
+            <th style:text-align={n.aligns[j] === 'none' ? undefined : n.aligns[j]}
+              ><Inlines items={cell} {chain} /></th
+            >
           {/each}
         </tr>
       </thead>
@@ -36,7 +40,9 @@
         {#each n.rows as row, r (r)}
           <tr>
             {#each row as cell, j (j)}
-              <td style:text-align={n.aligns[j] === 'none' ? undefined : n.aligns[j]}><Inlines items={cell} {chain} /></td>
+              <td style:text-align={n.aligns[j] === 'none' ? undefined : n.aligns[j]}
+                ><Inlines items={cell} {chain} /></td
+              >
             {/each}
           </tr>
         {/each}

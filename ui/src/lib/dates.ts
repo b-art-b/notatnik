@@ -19,8 +19,25 @@ function addMonths(d: Date, n: number): Date {
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 const WEEKDAYS_PL = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota']
 const UNITS: Record<string, 'd' | 'w' | 'm' | 'y'> = {
-  day: 'd', days: 'd', week: 'w', weeks: 'w', month: 'm', months: 'm', year: 'y', years: 'y',
-  dzień: 'd', dni: 'd', tydzień: 'w', tygodnie: 'w', tygodni: 'w', miesiąc: 'm', miesiące: 'm', miesięcy: 'm', rok: 'y', lata: 'y', lat: 'y',
+  day: 'd',
+  days: 'd',
+  week: 'w',
+  weeks: 'w',
+  month: 'm',
+  months: 'm',
+  year: 'y',
+  years: 'y',
+  dzień: 'd',
+  dni: 'd',
+  tydzień: 'w',
+  tygodnie: 'w',
+  tygodni: 'w',
+  miesiąc: 'm',
+  miesiące: 'm',
+  miesięcy: 'm',
+  rok: 'y',
+  lata: 'y',
+  lat: 'y',
 }
 
 function offset(d: Date, n: number, unit: 'd' | 'w' | 'm' | 'y'): Date {
@@ -58,7 +75,8 @@ export function parseNaturalDate(input: string, today: string): string | null {
         return fmt(addDays(t, -back))
       }
       let fwd = (wd - cur + 7) % 7
-      if (fwd === 0 || m[1] === 'next' || m[1] === 'przyszły' || m[1] === 'następny') fwd = fwd === 0 ? 7 : fwd
+      if (fwd === 0 || m[1] === 'next' || m[1] === 'przyszły' || m[1] === 'następny')
+        fwd = fwd === 0 ? 7 : fwd
       return fmt(addDays(t, fwd))
     }
   }
@@ -70,5 +88,11 @@ export function parseNaturalDate(input: string, today: string): string | null {
 /** `2026-10-03` → `Sat, Oct 3, 2026` (format configurable later). */
 export function formatDate(iso: string, locale = 'en-GB'): string {
   const d = parseISO(iso)
-  return new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(d)
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(d)
 }

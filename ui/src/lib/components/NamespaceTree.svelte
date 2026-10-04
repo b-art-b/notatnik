@@ -1,0 +1,96 @@
+<script lang="ts">
+  import { backend, type NamespaceEntry } from '../api'
+  import { pageHash } from '../route'
+  import Self from './NamespaceTree.svelte'
+
+  let { parent = null }: { parent?: string | null } = $props()
+  let entries = $state<NamespaceEntry[]>([])
+  let open = $state<Record<string, boolean>>({})
+  let tick = $state(0)
+
+  $effect(() => {
+    void tick
+    let cancelled = false
+    backend.call('list_namespace', { parent }).then((r) => {
+      if (!cancelled) entries = r
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+  $effect(() => backend.onGraphChanged(() => tick++))
+  $effect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('notatnik-ns-open') ?? '{}')
+      if (parent === null) open = saved
+    } catch {
+      /* not remembered */
+    }
+  })
+  function toggle(name: string) {
+    open[name] = !open[name]
+    try {
+      localStorage.setItem('notatnik-ns-open', JSON.stringify(open))
+    } catch {
+      /* not remembered */
+    }
+  }
+</script>
+
+<ul
+  role={parent === null ? 'tree' : 'group'}
+  class="tree"
+  aria-label={parent === null ? 'Namespaces' : undefined}
+>
+  {#each entries as e (e.name)}
+    <li role="treeitem" aria-selected="false" aria-expanded={e.has_children ? !!open[e.name] : undefined}>
+      <span class="line">
+        {#if e.has_children}<button
+            class="tog"
+            aria-label={open[e.name] ? 'Collapse' : 'Expand'}
+            onclick={() => toggle(e.name)}>{open[e.name] ? '▾' : '▸'}</button
+          >{:else}<span class="tog"></span>{/if}
+        <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}>{e.leaf}</a>
+        {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
+      </span>
+      {#if e.has_children && open[e.name]}<Self parent={e.name} />{/if}
+    </li>
+  {/each}
+</ul>
+
+<style>
+  .tree {
+    list-style: none;
+    margin: 0;
+    padding-left: 0.9em;
+  }
+  .line {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .tog {
+    width: 14px;
+    border: none;
+    background: none;
+    color: var(--muted);
+    padding: 0;
+    cursor: pointer;
+  }
+  a {
+    color: var(--text);
+    text-decoration: none;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .virtual {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .count {
+    font-size: 0.7em;
+    color: var(--muted);
+  }
+</style>

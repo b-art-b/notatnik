@@ -28,9 +28,12 @@ let toastId = 1
 export function toast(message: string, kind: Toast['kind'] = 'info') {
   const t = { id: toastId++, kind, message }
   app.toasts.push(t)
-  setTimeout(() => {
-    app.toasts = app.toasts.filter((x) => x.id !== t.id)
-  }, kind === 'error' ? 8000 : 3500)
+  setTimeout(
+    () => {
+      app.toasts = app.toasts.filter((x) => x.id !== t.id)
+    },
+    kind === 'error' ? 8000 : 3500,
+  )
 }
 
 export function errorMessage(e: unknown): string {
@@ -45,7 +48,8 @@ export function navigate(r: Route) {
 
 export function applyTheme(theme: Theme) {
   app.theme = theme
-  const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const dark =
+    theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
   try {
     localStorage.setItem('notatnik-theme', theme)

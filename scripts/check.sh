@@ -27,6 +27,11 @@ step "wasm"   cargo check -p notatnik-core --target wasm32-unknown-unknown
 step "wasm-pack" wasm-pack build crates/core-wasm --target nodejs --release --out-dir pkg-node --quiet
 step "wasm smoke test" node --test crates/core-wasm/tests/smoke.mjs
 
+step "ui lint"  pnpm -C ui lint
+step "ui check" pnpm -C ui check
+step "ui unit"  pnpm -C ui test
+step "ui e2e (Chrome + real backend)" pnpm -C ui test:e2e
+
 if [[ $FULL -eq 1 ]]; then
   step "perf targets (NF-2, NF-3, NF-5)" cargo test --release -p notatnik-graph --test perf -- --ignored
   step "benchmarks" cargo bench -p notatnik-graph --bench synthetic -- --quick
