@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bus } from '../stores/events.svelte'
   import { backend, type BacklinkView } from '../api'
   import { pageHash } from '../route'
   import Nodes from './Nodes.svelte'
@@ -6,10 +7,9 @@
   let { page }: { page: string } = $props()
   let links = $state<BacklinkView[]>([])
   let open = $state(true)
-  let tick = $state(0)
 
   $effect(() => {
-    void tick
+    void bus.version
     let cancelled = false
     backend.call('backlinks', { page }).then((r) => {
       if (!cancelled) links = r
@@ -18,7 +18,6 @@
       cancelled = true
     }
   })
-  $effect(() => backend.onGraphChanged(() => tick++))
 
   const groups = $derived.by(() => {
     const m = new Map<string, BacklinkView[]>()

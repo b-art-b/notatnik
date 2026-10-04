@@ -254,7 +254,7 @@ impl AppState {
 
     fn build_view(o: &mut Open, name: &PageName) -> ApiResult<(PageView, String)> {
         let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
-        let (canonical, rel, exists) = match &info {
+        let (mut canonical, rel, _indexed) = match &info {
             Some(i) => {
                 let n = PageName::parse(&i.name).unwrap_or_else(|_| name.clone());
                 let rel = i.file_path.clone().unwrap_or_else(|| page_to_path(&n));
@@ -262,11 +262,18 @@ impl AppState {
             }
             None => (name.clone(), page_to_path(name), false),
         };
-        let file = if exists {
-            o.graph.read_page(&rel).ok()
-        } else {
-            None
-        };
+        // trust the file on disk over the index: it may have been created or changed a moment ago
+        let file = o.graph.read_page(&rel).ok();
+        if let Some(f) = &file {
+            if o.graph
+                .refresh_file(&rel, &f.hash)
+                .map_err(ApiError::from)?
+            {
+                if let Some(i2) = o.graph.with_index(|i| i.page_info(name.as_str()))? {
+                    canonical = PageName::parse(&i2.name).unwrap_or(canonical);
+                }
+            }
+        }
         let (text, hash, exists) = match file {
             Some(f) => (f.text, Some(f.hash), true),
             None => (String::new(), None, false),

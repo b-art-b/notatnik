@@ -11,11 +11,12 @@ export default defineConfig({
   workers: 4,
   reporter: [['list']],
   globalSetup: './tests/global-setup.ts',
-  use: { channel: 'chrome', baseURL: 'http://127.0.0.1:5173', trace: 'retain-on-failure' },
+  use: { channel: 'chrome', baseURL: 'http://127.0.0.1:4173', trace: 'retain-on-failure' },
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://127.0.0.1:5173',
-    reuseExistingServer: true,
+    // the production build is faster and steadier under parallel workers than the dev server
+    command: 'pnpm build && pnpm preview',
+    url: 'http://127.0.0.1:4173',
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 })

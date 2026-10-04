@@ -2,7 +2,8 @@
 import type { BlockOp } from '../api'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
 import { undoRedo, type PageDoc } from '../stores/pages.svelte'
-import { navigate } from '../stores/app.svelte'
+import { app, navigate } from '../stores/app.svelte'
+import { doneAt, nextTaskState } from '../tasks'
 import {
   deleteBlocks,
   findById,
@@ -45,6 +46,7 @@ function withText(doc: PageDoc, blockId: number, text: string | undefined, plan:
 }
 
 export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
+  await ctx.doc.loaded
   const view = await ctx.doc.apply(plan.ops)
   if (view && plan.focus) {
     const b = getBlock(view.blocks, plan.focus.path)
@@ -52,15 +54,52 @@ export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
   }
 }
 
-/** Saves the editor text if it changed (blur, idle, leaving the block). */
-export async function commitText(ctx: Ctx, blockId: number, text: string): Promise<void> {
+/**
+ * Saves the editor text if it changed (blur, idle, leaving the block).
+ *
+ * `prev` is the text the editor last synced with the block. If the block no longer has that text, the
+ * block changed behind the editor's back (an external edit, or a runtime id that now points elsewhere), so
+ * nothing is written and a conflict is raised instead: the user chooses "keep mine" or "take theirs".
+ */
+export async function commitText(
+  ctx: Ctx,
+  blockId: number,
+  text: string,
+  prev?: string,
+  opts: { onlyIfActive?: boolean } = {},
+): Promise<void> {
+  await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    // a late commit from an editor that has since been replaced must not write anything
+    if (opts.onlyIfActive && !(editing.mode === 'edit' && editing.blockId === blockId)) return null
+    const hit =
+      findById(view.blocks, blockId) ??
+      (view.preamble?.id === blockId ? { path: [], block: view.preamble } : undefined)
+    if (!hit || hit.block.text === text) return null
+    if (prev !== undefined && hit.block.text !== prev) {
+      if (text !== prev && editing.mode === 'edit' && editing.blockId === blockId)
+        editing.conflict = { blockId, mine: text, theirs: hit.block.text }
+      return null
+    }
+    return [{ op: 'update_text', block: { path: hit.path, hash: null }, text }]
+  })
+}
+
+/** "Keep mine": writes the editor text over whatever is on disk now. */
+export async function keepMine(ctx: Ctx, blockId: number): Promise<void> {
+  const c = editing.conflict
   const view = ctx.doc.view
-  if (!view) return
-  const hit =
-    findById(view.blocks, blockId) ??
-    (view.preamble?.id === blockId ? { path: [], block: view.preamble } : undefined)
-  if (!hit || hit.block.text === text) return
-  await ctx.doc.apply([{ op: 'update_text', block: { path: hit.path, hash: null }, text }])
+  if (!c || c.blockId !== blockId || !view) return
+  const hit = findById(view.blocks, blockId)
+  editing.conflict = null
+  if (hit) await ctx.doc.apply([{ op: 'update_text', block: { path: hit.path, hash: null }, text: c.mine }])
+  editing.nonce++
+}
+
+/** "Take theirs": drops the editor text and reloads the editor with the block as it is on disk. */
+export function takeTheirs(): void {
+  editing.conflict = null
+  editing.nonce++
 }
 
 function pathOf(ctx: Ctx, blockId: number): Path | undefined {
@@ -69,11 +108,12 @@ function pathOf(ctx: Ctx, blockId: number): Path | undefined {
 }
 
 export type EditorAction =
-  | { kind: 'enter'; text: string; cursor: number }
-  | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string }
-  | { kind: 'merge-prev' | 'merge-next'; text: string }
-  | { kind: 'nav-up' | 'nav-down'; text: string; column: number }
-  | { kind: 'escape'; text: string }
+  | { kind: 'enter'; text: string; cursor: number; prev: string }
+  | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string; prev: string }
+  | { kind: 'merge-prev' | 'merge-next'; text: string; prev: string }
+  | { kind: 'nav-up' | 'nav-down'; text: string; column: number; prev: string }
+  | { kind: 'escape'; text: string; prev: string }
+  | { kind: 'cycle-task'; text: string; prev: string }
 
 /** Handles an action raised by the editor. Returns true when the key press was consumed. */
 export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): Promise<boolean> {
@@ -95,7 +135,7 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       const f = { indent, outdent, 'move-up': moveUp, 'move-down': moveDown }[a.kind]
       const plan = f(blocks, path)
       if (!plan) {
-        await commitText(ctx, blockId, a.text)
+        await commitText(ctx, blockId, a.text, a.prev)
         return true
       }
       await runPlan(ctx, withText(ctx.doc, blockId, a.text, plan))
@@ -117,7 +157,7 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
     case 'nav-down': {
       const target = a.kind === 'nav-up' ? previousVisible(blocks, path) : nextVisible(blocks, path)
       if (!target) return false
-      await commitText(ctx, blockId, a.text)
+      await commitText(ctx, blockId, a.text, a.prev)
       const fresh = ctx.doc.view
       const hit = fresh ? getBlock(fresh.blocks, target.path) : undefined
       if (hit)
@@ -132,8 +172,15 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
         )
       return true
     }
+    case 'cycle-task': {
+      const hit = findById(view.blocks, blockId)
+      if (!hit) return false
+      await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state), a.text)
+      return true
+    }
     case 'escape': {
-      await commitText(ctx, blockId, a.text)
+      await commitText(ctx, blockId, a.text, a.prev)
+      if (editing.conflict?.blockId === blockId) return true // stay in the editor: the user has to choose first
       startSelecting(ctx.viewKey, ctx.doc.name, [blockId])
       return true
     }
@@ -283,4 +330,58 @@ export async function pasteBlocks(ctx: Ctx, blockId: number, text: string): Prom
   await ctx.doc.apply(ops)
   stopEditing()
   return true
+}
+
+/** The op that changes a task's state, with the clock values the backend needs for `done::` and repeats. */
+export function taskStateOp(path: number[], state: import('../api').TaskState | null): BlockOp {
+  return {
+    op: 'set_task_state',
+    block: { path, hash: null },
+    state,
+    done_at: doneAt(app.today),
+    completed_limit: app.graph?.completed_log_limit ?? 0,
+  }
+}
+
+/** Sets the task state of a block (marker click, Ctrl+Enter, kanban drop). Keeps the editor open and remounts it. */
+export async function setTaskState(
+  ctx: Ctx,
+  blockId: number,
+  state: import('../api').TaskState | null,
+  editorText?: string,
+): Promise<void> {
+  await ctx.doc.loaded
+  const view = ctx.doc.view
+  const hit = view ? findById(view.blocks, blockId) : undefined
+  if (!view || !hit) return
+  const ops: BlockOp[] = []
+  if (editorText !== undefined && editorText !== hit.block.text)
+    ops.push({ op: 'update_text', block: { path: hit.path, hash: null }, text: editorText })
+  ops.push({
+    op: 'set_task_state',
+    block: { path: hit.path, hash: null },
+    state,
+    done_at: doneAt(app.today),
+    completed_limit: app.graph?.completed_log_limit ?? 0,
+  })
+  const wasEditing = editing.mode === 'edit' && editing.blockId === blockId
+  await ctx.doc.apply(ops)
+  if (wasEditing) {
+    editing.nonce++
+    startEditing(ctx.viewKey, ctx.doc.name, blockId, 'end')
+  }
+}
+
+/** Sets (or, with `null`, removes) a property of a block. */
+export async function setProperty(
+  doc: PageDoc,
+  blockPath: number[],
+  key: string,
+  value: string | null,
+): Promise<void> {
+  const op: BlockOp =
+    value === null
+      ? { op: 'remove_property', block: { path: blockPath, hash: null }, key }
+      : { op: 'set_property', block: { path: blockPath, hash: null }, key, value }
+  await doc.apply([op])
 }

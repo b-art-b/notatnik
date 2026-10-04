@@ -3,7 +3,19 @@
   import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { navigate } from '../stores/app.svelte'
-  import { commitText, editorAction, globalUndo, pasteBlocks, type Ctx } from '../commands/exec'
+  import {
+    commitText,
+    editorAction,
+    globalUndo,
+    keepMine,
+    pasteBlocks,
+    setProperty,
+    setTaskState,
+    takeTheirs,
+    type Ctx,
+  } from '../commands/exec'
+  import { app } from '../stores/app.svelte'
+  import { isOverdue, nextTaskState, progress } from '../tasks'
   import Nodes from './Nodes.svelte'
   import Editor from './Editor.svelte'
   import Self from './Block.svelte'
@@ -36,6 +48,13 @@
   )
   const visibleProps = $derived(block.props.filter((p) => !p.hidden))
   const hasChildren = $derived(block.children.length > 0)
+  const prog = $derived(progress(block))
+  let chipEdit = $state<'scheduled' | 'deadline' | 'priority' | null>(null)
+
+  async function applyChip(key: string, value: string | null) {
+    chipEdit = null
+    if (doc) await setProperty(doc, block.path, key, value)
+  }
 
   function edit(e: MouseEvent) {
     if (readonly) return
@@ -83,39 +102,113 @@
       onclick={() => !readonly && navigate({ kind: 'page', name: docName, zoom: block.path })}>●</button
     >
     <div class="body" role="presentation" onclick={edit}>
+      {#if isEditing && ctx && editing.conflict && editing.conflict.blockId === block.id}
+        <div class="conflict" role="alert" data-testid="block-conflict">
+          <strong>This block changed on disk while you were editing it.</strong>
+          <div class="versions">
+            <div>
+              <em>Yours</em>
+              <pre>{editing.conflict.mine}</pre>
+            </div>
+            <div>
+              <em>On disk</em>
+              <pre>{editing.conflict.theirs}</pre>
+            </div>
+          </div>
+          <button onclick={() => keepMine(ctx, block.id)}>Keep mine</button>
+          <button onclick={() => takeTheirs()}>Take theirs</button>
+        </div>
+      {/if}
       {#if isEditing && ctx}
-        <Editor
-          text={block.text}
-          cursor={editing.cursor}
-          pageName={docName}
-          onchange={(t) => commitText(ctx, block.id, t)}
-          onaction={(a) => editorAction(ctx, block.id, a)}
-          onundo={(k) => globalUndo(k)}
-          onpaste={(t) => pasteBlocks(ctx, block.id, t)}
-          onblur={async (t) => {
-            await commitText(ctx, block.id, t)
-            if (editing.mode === 'edit' && editing.blockId === block.id) stopEditing()
-          }}
-        />
+        {#key editing.nonce}
+          <Editor
+            text={block.text}
+            cursor={editing.cursor}
+            pageName={docName}
+            onchange={(t, prev) => commitText(ctx, block.id, t, prev, { onlyIfActive: true })}
+            onaction={(a) => editorAction(ctx, block.id, a)}
+            onundo={(k) => globalUndo(k)}
+            onpaste={(t) => pasteBlocks(ctx, block.id, t)}
+            onblur={async (t, prev) => {
+              // only the editor that is still the active one may save; a late blur from an editor that was
+              // replaced (indent, split, ...) must not write through a stale block id
+              if (editing.mode !== 'edit' || editing.blockId !== block.id || editing.viewKey !== viewKey)
+                return
+              await commitText(ctx, block.id, t, prev, { onlyIfActive: true })
+              if (editing.mode === 'edit' && editing.blockId === block.id && !editing.conflict) stopEditing()
+            }}
+          />
+        {/key}
       {:else}
         <div
           class="content"
           class:done={block.task?.state === 'DONE' || block.task?.state === 'CANCELED'}
           class:canceled={block.task?.state === 'CANCELED'}
         >
-          {#if block.task}<span
+          {#if block.task}<button
               class="marker marker-{block.task.state.toLowerCase()}"
-              data-task={block.task.state}>{block.task.state}</span
+              data-task={block.task.state}
+              title="Click to change the task state"
+              onclick={(e) => {
+                e.stopPropagation()
+                if (ctx) void setTaskState(ctx, block.id, nextTaskState(block.task?.state))
+              }}>{block.task.state}</button
+            >{/if}
+          {#if prog.total > 0}<span
+              class="progress"
+              title="{prog.done} of {prog.total} subtasks done"
+              data-testid="progress"
+              ><span class="bar"
+                ><span class="fill" style:width="{(100 * prog.done) / prog.total}%"></span></span
+              >{prog.done}/{prog.total}</span
             >{/if}
           <div class="nodes"><Nodes nodes={block.content} {chain} /></div>
         </div>
-        {#if block.task && (block.task.scheduled || block.task.deadline || block.task.priority || block.task.repeat)}
+        {#if block.task}
           <div class="chips">
-            {#if block.task.scheduled}<span class="chip">⏳ {block.task.scheduled}</span>{/if}
-            {#if block.task.deadline}<span class="chip">📅 {block.task.deadline}</span>{/if}
-            {#if block.task.priority}<span class="chip prio-{block.task.priority}">{block.task.priority}</span
+            {#if block.task.scheduled}<button
+                class="chip"
+                data-chip="scheduled"
+                onclick={() => (chipEdit = chipEdit === 'scheduled' ? null : 'scheduled')}
+                >⏳ {block.task.scheduled}</button
+              >{/if}
+            {#if block.task.deadline}<button
+                class="chip"
+                class:overdue={isOverdue(block.task.deadline, app.today) && block.task.state !== 'DONE'}
+                data-chip="deadline"
+                onclick={() => (chipEdit = chipEdit === 'deadline' ? null : 'deadline')}
+                >📅 {block.task.deadline}</button
+              >{/if}
+            {#if block.task.priority}<button
+                class="chip prio-{block.task.priority}"
+                data-chip="priority"
+                onclick={() => (chipEdit = chipEdit === 'priority' ? null : 'priority')}
+                >{block.task.priority}</button
               >{/if}
             {#if block.task.repeat}<span class="chip">🔁 {block.task.repeat}</span>{/if}
+            {#if chipEdit === 'priority'}
+              <select
+                aria-label="Priority"
+                value={block.task.priority ?? ''}
+                onchange={(e) => applyChip('priority', (e.currentTarget as HTMLSelectElement).value || null)}
+              >
+                <option value="">none</option><option value="high">high</option><option value="medium"
+                  >medium</option
+                ><option value="low">low</option>
+              </select>
+            {:else if chipEdit}
+              <input
+                type="date"
+                aria-label={chipEdit}
+                value={(chipEdit === 'scheduled' ? block.task.scheduled : block.task.deadline)?.slice(
+                  0,
+                  10,
+                ) ?? ''}
+                onchange={(e) =>
+                  applyChip(chipEdit as string, (e.currentTarget as HTMLInputElement).value || null)}
+              />
+              <button class="chip" onclick={() => applyChip(chipEdit as string, null)}>clear</button>
+            {/if}
           </div>
         {/if}
         {#if visibleProps.length}
@@ -216,6 +309,8 @@
     overflow-wrap: anywhere;
   }
   .marker {
+    border: none;
+    cursor: pointer;
     font-size: 0.7em;
     font-weight: 700;
     padding: 0 0.4em;
@@ -237,6 +332,53 @@
     gap: 0.3em;
     font-size: 0.78em;
     color: var(--muted);
+  }
+  .chip {
+    border: none;
+    cursor: pointer;
+    color: inherit;
+  }
+  .chip.overdue {
+    background: var(--danger);
+    color: white;
+  }
+  .progress {
+    font-size: 0.75em;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+  }
+  .bar {
+    width: 40px;
+    height: 5px;
+    background: var(--chip);
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+  .conflict {
+    border: 1px solid var(--warn);
+    background: var(--warn-bg);
+    border-radius: 6px;
+    padding: 0.4em 0.6em;
+    margin-bottom: 0.3em;
+    font-size: 0.85em;
+  }
+  .versions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5em;
+  }
+  .versions pre {
+    margin: 0.1em 0;
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
   }
   .prop-key {
     opacity: 0.8;

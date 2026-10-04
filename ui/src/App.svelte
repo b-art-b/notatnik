@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import './app.css'
   import { app, bootstrap } from './lib/stores/app.svelte'
   import { editing, isEditingDoc, stopEditing } from './lib/stores/editing.svelte'
   import { flushAll, getDoc, handleExternalChange, overallStatus } from './lib/stores/pages.svelte'
-  import { backend } from './lib/api'
+  import { bus } from './lib/stores/events.svelte'
   import {
     globalUndo,
     selectionDelete,
@@ -24,19 +24,36 @@
   import Settings from './lib/components/Settings.svelte'
   import Welcome from './lib/components/Welcome.svelte'
   import ConflictBanner from './lib/components/ConflictBanner.svelte'
+  import AgendaView from './lib/components/AgendaView.svelte'
+  import SavedQueryPage from './lib/components/SavedQueryPage.svelte'
+  import { backend } from './lib/api'
+  import type { SavedQueryView } from './lib/api'
   import { pageHash } from './lib/route'
 
   const route = $derived(app.route)
+  let saved = $state<SavedQueryView[]>([])
+  $effect(() => {
+    void app.savedVersion
+    void app.graph
+    if (app.graph) backend.call('list_saved_queries', {}).then((l) => (saved = l))
+  })
+
+  $effect(() => {
+    void bus.version
+    const e = bus.last
+    // untracked: reloading documents reads their state, which must not re-trigger this effect
+    untrack(() => {
+      if (e && !e.own && e.pages.length) handleExternalChange(e.pages, isEditingDoc)
+    })
+  })
 
   onMount(() => {
     void bootstrap()
-    const off = backend.onGraphChanged((e) => handleExternalChange(e.pages, isEditingDoc))
     const onKey = (e: KeyboardEvent) => void globalKey(e)
     window.addEventListener('keydown', onKey, true)
     const beforeUnload = () => void flushAll()
     window.addEventListener('beforeunload', beforeUnload)
     return () => {
-      off()
       window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('beforeunload', beforeUnload)
     }
@@ -115,12 +132,21 @@
     <aside class="left" aria-label="Sidebar">
       <nav>
         <a href="#/journals" class:active={route.kind === 'journals'}>Journals</a>
+        <a href="#/agenda" class:active={route.kind === 'agenda'}>Agenda</a>
         <button class="link" onclick={() => (app.searchOpen = true)}>Search</button>
         <a href="#/settings">Settings</a>
       </nav>
       <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
         {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
       </div>
+      {#if saved.length}
+        <h3>Saved queries</h3>
+        <ul class="saved">
+          {#each saved as s (s.name)}<li>
+              <a href={`#/saved/${encodeURIComponent(s.name)}`}>{s.name}</a>
+            </li>{/each}
+        </ul>
+      {/if}
       <h3>Pages</h3>
       <NamespaceTree />
     </aside>
@@ -130,6 +156,10 @@
         <JournalsView />
       {:else if route.kind === 'settings'}
         <Settings />
+      {:else if route.kind === 'agenda'}
+        <AgendaView />
+      {:else if route.kind === 'saved'}
+        {#key route.name}<SavedQueryPage name={route.name} />{/key}
       {:else}
         {#key route.name}
           <PageContent name={route.name} viewKey="main" zoom={route.zoom} />

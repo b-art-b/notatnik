@@ -12,6 +12,8 @@ export class PageDoc {
   loadError = $state<string | null>(null)
   /** Set when the file changed on disk while a block of this page was being edited. */
   externalChange = $state(false)
+  /** Resolves after the first load attempt; commands wait for it so a click before the page loaded still works. */
+  loaded: Promise<void> = Promise.resolve()
   private chain: Promise<unknown> = Promise.resolve()
   private pending = 0
 
@@ -37,12 +39,25 @@ export class PageDoc {
     }
   }
 
+  /** Like `apply`, but the ops are built when the request reaches the front of the queue, from the then-current
+   * view. Return `null` to send nothing. This keeps late editor commits from using a stale view. */
+  applyWith(build: (view: PageView | null) => BlockOp[] | null): Promise<PageView | null> {
+    return this.enqueue(build)
+  }
+
   /** Sends ops in order, one request at a time, each based on the hash the previous one returned. */
   apply(ops: BlockOp[]): Promise<PageView | null> {
+    return this.enqueue(() => ops)
+  }
+
+  private enqueue(build: (view: PageView | null) => BlockOp[] | null): Promise<PageView | null> {
     this.pending++
     this.status = 'saving'
     const run = async (): Promise<PageView | null> => {
+      await this.loaded // an edit made before the first load finished must use the loaded hash
       try {
+        const ops = build(this.view)
+        if (!ops || ops.length === 0) return this.view
         const r = await backend.call('apply_ops', {
           page: this.name,
           base_hash: this.view?.hash ?? null,
@@ -121,8 +136,8 @@ export function getDoc(name: string): PageDoc {
   if (!d) {
     d = new PageDoc(name)
     registry.set(name, d)
+    d.loaded = d.load()
     queueMicrotask(() => registryState.version++) // not during a derived: Svelte forbids state writes there
-    void d.load()
   }
   return d
 }

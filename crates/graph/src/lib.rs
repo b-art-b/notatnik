@@ -340,6 +340,19 @@ impl Graph {
         self.lock().reindexes.load(Ordering::Relaxed)
     }
 
+    /// Makes the index agree with the file on disk right now (the watcher is debounced, so a file that was
+    /// just created or edited may not be indexed yet). Returns whether a reindex happened.
+    pub fn refresh_file(&self, rel: &str, hash: &str) -> Result<bool> {
+        let mut g = self.lock();
+        if g.index.file_hash(rel)?.as_deref() == Some(hash) {
+            return Ok(false);
+        }
+        let root = g.root.clone();
+        g.index.reindex_file(&root, rel)?;
+        g.snapshot_file(rel);
+        Ok(true)
+    }
+
     /// Reads a page file (path relative to the graph root).
     pub fn read_page(&self, rel: &str) -> Result<PageFile> {
         let bytes = std::fs::read(self.root.join(rel)).map_err(|e| {

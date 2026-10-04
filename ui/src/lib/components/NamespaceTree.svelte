@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { bus } from '../stores/events.svelte'
   import { backend, type NamespaceEntry } from '../api'
   import { pageHash } from '../route'
   import Self from './NamespaceTree.svelte'
@@ -6,10 +7,9 @@
   let { parent = null }: { parent?: string | null } = $props()
   let entries = $state<NamespaceEntry[]>([])
   let open = $state<Record<string, boolean>>({})
-  let tick = $state(0)
 
   $effect(() => {
-    void tick
+    void bus.version
     let cancelled = false
     backend.call('list_namespace', { parent }).then((r) => {
       if (!cancelled) entries = r
@@ -18,7 +18,6 @@
       cancelled = true
     }
   })
-  $effect(() => backend.onGraphChanged(() => tick++))
   $effect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('notatnik-ns-open') ?? '{}')

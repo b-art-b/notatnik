@@ -12,6 +12,10 @@ export const editing = $state({
   selection: [] as number[],
   /** The block where a Shift-selection started. */
   anchorId: 0,
+  /** Bumped to force the editor to remount (after the block's text changed behind it). */
+  nonce: 0,
+  /** Set when a block changed on disk while it was being edited (P2.27). */
+  conflict: null as null | { blockId: number; mine: string; theirs: string },
 })
 
 export function startEditing(viewKey: string, docName: string, blockId: number, cursor: Cursor = 'end') {
@@ -21,6 +25,7 @@ export function startEditing(viewKey: string, docName: string, blockId: number, 
   editing.blockId = blockId
   editing.cursor = cursor
   editing.selection = []
+  editing.conflict = null
 }
 
 export function startSelecting(viewKey: string, docName: string, ids: number[], anchorId?: number) {

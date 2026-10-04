@@ -34,11 +34,11 @@
     /** Current page name (completions rank its namespace first). */
     pageName: string
     /** Called ~500 ms after the last keystroke, and when the block loses focus. */
-    onchange: (text: string) => void
+    onchange: (text: string, prev: string) => void
     onaction: (a: EditorAction) => Promise<boolean>
     onundo: (kind: 'undo' | 'redo') => void
     onpaste: (text: string) => Promise<boolean>
-    onblur: (text: string) => void
+    onblur: (text: string, prev: string) => void
   }
   let { text, cursor, pageName, onchange, onaction, onundo, onpaste, onblur }: Props = $props()
 
@@ -85,8 +85,9 @@
     clearTimeout(idle)
     const t = currentText()
     if (t !== lastSent) {
+      const prev = lastSent
       lastSent = t
-      onchange(t)
+      onchange(t, prev)
     }
   }
 
@@ -118,24 +119,27 @@
             if (v.state.selection.main.from !== v.state.selection.main.to) return false
             // run the split; if it declines (cursor not on the first line, in a fence) insert a newline
             clearTimeout(idle)
-            void onaction({ kind: 'enter', text: v.state.doc.toString(), cursor: head }).then((done) => {
-              if (!done) insertNewline(v)
-            })
+            void onaction({ kind: 'enter', text: v.state.doc.toString(), prev: lastSent, cursor: head }).then(
+              (done) => {
+                if (!done) insertNewline(v)
+              },
+            )
             return true
           },
         },
         { key: 'Shift-Enter', run: insertNewline },
-        { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t })) },
-        { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t })) },
-        { key: 'Alt-ArrowUp', run: (v) => act(v, (t) => ({ kind: 'move-up', text: t })) },
-        { key: 'Alt-ArrowDown', run: (v) => act(v, (t) => ({ kind: 'move-down', text: t })) },
+        { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
+        { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
+        { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+        { key: 'Alt-ArrowUp', run: (v) => act(v, (t) => ({ kind: 'move-up', text: t, prev: lastSent })) },
+        { key: 'Alt-ArrowDown', run: (v) => act(v, (t) => ({ kind: 'move-down', text: t, prev: lastSent })) },
         {
           key: 'ArrowUp',
           run: (v) => {
             const i = lineInfo(v)
             if (!i.first) return false
             clearTimeout(idle)
-            void onaction({ kind: 'nav-up', text: v.state.doc.toString(), column: i.column })
+            void onaction({ kind: 'nav-up', text: v.state.doc.toString(), prev: lastSent, column: i.column })
             return true
           },
         },
@@ -145,7 +149,12 @@
             const i = lineInfo(v)
             if (!i.last) return false
             clearTimeout(idle)
-            void onaction({ kind: 'nav-down', text: v.state.doc.toString(), column: i.column })
+            void onaction({
+              kind: 'nav-down',
+              text: v.state.doc.toString(),
+              prev: lastSent,
+              column: i.column,
+            })
             return true
           },
         },
@@ -155,7 +164,7 @@
             const s = v.state.selection.main
             if (s.from !== 0 || s.to !== 0) return false
             clearTimeout(idle)
-            void onaction({ kind: 'merge-prev', text: v.state.doc.toString() })
+            void onaction({ kind: 'merge-prev', text: v.state.doc.toString(), prev: lastSent })
             return true
           },
         },
@@ -165,11 +174,11 @@
             const s = v.state.selection.main
             if (s.from !== v.state.doc.length || s.to !== v.state.doc.length) return false
             clearTimeout(idle)
-            void onaction({ kind: 'merge-next', text: v.state.doc.toString() })
+            void onaction({ kind: 'merge-next', text: v.state.doc.toString(), prev: lastSent })
             return true
           },
         },
-        { key: 'Escape', run: (v) => act(v, (t) => ({ kind: 'escape', text: t })) },
+        { key: 'Escape', run: (v) => act(v, (t) => ({ kind: 'escape', text: t, prev: lastSent })) },
         {
           key: 'Mod-z',
           run: (v) => {
@@ -230,8 +239,9 @@
                 if (view && !view.hasFocus && !document.activeElement?.closest('.cm-tooltip')) {
                   clearTimeout(idle)
                   const t = currentText()
+                  const prev = lastSent
                   lastSent = t
-                  onblur(t)
+                  onblur(t, prev)
                 }
               })
               return false

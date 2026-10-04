@@ -188,3 +188,13 @@ mark {
 .status[data-status='error'] {
   color: var(--danger);
 }
+
+.saved {
+  list-style: none;
+  margin: 0;
+  padding-left: 0.4em;
+}
+.saved a {
+  text-decoration: none;
+  color: var(--text);
+}

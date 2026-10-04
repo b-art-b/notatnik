@@ -22,6 +22,8 @@ export const app = $state({
   paletteOpen: false,
   searchOpen: false,
   leftOpen: true,
+  /** Bumped when saved queries change, so the sidebar reloads them. */
+  savedVersion: 0,
 })
 
 let toastId = 1

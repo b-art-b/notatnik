@@ -2,6 +2,7 @@
   import type { Node } from '../api'
   import Inlines from './Inlines.svelte'
   import Self from './Nodes.svelte'
+  import QueryBlock from './QueryBlock.svelte'
 
   let { nodes, chain = [] }: { nodes: Node[]; chain?: string[] } = $props()
 </script>
@@ -16,7 +17,7 @@
   {:else if n.type === 'code_block'}
     <pre class="code-block" data-lang={n.lang ?? ''}><code>{n.code}</code></pre>
   {:else if n.type === 'query'}
-    <pre class="code-block query-block" data-lang="query"><code>{n.text}</code></pre>
+    <QueryBlock text={n.text} />
   {:else if n.type === 'quote'}
     <blockquote><Self nodes={n.children} {chain} /></blockquote>
   {:else if n.type === 'list'}

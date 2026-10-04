@@ -12,6 +12,13 @@ describe('routes', () => {
     expect(r).toEqual({ kind: 'page', name: 'x', zoom: [0, 2, 1] })
     expect(routeHash(r)).toBe('#/page/x?zoom=0.2.1')
   })
+  it('knows the agenda and saved queries', () => {
+    expect(parseRoute('#/agenda')).toEqual({ kind: 'agenda' })
+    expect(parseRoute(routeHash({ kind: 'saved', name: 'Open work/2' }))).toEqual({
+      kind: 'saved',
+      name: 'Open work/2',
+    })
+  })
   it('defaults to the journals', () => {
     expect(parseRoute('')).toEqual({ kind: 'journals' })
     expect(parseRoute('#/unknown')).toEqual({ kind: 'journals' })

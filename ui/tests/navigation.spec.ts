@@ -123,3 +123,66 @@ test('selecting blocks: indent all and copy as Markdown', async ({ backend, page
   await page.keyboard.press('Control+z')
   await expect.poll(() => backend.read('pages/sel.md')).toBe('- p\n  - a\n  - b\n  - c\n')
 })
+
+test('typing then Tab immediately never writes the text into another block', async ({ backend, page }) => {
+  backend.write('pages/safe.md', '- a\n- b\n- keep me\n')
+  await backend.open('/page/safe')
+  await page.getByText('b', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' typed')
+  await page.keyboard.press('Tab')
+  await expect.poll(() => backend.read('pages/safe.md')).toBe('- a\n  - b typed\n- keep me\n')
+  await page.waitForTimeout(800)
+  expect(backend.read('pages/safe.md')).toBe('- a\n  - b typed\n- keep me\n')
+})
+
+test('a block changed on disk while editing: keep mine / take theirs', async ({ backend, page }) => {
+  backend.write('pages/conf.md', '- first\n- second\n')
+  await backend.open('/page/conf')
+  await page.getByText('first').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' mine')
+  // the same block is changed by another tool
+  backend.write('pages/conf.md', '- first THEIRS\n- second\n')
+  await expect(page.getByTestId('block-conflict')).toBeHidden()
+  await page.waitForTimeout(1200)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('block-conflict')).toBeVisible()
+  expect(backend.read('pages/conf.md')).toBe('- first THEIRS\n- second\n')
+  await page.getByRole('button', { name: 'Take theirs' }).click()
+  await page.keyboard.press('Escape')
+  expect(backend.read('pages/conf.md')).toBe('- first THEIRS\n- second\n')
+})
+
+test('keep mine writes the local text', async ({ backend, page }) => {
+  backend.write('pages/conf.md', '- first\n- second\n')
+  await backend.open('/page/conf')
+  await page.getByText('first').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' mine')
+  backend.write('pages/conf.md', '- first THEIRS\n- second\n')
+  await page.waitForTimeout(1200)
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Keep mine' }).click()
+  await expect.poll(() => backend.read('pages/conf.md')).toBe('- first mine\n- second\n')
+})
+
+test('a different block changed on disk while editing: no prompt, both changes survive', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/conf.md', '- first\n- second\n')
+  await backend.open('/page/conf')
+  await page.getByText('first').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' mine')
+  backend.write('pages/conf.md', '- first\n- second THEIRS\n')
+  await page.waitForTimeout(1200)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/conf.md')).toBe('- first mine\n- second THEIRS\n')
+  await expect(page.getByTestId('block-conflict')).toBeHidden()
+})

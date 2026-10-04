@@ -2,6 +2,7 @@
   import { backend, type JournalDay } from '../api'
   import { app } from '../stores/app.svelte'
   import PageContent from './PageContent.svelte'
+  import TodayTasks from './TodayTasks.svelte'
   import { pageHash } from '../route'
   import { formatDate } from '../dates'
 
@@ -55,6 +56,7 @@
   {#each rows as r, i (r.kind === 'day' ? r.day.date : `gap-${r.from}-${i}`)}
     {#if r.kind === 'day'}
       <section class="day">
+        {#if r.day.date === app.today}<TodayTasks />{/if}
         <PageContent
           name={r.day.name}
           viewKey={`journal-${r.day.name}`}
