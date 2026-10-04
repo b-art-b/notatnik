@@ -43,3 +43,17 @@ Two slow plans were found by this benchmark and fixed:
 - `prop.x: value` probed `props_key (key, value_fold)` once per block and then filtered by owner (over a minute).
   The owner index is now `(owner_kind, owner_id, key)` and positive property filters are `owner IN (SELECT …)` (15 ms).
   Schema version 2.
+
+## Phase 2/3: UI (headless Chrome, not WebKitGTK)
+
+Run: `PERF=1 pnpm -C ui test:e2e tests/perf.spec.ts --workers=1` (also in `scripts/check.sh --full`).
+These are Chrome numbers on the machine above. The real target is WebKitGTK, so repeat them in the Tauri build (spike S1).
+
+| Date | What | Result | Target |
+|---|---|---|---|
+| 2026-10-04 | Open a page with 2,000 blocks (first 120 blocks painted; the rest stream in within ~0.5 s) | 216 ms | < 300 ms (P2.29) |
+| 2026-10-04 | Keystroke to paint on that page (median / p95, includes one rAF frame of measurement) | 17.8 / 25 ms | < 16 ms per frame (NF-4): about one frame |
+| 2026-10-04 | Edit on another page to updated query result in an open query block | about 210 ms (includes the edit request) | < 200 ms (P3.7): borderline |
+| 2026-10-04 | `get_page` of the 2,000-block page in the dev server (debug build), 977 KB of JSON | 40 ms | n/a |
+
+Rendering all 2,000 blocks at once took 567 ms in Svelte; progressive rendering (`PageContent.svelte`) fixed that.

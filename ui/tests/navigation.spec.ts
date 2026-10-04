@@ -186,3 +186,99 @@ test('a different block changed on disk while editing: no prompt, both changes s
   await expect.poll(() => backend.read('pages/conf.md')).toBe('- first mine\n- second THEIRS\n')
   await expect(page.getByTestId('block-conflict')).toBeHidden()
 })
+
+test('settings: theme and date format are device settings, week start is a graph setting', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/settings')
+  const cfgBefore = backend.read('.notatnik/config.toml')
+  await page.getByLabel('Theme').selectOption('dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  expect(backend.read('.notatnik/config.toml')).toBe(cfgBefore)
+  await page.getByLabel('Week starts on').selectOption('sunday')
+  await expect.poll(() => backend.read('.notatnik/config.toml')).toContain('sunday')
+})
+
+test('zoom into a block, breadcrumb back, browser back', async ({ backend, page }) => {
+  backend.write('pages/z.md', '- top\n  - middle\n    - deep one\n    - deep two\n- other top\n')
+  await backend.open('/page/z')
+  await page
+    .getByText('middle', { exact: true })
+    .locator('xpath=ancestor::*[@role="treeitem"][1]')
+    .getByRole('button', { name: 'Zoom into block' })
+    .first()
+    .click()
+  await expect(page).toHaveURL(/zoom=0\.0/)
+  await expect(page.getByText('deep one')).toBeVisible()
+  await expect(page.getByText('other top')).toBeHidden()
+  await page
+    .getByRole('navigation', { name: 'Block path' })
+    .getByRole('link', { name: 'z', exact: true })
+    .click()
+  await expect(page.getByText('other top')).toBeVisible()
+  await page.goBack()
+  await expect(page.getByText('other top')).toBeHidden()
+})
+
+test('command palette opens a page by name', async ({ backend, page }) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('alpha')
+  await expect(page.getByRole('option').first()).toContainText('work/projects/alpha')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Project Alpha')
+})
+
+test('every listed palette command can be run from the palette', async ({ backend, page }) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Go to journals')
+  await expect(page.getByRole('option').first()).toContainText('Go to journals')
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('journals')).toBeVisible()
+})
+
+test('shift+click on a link opens the page in the right sidebar and edits there reach the file', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/page/work%2Fprojects%2Falpha')
+  await page
+    .locator('a.page-ref[data-page="people/anna"]')
+    .first()
+    .click({ modifiers: ['Shift'] })
+  const panel = page.getByRole('complementary', { name: 'Side panels' })
+  await expect(panel).toContainText('Anna Kowalska')
+  await panel.getByText('Anna Kowalska').click({ position: { x: 5, y: 5 } })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' (side)')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() => backend.read('pages/people/anna.md'))
+    .toContain('Anna Kowalska, project lead (side)')
+})
+
+test('inserting a block reference adds an id to exactly one line of the target file', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/target.md', '- unique target sentence\n- another\n')
+  backend.write('pages/source.md', '- see \n')
+  await backend.open('/page/source')
+  await page.getByText('see').click({ position: { x: 3, y: 3 } })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type('((unique tar')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('unique target sentence', {
+    timeout: 5000,
+  })
+  await expect(page.locator('.cm-tooltip-autocomplete [aria-selected="true"]')).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(() => backend.read('pages/target.md'))
+    .toMatch(/^- unique target sentence \^[a-z0-9]{6}\n- another\n$/)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/source.md')).toMatch(/- see \(\([a-z0-9]{6}\)\)/)
+})

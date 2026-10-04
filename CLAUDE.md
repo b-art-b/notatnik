@@ -18,7 +18,9 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `crates/index`: SQLite schema, indexing, search, query → SQL.
 - `crates/graph`: file I/O, atomic writes, watcher, conflicts.
 - `crates/cli`: `notatnik` binary.
-- `src-tauri/`, `ui/`: desktop app (not created yet; phase 2).
+- `crates/app` (`notatnik-app`): the typed API (`dispatch`), page views, markdown renderer, undo, agenda/query commands. TypeScript bindings are generated from it (`scripts/gen-bindings.sh`).
+- `crates/dev-server`: HTTP wrapper around `dispatch`; the browser tests run against it.
+- `src-tauri/`: Tauri 2 shell (one `invoke_api` command). `ui/`: Svelte 5 + Vite frontend, Vitest unit tests, Playwright tests in `ui/tests`.
 
 ## Commands
 
@@ -29,7 +31,13 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo check -p notatnik-core --target wasm32-unknown-unknown   # core must stay wasm-clean
 cargo run -p notatnik-cli -- <args>
+scripts/check.sh            # everything, including UI lint/check/unit/browser tests
+scripts/check.sh --full     # plus perf targets, benchmarks, UI performance
+scripts/gen-bindings.sh     # after changing Rust API types
+cargo tauri build --bundles deb
 ```
+
+Node is installed with fnm: `export PATH="$HOME/.local/share/fnm/node-versions/v24.21.0/installation/bin:$PATH"`.
 
 ## Rules
 
@@ -37,4 +45,6 @@ cargo run -p notatnik-cli -- <args>
 - Never rewrite a whole user file when one block changed (ST-3); edits are minimal text replacements using source spans.
 - Never store anything in the graph folder that can't be derived from or isn't meant to be synced (ST-2).
 - Round-trip fidelity is tested with golden files: parse + no-op edit must be byte-identical.
+- UI edits: a commit from an editor must go through `PageDoc.applyWith` (evaluated when it reaches the queue front) and only for the still-active editor; never write through a stale block id.
+- Svelte 5: never write state inside `$derived`, and never read-then-write the same state in an `$effect` (use `untrack`).
 - The user is new to Svelte: keep UI code idiomatic Svelte 5 (runes) and explain non-obvious idioms.

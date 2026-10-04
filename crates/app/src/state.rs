@@ -1066,3 +1066,65 @@ impl AppState {
         })
     }
 }
+
+impl AppState {
+    fn settings_view(&self, o: &Open) -> ApiResult<SettingsView> {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs)?;
+        let cfg = o.graph.config();
+        Ok(SettingsView {
+            theme: dev.ui.theme,
+            date_locale: dev.ui.date_locale,
+            week_start: cfg.graph.week_start,
+            completed_log_limit: cfg.tasks.completed_log_limit,
+            graph_root: o.graph.root().to_string_lossy().into_owned(),
+        })
+    }
+
+    /// `get_settings`
+    pub fn get_settings(&self, _a: NoArgs) -> ApiResult<SettingsView> {
+        self.with_open(|o| self.settings_view(o))
+    }
+
+    /// `set_settings`: device settings only touch `settings.toml`, graph settings only `config.toml`.
+    pub fn set_settings(&self, a: SetSettingsArgs) -> ApiResult<SettingsView> {
+        if let Some(t) = &a.theme {
+            if !matches!(t.as_str(), "system" | "light" | "dark") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "theme must be system, light or dark",
+                ));
+            }
+        }
+        if let Some(w) = &a.week_start {
+            if !matches!(w.as_str(), "monday" | "sunday") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "week_start must be monday or sunday",
+                ));
+            }
+        }
+        self.with_open(|o| {
+            if a.theme.is_some() || a.date_locale.is_some() {
+                let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs)?;
+                if let Some(t) = a.theme {
+                    dev.ui.theme = t;
+                }
+                if let Some(l) = a.date_locale {
+                    dev.ui.date_locale = l;
+                }
+                dev.save(&self.dirs)?;
+            }
+            if a.week_start.is_some() || a.completed_log_limit.is_some() {
+                o.graph.update_config(|c| {
+                    if let Some(w) = &a.week_start {
+                        c.graph.week_start = w.clone();
+                    }
+                    if let Some(n) = a.completed_log_limit {
+                        c.tasks.completed_log_limit = n;
+                    }
+                })?;
+            }
+            self.settings_view(o)
+        })
+    }
+}

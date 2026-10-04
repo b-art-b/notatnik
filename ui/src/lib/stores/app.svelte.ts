@@ -1,5 +1,6 @@
 import { backend, CommandError, type GraphInfo } from '../api'
 import { parseRoute, routeHash, type Route } from '../route'
+import { setDateLocale } from '../dates'
 
 export interface Toast {
   id: number
@@ -83,9 +84,21 @@ export async function bootstrap() {
     app.graph = await backend.call('graph_info', {})
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
+    await loadDeviceSettings()
   } catch (e) {
     if (e instanceof CommandError && e.code === 'no_graph') app.needsGraph = true
     else toast(errorMessage(e), 'error')
+  }
+}
+
+/** Theme and date format come from the device settings file. */
+export async function loadDeviceSettings() {
+  try {
+    const s = await backend.call('get_settings', {})
+    setDateLocale(s.date_locale)
+    applyTheme(s.theme as Theme)
+  } catch {
+    /* keep the defaults */
   }
 }
 
@@ -95,6 +108,7 @@ export async function openGraph(path: string, create: boolean) {
     app.needsGraph = false
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
+    await loadDeviceSettings()
   } catch (e) {
     toast(errorMessage(e), 'error')
   }

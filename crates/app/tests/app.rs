@@ -774,3 +774,32 @@ fn own_writes_emit_graph_changed_with_the_own_flag() {
         "{ev:?}"
     );
 }
+
+#[test]
+fn settings_change_only_their_own_file() {
+    let t = start("basic");
+    let cfg_path = t.graph().join(".notatnik/config.toml");
+    let dev_path = t.tmp.path().join("device/config/settings.toml");
+    let cfg_before = std::fs::read_to_string(&cfg_path).unwrap();
+    let dev_before = std::fs::read_to_string(&dev_path).unwrap();
+    // a device setting touches settings.toml only
+    let s = t.ok("set_settings", json!({"theme": "dark", "date_locale": "pl-PL", "week_start": null, "completed_log_limit": null}));
+    assert_eq!(s["theme"], "dark");
+    assert_eq!(std::fs::read_to_string(&cfg_path).unwrap(), cfg_before);
+    assert_ne!(std::fs::read_to_string(&dev_path).unwrap(), dev_before);
+    let dev_mid = std::fs::read_to_string(&dev_path).unwrap();
+    // a graph setting touches config.toml only
+    let s = t.ok("set_settings", json!({"theme": null, "date_locale": null, "week_start": "sunday", "completed_log_limit": 3}));
+    assert_eq!(
+        (s["week_start"].as_str(), s["completed_log_limit"].as_u64()),
+        (Some("sunday"), Some(3))
+    );
+    assert_eq!(std::fs::read_to_string(&dev_path).unwrap(), dev_mid);
+    let cfg_after = std::fs::read_to_string(&cfg_path).unwrap();
+    assert!(
+        cfg_after.contains("sunday") && cfg_after.contains("completed_log_limit = 3"),
+        "{cfg_after}"
+    );
+    assert_eq!(t.ok("graph_info", json!({}))["week_start"], "sunday");
+    assert!(t.call("set_settings", json!({"theme": "neon", "date_locale": null, "week_start": null, "completed_log_limit": null})).is_err());
+}

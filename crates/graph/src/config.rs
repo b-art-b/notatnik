@@ -293,12 +293,42 @@ pub struct GraphEntry {
     pub path: String,
 }
 
+/// Per-device appearance settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiSettings {
+    /// `system`, `light` or `dark`.
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    /// BCP 47 locale used to format dates (`en-GB`, `pl-PL`, ...).
+    #[serde(default = "default_date_locale")]
+    pub date_locale: String,
+}
+
+fn default_theme() -> String {
+    "system".into()
+}
+fn default_date_locale() -> String {
+    "en-GB".into()
+}
+
+impl Default for UiSettings {
+    fn default() -> Self {
+        UiSettings {
+            theme: default_theme(),
+            date_locale: default_date_locale(),
+        }
+    }
+}
+
 /// `~/.config/notatnik/settings.toml`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DeviceSettings {
     /// Known graphs.
     #[serde(default)]
     pub graphs: Vec<GraphEntry>,
+    /// Appearance.
+    #[serde(default)]
+    pub ui: UiSettings,
 }
 
 impl DeviceSettings {

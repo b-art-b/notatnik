@@ -1,6 +1,7 @@
 // Autocomplete in the block editor: [[page, ((block, #tag and /commands (ED-7, NS-7).
 import {
   autocompletion,
+  startCompletion,
   type Completion,
   type CompletionContext,
   type CompletionResult,
@@ -8,6 +9,43 @@ import {
 import type { Extension } from '@codemirror/state'
 import { backend, type TitleHit } from './api'
 import { slashCommands } from './commands/slash'
+
+export const QUERY_KEYS = [
+  'task',
+  'tag',
+  'links',
+  'ns',
+  'page',
+  'scheduled',
+  'deadline',
+  'text',
+  'type',
+  'sort',
+  'limit',
+  'group',
+  'view',
+  'columns',
+]
+
+/** Where the cursor is: inside a ```query fence, and on which line of the block text. */
+export function cursorContext(
+  doc: string,
+  pos: number,
+): { inQuery: boolean; inFence: boolean; line: number; before: string } {
+  const lines = doc.slice(0, pos).split('\n')
+  let fence: string | null = null
+  for (let i = 0; i < lines.length - 1; i++) {
+    const m = /^\s*(?:```|~~~)(.*)$/.exec(lines[i])
+    if (m) fence = fence === null ? m[1].trim() : null
+  }
+  // a fence opened on the first line (`- ```query`) is part of that line
+  return {
+    inQuery: fence !== null && fence.startsWith('query'),
+    inFence: fence !== null,
+    line: lines.length - 1,
+    before: lines[lines.length - 1],
+  }
+}
 
 /** Ranks pages of the current namespace (and its siblings) first, keeping fuzzy order otherwise. */
 export function rankTitles(hits: TitleHit[], page: string, typed: string): TitleHit[] {
@@ -84,7 +122,9 @@ export function wikiCompletions(pageName: () => string): Extension {
         if (m) {
           const q = m[1]
           if (q.length < 2) return { from: ctx.pos - q.length, options: [], filter: false }
-          const hits = (await backend.call('search', { text: q, limit: 10 })).filter(
+          // the word being typed is a prefix: `unique tar` finds `unique target`
+          const text = q.trim().replace(/(\S+)$/, (w) => (w.endsWith('*') ? w : `${w}*`))
+          const hits = (await backend.call('search', { text, limit: 10 })).filter(
             (h) => h.kind === 'block' && h.path,
           )
           return {
@@ -126,6 +166,67 @@ export function wikiCompletions(pageName: () => string): Extension {
                   else view.dispatch({ changes: { from: f - 1, to: t, insert: `#[[${o.label}]]` } })
                 },
               })),
+          }
+        }
+        const cx = cursorContext(ctx.state.doc.toString(), ctx.pos)
+        // clause keys inside a query block
+        if (cx.inQuery) {
+          const k = /^\s*-?([a-z.]*)$/.exec(cx.before)
+          if (k) {
+            const keys = await backend.call('property_keys', {})
+            const all = [...QUERY_KEYS, ...keys.items.map((p) => `prop.${p}`)]
+            return {
+              from: ctx.pos - k[1].length,
+              filter: true,
+              options: all.map((key) => ({
+                label: key,
+                detail: 'clause',
+                type: 'keyword',
+                apply: `${key}: `,
+              })),
+            }
+          }
+          const v = /^\s*-?(?:tag|ns|page|links):\s*(?:.*,\s*)?([^,\n]*)$/.exec(cx.before)
+          if (v) {
+            const options = await titleCompletions(v[1], pageName())
+            return {
+              from: ctx.pos - v[1].length,
+              filter: false,
+              options: options.filter((o) => !o.displayLabel),
+            }
+          }
+          return null
+        }
+        // property lines (after the first line of a block): `key:: value`
+        if (!cx.inFence && cx.line > 0) {
+          const val = /^\s*([a-z0-9_-]+)::\s(.*)$/.exec(cx.before)
+          if (val) {
+            const values = await backend.call('property_values', { key: val[1] })
+            return {
+              from: ctx.pos - val[2].length,
+              filter: true,
+              options: values.items.map((x) => ({ label: x, type: 'text' })),
+            }
+          }
+          const key = /^\s*([a-z0-9_-]+)$/.exec(cx.before)
+          if (key) {
+            const keys = await backend.call('property_keys', {})
+            return {
+              from: ctx.pos - key[1].length,
+              filter: true,
+              options: keys.items.map((k) => ({
+                label: k,
+                detail: 'property',
+                type: 'property',
+                apply: (view, _c, f, to) => {
+                  view.dispatch({
+                    changes: { from: f, to, insert: `${k}:: ` },
+                    selection: { anchor: f + k.length + 3 },
+                  })
+                  startCompletion(view) // straight on to the values
+                },
+              })),
+            }
           }
         }
         // /command at the start of a word

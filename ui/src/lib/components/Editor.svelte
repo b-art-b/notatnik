@@ -22,6 +22,7 @@
     undo as cmUndo,
     redo as cmRedo,
   } from '@codemirror/commands'
+  import { acceptCompletion, closeCompletion, completionStatus } from '@codemirror/autocomplete'
   import { markdown } from '@codemirror/lang-markdown'
   import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
   import type { Cursor } from '../tree'
@@ -115,6 +116,7 @@
         {
           key: 'Enter',
           run: (v) => {
+            if (completionStatus(v.state) === 'active') return acceptCompletion(v)
             const { head } = lineInfo(v)
             if (v.state.selection.main.from !== v.state.selection.main.to) return false
             // run the split; if it declines (cursor not on the first line, in a fence) insert a newline
@@ -136,6 +138,7 @@
         {
           key: 'ArrowUp',
           run: (v) => {
+            if (completionStatus(v.state) === 'active') return false
             const i = lineInfo(v)
             if (!i.first) return false
             clearTimeout(idle)
@@ -146,6 +149,7 @@
         {
           key: 'ArrowDown',
           run: (v) => {
+            if (completionStatus(v.state) === 'active') return false
             const i = lineInfo(v)
             if (!i.last) return false
             clearTimeout(idle)
@@ -178,7 +182,13 @@
             return true
           },
         },
-        { key: 'Escape', run: (v) => act(v, (t) => ({ kind: 'escape', text: t, prev: lastSent })) },
+        {
+          key: 'Escape',
+          run: (v) =>
+            completionStatus(v.state) === 'active'
+              ? closeCompletion(v)
+              : act(v, (t) => ({ kind: 'escape', text: t, prev: lastSent })),
+        },
         {
           key: 'Mod-z',
           run: (v) => {

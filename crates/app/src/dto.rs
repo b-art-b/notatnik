@@ -579,3 +579,31 @@ pub struct PropKeyArgs {
     /// Property key.
     pub key: String,
 }
+
+/// Settings as the settings screen shows and changes them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SettingsView {
+    /// Device: `system`, `light` or `dark`.
+    pub theme: String,
+    /// Device: locale for date formatting.
+    pub date_locale: String,
+    /// Graph: `monday` or `sunday`.
+    pub week_start: String,
+    /// Graph: keep only the last N completion dates of repeating tasks (0 = all).
+    pub completed_log_limit: u32,
+    /// The open graph's folder.
+    pub graph_root: String,
+}
+
+/// `set_settings`: only the given parts change. Device settings go to `settings.toml`, graph settings to `config.toml`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SetSettingsArgs {
+    /// Device: theme.
+    pub theme: Option<String>,
+    /// Device: date locale.
+    pub date_locale: Option<String>,
+    /// Graph: week start.
+    pub week_start: Option<String>,
+    /// Graph: completed log limit.
+    pub completed_log_limit: Option<u32>,
+}

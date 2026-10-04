@@ -10,8 +10,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done
 |---|---|---|---|
 | 0 | [Environment, setup, risk spikes](phases/phase-0.md) | Toolchain, buildable empty workspace, check script; spikes on WebKitGTK performance, parser choice, CalDAV | 🟨 (S2 done; S1, S3 and editor setup need you) |
 | 1 | [Core without UI](phases/phase-1.md) | File format frozen; parser, edit ops, query language, SQLite index, graph service (atomic writes, watcher), CLI, benchmarks | 🟨 (all tasks done and verified; waiting for your spec review and manual acceptance) |
-| 2 | [Desktop app MVP](phases/phase-2.md) | Tauri + Svelte outliner: editing, keyboard model, undo, links, backlinks, namespaces, journals, search, packaging | ⬜ |
-| 3 | [Tasks, queries, views](phases/phase-3.md) | Task states and dates, agenda, live query blocks, list/table/kanban/timeline views, repeating tasks | ⬜ |
+| 2 | [Desktop app MVP](phases/phase-2.md) | Tauri + Svelte outliner: editing, keyboard model, undo, links, backlinks, namespaces, journals, search, packaging | 🟨 (implemented and browser-tested; see the status table in the phase doc) |
+| 3 | [Tasks, queries, views](phases/phase-3.md) | Task states and dates, agenda, live query blocks, list/table/kanban/timeline views, repeating tasks | 🟨 (implemented and browser-tested; manual acceptance open) |
 | 4 | [Calendar (CalDAV)](phases/phase-4.md) | Two-way task sync and event display with Nextcloud, safe conflict/deletion handling | ⬜ |
 | 5 | [V1 polish](phases/phase-5.md) | 3-way merge + conflict UI, multiple graphs, assets, aliases, unlinked refs, namespace moves, templates, drag-drop, smart paste, themes | ⬜ |
 | 6 | [Plugins and scripting](phases/phase-6.md) | Sandboxed TypeScript plugin API with permissions, custom views, user scripts, example plugins, security suite | ⬜ |

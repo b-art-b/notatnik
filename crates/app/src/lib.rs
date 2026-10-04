@@ -67,4 +67,6 @@ commands! {
     delete_saved_query(NameArgs) -> Vec<SavedQueryView> => delete_saved_query,
     property_keys(NoArgs) -> StringList => property_keys,
     property_values(PropKeyArgs) -> StringList => property_values,
+    get_settings(NoArgs) -> SettingsView => get_settings,
+    set_settings(SetSettingsArgs) -> SettingsView => set_settings,
 }

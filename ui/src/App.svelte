@@ -110,6 +110,7 @@
     const raw = sessionStorage.getItem('notatnik-flash')
     if (!raw) return
     sessionStorage.removeItem('notatnik-flash')
+    window.dispatchEvent(new CustomEvent('notatnik-render-all'))
     const { page, path } = JSON.parse(raw) as { page: string; path: number[] | null }
     const doc = getDoc(page)
     const b = path && doc.view ? getBlock(doc.view.blocks, path) : undefined

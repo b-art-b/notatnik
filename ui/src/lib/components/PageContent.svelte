@@ -36,6 +36,29 @@
     })
   })
   const segments = $derived((view?.name ?? name).split('/'))
+  // Progressive rendering (NF-4): the first blocks appear at once, the rest stream in over the next frames.
+  const FIRST_BATCH = 120
+  const BATCH = 240
+  let limit = $state(FIRST_BATCH)
+  $effect(() => {
+    void name
+    limit = FIRST_BATCH
+  })
+  $effect(() => {
+    const total = roots.length
+    if (limit >= total) return
+    const id = requestAnimationFrame(() => (limit = Math.min(total, limit + BATCH)))
+    return () => cancelAnimationFrame(id)
+  })
+  $effect(() => {
+    const all = () => (limit = Number.MAX_SAFE_INTEGER)
+    window.addEventListener('notatnik-flash', all)
+    window.addEventListener('notatnik-render-all', all)
+    return () => {
+      window.removeEventListener('notatnik-flash', all)
+      window.removeEventListener('notatnik-render-all', all)
+    }
+  })
   let draft = $state(false)
   let renaming = $state(false)
   let showProps = $state(false)
@@ -118,7 +141,7 @@
         {#if view.preamble}
           <BlockList blocks={[view.preamble]} docName={view.name} {viewKey} />
         {/if}
-        <BlockList blocks={roots} docName={view.name} {viewKey} />
+        <BlockList blocks={roots.slice(0, limit)} docName={view.name} {viewKey} />
       </div>
       {#if view.blocks.length === 0 && !view.preamble}
         {#if draft}

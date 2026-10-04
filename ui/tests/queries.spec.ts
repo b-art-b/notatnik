@@ -116,3 +116,40 @@ test.describe('queries fixture', () => {
     await expect.poll(() => backend.read('pages/work/tasks.md')).toContain('- TODO Work root task edited')
   })
 })
+
+test.describe('autocomplete', () => {
+  test.use({ fixture: 'queries' })
+
+  test('clause keys inside a query block', async ({ backend, page }) => {
+    backend.write('pages/q.md', '- ```query\n  task: todo\n  ```\n')
+    await backend.open('/page/q')
+    await page
+      .getByTestId('query-block')
+      .locator('xpath=ancestor::div[contains(@class,"body")]')
+      .click({ position: { x: 3, y: 3 } })
+    await expect(page.getByTestId('block-editor')).toBeFocused()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('End')
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('ta')
+    const tip = page.locator('.cm-tooltip-autocomplete')
+    await expect(tip).toContainText('task', { timeout: 5000 })
+    await expect(tip).toContainText('tag')
+  })
+
+  test('property keys and values after `::`', async ({ backend, page }) => {
+    backend.write('pages/p.md', '- A block\n  rating:: 3\n')
+    await backend.open('/page/p')
+    await page.getByText('A block').click()
+    await expect(page.getByTestId('block-editor')).toBeFocused()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.press('Shift+Enter')
+    await page.keyboard.type('sta')
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('status', { timeout: 5000 })
+    await expect(page.locator('.cm-tooltip-autocomplete [aria-selected="true"]')).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('draft', { timeout: 5000 })
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('reading')
+  })
+})

@@ -6,6 +6,21 @@ live query blocks, and list / table / kanban / timeline views, all backed by pla
 **Requirements covered:** TK-1–6, QV-1–8, QV-10, PR-3.
 **Depends on:** phase 2 (editor, IPC); phase 1 query engine (P1.16–P1.29).
 
+**Status (2026-10-04):** implemented and tested in a browser against the real backend; manual acceptance and daily use are open.
+
+| Task | State |
+|---|---|
+| P3.1 state cycling | Done and tested (Ctrl+Enter, marker click). Cycle: none, TODO, DOING, DONE, none; WAITING goes to DONE, CANCELED clears |
+| P3.2 `done::` | Done (golden tests for add/remove; hidden in the rendered view) |
+| P3.3 task chips | Done and tested for deadline set/clear and overdue style; scheduled and priority use the same code. Slash commands exist; no browser test |
+| P3.4 agenda, P3.5 journal section | Done and tested against the `tasks` fixture (7 overdue, 1 today, 4 days, 8 undated); filters saved per device |
+| P3.6-P3.8 query blocks, live updates, errors | Done and tested. Live updates re-run all visible queries (the dependency-signature optimisation is not built; measured ~210 ms end to end) |
+| P3.9, P3.17 autocomplete in queries and properties | Done and tested |
+| P3.10-P3.13 list, table, kanban, timeline | Done and tested (sorting, cell edit, drag to change state/property/date). Keyboard card move is `Alt+←/→` (not browser-tested). 500-row smooth scrolling not measured |
+| P3.14 editable results, saved queries | Done and tested; second-device sync not tested (it is `config.toml`) |
+| P3.15 repeating tasks | Done: 19-row unit table + golden tests + browser test. Raw `RRULE:` values are not shifted (the task is just marked DONE) |
+| P3.16 subtask progress | Done and tested (counts all descendants) |
+
 ## Exit criteria
 
 1. Every task checked, with every **Verify** item passing; `scripts/check.sh` (and `--full`) pass.

@@ -7,6 +7,32 @@ outliner editing, links, backlinks, namespaces, search, with all edits safely wr
 SR-1, SR-2, ST-4, ST-5 (UI side), NF-4, NF-6, NF-11 (keyboard).
 **Depends on:** phase 1 complete; spike S1 findings (virtualisation yes/no).
 
+**Status (2026-10-04):** mostly implemented and tested in a browser against the real backend; not yet used daily.
+
+| Task | State |
+|---|---|
+| P2.1 scaffold | Done: Tauri 2 + Svelte 5 + Vite, lint/check/test pass, `cargo tauri build` makes a `.deb`. Not verified: hot reload in `cargo tauri dev` |
+| P2.2 learn Svelte | yours |
+| P2.3 typed IPC | Done with `ts-rs` and one `invoke_api` command (decision D20); stale bindings fail `cargo test` |
+| P2.4 mock backend | Replaced by the HTTP dev backend (D21); the same UI runs on both backends |
+| P2.5 `tauri-driver` e2e | **Open** (needs `sudo apt install webkit2gtk-driver`); browser tests cover the same flows |
+| P2.6-P2.9 reading, refs, backlinks, collapse | Done and tested (escaping, cycles, backlink counts, collapse persistence). Not verified: external links open the system browser (manual) |
+| P2.10 editor on the focused block | Done, including click-to-cursor. Deviation: the `^id` is **hidden** in the editor (kept automatically) instead of shown raw |
+| P2.11 keyboard model | Done; `docs/keymap.md`; logic unit-tested; main keys browser-tested |
+| P2.12 multi-select | Done and tested (extend, indent, copy as Markdown, delete + undo) |
+| P2.13 undo/redo | Done and tested (3-step exact restore, refusal after an external change) |
+| P2.14 autocomplete | Done and tested (`[[`, `((` with `^id` written to the target, `#`, `/`) |
+| P2.15 zoom, P2.16 palette, P2.18 rename UI, P2.19-P2.22 links, sidebar, tree, breadcrumbs, P2.24 dates, P2.25 search | Done and tested |
+| P2.17 paste | Done (unit-tested parsing); no browser test |
+| P2.23 journals | Done (injected clock, no file for empty days); cold-start time (NF-6) not measured |
+| P2.26 save indicator | Done; flush on quit is wired (`beforeunload`) but not tested |
+| P2.27 external changes | Done and tested (no focus jump, keep mine / take theirs, other block untouched) |
+| P2.28 conflict files | Done and tested (banner appears without restart; side-by-side view) |
+| P2.29 performance | Chrome numbers in `docs/benchmarks.md` (216 ms open, ~1 frame typing); WebKitGTK still to measure (S1) |
+| P2.30 settings | Done and tested (device vs graph files) |
+| P2.31 accessibility | Done: axe finds no serious/critical violations on page view and search; keyboard-only flow tested |
+| P2.32 packaging | `.deb` builds (6.9 MiB). **Open:** install test on Mint, AppImage |
+
 ## Exit criteria
 
 1. Every task checked, with every **Verify** item passing.

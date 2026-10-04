@@ -753,6 +753,44 @@ export type PropKeyArgs = {
  * Property key.
  */
 key: string, };
+export type SettingsView = { 
+/**
+ * Device: `system`, `light` or `dark`.
+ */
+theme: string, 
+/**
+ * Device: locale for date formatting.
+ */
+date_locale: string, 
+/**
+ * Graph: `monday` or `sunday`.
+ */
+week_start: string, 
+/**
+ * Graph: keep only the last N completion dates of repeating tasks (0 = all).
+ */
+completed_log_limit: number, 
+/**
+ * The open graph's folder.
+ */
+graph_root: string, };
+export type SetSettingsArgs = { 
+/**
+ * Device: theme.
+ */
+theme: string | null, 
+/**
+ * Device: date locale.
+ */
+date_locale: string | null, 
+/**
+ * Graph: week start.
+ */
+week_start: string | null, 
+/**
+ * Graph: completed log limit.
+ */
+completed_log_limit: number | null, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -783,4 +821,6 @@ export type Commands = {
   delete_saved_query: { args: NameArgs; result: SavedQueryView[] };
   property_keys: { args: NoArgs; result: StringList };
   property_values: { args: PropKeyArgs; result: StringList };
+  get_settings: { args: NoArgs; result: SettingsView };
+  set_settings: { args: SetSettingsArgs; result: SettingsView };
 };

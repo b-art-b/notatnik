@@ -85,8 +85,15 @@ export function parseNaturalDate(input: string, today: string): string | null {
   return null
 }
 
-/** `2026-10-03` → `Sat, Oct 3, 2026` (format configurable later). */
-export function formatDate(iso: string, locale = 'en-GB'): string {
+let currentLocale = 'en-GB'
+
+/** Sets the locale used by `formatDate` (device setting). */
+export function setDateLocale(locale: string) {
+  currentLocale = locale
+}
+
+/** `2026-10-03` → `Sat, 3 Oct 2026` in the configured locale. */
+export function formatDate(iso: string, locale = currentLocale): string {
   const d = parseISO(iso)
   return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
