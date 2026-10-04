@@ -662,6 +662,8 @@ fn edit_page_applies_ops_with_guard() {
             &[BlockOp::SetTaskState {
                 block: BlockRef::at(&[0, 0]),
                 state: Some(notatnik_core::TaskState::Todo),
+                done_at: None,
+                completed_limit: None,
             }],
         )
         .unwrap();
