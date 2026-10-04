@@ -92,7 +92,15 @@ block: BlockRef,
 /**
  * New state.
  */
-state: TaskState | null, } | { "op": "ensure_block_id", 
+state: TaskState | null, 
+/**
+ * When the change happens; enables the `done::` / repeat handling.
+ */
+done_at: string | null, 
+/**
+ * Keep only the last N dates in `completed::` (0 or absent = keep all).
+ */
+completed_limit: number | null, } | { "op": "ensure_block_id", 
 /**
  * Target.
  */
@@ -310,7 +318,11 @@ warnings: Array<string>,
 /**
  * Week start (`monday` / `sunday`).
  */
-week_start: string, };
+week_start: string, 
+/**
+ * `[tasks] completed_log_limit` (0 = keep all dates of repeating tasks).
+ */
+completed_log_limit: number, };
 export type ApplyResult = { 
 /**
  * The page after the edit.
@@ -574,8 +586,175 @@ code: string,
  * Human-readable message.
  */
 message: string, };
+export type QueryErrorView = { 
+/**
+ * Line (1-based).
+ */
+line: number, 
+/**
+ * Column (1-based).
+ */
+column: number, 
+/**
+ * What is wrong.
+ */
+message: string, 
+/**
+ * A possible fix.
+ */
+suggestion: string | null, };
+export type ResultRow = { 
+/**
+ * Stable id (`page#path`, or the page name).
+ */
+id: string, 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * Group label when the query groups.
+ */
+group: string | null, 
+/**
+ * The block (children removed), for block queries.
+ */
+block: BlockView | null, 
+/**
+ * Parent block texts, outermost first.
+ */
+breadcrumbs: Array<string>, 
+/**
+ * Properties (key → first value).
+ */
+props: { [key in string]: string }, 
+/**
+ * Scheduled date of the task, if any.
+ */
+scheduled: string | null, 
+/**
+ * Deadline of the task, if any.
+ */
+deadline: string | null, 
+/**
+ * Task state (`todo`, ...), if a task.
+ */
+task_state: string | null, };
+export type QueryView = { 
+/**
+ * Problems in the query text (the rows are empty then).
+ */
+errors: Array<QueryErrorView>, 
+/**
+ * `block` or `page`.
+ */
+target: string, 
+/**
+ * `list`, `table`, `kanban`, `timeline` or a plugin view.
+ */
+view: string, 
+/**
+ * Columns for the table view.
+ */
+columns: Array<string>, 
+/**
+ * `group:` clause as text (`task`, `page`, `prop.status`, ...).
+ */
+group_by: string | null, 
+/**
+ * Results.
+ */
+rows: Array<ResultRow>, };
+export type RunQueryArgs = { 
+/**
+ * Query text.
+ */
+text: string, 
+/**
+ * Overrides the `view:` clause (the view switcher).
+ */
+view: string | null, };
+export type AgendaArgs = { 
+/**
+ * Only tasks in this namespace (and below).
+ */
+ns: string | null, 
+/**
+ * Only tasks with this tag.
+ */
+tag: string | null, 
+/**
+ * Only this priority.
+ */
+priority: string | null, };
+export type AgendaItem = { 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * The task block (children removed).
+ */
+block: BlockView, 
+/**
+ * Parent block texts.
+ */
+breadcrumbs: Array<string>, 
+/**
+ * The date it is listed under (the earlier of scheduled and deadline).
+ */
+date: string | null, };
+export type AgendaDay = { 
+/**
+ * `YYYY-MM-DD`.
+ */
+date: string, 
+/**
+ * Tasks.
+ */
+items: Array<AgendaItem>, };
+export type AgendaView = { 
+/**
+ * Today according to the server clock.
+ */
+today: string, 
+/**
+ * Open tasks dated before today.
+ */
+overdue: Array<AgendaItem>, 
+/**
+ * Open tasks dated today.
+ */
+today_items: Array<AgendaItem>, 
+/**
+ * The next 7 days, one entry per day that has tasks.
+ */
+upcoming: Array<AgendaDay>, 
+/**
+ * Open tasks without any date.
+ */
+undated: Array<AgendaItem>, };
+export type SavedQueryView = { 
+/**
+ * Name.
+ */
+name: string, 
+/**
+ * Query text.
+ */
+query: string, };
+export type NameArgs = { 
+/**
+ * Name of the saved query.
+ */
+name: string, };
+export type PropKeyArgs = { 
+/**
+ * Property key.
+ */
+key: string, };
 
-export type GraphChangedEvent = { pages: string[]; paths: string[] };
+export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
 export type Commands = {
   open_graph: { args: OpenGraphArgs; result: GraphInfo };
@@ -597,4 +776,11 @@ export type Commands = {
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
   list_conflicts: { args: NoArgs; result: StringList };
   read_conflict: { args: ReadConflictArgs; result: ConflictView };
+  run_query: { args: RunQueryArgs; result: QueryView };
+  agenda: { args: AgendaArgs; result: AgendaView };
+  list_saved_queries: { args: NoArgs; result: SavedQueryView[] };
+  save_query: { args: SavedQueryView; result: SavedQueryView[] };
+  delete_saved_query: { args: NameArgs; result: SavedQueryView[] };
+  property_keys: { args: NoArgs; result: StringList };
+  property_values: { args: PropKeyArgs; result: StringList };
 };

@@ -198,6 +198,8 @@ pub struct GraphInfo {
     pub warnings: Vec<String>,
     /// Week start (`monday` / `sunday`).
     pub week_start: String,
+    /// `[tasks] completed_log_limit` (0 = keep all dates of repeating tasks).
+    pub completed_log_limit: u32,
 }
 
 /// Result of an edit.
@@ -443,4 +445,137 @@ pub struct StringList {
 pub struct StringValue {
     /// The value.
     pub value: String,
+}
+
+/// An error in query text, with its position.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct QueryErrorView {
+    /// Line (1-based).
+    pub line: u32,
+    /// Column (1-based).
+    pub column: u32,
+    /// What is wrong.
+    pub message: String,
+    /// A possible fix.
+    pub suggestion: Option<String>,
+}
+
+/// One query result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ResultRow {
+    /// Stable id (`page#path`, or the page name).
+    pub id: String,
+    /// Page name.
+    pub page: String,
+    /// Group label when the query groups.
+    pub group: Option<String>,
+    /// The block (children removed), for block queries.
+    pub block: Option<BlockView>,
+    /// Parent block texts, outermost first.
+    pub breadcrumbs: Vec<String>,
+    /// Properties (key → first value).
+    pub props: std::collections::BTreeMap<String, String>,
+    /// Scheduled date of the task, if any.
+    pub scheduled: Option<String>,
+    /// Deadline of the task, if any.
+    pub deadline: Option<String>,
+    /// Task state (`todo`, ...), if a task.
+    pub task_state: Option<String>,
+}
+
+/// A query ready to show.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct QueryView {
+    /// Problems in the query text (the rows are empty then).
+    pub errors: Vec<QueryErrorView>,
+    /// `block` or `page`.
+    pub target: String,
+    /// `list`, `table`, `kanban`, `timeline` or a plugin view.
+    pub view: String,
+    /// Columns for the table view.
+    pub columns: Vec<String>,
+    /// `group:` clause as text (`task`, `page`, `prop.status`, ...).
+    pub group_by: Option<String>,
+    /// Results.
+    pub rows: Vec<ResultRow>,
+}
+
+/// `run_query`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RunQueryArgs {
+    /// Query text.
+    pub text: String,
+    /// Overrides the `view:` clause (the view switcher).
+    pub view: Option<String>,
+}
+
+/// `agenda`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AgendaArgs {
+    /// Only tasks in this namespace (and below).
+    pub ns: Option<String>,
+    /// Only tasks with this tag.
+    pub tag: Option<String>,
+    /// Only this priority.
+    pub priority: Option<String>,
+}
+
+/// One task in the agenda.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct AgendaItem {
+    /// Page name.
+    pub page: String,
+    /// The task block (children removed).
+    pub block: BlockView,
+    /// Parent block texts.
+    pub breadcrumbs: Vec<String>,
+    /// The date it is listed under (the earlier of scheduled and deadline).
+    pub date: Option<String>,
+}
+
+/// Tasks of one day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct AgendaDay {
+    /// `YYYY-MM-DD`.
+    pub date: String,
+    /// Tasks.
+    pub items: Vec<AgendaItem>,
+}
+
+/// The agenda (TK-4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct AgendaView {
+    /// Today according to the server clock.
+    pub today: String,
+    /// Open tasks dated before today.
+    pub overdue: Vec<AgendaItem>,
+    /// Open tasks dated today.
+    pub today_items: Vec<AgendaItem>,
+    /// The next 7 days, one entry per day that has tasks.
+    pub upcoming: Vec<AgendaDay>,
+    /// Open tasks without any date.
+    pub undated: Vec<AgendaItem>,
+}
+
+/// A pinned query.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SavedQueryView {
+    /// Name.
+    pub name: String,
+    /// Query text.
+    pub query: String,
+}
+
+/// `delete_saved_query`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct NameArgs {
+    /// Name of the saved query.
+    pub name: String,
+}
+
+/// `property_values`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct PropKeyArgs {
+    /// Property key.
+    pub key: String,
 }

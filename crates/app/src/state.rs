@@ -236,6 +236,7 @@ impl AppState {
             conflicts: graph.conflict_files().unwrap_or_default(),
             warnings,
             week_start: graph.config().graph.week_start,
+            completed_log_limit: graph.config().tasks.completed_log_limit,
         }
     }
 
@@ -355,10 +356,15 @@ impl AppState {
                 }
             }
             let (page, _) = Self::build_view(o, &canonical)?;
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [canonical.to_string()], "paths": [], "own": true }),
+            );
             Ok(ApplyResult { page })
         })
     }
 
+    #[allow(clippy::unused_self)]
     fn undo_redo(&self, undo: bool) -> ApiResult<UndoResult> {
         self.with_open(|o| {
             let entry = if undo { o.undo.pop() } else { o.redo.pop() }.ok_or_else(|| {
@@ -428,6 +434,10 @@ impl AppState {
             }
             let name = Self::parse_name(&entry.page)?;
             let (page, _) = Self::build_view(o, &name)?;
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [entry.page.clone()], "paths": [], "own": true }),
+            );
             Ok(UndoResult { page })
         })
     }
@@ -606,6 +616,10 @@ impl AppState {
             o.undo.retain(|e| e.page != plan.old);
             o.redo.retain(|e| e.page != plan.old);
             let n = Self::parse_name(&plan.new)?;
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [plan.old.clone(), plan.new.clone()], "paths": [], "own": true }),
+            );
             Ok(Self::build_view(o, &n)?.0)
         })
     }
@@ -743,6 +757,305 @@ impl AppState {
             }
             std::fs::read(o.graph.root().join(p))
                 .map_err(|_| ApiError::new("not_found", "asset not found"))
+        })
+    }
+}
+
+// ---- queries, agenda, saved queries, property completion ---------------------------------------
+
+use notatnik_core::query::GroupBy;
+use notatnik_index::{QueryContext, QueryRow};
+
+fn breadcrumbs_of(blocks: &[BlockView], path: &[u32]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut list = blocks;
+    for i in path.iter().take(path.len().saturating_sub(1)) {
+        match list.get(*i as usize) {
+            Some(b) => {
+                out.push(b.text.lines().next().unwrap_or("").to_string());
+                list = &b.children;
+            }
+            None => break,
+        }
+    }
+    out
+}
+
+impl AppState {
+    fn context(&self, o: &Open) -> QueryContext {
+        QueryContext {
+            today: self.today(),
+            week_start: o.graph.config().week_start(),
+        }
+    }
+
+    /// Looks up the rendered block of a result row, caching page views for the call.
+    fn row_block(
+        o: &mut Open,
+        cache: &mut HashMap<String, PageView>,
+        r: &QueryRow,
+    ) -> ApiResult<(Option<BlockView>, Vec<String>)> {
+        let Some(path) = r.path.as_deref() else {
+            return Ok((None, Vec::new()));
+        };
+        if path == "p" {
+            return Ok((None, Vec::new()));
+        }
+        if !cache.contains_key(&r.page) {
+            let n = Self::parse_name(&r.page)?;
+            cache.insert(r.page.clone(), Self::build_view(o, &n)?.0);
+        }
+        let p: Vec<u32> = path.split('.').filter_map(|x| x.parse().ok()).collect();
+        let Some(view) = cache.get(&r.page) else {
+            return Ok((None, Vec::new()));
+        };
+        let crumbs = breadcrumbs_of(&view.blocks, &p);
+        let block = find_block(&view.blocks, &p).map(|b| {
+            let mut b = b.clone();
+            b.children = Vec::new();
+            b
+        });
+        Ok((block, crumbs))
+    }
+
+    /// `run_query`
+    pub fn run_query(&self, a: RunQueryArgs) -> ApiResult<QueryView> {
+        let (query, errs) = notatnik_core::parse_query_partial(&a.text);
+        let view_name = a
+            .view
+            .clone()
+            .or(query.view.clone())
+            .unwrap_or_else(|| "list".into());
+        let target = if query.target == notatnik_core::query::QueryTarget::Page {
+            "page"
+        } else {
+            "block"
+        };
+        let group_by = query.group.as_ref().map(|g| match g {
+            GroupBy::Page => "page".to_string(),
+            GroupBy::Task => "task".into(),
+            GroupBy::Scheduled => "scheduled".into(),
+            GroupBy::Deadline => "deadline".into(),
+            GroupBy::Prop(k) => format!("prop.{k}"),
+        });
+        if !errs.is_empty() {
+            return Ok(QueryView {
+                errors: errs
+                    .into_iter()
+                    .map(|e| QueryErrorView {
+                        line: e.line as u32,
+                        column: e.column as u32,
+                        message: e.message,
+                        suggestion: e.suggestion,
+                    })
+                    .collect(),
+                target: target.into(),
+                view: view_name,
+                columns: query.columns,
+                group_by,
+                rows: Vec::new(),
+            });
+        }
+        self.with_open(|o| {
+            let ctx = self.context(o);
+            let res = o.graph.with_index(|i| i.run_query(&query, &ctx));
+            let res = match res {
+                Ok(r) => r,
+                Err(e) => {
+                    return Ok(QueryView {
+                        errors: vec![QueryErrorView {
+                            line: 1,
+                            column: 1,
+                            message: e.to_string(),
+                            suggestion: None,
+                        }],
+                        target: target.into(),
+                        view: view_name,
+                        columns: query.columns.clone(),
+                        group_by,
+                        rows: Vec::new(),
+                    });
+                }
+            };
+            let mut cache: HashMap<String, PageView> = HashMap::new();
+            let hidden: HashSet<String> =
+                o.graph.config().properties.hidden.iter().cloned().collect();
+            let mut keys: BTreeMap<String, usize> = BTreeMap::new();
+            let mut rows = Vec::with_capacity(res.rows.len());
+            for r in res.rows {
+                let (block, breadcrumbs) = Self::row_block(o, &mut cache, &r)?;
+                for k in r.props.keys().filter(|k| !hidden.contains(*k)) {
+                    *keys.entry(k.clone()).or_default() += 1;
+                }
+                rows.push(ResultRow {
+                    id: r.id,
+                    page: r.page,
+                    group: r.group,
+                    block,
+                    breadcrumbs,
+                    props: r.props,
+                    scheduled: r.scheduled,
+                    deadline: r.deadline,
+                    task_state: r.task_state,
+                });
+            }
+            let columns = if query.columns.is_empty() {
+                let mut c = vec![if target == "page" {
+                    "page".to_string()
+                } else {
+                    "text".to_string()
+                }];
+                c.extend(keys.keys().map(|k| format!("prop.{k}")));
+                c
+            } else {
+                query.columns.clone()
+            };
+            Ok(QueryView {
+                errors: Vec::new(),
+                target: target.into(),
+                view: view_name,
+                columns,
+                group_by,
+                rows,
+            })
+        })
+    }
+
+    /// `agenda`
+    pub fn agenda(&self, a: AgendaArgs) -> ApiResult<AgendaView> {
+        let mut text = String::from("task: todo, doing, waiting\n");
+        let name = |n: &str| format!("[[{}]]", n.trim_start_matches('#'));
+        if let Some(ns) = &a.ns {
+            text.push_str(&format!("ns: {}\n", name(ns)));
+        }
+        if let Some(tag) = &a.tag {
+            text.push_str(&format!("tag: {}\n", name(tag)));
+        }
+        if let Some(p) = &a.priority {
+            if !matches!(p.as_str(), "high" | "medium" | "low") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "priority must be high, medium or low",
+                ));
+            }
+            text.push_str(&format!("prop.priority: {p}\n"));
+        }
+        let (query, errs) = notatnik_core::parse_query_partial(&text);
+        if let Some(e) = errs.first() {
+            return Err(ApiError::new("invalid", e.to_string()));
+        }
+        let today = self.today();
+        let today_s = today.format("%Y-%m-%d").to_string();
+        let horizon = today
+            .checked_add_days(Days::new(7))
+            .unwrap_or(today)
+            .format("%Y-%m-%d")
+            .to_string();
+        self.with_open(|o| {
+            let ctx = self.context(o);
+            let res = o.graph.with_index(|i| i.run_query(&query, &ctx))?;
+            let mut cache: HashMap<String, PageView> = HashMap::new();
+            let mut view = AgendaView {
+                today: today_s.clone(),
+                overdue: Vec::new(),
+                today_items: Vec::new(),
+                upcoming: Vec::new(),
+                undated: Vec::new(),
+            };
+            let mut days: BTreeMap<String, Vec<AgendaItem>> = BTreeMap::new();
+            for r in res.rows {
+                let date = match (&r.scheduled, &r.deadline) {
+                    (Some(s), Some(d)) => Some(s.min(d).clone()),
+                    (Some(x), None) | (None, Some(x)) => Some(x.clone()),
+                    (None, None) => None,
+                };
+                let (block, crumbs) = Self::row_block(o, &mut cache, &r)?;
+                let Some(block) = block else { continue };
+                let item = AgendaItem {
+                    page: r.page,
+                    block,
+                    breadcrumbs: crumbs,
+                    date: date.clone(),
+                };
+                match date {
+                    None => view.undated.push(item),
+                    Some(d) if d < today_s => view.overdue.push(item),
+                    Some(d) if d == today_s => view.today_items.push(item),
+                    Some(d) if d <= horizon => days.entry(d).or_default().push(item),
+                    Some(_) => {}
+                }
+            }
+            view.overdue.sort_by(|x, y| x.date.cmp(&y.date));
+            view.upcoming = days
+                .into_iter()
+                .map(|(date, items)| AgendaDay { date, items })
+                .collect();
+            Ok(view)
+        })
+    }
+
+    fn saved(o: &Open) -> Vec<SavedQueryView> {
+        o.graph
+            .config()
+            .saved_queries
+            .into_iter()
+            .map(|q| SavedQueryView {
+                name: q.name,
+                query: q.query,
+            })
+            .collect()
+    }
+
+    /// `list_saved_queries`
+    pub fn list_saved_queries(&self, _a: NoArgs) -> ApiResult<Vec<SavedQueryView>> {
+        self.with_open(|o| Ok(Self::saved(o)))
+    }
+
+    /// `save_query`: adds or replaces a pinned query (stored in `config.toml`, so it syncs).
+    pub fn save_query(&self, a: SavedQueryView) -> ApiResult<Vec<SavedQueryView>> {
+        if a.name.trim().is_empty() {
+            return Err(ApiError::new("invalid", "a saved query needs a name"));
+        }
+        let (_, errs) = notatnik_core::parse_query_partial(&a.query);
+        if let Some(e) = errs.first() {
+            return Err(ApiError::new("invalid", e.to_string()));
+        }
+        self.with_open(|o| {
+            o.graph.update_config(|c| {
+                c.saved_queries.retain(|q| q.name != a.name);
+                c.saved_queries.push(notatnik_graph::SavedQuery {
+                    name: a.name.clone(),
+                    query: a.query.clone(),
+                });
+            })?;
+            Ok(Self::saved(o))
+        })
+    }
+
+    /// `delete_saved_query`
+    pub fn delete_saved_query(&self, a: NameArgs) -> ApiResult<Vec<SavedQueryView>> {
+        self.with_open(|o| {
+            o.graph
+                .update_config(|c| c.saved_queries.retain(|q| q.name != a.name))?;
+            Ok(Self::saved(o))
+        })
+    }
+
+    /// `property_keys`
+    pub fn property_keys(&self, _a: NoArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            Ok(StringList {
+                items: o.graph.with_index(|i| i.property_keys(60))?,
+            })
+        })
+    }
+
+    /// `property_values`
+    pub fn property_values(&self, a: PropKeyArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            Ok(StringList {
+                items: o.graph.with_index(|i| i.property_values(&a.key, 40))?,
+            })
         })
     }
 }

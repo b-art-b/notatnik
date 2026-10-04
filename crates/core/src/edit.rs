@@ -94,11 +94,21 @@ pub enum BlockOp {
         key: String,
     },
     /// Sets (`Some`) or clears (`None`) the task marker.
+    ///
+    /// With `done_at` (`YYYY-MM-DDTHH:MM`, from the caller's clock) the change is complete: moving to
+    /// DONE adds `done::`, moving away removes it, and DONE on a repeating task logs the date in
+    /// `completed::`, resets the task to TODO and moves `scheduled`/`deadline` forward (P3.2, P3.15).
     SetTaskState {
         /// Target.
         block: BlockRef,
         /// New state.
         state: Option<TaskState>,
+        /// When the change happens; enables the `done::` / repeat handling.
+        #[serde(default)]
+        done_at: Option<String>,
+        /// Keep only the last N dates in `completed::` (0 or absent = keep all).
+        #[serde(default)]
+        completed_limit: Option<u32>,
     },
     /// Adds ` ^id` to the first line (no-op if the block already has an ID).
     EnsureBlockId {
@@ -528,9 +538,25 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
                 None => Vec::new(),
             }
         }
-        BlockOp::SetTaskState { block, state } => {
+        BlockOp::SetTaskState {
+            block,
+            state,
+            done_at,
+            completed_limit,
+        } => {
             let b = resolve(source, page, block)?;
-            set_task_state(source, b, *state)
+            match done_at {
+                None => set_task_state(source, b, *state),
+                Some(at) => set_task_state_full(
+                    source,
+                    page,
+                    block,
+                    b,
+                    *state,
+                    at,
+                    completed_limit.unwrap_or(0),
+                )?,
+            }
         }
         BlockOp::EnsureBlockId { block, id } => {
             let b = resolve(source, page, block)?;
@@ -866,4 +892,129 @@ mod replace_id_tests {
         assert!(replace_block_id(src, &p, &[3], "zzz999").is_err());
         assert!(replace_block_id(src, &p, &[0], "BAD").is_err());
     }
+}
+
+/// Sets or removes a property line inside block text lines (`lines[0]` is the first line).
+fn set_prop_line(lines: &mut Vec<String>, key: &str, value: Option<&str>) {
+    let mut last_prop = 0;
+    let mut found = None;
+    for (i, l) in lines.iter().enumerate().skip(1) {
+        match crate::props::split_property_line(l) {
+            Some((k, _)) => {
+                last_prop = i;
+                if k == key {
+                    found = Some(i);
+                }
+            }
+            None => break,
+        }
+    }
+    match (found, value) {
+        (Some(i), Some(v)) => lines[i] = format!("{key}:: {v}"),
+        (Some(i), None) => {
+            lines.remove(i);
+        }
+        (None, Some(v)) => lines.insert(last_prop + 1, format!("{key}:: {v}")),
+        (None, None) => {}
+    }
+}
+
+fn prop_value<'a>(lines: &'a [String], key: &str) -> Option<&'a str> {
+    lines
+        .iter()
+        .skip(1)
+        .map_while(|l| crate::props::split_property_line(l))
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v.trim())
+}
+
+fn set_task_state_full(
+    source: &str,
+    page: &Page,
+    block: &BlockRef,
+    b: &Block,
+    state: Option<TaskState>,
+    done_at: &str,
+    completed_limit: u32,
+) -> Result<Vec<TextPatch>, EditError> {
+    let completed_on = crate::task::parse_datetime(done_at)
+        .map(|d| d.date())
+        .or_else(|| crate::task::parse_date(done_at))
+        .ok_or_else(|| {
+            EditError::InvalidValue(format!("`{done_at}` is not a date (YYYY-MM-DDTHH:MM)"))
+        })?;
+    let text = b.edit_text(source);
+    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    // the marker on the first line
+    let first = lines.first().cloned().unwrap_or_default();
+    let body = match first.split_once(' ').or(Some((first.as_str(), ""))) {
+        Some((w, rest)) if TaskState::from_marker(w).is_some() => rest.to_string(),
+        _ => first.clone(),
+    };
+    let set_marker = |lines: &mut Vec<String>, s: Option<TaskState>| {
+        let new_first = match (s, body.is_empty()) {
+            (Some(s), true) => s.marker().to_string(),
+            (Some(s), false) => format!("{} {}", s.marker(), body),
+            (None, _) => body.clone(),
+        };
+        if let Some(l) = lines.first_mut() {
+            *l = new_first;
+        }
+    };
+    let repeat = prop_value(&lines, "repeat").and_then(crate::task::Repeat::parse);
+    if state == Some(TaskState::Done) {
+        if let Some(rep) = repeat {
+            let sched = prop_value(&lines, "scheduled").and_then(crate::task::Moment::parse);
+            let dead = prop_value(&lines, "deadline").and_then(crate::task::Moment::parse);
+            if let Some((ns, nd)) = crate::repeat::advance(&rep, sched, dead, completed_on) {
+                set_marker(&mut lines, Some(TaskState::Todo));
+                if let Some(ns) = ns {
+                    set_prop_line(&mut lines, "scheduled", Some(&ns.to_string()));
+                }
+                if let Some(nd) = nd {
+                    set_prop_line(&mut lines, "deadline", Some(&nd.to_string()));
+                }
+                let mut log: Vec<String> = prop_value(&lines, "completed")
+                    .map(|v| {
+                        v.split(',')
+                            .map(|x| x.trim().to_string())
+                            .filter(|x| !x.is_empty())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                log.push(completed_on.format("%Y-%m-%d").to_string());
+                if completed_limit > 0 && log.len() > completed_limit as usize {
+                    log.drain(..log.len() - completed_limit as usize);
+                }
+                set_prop_line(&mut lines, "completed", Some(&log.join(", ")));
+                set_prop_line(&mut lines, "done", None);
+                return update_text(
+                    source,
+                    page,
+                    &BlockRef {
+                        path: block.path.clone(),
+                        hash: None,
+                    },
+                    &lines.join("\n"),
+                    page.style.eol.as_str(),
+                );
+            }
+        }
+    }
+    set_marker(&mut lines, state);
+    if state == Some(TaskState::Done) {
+        set_prop_line(&mut lines, "done", Some(done_at));
+    } else {
+        set_prop_line(&mut lines, "done", None);
+    }
+    update_text(
+        source,
+        page,
+        &BlockRef {
+            path: block.path.clone(),
+            hash: None,
+        },
+        &lines.join("\n"),
+        page.style.eol.as_str(),
+    )
 }

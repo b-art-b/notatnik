@@ -18,6 +18,7 @@ pub mod names;
 pub mod outline;
 pub mod props;
 pub mod query;
+pub mod repeat;
 pub mod span;
 pub mod task;
 

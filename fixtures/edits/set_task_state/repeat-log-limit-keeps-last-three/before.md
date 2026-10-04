@@ -1,0 +1,4 @@
+- TODO Daily
+  scheduled:: 2026-10-03
+  repeat:: daily
+  completed:: 2026-09-30, 2026-10-01, 2026-10-02

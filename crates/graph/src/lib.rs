@@ -13,7 +13,7 @@ mod watch;
 
 pub use config::{
     CalendarSection, Config, DeviceSettings, Dirs, GraphEntry, GraphSection, NamespaceSection,
-    PropertiesSection, TasksSection, new_graph_id,
+    PropertiesSection, SavedQuery, TasksSection, new_graph_id,
 };
 pub use error::{Error, Result};
 pub use rename::{FileEdit, RenamePlan, RenameReport};
@@ -301,6 +301,18 @@ impl Graph {
     /// The graph folder (absolute).
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Changes `config.toml` (atomic write) and the in-memory config.
+    pub fn update_config(&self, f: impl FnOnce(&mut Config)) -> Result<()> {
+        let mut g = self.lock();
+        let mut cfg = g.config.clone();
+        f(&mut cfg);
+        let path = g.root.join(".notatnik").join("config.toml");
+        let root = g.root.clone();
+        atomic_write(&root, &path, cfg.to_toml().as_bytes())?;
+        g.config = cfg;
+        Ok(())
     }
 
     /// A copy of the current config.

@@ -60,4 +60,11 @@ commands! {
     set_collapsed(SetCollapsedArgs) -> NoArgs => set_collapsed,
     list_conflicts(NoArgs) -> StringList => list_conflicts,
     read_conflict(ReadConflictArgs) -> ConflictView => read_conflict,
+    run_query(RunQueryArgs) -> QueryView => run_query,
+    agenda(AgendaArgs) -> AgendaView => agenda,
+    list_saved_queries(NoArgs) -> Vec<SavedQueryView> => list_saved_queries,
+    save_query(SavedQueryView) -> Vec<SavedQueryView> => save_query,
+    delete_saved_query(NameArgs) -> Vec<SavedQueryView> => delete_saved_query,
+    property_keys(NoArgs) -> StringList => property_keys,
+    property_values(PropKeyArgs) -> StringList => property_values,
 }

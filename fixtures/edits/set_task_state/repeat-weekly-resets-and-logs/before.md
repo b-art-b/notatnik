@@ -1,0 +1,4 @@
+- TODO Water plants
+  scheduled:: 2026-10-03
+  repeat:: weekly
+  completed:: 2026-09-26

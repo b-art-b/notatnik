@@ -577,3 +577,25 @@ impl Index {
         Ok(self.page_info(name)?.is_some_and(|p| !p.is_virtual))
     }
 }
+
+impl Index {
+    /// Block property keys, most used first.
+    pub fn property_keys(&self, limit: usize) -> Result<Vec<String>> {
+        let mut st = self.conn.prepare_cached("SELECT key FROM props WHERE owner_kind = 'block' GROUP BY key ORDER BY COUNT(*) DESC, key LIMIT ?1")?;
+        let rows = st
+            .query_map([limit as i64], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Values seen for a block property key, most used first.
+    pub fn property_values(&self, key: &str, limit: usize) -> Result<Vec<String>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT value_text FROM props WHERE owner_kind = 'block' AND key = ?1 AND value_text IS NOT NULL GROUP BY value_text ORDER BY COUNT(*) DESC, value_text LIMIT ?2",
+        )?;
+        let rows = st
+            .query_map(params![key, limit as i64], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+}

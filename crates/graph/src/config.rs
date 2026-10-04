@@ -26,6 +26,18 @@ pub struct Config {
     /// `[calendar]`
     #[serde(default)]
     pub calendar: CalendarSection,
+    /// `[[saved_queries]]`: queries pinned to the sidebar (they sync with the graph).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub saved_queries: Vec<SavedQuery>,
+}
+
+/// A query pinned to the sidebar.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SavedQuery {
+    /// Name shown in the sidebar.
+    pub name: String,
+    /// Query text.
+    pub query: String,
 }
 
 /// `[graph]`
@@ -148,6 +160,7 @@ impl Config {
                         }
                     }
                 }
+                None if k == "saved_queries" => {}
                 None if k == "namespaces" => {
                     if let Some(t) = v.as_table() {
                         for (ns, nv) in t {

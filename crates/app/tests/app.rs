@@ -567,3 +567,210 @@ fn dispatch_errors() {
     assert!(info["id"].as_str().unwrap().starts_with('g'));
     assert!(g.join(".notatnik/config.toml").exists());
 }
+
+// ---- phase 3 ------------------------------------------------------------------------------------
+
+#[test]
+fn agenda_sections_for_the_tasks_fixture() {
+    let t = start("tasks");
+    let a = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+    let texts = |v: &Value| -> Vec<String> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|i| {
+                i["block"]["text"]
+                    .as_str()
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect()
+    };
+    assert_eq!(a["today"], "2026-10-03");
+    assert_eq!(a["overdue"].as_array().unwrap().len(), 7);
+    assert_eq!(
+        texts(&a["overdue"])[0],
+        "TODO Monthly",
+        "oldest first (2026-01-31)"
+    );
+    assert_eq!(texts(&a["today_items"]), ["TODO Due today"]);
+    let days: Vec<&str> = a["upcoming"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["date"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        days,
+        ["2026-10-04", "2026-10-05", "2026-10-07", "2026-10-08"]
+    );
+    assert_eq!(a["undated"].as_array().unwrap().len(), 8);
+    assert!(!serde_json::to_string(&a).unwrap().contains("Far future"));
+    // filters
+    let w = t.ok(
+        "agenda",
+        json!({"ns": "work", "tag": null, "priority": null}),
+    );
+    assert_eq!(w["upcoming"].as_array().unwrap().len(), 1);
+    assert_eq!(w["undated"].as_array().unwrap().len(), 1);
+    assert_eq!(w["overdue"], json!([]));
+    let u = t.ok(
+        "agenda",
+        json!({"ns": null, "tag": "urgent", "priority": null}),
+    );
+    assert_eq!(
+        u["upcoming"][0]["items"][0]["block"]["text"]
+            .as_str()
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap(),
+        "TODO Work task urgent #urgent"
+    );
+    let h = t.ok(
+        "agenda",
+        json!({"ns": null, "tag": null, "priority": "high"}),
+    );
+    assert_eq!(
+        h["upcoming"][0]["items"].as_array().unwrap().len(),
+        1,
+        "scheduled next week, high"
+    );
+    assert!(
+        t.call(
+            "agenda",
+            json!({"ns": null, "tag": null, "priority": "urgent"})
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn run_query_views_errors_and_saved_queries() {
+    let t = start("queries");
+    let q = t.ok(
+        "run_query",
+        json!({"text": "task: todo\nns: work\nview: table", "view": null}),
+    );
+    assert_eq!(q["view"], "table");
+    assert_eq!(q["errors"], json!([]));
+    assert_eq!(q["rows"].as_array().unwrap().len(), 5);
+    assert_eq!(q["rows"][0]["block"]["task"]["state"], "TODO");
+    assert!(
+        q["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c == "prop.priority")
+    );
+    // the view switcher overrides the clause
+    let k = t.ok(
+        "run_query",
+        json!({"text": "task: todo\nview: table", "view": "kanban"}),
+    );
+    assert_eq!(k["view"], "kanban");
+    // grouping
+    let g = t.ok(
+        "run_query",
+        json!({"text": "task: any\ngroup: task", "view": null}),
+    );
+    assert_eq!(g["group_by"], "task");
+    assert_eq!(g["rows"][0]["group"], "doing");
+    // page queries
+    let p = t.ok(
+        "run_query",
+        json!({"text": "type: page\ntag: project", "view": null}),
+    );
+    assert_eq!(p["target"], "page");
+    assert_eq!(p["rows"].as_array().unwrap().len(), 2);
+    // errors carry the position and a suggestion
+    let e = t.ok(
+        "run_query",
+        json!({"text": "task: todo\ntags: x", "view": null}),
+    );
+    assert_eq!(e["errors"][0]["line"], 2);
+    assert_eq!(e["errors"][0]["suggestion"], "did you mean `tag`?");
+    assert_eq!(e["rows"], json!([]));
+
+    // saved queries live in config.toml
+    let list = t.ok(
+        "save_query",
+        json!({"name": "Open work", "query": "task: todo\nns: work"}),
+    );
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert!(t.read(".notatnik/config.toml").contains("Open work"));
+    assert!(
+        t.call("save_query", json!({"name": "bad", "query": "tags: x"}))
+            .is_err()
+    );
+    assert_eq!(
+        t.ok("list_saved_queries", json!({}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        t.ok("delete_saved_query", json!({"name": "Open work"})),
+        json!([])
+    );
+}
+
+#[test]
+fn property_completion_data() {
+    let t = start("queries");
+    let keys = t.ok("property_keys", json!({}));
+    assert!(
+        keys["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|k| k == "status")
+    );
+    let vals = t.ok("property_values", json!({"key": "status"}));
+    let v: Vec<&str> = vals["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_str().unwrap())
+        .collect();
+    assert!(
+        v.contains(&"draft") && v.contains(&"reading") && v.contains(&"done"),
+        "{v:?}"
+    );
+}
+
+#[test]
+fn completing_a_repeating_task_through_the_api_is_one_undo_step() {
+    let t = start("tasks");
+    let before = t.read("pages/repeats.md");
+    let p = t.ok("get_page", json!({"name": "repeats"}));
+    // block [1] is "Weekly" (scheduled 2026-09-28)
+    t.ok("apply_ops", json!({"page": "repeats", "base_hash": p["hash"], "ops": [{"op": "set_task_state", "block": {"path": [1]}, "state": "DONE", "done_at": "2026-10-03T08:00"}]}));
+    let after = t.read("pages/repeats.md");
+    assert!(
+        after.contains(
+            "- TODO Weekly\n  scheduled:: 2026-10-05\n  repeat:: weekly\n  completed:: 2026-10-03\n"
+        ),
+        "{after}"
+    );
+    t.ok("undo", json!({}));
+    assert_eq!(t.read("pages/repeats.md"), before);
+}
+
+#[test]
+fn own_writes_emit_graph_changed_with_the_own_flag() {
+    let t = start("basic");
+    let p = t.ok("get_page", json!({"name": "inbox"}));
+    t.ok("apply_ops", json!({"page": "inbox", "base_hash": p["hash"], "ops": [{"op": "update_text", "block": {"path": [0, 0]}, "text": "x"}]}));
+    let ev = t.events.lock().unwrap().clone();
+    assert!(
+        ev.iter().any(|(n, v)| n == "graph-changed"
+            && v["own"] == true
+            && v["pages"] == json!(["inbox"])),
+        "{ev:?}"
+    );
+}
