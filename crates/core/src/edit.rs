@@ -876,24 +876,6 @@ pub fn replace_block_id(
     Ok(finish(source, patches))
 }
 
-#[cfg(test)]
-mod replace_id_tests {
-    use super::*;
-    use crate::parse_page;
-
-    #[test]
-    fn replaces_and_adds() {
-        let src = "- a ^abc123\n  - b\n";
-        let p = parse_page(src);
-        let r = replace_block_id(src, &p, &[0], "zzz999").unwrap();
-        assert_eq!(r.new_source, "- a ^zzz999\n  - b\n");
-        let r = replace_block_id(src, &p, &[0, 0], "qqq111").unwrap();
-        assert_eq!(r.new_source, "- a ^abc123\n  - b ^qqq111\n");
-        assert!(replace_block_id(src, &p, &[3], "zzz999").is_err());
-        assert!(replace_block_id(src, &p, &[0], "BAD").is_err());
-    }
-}
-
 /// Sets or removes a property line inside block text lines (`lines[0]` is the first line).
 fn set_prop_line(lines: &mut Vec<String>, key: &str, value: Option<&str>) {
     let mut last_prop = 0;
@@ -1017,4 +999,22 @@ fn set_task_state_full(
         &lines.join("\n"),
         page.style.eol.as_str(),
     )
+}
+
+#[cfg(test)]
+mod replace_id_tests {
+    use super::*;
+    use crate::parse_page;
+
+    #[test]
+    fn replaces_and_adds() {
+        let src = "- a ^abc123\n  - b\n";
+        let p = parse_page(src);
+        let r = replace_block_id(src, &p, &[0], "zzz999").unwrap();
+        assert_eq!(r.new_source, "- a ^zzz999\n  - b\n");
+        let r = replace_block_id(src, &p, &[0, 0], "qqq111").unwrap();
+        assert_eq!(r.new_source, "- a ^abc123\n  - b ^qqq111\n");
+        assert!(replace_block_id(src, &p, &[3], "zzz999").is_err());
+        assert!(replace_block_id(src, &p, &[0], "BAD").is_err());
+    }
 }
