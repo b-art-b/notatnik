@@ -123,6 +123,7 @@ impl Graph {
         let mut changed: Vec<String> = Vec::new();
         let mut dups: Vec<(String, Vec<DuplicateId>)> = Vec::new();
         let mut full = false;
+        let mut conflict_paths: Vec<String> = Vec::new();
         {
             let mut g = self.lock();
             let mut files: Vec<String> = Vec::new();
@@ -156,7 +157,11 @@ impl Graph {
                     }
                     continue;
                 }
-                if walk::is_conflict_name(&name) || notatnik_core::path_to_page(&rel_s).is_none() {
+                if walk::is_conflict_name(&name) {
+                    conflict_paths.push(rel_s);
+                    continue;
+                }
+                if notatnik_core::path_to_page(&rel_s).is_none() {
                     continue;
                 }
                 files.push(rel_s);
@@ -205,7 +210,16 @@ impl Graph {
             let _ = self.fix_duplicates(&rel, &d);
         }
         if changed.is_empty() {
-            return None;
+            // conflict copies aren't pages, but the UI wants to know that the list changed
+            if conflict_paths.is_empty() {
+                return None;
+            }
+            conflict_paths.sort();
+            conflict_paths.dedup();
+            return Some(GraphChanged {
+                pages: Vec::new(),
+                paths: conflict_paths,
+            });
         }
         changed.sort();
         changed.dedup();

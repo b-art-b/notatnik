@@ -3,7 +3,7 @@
   import './app.css'
   import { app, bootstrap } from './lib/stores/app.svelte'
   import { editing, isEditingDoc, stopEditing } from './lib/stores/editing.svelte'
-  import { flushAll, getDoc, handleExternalChange } from './lib/stores/pages.svelte'
+  import { flushAll, getDoc, handleExternalChange, overallStatus } from './lib/stores/pages.svelte'
   import { backend } from './lib/api'
   import {
     globalUndo,
@@ -118,6 +118,9 @@
         <button class="link" onclick={() => (app.searchOpen = true)}>Search</button>
         <a href="#/settings">Settings</a>
       </nav>
+      <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
+        {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
+      </div>
       <h3>Pages</h3>
       <NamespaceTree />
     </aside>

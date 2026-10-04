@@ -45,7 +45,16 @@
       startSelecting(viewKey, docName, [block.id])
       return
     }
-    startEditing(viewKey, docName, block.id, 'end')
+    startEditing(viewKey, docName, block.id, cursorFromClick(e))
+  }
+
+  /** Maps the click position in the rendered text to an offset in the raw Markdown (best effort). */
+  function cursorFromClick(e: MouseEvent): number | 'end' {
+    const r = document.caretRangeFromPoint?.(e.clientX, e.clientY)
+    if (!r || r.startContainer.nodeType !== Node.TEXT_NODE) return 'end'
+    const text = r.startContainer.textContent ?? ''
+    const idx = text.length > 0 ? block.text.indexOf(text) : -1
+    return idx >= 0 ? idx + r.startOffset : 'end'
   }
 </script>
 

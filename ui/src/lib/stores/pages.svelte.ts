@@ -112,6 +112,8 @@ export class PageDoc {
 }
 
 const registry = new Map<string, PageDoc>()
+/** Bumped when a document is added, so `$derived` values over `openDocs()` update. */
+export const registryState = $state({ version: 0 })
 
 /** The shared document for a page name (loaded on first use). */
 export function getDoc(name: string): PageDoc {
@@ -119,6 +121,7 @@ export function getDoc(name: string): PageDoc {
   if (!d) {
     d = new PageDoc(name)
     registry.set(name, d)
+    queueMicrotask(() => registryState.version++) // not during a derived: Svelte forbids state writes there
     void d.load()
   }
   return d
@@ -159,4 +162,13 @@ export function handleExternalChange(pages: string[], isEditing: (doc: PageDoc) 
 
 export function flushAll(): Promise<unknown> {
   return Promise.all(openDocs().map((d) => d.flush()))
+}
+
+/** Overall save state for the status indicator. */
+export function overallStatus(): SaveStatus {
+  void registryState.version
+  const all = openDocs()
+  if (all.some((d) => d.status === 'error')) return 'error'
+  if (all.some((d) => d.status === 'saving')) return 'saving'
+  return 'saved'
 }

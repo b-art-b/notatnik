@@ -4,6 +4,7 @@
   import { backend, type Inline } from '../api'
   import { app } from '../stores/app.svelte'
   import { pageHash } from '../route'
+  import { formatDate } from '../dates'
   import Self from './Inlines.svelte'
   import BlockRefView from './BlockRefView.svelte'
   import EmbedView from './EmbedView.svelte'
@@ -45,7 +46,10 @@
         e.stopPropagation()
         open(e, it.target)
       }}
-      >{#if it.label}<Self items={it.label} {chain} />{:else}{it.target}{/if}</a
+      >{#if it.label}<Self
+          items={it.label}
+          {chain}
+        />{:else if /^\d{4}-\d{2}-\d{2}$/.test(it.target)}{formatDate(it.target)}{:else}{it.target}{/if}</a
     >{:else if it.type === 'tag'}<a
       class="tag"
       href={pageHash(it.target)}

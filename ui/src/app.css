@@ -2,7 +2,7 @@
   --bg: #fbfbfa;
   --panel: #ffffff;
   --text: #1f2328;
-  --muted: #6b7280;
+  --muted: #566070;
   --border: #e3e5e8;
   --link: #1a5fb4;
   --tag: #8a4b00;
@@ -178,4 +178,13 @@ mark {
 }
 .cm-tooltip-autocomplete {
   z-index: 60;
+}
+
+.status {
+  font-size: 0.8em;
+  color: var(--muted);
+  margin-top: 0.8em;
+}
+.status[data-status='error'] {
+  color: var(--danger);
 }

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Notatnik",
+  "version": "0.1.0",
+  "identifier": "eu.cdfg.notatnik",
+  "build": {
+    "beforeDevCommand": "pnpm -C ../ui dev:tauri",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "pnpm -C ../ui build:tauri",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [{ "title": "Notatnik", "width": 1200, "height": 800, "minWidth": 600, "minHeight": 400 }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "category": "Productivity",
+    "shortDescription": "Local-first block outliner",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.png"]
+  }
+}

@@ -113,13 +113,13 @@
       {/if}
     {/if}
     {#if renaming}<RenameDialog old={view.name} onclose={() => (renaming = false)} />{/if}
-    <div class="blocks" role="tree" aria-label="Blocks">
-      {#if view.preamble}
-        <div class="preamble">
+    <div class="blocks">
+      <div role={view.blocks.length || view.preamble ? 'tree' : undefined} aria-label="Blocks">
+        {#if view.preamble}
           <BlockList blocks={[view.preamble]} docName={view.name} {viewKey} />
-        </div>
-      {/if}
-      <BlockList blocks={roots} docName={view.name} {viewKey} />
+        {/if}
+        <BlockList blocks={roots} docName={view.name} {viewKey} />
+      </div>
       {#if view.blocks.length === 0 && !view.preamble}
         {#if draft}
           <div class="draft">

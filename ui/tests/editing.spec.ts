@@ -46,3 +46,29 @@ test('first content on an empty page creates the file; leaving empty creates non
   await expect.poll(() => backend.exists('pages/brand/new.md')).toBe(true)
   await expect.poll(() => backend.read('pages/brand/new.md')).toBe('- hello\n')
 })
+
+test('clicking in the middle of a word puts the cursor there', async ({ backend, page }) => {
+  backend.write('pages/click.md', '- hello wonderful world\n')
+  await backend.open('/page/click')
+  await expect(page.getByText('hello wonderful world')).toBeVisible()
+  // click in the middle of "wonderful" (position taken from the real text layout)
+  const pt = await page.evaluate(() => {
+    const p = document.querySelector('.nodes p')!
+    const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
+    let node = w.nextNode()!
+    while (node && !node.textContent?.trim()) node = w.nextNode()!
+    const r = document.createRange()
+    r.setStart(node, 8)
+    r.setEnd(node, 9)
+    const b = r.getBoundingClientRect()
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  })
+  await page.mouse.click(pt.x, pt.y)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  const pos = await page.evaluate(() => {
+    const s = window.getSelection()
+    return s?.anchorOffset ?? -1
+  })
+  expect(pos).toBeGreaterThanOrEqual(7)
+  expect(pos).toBeLessThanOrEqual(10)
+})
