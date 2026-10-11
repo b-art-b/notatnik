@@ -666,6 +666,29 @@ fn agenda_sections_for_the_tasks_fixture() {
     );
 }
 
+/// QV-12: `[[]]` in a query is the page the query sits on.
+#[test]
+fn empty_link_in_a_query_means_the_page_it_sits_on() {
+    let t = start("queries");
+    let named = t.ok(
+        "run_query",
+        json!({"text": "page: [[work/tasks]]\ntask: todo", "view": null}),
+    );
+    let here = t.ok(
+        "run_query",
+        json!({"text": "page: [[]]\ntask: todo", "view": null, "page": "work/tasks"}),
+    );
+    assert_eq!(here["errors"], json!([]));
+    assert!(!here["rows"].as_array().unwrap().is_empty());
+    assert_eq!(here["rows"], named["rows"]);
+    // without a page (agenda, sidebar) it stays an error instead of matching everything
+    let none = t.ok(
+        "run_query",
+        json!({"text": "page: [[]]\ntask: todo", "view": null}),
+    );
+    assert!(!none["errors"].as_array().unwrap().is_empty());
+}
+
 #[test]
 fn run_query_views_errors_and_saved_queries() {
     let t = start("queries");

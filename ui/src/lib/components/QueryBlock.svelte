@@ -1,5 +1,6 @@
 <script lang="ts">
   // A ```query block rendered as live results (QV-1). Re-runs on every graph change (debounced).
+  import { getContext } from 'svelte'
   import { backend, type QueryView } from '../api'
   import { bus } from '../stores/events.svelte'
   import { app, toast, errorMessage } from '../stores/app.svelte'
@@ -14,6 +15,7 @@
     saved = false,
     forcedView = null,
   }: { text: string; saved?: boolean; forcedView?: string | null } = $props()
+  const queryPage = getContext<(() => string) | undefined>('queryPage')
   let viewOverride = $state<string | null>(null)
   let result = $state<QueryView | null>(null)
   let showQuery = $state(false)
@@ -28,11 +30,12 @@
     void bus.version
     const q = text
     const v = forcedView ?? viewOverride
+    const pg = queryPage?.() ?? null
     let cancelled = false
     const timer = setTimeout(
       async () => {
         try {
-          const r = await backend.call('run_query', { text: q, view: v })
+          const r = await backend.call('run_query', { text: q, view: v, page: pg })
           if (!cancelled) {
             result = r
             firstRun = false

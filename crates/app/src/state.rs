@@ -1170,7 +1170,11 @@ impl AppState {
 
     /// `run_query`
     pub fn run_query(&self, a: RunQueryArgs) -> ApiResult<QueryView> {
-        let (query, errs) = notatnik_core::parse_query_partial(&a.text);
+        let text = match &a.page {
+            Some(p) => a.text.replace("[[]]", &format!("[[{p}]]")),
+            None => a.text.clone(),
+        };
+        let (query, errs) = notatnik_core::parse_query_partial(&text);
         let view_name = a
             .view
             .clone()

@@ -175,6 +175,7 @@ A **graph** is a folder of notes.
 | QV-9 | Plugins can register new view types (see PG-*). | V1 |
 | QV-10 | Query errors are shown inline with position info; never crash the page. | MVP |
 | QV-11 | A query block in a note is edited by clicking anywhere on it except its results: the header (with a visible hint), the frame or the shown query text open the block for editing; a click on a result keeps its own meaning. | V1 |
+| QV-12 | `[[]]` in a query means the page the query block sits on, so one query (`type: page`, `prop.partner: [[]]`) works unchanged on every partner page. Outside a page (agenda, sidebar) it is an error. | V1 |
 
 ## 9. Properties
 

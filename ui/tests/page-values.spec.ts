@@ -68,3 +68,20 @@ test('a query filters by a page-valued property and offers pages for the value',
   await expect(q).toContainText('B')
   await expect(q).not.toContainText('Other')
 })
+
+// QV-12: `[[]]` in a query is the page the query sits on, so the same block works on every partner page.
+test('`[[]]` in a query means the page the block is on', async ({ backend, page }) => {
+  backend.write('pages/John Doe.md', '---\ntype: person\npartner: "[[part. Capgemini]]"\n---\n- a\n')
+  backend.write('pages/Jane Roe.md', '---\ntype: person\npartner: "[[part. EY]]"\n---\n- b\n')
+  const q = '- ```query\n  type: page\n  prop.type: person\n  prop.partner: [[]]\n  ```\n'
+  backend.write('pages/part. Capgemini.md', q)
+  backend.write('pages/part. EY.md', q)
+  await backend.open('/page/part. Capgemini')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  await expect(blocks.getByTestId('query-count')).toHaveText('1 result')
+  await expect(blocks.getByText('John Doe').first()).toBeVisible()
+  await expect(blocks.getByText('Jane Roe')).toHaveCount(0)
+  await backend.open('/page/part. EY')
+  await expect(blocks.getByText('Jane Roe').first()).toBeVisible()
+  await expect(blocks.getByText('John Doe')).toHaveCount(0)
+})

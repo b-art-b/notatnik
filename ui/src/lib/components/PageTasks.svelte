@@ -45,7 +45,7 @@
     let cancelled = false
     const run = async (text: string): Promise<ResultRow[]> => {
       try {
-        const r = await backend.call('run_query', { text, view: 'list' })
+        const r = await backend.call('run_query', { text, view: 'list', page: null })
         return r.errors.length ? [] : r.rows
       } catch {
         return []

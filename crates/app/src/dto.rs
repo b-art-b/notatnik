@@ -647,6 +647,9 @@ pub struct RunQueryArgs {
     pub text: String,
     /// Overrides the `view:` clause (the view switcher).
     pub view: Option<String>,
+    /// The page the query sits on: `[[]]` in the text means this page (QV-8).
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 /// `agenda`

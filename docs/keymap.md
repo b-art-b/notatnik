@@ -184,6 +184,8 @@ modification time; journals and pages without a file can be hidden) or **Namespa
 
 A ```` ```query ```` block shows its results live. To change the query, click anywhere on the block except the results: the header (it says "✎ click here to edit the query"), the frame around it or the text shown by *show query* opens the block for editing. A click on a result keeps its own meaning (editing that block, opening a card, ...).
 
+**This page:** `[[]]` in a query stands for the page the query block is on. On the page `part. Capgemini`, `type: page` + `prop.partner: [[]]` lists every page whose `partner` is that page; the same block pasted into another partner page lists that partner's pages. Typing `[[` offers pages as usual; leave the brackets empty (Esc closes the list) to mean this page. In a saved query (sidebar) there is no page, so `[[]]` is reported as an error.
+
 ## Tasks of a page
 
 In *In subpages* and *Mentioning this page* every task shows its source as a chip at the right end of its first row (the same as in the agenda): the name below this page in subpages (`Example` for `Conference/Example`), the date in your date format for a journal day, the full name otherwise; the tooltip has the full path of parent blocks and a click opens the note with the task flashed. In *On this page* the chip is the parent blocks (when there are any) and shows the task in the page.

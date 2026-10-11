@@ -835,7 +835,11 @@ text: string,
 /**
  * Overrides the `view:` clause (the view switcher).
  */
-view: string | null, };
+view: string | null, 
+/**
+ * The page the query sits on: `[[]]` in the text means this page (QV-8).
+ */
+page: string | null, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
