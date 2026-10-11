@@ -857,6 +857,32 @@ template: string | null,
  * Properties of the template that the page lacks.
  */
 missing: Array<string>, };
+export type TemplateEntry = { 
+/**
+ * The page type it belongs to (the file name).
+ */
+name: string, 
+/**
+ * Property keys.
+ */
+fields: Array<string>, 
+/**
+ * Number of blocks (all levels).
+ */
+blocks: number, };
+export type SaveTemplateArgs = { 
+/**
+ * The page to make a template from; its `type` names the template.
+ */
+page: string, 
+/**
+ * Keep the property values as defaults (false: the fields are written empty).
+ */
+keep_values: boolean, 
+/**
+ * Replace an existing template of that type (false: error `exists`).
+ */
+replace: boolean, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
@@ -1196,6 +1222,9 @@ export type Commands = {
   read_conflict: { args: ReadConflictArgs; result: ConflictView };
   template_info: { args: PageArgs; result: TemplateInfo };
   apply_template: { args: PageArgs; result: ApplyResult };
+  save_template: { args: SaveTemplateArgs; result: TemplateEntry };
+  list_templates: { args: NoArgs; result: TemplateEntry[] };
+  delete_template: { args: NameArgs; result: TemplateEntry[] };
   run_query: { args: RunQueryArgs; result: QueryView };
   agenda: { args: AgendaArgs; result: AgendaView };
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };

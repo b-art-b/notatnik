@@ -140,6 +140,8 @@ A page type has a template: the file `templates/<type>.md` in the graph folder (
 
 Setting `type` on a page adds the template's properties that the page lacks, and, when the page has no blocks yet, the blocks. A value you already set is never changed. It is one edit, so undo takes it back in one step, and a message names what was added. When a template later gets a new field, a page of that type shows **Add missing from template “person” (email)** under its properties. *Settings → Templates* turns the automatic step off (the button stays).
 
+**Making a template:** set up one page the way you want (`type`, properties, blocks), open its properties and click **Save as template…**. Choose *Fields empty* or *Keep these values as defaults* and **Save**; if a template of that type exists you are asked to **Replace it** (the old text stays in the history of the file). The properties `title`, `aliases`, `archived` and `template`, and multi-line values, are left out; block IDs are not copied. *Settings → Templates* lists the templates with their fields and **Delete…** (asks again).
+
 ## Pages as property values
 
 A property can hold a page. In a page's *properties* (the `▸ properties` section under the title) and in the card under a block, the value field suggests the values already used for that property and, below them, pages that match what you type (marked *page*). Arrow keys and Enter pick, a click picks, Esc closes the list. A picked page is written as a link: `partner: "[[part. Capgemini]]"` in the page's frontmatter (quoted, because YAML would read bare `[[x]]` as a list), `partner:: [[part. Capgemini]]` in a block. The value then shows an `→ part. Capgemini` link that opens the page; type `[[A]], [[B]]` for several.

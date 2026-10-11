@@ -1982,3 +1982,69 @@ fn setting_type_applies_the_template_of_that_type() {
             .is_err()
     );
 }
+
+/// PR-10: a page becomes the template of its type; listing, replacing and deleting templates.
+#[test]
+fn a_page_is_saved_as_the_template_of_its_type() {
+    let t = start("basic");
+    t.ok(
+        "apply_ops",
+        json!({"page": "people/Model", "base_hash": null, "ops": [
+            {"op": "set_page_property", "key": "type", "value": "person"},
+            {"op": "set_page_property", "key": "importance", "value": "3"},
+            {"op": "set_page_property", "key": "title", "value": "Model Person"},
+            {"op": "insert", "parent": [], "index": 0, "text": "Contact"},
+            {"op": "insert", "parent": [0], "index": 0, "text": "Phone"}]}),
+    );
+    // a page without a type cannot be a template
+    assert!(
+        t.call(
+            "save_template",
+            json!({"page": "inbox", "keep_values": true, "replace": false})
+        )
+        .is_err()
+    );
+    let e = t.ok(
+        "save_template",
+        json!({"page": "people/Model", "keep_values": false, "replace": false}),
+    );
+    assert_eq!(
+        e,
+        json!({"name": "person", "fields": ["importance"], "blocks": 2})
+    );
+    assert_eq!(
+        t.read("templates/person.md"),
+        "---\ntype: person\nimportance:\n---\n- Contact\n  - Phone\n"
+    );
+    // not replaced without asking
+    let err = t
+        .call(
+            "save_template",
+            json!({"page": "people/Model", "keep_values": true, "replace": false}),
+        )
+        .unwrap_err();
+    assert_eq!(err.code, "exists");
+    t.ok(
+        "save_template",
+        json!({"page": "people/Model", "keep_values": true, "replace": true}),
+    );
+    assert!(t.read("templates/person.md").contains("importance: 3\n"));
+    // a new page of that type starts from it
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "people/New", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "person"}]}),
+    );
+    assert_eq!(r["template"], "person");
+    assert!(
+        t.read("pages/people/New.md")
+            .contains("- Contact\n  - Phone\n")
+    );
+    // the list, and deleting
+    let l = t.ok("list_templates", json!({}));
+    assert_eq!(l[0]["name"], "person");
+    let l = t.ok("delete_template", json!({"name": "person"}));
+    assert_eq!(l, json!([]));
+    assert!(!t.graph().join("templates/person.md").exists());
+    assert!(t.call("delete_template", json!({"name": "../x"})).is_err());
+}

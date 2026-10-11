@@ -169,6 +169,18 @@ pub(crate) fn atomic_write(root: &Path, abs: &Path, bytes: &[u8]) -> Result<()> 
     result
 }
 
+/// `templates/<name>.md` for a template name (a page type): one path segment, no hidden or special names.
+fn template_rel(name: &str) -> Result<String> {
+    let bad = name.is_empty()
+        || name.starts_with('.')
+        || name.contains(['/', '\\', '\0'])
+        || name.trim() != name;
+    if bad {
+        return Err(Error::InvalidPath(format!("templates/{name}.md")));
+    }
+    Ok(format!("templates/{name}.md"))
+}
+
 fn check_rel(rel: &str) -> Result<()> {
     let p = Path::new(rel);
     if p.is_absolute()
@@ -468,6 +480,30 @@ impl Graph {
         Ok(WriteOutcome {
             hash: hash_bytes(new_text.as_bytes()),
         })
+    }
+
+    /// Writes the template of a page type, `templates/<name>.md` (PR-10). The text it replaces stays in the
+    /// version history. Returns whether a template of that name existed.
+    pub fn write_template(&self, name: &str, text: &str) -> Result<bool> {
+        let rel = template_rel(name)?;
+        let abs = self.root.join(&rel);
+        let old = std::fs::read(&abs).ok();
+        atomic_write(&self.root, &abs, text.as_bytes())?;
+        if let Some(old) = &old {
+            self.lock()
+                .record_versions(&rel, old, text.as_bytes(), true);
+        }
+        Ok(old.is_some())
+    }
+
+    /// Deletes the template of a page type (the file goes to the version history first).
+    pub fn delete_template(&self, name: &str) -> Result<()> {
+        let rel = template_rel(name)?;
+        let abs = self.root.join(&rel);
+        let old = std::fs::read(&abs).map_err(|_| Error::NotFound(rel.clone()))?;
+        self.lock().record_versions(&rel, &old, b"", true);
+        std::fs::remove_file(&abs)?;
+        Ok(())
     }
 
     /// Deletes a page file if it still has the content with hash `base_hash` (used by undo of a page creation).

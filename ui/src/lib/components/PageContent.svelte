@@ -1,6 +1,6 @@
 <script lang="ts">
   import { setContext } from 'svelte'
-  import { backend } from '../api'
+  import { backend, CommandError } from '../api'
   import { toast, errorMessage } from '../stores/app.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
@@ -102,6 +102,22 @@
       await doc.load()
     } catch (e) {
       toast(errorMessage(e), 'error')
+    }
+  }
+  // "Save as template": this page's `type`, properties and blocks become `templates/<type>.md`
+  let savingTpl = $state(false)
+  let keepValues = $state(false)
+  let tplExists = $state(false)
+  const hasType = $derived(!!view?.frontmatter?.props.some((p) => p.key.toLowerCase() === 'type'))
+  async function saveTemplate(replace: boolean) {
+    try {
+      const r = await backend.call('save_template', { page: name, keep_values: keepValues, replace })
+      toast(`Saved the template “${r.name}” (${r.fields.length} fields, ${r.blocks} blocks).`)
+      savingTpl = false
+      tplExists = false
+    } catch (e) {
+      if (e instanceof CommandError && e.code === 'exists') tplExists = true
+      else toast(errorMessage(e), 'error')
     }
   }
   const lastPlaces = $derived(segPlaces[segments.length - 1] ?? 0)
@@ -369,6 +385,33 @@
                 >{#each knownKeys as k (k)}<option value={k}></option>{/each}</datalist
               >
             </form>
+            {#if hasType}
+              {#if savingTpl}
+                <div class="save-tpl" data-testid="save-template">
+                  <label><input type="radio" bind:group={keepValues} value={false} /> Fields empty</label>
+                  <label
+                    ><input type="radio" bind:group={keepValues} value={true} /> Keep these values as defaults</label
+                  >
+                  {#if tplExists}
+                    <span role="alert">A template for this type exists.</span>
+                    <button class="act" onclick={() => saveTemplate(true)}>Replace it</button>
+                  {:else}
+                    <button class="act" onclick={() => saveTemplate(false)}>Save</button>
+                  {/if}
+                  <button
+                    class="act"
+                    onclick={() => {
+                      savingTpl = false
+                      tplExists = false
+                    }}>Cancel</button
+                  >
+                </div>
+              {:else}
+                <button class="act" data-testid="save-as-template" onclick={() => (savingTpl = true)}
+                  >Save as template…</button
+                >
+              {/if}
+            {/if}
             {#if tpl?.template && tpl.missing.length}
               <button class="act" data-testid="apply-template" onclick={applyTemplate}
                 >Add missing from template “{tpl.template}” ({tpl.missing.join(', ')})</button
@@ -510,6 +553,14 @@
     display: inline-flex;
     gap: 0.4em;
     margin-right: 0.8em;
+  }
+  .save-tpl {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em;
+    color: var(--muted);
+    font-size: 0.85em;
   }
   .act {
     border: none;

@@ -115,3 +115,48 @@ test('setting a type adds the properties of its template, and the button adds ne
   await expect(btn).toHaveCount(0)
   expect(backend.read('pages/Dawid Benski.md').match(/importance:/g)).toHaveLength(1)
 })
+
+// PR-10: a page becomes the template of its type from the app; the list is in the settings.
+const tpl = (b: { read(p: string): string }) => () => {
+  try {
+    return b.read('templates/person.md')
+  } catch {
+    return ''
+  }
+}
+
+test('save a page as the template of its type, replace it, and delete it in the settings', async ({
+  backend,
+  page,
+}) => {
+  backend.write(
+    'pages/Model Person.md',
+    '---\ntype: person\nimportance: 3\npartner: "[[part. Capgemini]]"\n---\n- Contact\n  - Phone\n',
+  )
+  await backend.open('/page/Model Person')
+  await page.getByTestId('props-toggle').click()
+  await page.getByTestId('save-as-template').click()
+  const panel = page.getByTestId('save-template')
+  await panel.getByRole('radio', { name: /Fields empty/ }).check()
+  await panel.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect
+    .poll(tpl(backend))
+    .toBe('---\ntype: person\nimportance:\npartner:\n---\n- Contact\n  - Phone\n')
+  // again: it asks before replacing
+  await page.getByTestId('save-as-template').click()
+  await panel.getByRole('radio', { name: /Keep these values/ }).check()
+  await panel.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(panel.getByRole('alert')).toContainText('exists')
+  expect(backend.read('templates/person.md')).toContain('importance:\n')
+  await panel.getByRole('button', { name: 'Replace it' }).click()
+  await expect.poll(tpl(backend)).toContain('importance: 3')
+  // the settings list it; deleting asks first
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Templates/ }).click()
+  const list = page.getByTestId('template-list')
+  await expect(list).toContainText('person')
+  await expect(list).toContainText('importance, partner')
+  await list.getByRole('button', { name: 'Delete…' }).click()
+  await list.getByRole('button', { name: 'Delete for good' }).click()
+  await expect(page.getByTestId('no-templates')).toBeVisible()
+})

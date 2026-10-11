@@ -62,6 +62,26 @@
   let savedTimer: ReturnType<typeof setTimeout> | undefined
   let zoom = $state(currentZoom())
 
+  // --- templates: one file per page type (PR-10) ---
+  type TemplateRow = { name: string; fields: string[]; blocks: number }
+  let templates = $state<TemplateRow[]>([])
+  let deletingTpl = $state<string | null>(null)
+  $effect(() => {
+    if (tab !== 'templates' || !s) return
+    backend.call('list_templates', {}).then(
+      (r) => (templates = r),
+      (e) => toast(errorMessage(e), 'error'),
+    )
+  })
+  async function deleteTemplate(name: string) {
+    try {
+      templates = await backend.call('delete_template', { name })
+      deletingTpl = null
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+
   // --- backup: snapshots of the graph in a folder outside it (BK-1..BK-5) ---
   let bk = $state<BackupList | null>(null)
   let bkBusy = $state(false)
@@ -670,6 +690,32 @@
             none. An existing page can pick up new template fields with <em>Add missing from template</em> in its
             properties.
           </p>
+          <p class="intro">
+            To make a template, set up one page the way you want (its <code>type</code>, properties and
+            blocks) and click <em>Save as template…</em> in its properties. Saving again replaces the template after
+            asking.
+          </p>
+          <h3>Your templates</h3>
+          {#if templates.length === 0}
+            <p class="intro" data-testid="no-templates">None yet.</p>
+          {:else}
+            <ul class="snaps" data-testid="template-list">
+              {#each templates as t (t.name)}
+                <li>
+                  <strong>{t.name}</strong>
+                  <span class="muted"
+                    >{t.fields.length ? t.fields.join(', ') : 'no fields'} · {t.blocks} blocks</span
+                  >
+                  {#if deletingTpl === t.name}
+                    <button class="plain" onclick={() => deleteTemplate(t.name)}>Delete for good</button>
+                    <button class="plain" onclick={() => (deletingTpl = null)}>Keep</button>
+                  {:else}
+                    <button class="plain" onclick={() => (deletingTpl = t.name)}>Delete…</button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
           <SettingRow
             title="Apply templates when a type is set"
             description="Off: nothing is added automatically; the button in the page properties still works."

@@ -99,6 +99,52 @@ pub fn ops_for(t: &Template, have: &[String], with_blocks: bool) -> (Vec<BlockOp
     (ops, added)
 }
 
+/// Keys of a page that a template never carries: they belong to that one page.
+const PAGE_ONLY: [&str; 4] = ["title", "aliases", "archived", "template"];
+
+/// The text of a template made from a page: its `type`, its other single-line properties (the values only when
+/// `keep_values`) and its blocks without block IDs. `None` when the page has no usable `type`.
+pub fn render(src: &str, keep_values: bool) -> Option<(String, String)> {
+    let page = parse_page(src);
+    let fm = page.frontmatter.as_ref().filter(|f| f.valid)?;
+    let ty_raw = &fm
+        .entries
+        .iter()
+        .find(|e| e.key.eq_ignore_ascii_case("type"))?
+        .raw;
+    let name = type_name(ty_raw)?;
+    let mut out = format!("---\ntype: {ty_raw}\n");
+    for e in &fm.entries {
+        let skip = e.key.eq_ignore_ascii_case("type")
+            || PAGE_ONLY.iter().any(|k| e.key.eq_ignore_ascii_case(k))
+            || e.raw.contains('\n');
+        if skip {
+            continue;
+        }
+        if keep_values && !e.raw.is_empty() {
+            out.push_str(&format!("{}: {}\n", e.key, e.raw));
+        } else {
+            out.push_str(&format!("{}:\n", e.key));
+        }
+    }
+    out.push_str("---\n");
+    fn blocks(src: &str, bs: &[Block], depth: usize, out: &mut String) {
+        for b in bs {
+            let pad = "  ".repeat(depth);
+            let text = b.edit_text(src);
+            for (i, line) in text.split('\n').enumerate() {
+                out.push_str(&pad);
+                out.push_str(if i == 0 { "- " } else { "  " });
+                out.push_str(line);
+                out.push('\n');
+            }
+            blocks(src, &b.children, depth + 1, out);
+        }
+    }
+    blocks(src, &page.blocks, 0, &mut out);
+    Some((name, out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +186,33 @@ mod tests {
         assert_eq!(ops.len(), 1);
         let (ops, _) = ops_for(&t, &[], true);
         assert_eq!(ops.len(), 3);
+    }
+
+    #[test]
+    fn a_page_becomes_a_template() {
+        let src = "---\ntype: person\ntitle: Jan\nimportance: 3\npartner: \"[[Acme]]\"\n---\n- Contact ^k3x9qa\n  - Phone\n- Notes\n  more\n";
+        let (name, text) = render(src, true).unwrap();
+        assert_eq!(name, "person");
+        assert!(
+            text.starts_with("---\ntype: person\nimportance: 3\npartner: \"[[Acme]]\"\n---\n"),
+            "{text}"
+        );
+        assert!(text.contains("- Contact"), "{text}");
+        assert!(
+            !text.contains("^k3x9qa") && !text.contains("title:"),
+            "{text}"
+        );
+        assert!(text.contains("  - Phone\n- Notes\n  more\n"), "{text}");
+        let (_, empty) = render(src, false).unwrap();
+        assert!(
+            empty.starts_with("---\ntype: person\nimportance:\npartner:\n---\n"),
+            "{empty}"
+        );
+        // round trip: applying what was saved gives the same properties and blocks
+        let t = parse_template(&text, &V);
+        assert_eq!(t.props.len(), 2);
+        assert_eq!(t.blocks.len(), 3);
+        assert_eq!(render("- no frontmatter\n", true), None);
     }
 
     #[test]

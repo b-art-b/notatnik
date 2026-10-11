@@ -92,6 +92,8 @@ pub fn typescript_bindings() -> String {
         QueryView,
         RunQueryArgs,
         TemplateInfo,
+        TemplateEntry,
+        SaveTemplateArgs,
         AgendaArgs,
         AgendaItem,
         AgendaDay,

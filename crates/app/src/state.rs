@@ -521,6 +521,81 @@ impl AppState {
         })
     }
 
+    fn template_entry(o: &Open, name: &str, text: &str) -> TemplateEntry {
+        let _ = o;
+        let t = templates::parse_template(
+            text,
+            &templates::Vars {
+                title: "",
+                date: "",
+            },
+        );
+        TemplateEntry {
+            name: name.to_string(),
+            fields: t.props.into_iter().map(|p| p.0).collect(),
+            blocks: u32::try_from(t.blocks.len()).unwrap_or(u32::MAX),
+        }
+    }
+
+    /// `list_templates`
+    pub fn list_templates(&self, _a: NoArgs) -> ApiResult<Vec<TemplateEntry>> {
+        self.with_open(|o| Ok(Self::templates_in(o)))
+    }
+
+    fn templates_in(o: &Open) -> Vec<TemplateEntry> {
+        let mut out: Vec<TemplateEntry> = std::fs::read_dir(o.graph.root().join("templates"))
+            .map(|rd| {
+                rd.flatten()
+                    .filter_map(|e| {
+                        let n = e.file_name().into_string().ok()?;
+                        let stem = n.strip_suffix(".md")?.to_string();
+                        let text = o.graph.read_page(&format!("templates/{n}")).ok()?.text;
+                        Some(Self::template_entry(o, &stem, &text))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        out.sort_by_key(|t| t.name.to_lowercase());
+        out
+    }
+
+    /// `delete_template`
+    pub fn delete_template(&self, a: NameArgs) -> ApiResult<Vec<TemplateEntry>> {
+        self.with_open(|o| {
+            o.graph.delete_template(&a.name)?;
+            Ok(Self::templates_in(o))
+        })
+    }
+
+    /// `save_template`: makes `templates/<type>.md` from a page.
+    pub fn save_template(&self, a: SaveTemplateArgs) -> ApiResult<TemplateEntry> {
+        let name = Self::parse_name(&a.page)?;
+        self.with_open(|o| {
+            let rel = Self::page_rel(o, name.as_str())?;
+            let text = o
+                .graph
+                .read_page(&rel)
+                .map_err(|_| ApiError::new("not_found", "the page has no properties yet"))?
+                .text;
+            let (ty, body) = templates::render(&text, a.keep_values).ok_or_else(|| {
+                ApiError::new(
+                    "invalid",
+                    "set a `type` on the page first: it names the template",
+                )
+            })?;
+            // an existing template of that type keeps its file name (`Person.md` stays `Person.md`)
+            let file = Self::template_text(o, &ty).map_or(ty, |(f, _)| f);
+            if !a.replace && Self::template_text(o, &file).is_some() {
+                return Err(ApiError::new(
+                    "exists",
+                    format!("the template `{file}` exists already"),
+                ));
+            }
+            o.graph.write_template(&file, &body)?;
+            Ok(Self::template_entry(o, &file, &body))
+        })
+    }
+
     /// `apply_template`: adds the properties of the page's template that the page lacks.
     pub fn apply_template(&self, a: PageArgs) -> ApiResult<ApplyResult> {
         let name = Self::parse_name(&a.page)?;

@@ -230,6 +230,28 @@ pub struct ApplyResult {
     pub template_added: Vec<String>,
 }
 
+/// `save_template`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SaveTemplateArgs {
+    /// The page to make a template from; its `type` names the template.
+    pub page: String,
+    /// Keep the property values as defaults (false: the fields are written empty).
+    pub keep_values: bool,
+    /// Replace an existing template of that type (false: error `exists`).
+    pub replace: bool,
+}
+
+/// One template in `templates/`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateEntry {
+    /// The page type it belongs to (the file name).
+    pub name: String,
+    /// Property keys.
+    pub fields: Vec<String>,
+    /// Number of blocks (all levels).
+    pub blocks: u32,
+}
+
 /// `template_info`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct TemplateInfo {
