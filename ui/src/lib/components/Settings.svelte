@@ -2,7 +2,7 @@
   // Settings, organised by topic (Appearance, Dates & language, Tasks, Graph). Every change applies at once and
   // is confirmed inline, so there is no Save button to forget. Each pane says where its values are stored:
   // "this device" settings never leave the computer, "this graph" settings are synced with the notes.
-  import { backend, type PageIconRuleView, type SettingsView } from '../api'
+  import { backend, type BackupList, type PageIconRuleView, type SettingsView } from '../api'
   import {
     app,
     applyLinkBrackets,
@@ -49,6 +49,7 @@
     { id: 'dates', label: 'Dates & language', icon: '▦' },
     { id: 'tasks', label: 'Tasks', icon: '☐' },
     { id: 'icons', label: 'Page icons', icon: '☺' },
+    { id: 'backup', label: 'Backup', icon: '⤓' },
     { id: 'graph', label: 'Graph', icon: '▤' },
   ] as const
   type TabId = (typeof TABS)[number]['id']
@@ -59,6 +60,70 @@
   let saved = $state('') // the inline confirmation ("Saved"), cleared after a moment
   let savedTimer: ReturnType<typeof setTimeout> | undefined
   let zoom = $state(currentZoom())
+
+  // --- backup: snapshots of the graph in a folder outside it (BK-1..BK-5) ---
+  let bk = $state<BackupList | null>(null)
+  let bkBusy = $state(false)
+  let bkDir = $state('') // the folder field is a draft until it is changed (on blur / Enter)
+  let restoreOf = $state<string | null>(null) // the snapshot whose restore form is open
+  let restoreTarget = $state('')
+  let restorePage = $state('')
+  $effect(() => {
+    if (tab !== 'backup' || !s) return
+    bkDir = s.backup_dir
+    void loadBackups()
+  })
+  async function loadBackups() {
+    try {
+      bk = await backend.call('list_backups', {})
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function backupNow() {
+    bkBusy = true
+    try {
+      bk = await backend.call('backup_now', {})
+      toast('Backup saved')
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    } finally {
+      bkBusy = false
+    }
+  }
+  async function setBackupDir(dir: string) {
+    await save({ backup_dir: dir.trim() })
+    if (s) bkDir = s.backup_dir
+    await loadBackups()
+  }
+  function openRestore(name: string) {
+    restoreOf = restoreOf === name ? null : name
+    restoreTarget = ''
+    restorePage = ''
+  }
+  async function restoreFolder(name: string) {
+    try {
+      await backend.call('restore_backup', { name, target: restoreTarget.trim() })
+      toast(`Restored to ${restoreTarget.trim()}. Open that folder as a graph to look around.`)
+      restoreOf = null
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function restoreOnePage(name: string) {
+    try {
+      await backend.call('restore_backup_page', { name, page: restorePage.trim() })
+      toast(`Restored ${restorePage.trim()}. The version it replaced is in a new backup.`)
+      restoreOf = null
+      await loadBackups()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  const mb = (bytes: number) =>
+    bytes < 1024 * 1024
+      ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
   // --- page icons: rules `property = value -> emoji`. Edited as a draft; saved when every row is complete ---
   let rules = $state<PageIconRuleView[]>([])
@@ -134,6 +199,8 @@
     link_brackets: boolean
     task_details: string
     block_properties: string
+    backup_dir: string
+    backup_auto: boolean
     week_start: string
     completed_log_limit: number
     priorities: string[]
@@ -158,6 +225,8 @@
         link_brackets: null,
         task_details: null,
         block_properties: null,
+        backup_dir: null,
+        backup_auto: null,
         week_start: null,
         completed_log_limit: null,
         priorities: null,
@@ -579,6 +648,101 @@
               <p class="muted">A rule is saved when its property, value and icon are all filled in.</p>
             {/if}
           </div>
+        {:else if tab === 'backup'}
+          <h2>Backup</h2>
+          <p class="scope">
+            <span class="badge">This device</span>
+            Snapshots are zip files of this graph's folder. They are kept outside it, so they are never synced.
+          </p>
+          <p class="intro">
+            Sync is not a backup: it copies a deleted or damaged page to every device. A snapshot is a full
+            copy at one moment. Keep the folder on another disk, or in a folder that another tool copies
+            elsewhere.
+          </p>
+          <SettingRow
+            title="Automatic backups"
+            description="One snapshot when the app starts and then daily while it is open, only when something changed. Kept: the last 7 days, 4 weeks and 6 months."
+            labelFor="backup-auto"
+          >
+            <input
+              id="backup-auto"
+              class="switch"
+              type="checkbox"
+              role="switch"
+              checked={s.backup_auto}
+              onchange={(e) => save({ backup_auto: (e.currentTarget as HTMLInputElement).checked })}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Backup folder"
+            description="An absolute path outside the graph folder. Leave it empty for the default folder."
+            labelFor="backup-dir"
+          >
+            <span class="open"
+              ><input
+                id="backup-dir"
+                bind:value={bkDir}
+                placeholder={bk?.default_dir ?? ''}
+                onchange={() => setBackupDir(bkDir)}
+              />
+              <button class="plain" disabled={!s.backup_dir} onclick={() => setBackupDir('')}
+                >Use default</button
+              ></span
+            >
+          </SettingRow>
+          <SettingRow
+            title="Back up now"
+            description={bk?.backups.length
+              ? `Last: ${bk.backups[0].created}`
+              : 'No backup of this graph in the folder yet.'}
+          >
+            <button disabled={bkBusy} onclick={backupNow} data-testid="backup-now">Back up now</button>
+          </SettingRow>
+          {#if bk?.error}
+            <p class="muted" role="alert" data-testid="backup-error">
+              The last automatic backup failed: {bk.error}
+            </p>
+          {/if}
+          <h3>Snapshots</h3>
+          <ul class="snaps" data-testid="backup-list" aria-label="Snapshots">
+            {#each bk?.backups ?? [] as b (b.name)}
+              <li data-testid="backup-item">
+                <span class="when">{b.created}</span>
+                <span class="muted">{mb(b.bytes)}</span>
+                <button class="plain" aria-expanded={restoreOf === b.name} onclick={() => openRestore(b.name)}
+                  >Restore…</button
+                >
+                {#if restoreOf === b.name}
+                  <div class="restore">
+                    <label
+                      >One page, replacing the current one
+                      <span class="open"
+                        ><input aria-label="Page name" placeholder="page name" bind:value={restorePage} />
+                        <button disabled={!restorePage.trim()} onclick={() => restoreOnePage(b.name)}
+                          >Restore page</button
+                        ></span
+                      ></label
+                    >
+                    <label
+                      >Everything, into a new folder
+                      <span class="open"
+                        ><input
+                          aria-label="Target folder"
+                          placeholder="/path/to/new-folder"
+                          bind:value={restoreTarget}
+                        />
+                        <button disabled={!restoreTarget.trim()} onclick={() => restoreFolder(b.name)}
+                          >Restore folder</button
+                        ></span
+                      ></label
+                    >
+                  </div>
+                {/if}
+              </li>
+            {:else}
+              <li class="muted">None yet.</li>
+            {/each}
+          </ul>
         {:else}
           <h2>Graph</h2>
           <p class="scope">
@@ -872,6 +1036,33 @@
   }
   .open input {
     min-width: 16em;
+  }
+  .snaps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .snaps li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3em 1em;
+    padding: 0.4em 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .snaps .when {
+    font-variant-numeric: tabular-nums;
+  }
+  .restore {
+    flex-basis: 100%;
+    display: grid;
+    gap: 0.6em;
+    padding: 0.3em 0 0.5em;
+  }
+  .restore label {
+    display: grid;
+    gap: 0.2em;
+    font-size: 0.9em;
   }
   @media (max-width: 760px) {
     .layout {

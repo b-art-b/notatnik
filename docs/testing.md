@@ -122,3 +122,6 @@ must never regress:
 3. **No clobber:** a write whose base hash doesn't match the file on disk is refused.
 4. **Atomicity:** a crash at any point during a write leaves either the old or the new file, never a partial one.
 5. **No silent deletion:** sync logic (file sync, CalDAV) never deletes user content without either an explicit user action or a recoverable copy.
+6. **Backups round-trip and stay outside:** a snapshot restores byte for byte (all files but `.notatnik/tmp/`), is refused
+   inside the graph folder, never leaves a `.partial` file, and replacing a page from a snapshot first saves the version
+   it replaces (BK-1..BK-5; `crates/graph/tests/graph.rs`, `crates/app/tests/app.rs`, `ui/tests/backup.spec.ts`).

@@ -408,10 +408,20 @@ pub struct UiSettings {
     /// Pattern for `date_format = "custom"`, e.g. `dddd, D MMMM YYYY`. Tokens: see `docs/date-formats.md`.
     #[serde(default)]
     pub date_pattern: String,
+    /// Folder for graph snapshots (BK-2); empty = `<data dir>/backups`. Never inside a graph folder.
+    #[serde(default)]
+    pub backup_dir: String,
+    /// Take a snapshot at start and then daily while the app is open, when something changed (BK-3).
+    #[serde(default = "default_true")]
+    pub backup_auto: bool,
 }
 
 /// The accepted values of `UiSettings::date_format`.
 pub const DATE_FORMATS: [&str; 5] = ["full", "long", "short", "iso", "custom"];
+
+fn default_true() -> bool {
+    true
+}
 
 fn default_task_details() -> String {
     "full".into()
@@ -438,6 +448,8 @@ impl Default for UiSettings {
             block_properties: default_task_details(),
             date_format: default_date_format(),
             date_pattern: String::new(),
+            backup_dir: String::new(),
+            backup_auto: true,
         }
     }
 }

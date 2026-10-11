@@ -41,7 +41,12 @@ Outside the graph (per device, never synced):
 ├── history/                     # last-synced copies for 3-way merge
 └── state.json                   # collapsed blocks, open tabs, window layout
 ~/.config/notatnik/settings.toml # device settings, list of graphs
+~/.local/share/notatnik/backups/ # snapshots (default folder; the device setting `backup_dir` can change it)
 ```
+
+A snapshot is `notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>.zip` (local time) with the graph folder's files under their
+relative paths, minus `.notatnik/tmp/`. The zip comment is `notatnik-backup v1 <fingerprint>`. Unzipping one gives a
+folder that opens as the graph (BK-1).
 
 ## 2. Page names and file paths
 

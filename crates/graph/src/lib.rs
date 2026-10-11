@@ -5,12 +5,14 @@
 //! still has the content the caller based its edit on; nothing but synced content lives inside the
 //! graph folder except `.notatnik/` (config and temp files).
 
+pub mod backup;
 mod config;
 mod error;
 mod rename;
 pub mod synth;
 mod watch;
 
+pub use backup::BackupFile;
 pub use config::{
     CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, GraphEntry, GraphSection,
     NamespaceSection, PageIconRule, PropertiesSection, SavedQuery, TasksSection,

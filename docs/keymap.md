@@ -88,7 +88,7 @@ Each task shows the note it lives in (`↗ page › parent`). Click it to open t
 
 ## Settings
 
-Settings are grouped into **Appearance**, **Dates & language**, **Tasks** and **Graph** (arrow keys move between the groups). Each group says where its values live: *This device* (`settings.toml`, never synced) or *This graph* (`.notatnik/config.toml`, synced). Changes apply immediately and show "✓ Saved" at the top. Graph settings can also be edited by hand in `.notatnik/config.toml` (or arrive by sync): the open app notices within a second and applies them, no restart; a file that does not parse as TOML is ignored until it is fixed. Theme, week start and the date format are choice buttons, link brackets is a switch, zoom has − / + / Reset.
+Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Page icons**, **Backup** and **Graph** (arrow keys move between the groups). Each group says where its values live: *This device* (`settings.toml`, never synced) or *This graph* (`.notatnik/config.toml`, synced). Changes apply immediately and show "✓ Saved" at the top. Graph settings can also be edited by hand in `.notatnik/config.toml` (or arrive by sync): the open app notices within a second and applies them, no restart; a file that does not parse as TOML is ignored until it is fixed. Theme, week start and the date format are choice buttons, link brackets is a switch, zoom has − / + / Reset.
 
 - **Language** and **Format** control how dates are shown in journal headings, the agenda and `[[date]]` links: `Sat, 3 Oct 2026`, `3 October 2026`, `03/10/2026`, `2026-10-03`, or a custom pattern such as `dddd, D MMMM YYYY` (see [date-formats.md](date-formats.md)). Date pickers, query clauses and files always use `YYYY-MM-DD`.
 - **Show brackets around links** is off by default, so rendered links look like plain links; the raw `[[...]]` always appears while a block is edited.
@@ -121,6 +121,16 @@ A block's `key:: value` lines (right after its first line) show as a compact car
 - **Typing:** on a line after the first, type `::` (Logseq's flow: Shift+Enter, `::`): the menu lists the known keys, most used first; keep typing to filter. A key nobody uses yet gets "Create property: name" (also after typing `name::`). Enter writes `key:: ` and opens the value menu: values already used for the key, then pages (written as `[[Page]]`). `/property` does the same from anywhere in the block: a new `::` line goes under the block's other properties.
 - **Mouse:** hover a row of the card for ✎ (edit the value in place, Enter saves, Escape cancels), × (remove the line) and, on the last row, + (add a property: name with suggestions, value with suggestions). Only that one line of the file changes. A block with no property yet gets its first one by typing (`::` or `/property`).
 - **Inheritance:** properties belong to their block. Queries can apply them to the subtree: `inherit: client` (see file-format §Queries).
+
+## Backup
+
+Settings → Backup (this device). A snapshot is a zip of the whole graph folder (without temp files), kept in a folder outside the graph, so it is never synced.
+
+- **Automatic backups** (on by default): one shortly after the app opens a graph and then once a day while it is open, only if something changed. The newest snapshot of each of the last 7 days, 4 weeks and 6 months is kept.
+- **Backup folder:** an absolute path, empty for the default (`~/.local/share/notatnik/backups`). A folder inside the graph is refused. Put it on another disk, or in a folder another tool copies elsewhere; a snapshot on the same disk does not protect against losing the disk. Press Enter or leave the field to apply; **Use default** resets it.
+- **Back up now** always takes a snapshot. A failed automatic backup shows its message here.
+- **Snapshots:** time and size, newest first. **Restore…** opens two forms: *One page* (type the page name; the page file is replaced by its version in the snapshot, after a new snapshot of the current state was taken, so the replaced version is in the list too) and *Everything*, which unpacks into a new or empty folder you name; open that folder as a graph (Settings → Graph) to look around or copy files out. Restoring never overwrites the open graph as a whole.
+- Not in a snapshot: the search index (rebuilt from the files), the trash, history copies and passwords of calendar accounts.
 
 ## Grouping pages by a property
 

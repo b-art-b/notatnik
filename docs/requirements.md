@@ -50,6 +50,11 @@ A **graph** is a folder of notes.
 | ST-8 | Assets (images, attachments) are stored in `assets/` and referenced by relative path. Supports paste and drag-and-drop. | V1 |
 | ST-9 | Full reindex command plus an integrity check (broken links, duplicate block IDs, orphan assets). | V1 |
 | ST-10 | Graph config is stored as a text file inside the graph (synced). Device-specific settings are stored outside it. | MVP |
+| BK-1 | A snapshot is one zip file of the graph folder (all files except `.notatnik/tmp/`), written next to nothing else of the graph: in a backup folder outside it. A snapshot restores to a folder that opens as a graph; the index is rebuilt. | V1 |
+| BK-2 | The backup folder is a device setting (absolute path, never inside the graph folder); empty means `<data dir>/backups`. One folder serves all graphs: file names carry the graph id. | V1 |
+| BK-3 | Automatic snapshots (device setting, on by default): shortly after a graph opens and then every hour a check takes one when the newest is at least a day old and the files changed. A failed run is shown in Settings; it never interrupts editing. | V1 |
+| BK-4 | Retention: the newest snapshot of each of the last 7 days, 4 weeks and 6 months is kept, the rest is removed. A snapshot a page is being restored from is kept. | V1 |
+| BK-5 | Settings → Backup: folder, automatic on/off, *Back up now*, the list of snapshots, restore of one page (the current file is replaced after a new snapshot of it was taken) or of everything into a new or empty folder. | V1 |
 
 ## 4. Outliner editor
 

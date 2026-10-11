@@ -943,3 +943,172 @@ fn a_page_can_move_alone_to_a_name_below_itself_while_its_subpages_stay() {
         "{plan:?}"
     );
 }
+
+// ---- backups (BK-1..BK-5) -----------------------------------------------------------------
+
+fn stamp(s: &str) -> chrono::NaiveDateTime {
+    chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()
+}
+
+#[test]
+fn a_snapshot_holds_the_graph_files_and_restores_byte_for_byte() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None)
+        .unwrap()
+        .expect("first snapshot");
+    assert!(made.name.starts_with(&format!("notatnik-{}-", g.id())));
+    assert!(made.name.ends_with("-20261010-090000.zip"));
+    // no temp files are left, and nothing from `.notatnik/tmp` is inside
+    assert!(names(&dir).iter().all(|n| !n.ends_with(".partial")));
+    let target = e.dirs.data.join("restored");
+    let n = g.restore_backup_to(&dir, &made.name, &target).unwrap();
+    assert!(n > 0);
+    for f in walk_files(&e.graph_dir) {
+        let rel = f.strip_prefix(&e.graph_dir).unwrap();
+        if rel.starts_with(".notatnik/tmp") {
+            continue;
+        }
+        assert_eq!(
+            std::fs::read(&f).unwrap(),
+            std::fs::read(target.join(rel)).unwrap(),
+            "{}",
+            rel.display()
+        );
+    }
+    // a restored folder opens as a graph
+    let (g2, _) = Graph::open(&target, &Dirs::under(&e.dirs.data.join("other"))).unwrap();
+    assert_eq!(g2.id(), g.id());
+    // a restore target must be empty
+    assert!(g.restore_backup_to(&dir, &made.name, &target).is_err());
+    // and outside the graph
+    assert!(
+        g.restore_backup_to(&dir, &made.name, &e.graph_dir.join("again"))
+            .is_err()
+    );
+}
+
+fn walk_files(dir: &Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap() {
+        let e = e.unwrap();
+        if e.file_type().unwrap().is_dir() {
+            out.extend(walk_files(&e.path()));
+        } else {
+            out.push(e.path());
+        }
+    }
+    out
+}
+
+#[test]
+fn an_unchanged_graph_is_not_saved_again_and_a_daily_limit_applies() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let day = chrono::Duration::hours(24);
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-10 09:00:00"), false, Some(day))
+            .unwrap()
+            .is_some()
+    );
+    // unchanged: nothing, even a day later
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-11 10:00:00"), false, Some(day))
+            .unwrap()
+            .is_none()
+    );
+    // changed, but the newest snapshot is younger than a day
+    let page = g.read_page("pages/inbox.md").unwrap();
+    g.write_page(
+        "pages/inbox.md",
+        &format!("{}- new\n", page.text),
+        Some(&page.hash),
+    )
+    .unwrap();
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-10 20:00:00"), false, Some(day))
+            .unwrap()
+            .is_none()
+    );
+    // changed and old enough
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-11 10:00:00"), false, Some(day))
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(g.backups(&dir).len(), 2);
+    // forced: always, even unchanged; a name taken in that second is not reused. Retention keeps one
+    // snapshot per day, so the new one replaces the older one of the same day
+    let a = g
+        .backup_now(&dir, stamp("2026-10-11 10:00:00"), true, None)
+        .unwrap()
+        .unwrap();
+    let all = g.backups(&dir);
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[0].name, a.name);
+    assert!(a.name.ends_with("-20261011-100001.zip"));
+    // the folder must not be inside the graph
+    assert!(
+        g.backup_now(
+            &e.graph_dir.join("bk"),
+            stamp("2026-10-12 10:00:00"),
+            true,
+            None
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn one_page_comes_back_from_a_snapshot() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let before = g.read_page("pages/inbox.md").unwrap();
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None)
+        .unwrap()
+        .unwrap();
+    g.write_page("pages/inbox.md", "- ruined\n", Some(&before.hash))
+        .unwrap();
+    g.restore_page_from_backup(
+        &dir,
+        &made.name,
+        "pages/inbox.md",
+        stamp("2026-10-10 10:00:00"),
+    )
+    .unwrap();
+    assert_eq!(g.read_page("pages/inbox.md").unwrap().text, before.text);
+    // the ruined version is in a snapshot of its own
+    let newest = &g.backups(&dir)[0];
+    assert_ne!(newest.name, made.name);
+    let copy = e.dirs.data.join("ruined");
+    g.restore_backup_to(&dir, &newest.name, &copy).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(copy.join("pages/inbox.md")).unwrap(),
+        "- ruined\n"
+    );
+    let newest_name = newest.name.clone();
+    // a page that is not in the snapshot, and names that are not snapshot names
+    assert!(matches!(
+        g.restore_page_from_backup(
+            &dir,
+            &newest_name,
+            "pages/nothing-here.md",
+            stamp("2026-10-10 10:00:00")
+        ),
+        Err(Error::NotFound(_))
+    ));
+    assert!(
+        g.restore_page_from_backup(
+            &dir,
+            "../x.zip",
+            "pages/inbox.md",
+            stamp("2026-10-10 10:00:00")
+        )
+        .is_err()
+    );
+}

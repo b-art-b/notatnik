@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -92,9 +93,22 @@ struct UiState {
     collapsed: BTreeMap<String, Vec<String>>,
 }
 
+/// The thread that takes the automatic snapshots (BK-3). Dropping it (graph closed or replaced) stops the thread.
+struct BackupTask {
+    stop: Arc<AtomicBool>,
+    error: Arc<Mutex<Option<String>>>,
+}
+
+impl Drop for BackupTask {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
 struct Open {
     graph: Graph,
     _watcher: Option<Watcher>,
+    backup: Option<BackupTask>,
     trackers: HashMap<String, BlockIdentity>,
     undo: Vec<UndoEntry>,
     redo: Vec<UndoEntry>,
@@ -214,9 +228,12 @@ impl AppState {
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
         let info = Self::info(&graph, report.warnings.clone());
+        // snapshots run on a thread of their own, only where the file watcher runs too (not in unit tests)
+        let backup = self.watch.then(|| self.start_backups(&graph));
         *self.lock() = Some(Open {
             graph,
             _watcher: watcher,
+            backup,
             trackers: HashMap::new(),
             undo: Vec::new(),
             redo: Vec::new(),
@@ -1419,6 +1436,8 @@ impl AppState {
             block_properties: dev.ui.block_properties,
             date_format: dev.ui.date_format,
             date_pattern: dev.ui.date_pattern,
+            backup_dir: dev.ui.backup_dir,
+            backup_auto: dev.ui.backup_auto,
             priorities: cfg.priority_labels(),
             week_start: cfg.graph.week_start.clone(),
             completed_log_limit: cfg.tasks.completed_log_limit,
@@ -1499,6 +1518,18 @@ impl AppState {
                 ));
             }
         }
+        if let Some(d) = &a.backup_dir {
+            let d = d.trim();
+            if d.chars().count() > 500 || d.chars().any(char::is_control) {
+                return Err(ApiError::new("invalid", "backup_dir: not a folder path"));
+            }
+            if !d.is_empty() && !Path::new(d).is_absolute() {
+                return Err(ApiError::new(
+                    "invalid",
+                    "backup_dir must be an absolute path (or empty for the default)",
+                ));
+            }
+        }
         if let Some(l) = &a.date_locale {
             // a BCP 47 tag, e.g. `pl-PL`; the UI only offers known ones, this guards the settings file
             let ok = !l.is_empty()
@@ -1527,7 +1558,17 @@ impl AppState {
                 || a.block_properties.is_some()
                 || a.date_format.is_some()
                 || a.date_pattern.is_some()
+                || a.backup_dir.is_some()
+                || a.backup_auto.is_some()
             {
+                if let Some(d) = a.backup_dir.as_deref().map(str::trim) {
+                    if !d.is_empty() && Path::new(d).starts_with(o.graph.root()) {
+                        return Err(ApiError::new(
+                            "invalid",
+                            "the backup folder must be outside the graph folder",
+                        ));
+                    }
+                }
                 let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs)?;
                 if let Some(t) = a.theme {
                     dev.ui.theme = t;
@@ -1549,6 +1590,12 @@ impl AppState {
                 }
                 if let Some(m) = a.block_properties {
                     dev.ui.block_properties = m;
+                }
+                if let Some(d) = a.backup_dir {
+                    dev.ui.backup_dir = d.trim().to_string();
+                }
+                if let Some(b) = a.backup_auto {
+                    dev.ui.backup_auto = b;
                 }
                 dev.save(&self.dirs)?;
             }
@@ -1583,6 +1630,157 @@ impl AppState {
                 })?;
             }
             self.settings_view(o)
+        })
+    }
+
+    // ---- backups (BK-1..BK-5) ---------------------------------------------------------------
+
+    fn default_backup_dir(&self) -> PathBuf {
+        self.dirs.data.join("backups")
+    }
+
+    /// The snapshot folder: the device setting, or the default.
+    fn backup_dir(&self) -> PathBuf {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let d = dev.ui.backup_dir.trim();
+        if d.is_empty() {
+            self.default_backup_dir()
+        } else {
+            PathBuf::from(d)
+        }
+    }
+
+    fn backup_list(&self, graph: &Graph, error: Option<String>) -> BackupList {
+        let dir = self.backup_dir();
+        let backups = graph
+            .backups(&dir)
+            .into_iter()
+            .map(|b| BackupView {
+                name: b.name,
+                created: b.created.format("%Y-%m-%d %H:%M:%S").to_string(),
+                bytes: b.bytes as f64,
+            })
+            .collect();
+        BackupList {
+            dir: dir.to_string_lossy().into_owned(),
+            default_dir: self.default_backup_dir().to_string_lossy().into_owned(),
+            backups,
+            error,
+        }
+    }
+
+    /// Starts the automatic snapshots: first one a few seconds after the graph opens, then every hour a check
+    /// that takes one when the newest is a day old and the files changed. The settings are read at every check.
+    fn start_backups(&self, graph: &Graph) -> BackupTask {
+        let stop = Arc::new(AtomicBool::new(false));
+        let error = Arc::new(Mutex::new(None));
+        let (g, dirs) = (graph.clone(), self.dirs.clone());
+        let (stop2, error2) = (stop.clone(), error.clone());
+        let spawned = std::thread::Builder::new()
+            .name("backup".into())
+            .spawn(move || {
+                let wait = |secs: u64| {
+                    for _ in 0..secs {
+                        if stop2.load(Ordering::Relaxed) {
+                            return false;
+                        }
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                    !stop2.load(Ordering::Relaxed)
+                };
+                let mut next = 10;
+                while wait(next) {
+                    next = 3600;
+                    let dev = notatnik_graph::DeviceSettings::load(&dirs).unwrap_or_default();
+                    if !dev.ui.backup_auto {
+                        continue;
+                    }
+                    let dir = match dev.ui.backup_dir.trim() {
+                        "" => dirs.data.join("backups"),
+                        d => PathBuf::from(d),
+                    };
+                    let r = g.backup_now(
+                        &dir,
+                        chrono::Local::now().naive_local(),
+                        false,
+                        Some(chrono::Duration::hours(24)),
+                    );
+                    *error2
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                        r.err().map(|e| e.to_string());
+                }
+            });
+        // no thread, no automatic snapshots; "Back up now" still works
+        drop(spawned);
+        BackupTask { stop, error }
+    }
+
+    /// `list_backups`
+    pub fn list_backups(&self, _a: NoArgs) -> ApiResult<BackupList> {
+        self.with_open(|o| {
+            let err = o.backup.as_ref().and_then(|b| {
+                b.error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone()
+            });
+            Ok(self.backup_list(&o.graph, err))
+        })
+    }
+
+    /// `backup_now`: always takes a snapshot.
+    pub fn backup_now(&self, _a: NoArgs) -> ApiResult<BackupList> {
+        self.with_open(|o| {
+            o.graph.backup_now(
+                &self.backup_dir(),
+                chrono::Local::now().naive_local(),
+                true,
+                None,
+            )?;
+            Ok(self.backup_list(&o.graph, None))
+        })
+    }
+
+    /// `restore_backup`: unpacks a snapshot into a new or empty folder.
+    pub fn restore_backup(&self, a: RestoreBackupArgs) -> ApiResult<StringValue> {
+        let target = PathBuf::from(a.target.trim());
+        if !target.is_absolute() {
+            return Err(ApiError::new(
+                "invalid",
+                "the folder must be an absolute path",
+            ));
+        }
+        self.with_open(|o| {
+            o.graph
+                .restore_backup_to(&self.backup_dir(), &a.name, &target)?;
+            Ok(StringValue {
+                value: target.to_string_lossy().into_owned(),
+            })
+        })
+    }
+
+    /// `restore_backup_page`: the page's file in the snapshot replaces the current one.
+    pub fn restore_backup_page(&self, a: RestoreBackupPageArgs) -> ApiResult<StringList> {
+        let name = Self::parse_name(&a.page)?;
+        self.with_open(|o| {
+            let rel = page_to_path(&name);
+            o.graph.restore_page_from_backup(
+                &self.backup_dir(),
+                &a.name,
+                &rel,
+                chrono::Local::now().naive_local(),
+            )?;
+            // undo cannot follow a replaced file
+            o.undo.retain(|e| e.rel != rel);
+            o.redo.retain(|e| e.rel != rel);
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [name.to_string()], "paths": [rel], "own": true }),
+            );
+            Ok(StringList {
+                items: vec![name.to_string()],
+            })
         })
     }
 }

@@ -1541,6 +1541,83 @@ fn an_unwritten_today_gets_the_journal_icon() {
     assert!(has("2026-10-01"), "{icons}");
 }
 
+/// BK-1..BK-5: snapshots through the API: default and custom folder, listing, restoring a folder and one page.
+#[test]
+fn backups_are_taken_listed_and_restored() {
+    let t = start("basic");
+    let s = t.ok("get_settings", json!({}));
+    assert_eq!(s["backup_auto"], true);
+    assert_eq!(s["backup_dir"], "");
+    let l = t.ok("list_backups", json!({}));
+    assert_eq!(l["backups"].as_array().unwrap().len(), 0);
+    let default_dir = l["default_dir"].as_str().unwrap().to_string();
+    assert_eq!(l["dir"], default_dir);
+    assert!(
+        !Path::new(&default_dir).starts_with(t.graph()),
+        "the default folder is outside the graph"
+    );
+    // a custom folder: absolute, outside the graph
+    let custom = t.tmp.path().join("my-backups");
+    assert!(
+        t.call("set_settings", json!({"backup_dir": "relative/x"}))
+            .is_err()
+    );
+    assert!(
+        t.call(
+            "set_settings",
+            json!({"backup_dir": t.graph().join("bk").to_str().unwrap()})
+        )
+        .is_err()
+    );
+    let s = t.ok(
+        "set_settings",
+        json!({"backup_dir": custom.to_str().unwrap(), "backup_auto": false}),
+    );
+    assert_eq!(s["backup_dir"], custom.to_str().unwrap());
+    assert_eq!(s["backup_auto"], false);
+    let l = t.ok("backup_now", json!({}));
+    let b = l["backups"].as_array().unwrap();
+    assert_eq!(b.len(), 1);
+    assert_eq!(l["dir"], custom.to_str().unwrap());
+    assert!(custom.join(b[0]["name"].as_str().unwrap()).exists());
+    let name = b[0]["name"].as_str().unwrap().to_string();
+    // restore everything into a new folder
+    let target = t.tmp.path().join("restored");
+    t.ok(
+        "restore_backup",
+        json!({"name": name, "target": target.to_str().unwrap()}),
+    );
+    assert_eq!(
+        std::fs::read_to_string(target.join("pages/inbox.md")).unwrap(),
+        t.read("pages/inbox.md")
+    );
+    // names that are paths are refused
+    assert!(
+        t.call(
+            "restore_backup",
+            json!({"name": "../x.zip", "target": t.tmp.path().join("y").to_str().unwrap()})
+        )
+        .is_err()
+    );
+    // one page back
+    let before = t.read("pages/inbox.md");
+    std::fs::write(t.graph().join("pages/inbox.md"), "- ruined\n").unwrap();
+    let r = t.ok(
+        "restore_backup_page",
+        json!({"name": name, "page": "inbox"}),
+    );
+    assert_eq!(r["items"], json!(["inbox"]));
+    assert_eq!(t.read("pages/inbox.md"), before);
+    assert_eq!(
+        t.ok("list_backups", json!({}))["backups"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "the snapshot a page came from stays while it is used"
+    );
+}
+
 /// Deleting a page moves it to the trash (outside the graph folder), links stay, and it can be restored; archived
 /// pages are listed and their tasks stay off the agenda.
 #[test]

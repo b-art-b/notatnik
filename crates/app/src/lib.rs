@@ -81,4 +81,8 @@ commands! {
     property_values(PropKeyArgs) -> StringList => property_values,
     get_settings(NoArgs) -> SettingsView => get_settings,
     set_settings(SetSettingsArgs) -> SettingsView => set_settings,
+    list_backups(NoArgs) -> BackupList => list_backups,
+    backup_now(NoArgs) -> BackupList => backup_now,
+    restore_backup(RestoreBackupArgs) -> StringValue => restore_backup,
+    restore_backup_page(RestoreBackupPageArgs) -> StringList => restore_backup_page,
 }

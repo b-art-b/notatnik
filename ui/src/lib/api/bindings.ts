@@ -976,6 +976,14 @@ date_format: string,
  */
 date_pattern: string, 
 /**
+ * Device: snapshot folder as set (empty = the default one, see `BackupList.default_dir`).
+ */
+backup_dir: string, 
+/**
+ * Device: take snapshots automatically.
+ */
+backup_auto: boolean, 
+/**
  * Graph: `monday` or `sunday`.
  */
 week_start: string, 
@@ -1025,6 +1033,14 @@ date_format: string | null,
  */
 date_pattern: string | null, 
 /**
+ * Device: snapshot folder (empty = the default one).
+ */
+backup_dir: string | null, 
+/**
+ * Device: automatic snapshots.
+ */
+backup_auto: boolean | null, 
+/**
  * Graph: week start.
  */
 week_start: string | null, 
@@ -1040,6 +1056,54 @@ priorities: Array<string> | null,
  * Graph: replaces the page-icon rules.
  */
 page_icons: Array<PageIconRuleView> | null, };
+export type BackupView = { 
+/**
+ * File name; what `restore_backup` takes.
+ */
+name: string, 
+/**
+ * Local time it was taken: `YYYY-MM-DD HH:MM:SS`.
+ */
+created: string, 
+/**
+ * Size of the file.
+ */
+bytes: number, };
+export type BackupList = { 
+/**
+ * The folder in use (the setting, or the default).
+ */
+dir: string, 
+/**
+ * The default folder.
+ */
+default_dir: string, 
+/**
+ * Snapshots, newest first.
+ */
+backups: Array<BackupView>, 
+/**
+ * The last automatic snapshot failed with this message (cleared by the next success).
+ */
+error: string | null, };
+export type RestoreBackupArgs = { 
+/**
+ * `BackupView.name`.
+ */
+name: string, 
+/**
+ * Folder to create or fill; must be empty and outside the graph folder.
+ */
+target: string, };
+export type RestoreBackupPageArgs = { 
+/**
+ * `BackupView.name`.
+ */
+name: string, 
+/**
+ * Page name.
+ */
+page: string, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1084,4 +1148,8 @@ export type Commands = {
   property_values: { args: PropKeyArgs; result: StringList };
   get_settings: { args: NoArgs; result: SettingsView };
   set_settings: { args: SetSettingsArgs; result: SettingsView };
+  list_backups: { args: NoArgs; result: BackupList };
+  backup_now: { args: NoArgs; result: BackupList };
+  restore_backup: { args: RestoreBackupArgs; result: StringValue };
+  restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
 };

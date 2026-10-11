@@ -766,6 +766,10 @@ pub struct SettingsView {
     pub date_format: String,
     /// Device: pattern used when `date_format` is `custom`.
     pub date_pattern: String,
+    /// Device: snapshot folder as set (empty = the default one, see `BackupList.default_dir`).
+    pub backup_dir: String,
+    /// Device: take snapshots automatically.
+    pub backup_auto: bool,
     /// Graph: `monday` or `sunday`.
     pub week_start: String,
     /// Graph: the page-icon rules (`type: person` → 👤).
@@ -795,6 +799,10 @@ pub struct SetSettingsArgs {
     pub date_format: Option<String>,
     /// Device: custom date pattern.
     pub date_pattern: Option<String>,
+    /// Device: snapshot folder (empty = the default one).
+    pub backup_dir: Option<String>,
+    /// Device: automatic snapshots.
+    pub backup_auto: Option<bool>,
     /// Graph: week start.
     pub week_start: Option<String>,
     /// Graph: completed log limit.
@@ -803,4 +811,46 @@ pub struct SetSettingsArgs {
     pub priorities: Option<Vec<String>>,
     /// Graph: replaces the page-icon rules.
     pub page_icons: Option<Vec<PageIconRuleView>>,
+}
+
+/// One snapshot of the graph.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupView {
+    /// File name; what `restore_backup` takes.
+    pub name: String,
+    /// Local time it was taken: `YYYY-MM-DD HH:MM:SS`.
+    pub created: String,
+    /// Size of the file.
+    pub bytes: f64,
+}
+
+/// `list_backups`, `backup_now`: the snapshots of the open graph, newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupList {
+    /// The folder in use (the setting, or the default).
+    pub dir: String,
+    /// The default folder.
+    pub default_dir: String,
+    /// Snapshots, newest first.
+    pub backups: Vec<BackupView>,
+    /// The last automatic snapshot failed with this message (cleared by the next success).
+    pub error: Option<String>,
+}
+
+/// `restore_backup`: unpack a snapshot into a new or empty folder (open it as a graph afterwards).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RestoreBackupArgs {
+    /// `BackupView.name`.
+    pub name: String,
+    /// Folder to create or fill; must be empty and outside the graph folder.
+    pub target: String,
+}
+
+/// `restore_backup_page`: replace one page with its version in a snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RestoreBackupPageArgs {
+    /// `BackupView.name`.
+    pub name: String,
+    /// Page name.
+    pub page: String,
 }
