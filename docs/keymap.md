@@ -138,6 +138,8 @@ Settings → Backup (this device). A snapshot is a zip of the whole graph folder
 
 A property can hold a page. In a page's *properties* (the `▸ properties` section under the title) and in the card under a block, the value field suggests the values already used for that property and, below them, pages that match what you type (marked *page*). Arrow keys and Enter pick, a click picks, Esc closes the list. A picked page is written as a link: `partner: "[[part. Capgemini]]"` in the page's frontmatter (quoted, because YAML would read bare `[[x]]` as a list), `partner:: [[part. Capgemini]]` in a block. The value then shows an `→ part. Capgemini` link that opens the page; type `[[A]], [[B]]` for several.
 
+The **Namespace** and **Tag** fields of the Agenda suggest pages in the same way; a pick is written as the plain name.
+
 In a query block, `prop.partner: ` offers the same list: values in use and pages, a page is inserted as `[[part. Capgemini]]`. `prop.partner: [[part. Capgemini]]` finds the pages and blocks whose `partner` is that page; `-prop.partner: ...` excludes them, `prop.partner: any` / `none` test for presence.
 
 ## Page history

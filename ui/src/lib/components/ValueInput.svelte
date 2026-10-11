@@ -22,6 +22,8 @@
     onescape?: () => void
     /** Focus and select the text when the field appears. */
     focusOnMount?: boolean
+    /** How a picked page is written: `[[Page]]` (a property value) or the plain name (a filter field). */
+    pageFormat?: 'link' | 'name'
   }
   let {
     value = $bindable(''),
@@ -32,6 +34,7 @@
     oncommit,
     onescape,
     focusOnMount = false,
+    pageFormat = 'link',
   }: Props = $props()
 
   let input: HTMLInputElement
@@ -105,7 +108,7 @@
   function pick(i: number) {
     const it = items[i]
     if (!it) return
-    value = it.kind === 'page' ? `[[${it.text}]]` : it.text
+    value = it.kind === 'page' && pageFormat === 'link' ? `[[${it.text}]]` : it.text
     open = false
     active = -1
     commit(value)

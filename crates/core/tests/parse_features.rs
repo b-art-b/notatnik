@@ -247,3 +247,26 @@ fn frontmatter_page_links_in_every_written_form() {
     );
     assert!(matches!(get("d"), PropertyValue::List(_)));
 }
+
+/// `partner: [[A]], [[B]]` (not YAML) is read as two links; the frontmatter stays valid and the file untouched.
+#[test]
+fn frontmatter_comma_separated_links_are_read_as_links() {
+    let src = "---\ntitle: T\npartner: [[A]], [[B b]]\nstatus: active\n---\n- b\n";
+    let p = parse_page(src);
+    let fm = p.frontmatter.unwrap();
+    assert!(fm.valid && p.diagnostics.is_empty(), "{:?}", p.diagnostics);
+    assert_eq!(fm.title.as_deref(), Some("T"));
+    let partner = fm.properties.iter().find(|p| p.key == "partner").unwrap();
+    assert_eq!(
+        partner.value,
+        PropertyValue::Links(vec!["A".into(), "B b".into()])
+    );
+    assert_eq!(partner.raw, "[[A]], [[B b]]");
+    // still invalid when it is something else that is wrong
+    assert!(
+        !parse_page("---\na: [[A]], x\nb: : :\n---\n")
+            .frontmatter
+            .unwrap()
+            .valid
+    );
+}

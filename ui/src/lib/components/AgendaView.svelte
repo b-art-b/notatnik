@@ -5,6 +5,7 @@
   import { shownDate } from '../stores/format.svelte'
   import SourcedTask from './SourcedTask.svelte'
   import QueryBlock from './QueryBlock.svelte'
+  import ValueInput from './ValueInput.svelte'
   import { GROUPS, SORTS, groupItems, sortItems } from '../agenda'
 
   let ns = $state('')
@@ -105,8 +106,11 @@
   {/each}
 </div>
 <div class="filters" role="search" aria-label="Agenda filters">
-  <label>Namespace <input bind:value={ns} placeholder="work" /></label>
-  <label>Tag <input bind:value={tag} placeholder="urgent" /></label>
+  <!-- page suggestions: a namespace and a tag are pages; picking one writes its plain name -->
+  <label
+    >Namespace <ValueInput bind:value={ns} label="Namespace" placeholder="work" pageFormat="name" /></label
+  >
+  <label>Tag <ValueInput bind:value={tag} label="Tag" placeholder="urgent" pageFormat="name" /></label>
   <label
     >Priority
     <select bind:value={priority}

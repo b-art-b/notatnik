@@ -4,7 +4,7 @@ use yaml_rust2::{Yaml, YamlLoader};
 
 use crate::{
     Diagnostic, Frontmatter, Property, PropertyValue, Severity, Span,
-    props::{infer_scalar, infer_value},
+    props::{infer_scalar, infer_value, split_top_level_commas},
 };
 
 fn line_end(src: &str, pos: usize) -> (usize, usize) {
@@ -98,6 +98,40 @@ fn key_of_line(line: &str) -> Option<(&str, usize)> {
     Some((key, colon))
 }
 
+/// The YAML with every top-level `key: [[A]], [[B]]` line turned into `key: ["[[A]]", "[[B]]"]`; None when no
+/// line has that shape.
+fn quote_link_lists(yaml: &str) -> Option<String> {
+    let mut changed = false;
+    let mut out = String::with_capacity(yaml.len() + 16);
+    for line in yaml.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\n', '\r']);
+        let eol = &line[body.len()..];
+        if let Some((_, colon)) = key_of_line(body) {
+            let value = body[colon + 1..].trim();
+            let parts: Vec<&str> = split_top_level_commas(value)
+                .into_iter()
+                .map(str::trim)
+                .collect();
+            let all_links = !parts.is_empty()
+                && parts.iter().all(|p| {
+                    p.len() > 4
+                        && p.starts_with("[[")
+                        && p.ends_with("]]")
+                        && !p[2..p.len() - 2].contains(['[', ']', '"'])
+                });
+            if all_links && value.starts_with("[[") {
+                let items: Vec<String> = parts.iter().map(|p| format!("\"{p}\"")).collect();
+                out.push_str(&body[..=colon]);
+                out.push_str(&format!(" [{}]{eol}", items.join(", ")));
+                changed = true;
+                continue;
+            }
+        }
+        out.push_str(line);
+    }
+    changed.then_some(out)
+}
+
 /// Detects and parses frontmatter at `start` (after an optional BOM).
 /// Returns the frontmatter (if any) and the offset where the body starts.
 pub fn parse(src: &str, start: usize, diags: &mut Vec<Diagnostic>) -> (Option<Frontmatter>, usize) {
@@ -131,7 +165,13 @@ pub fn parse(src: &str, start: usize, diags: &mut Vec<Diagnostic>) -> (Option<Fr
     if yaml.trim().is_empty() {
         return (Some(fm), fm_end);
     }
-    let doc = match YamlLoader::load_from_str(yaml) {
+    // `partner: [[A]], [[B]]` is how links are written in a block property but is not YAML: read it as the list of
+    // links it means (the text is only changed for parsing, never in the file)
+    let loaded = YamlLoader::load_from_str(yaml).or_else(|e| match quote_link_lists(yaml) {
+        Some(fixed) => YamlLoader::load_from_str(&fixed).map_err(|_| e),
+        None => Err(e),
+    });
+    let doc = match loaded {
         Ok(d) => d,
         Err(e) => {
             let line = e.marker().line().saturating_sub(1);

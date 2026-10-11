@@ -184,9 +184,23 @@ test.describe('tasks fixture', () => {
     expect(source!.y).toBeLessThan(task!.y + 40)
     await expect(item.getByTestId('agenda-source')).toHaveText('dates')
   })
+  test('the filter fields suggest pages and a pick is written as the plain name', async ({
+    backend,
+    page,
+  }) => {
+    backend.write('pages/zeta-project.md', '- TODO zeta task\n')
+    await backend.open('/agenda')
+    const filters = page.getByRole('search', { name: 'Agenda filters' })
+    await filters.getByRole('combobox', { name: 'Tag' }).fill('zeta')
+    await page.getByRole('option', { name: /zeta-project/ }).click()
+    await expect(filters.getByRole('combobox', { name: 'Tag' })).toHaveValue('zeta-project')
+    await filters.getByRole('combobox', { name: 'Namespace' }).fill('zeta')
+    await page.getByRole('option', { name: /zeta-project/ }).click()
+    await expect(filters.getByRole('combobox', { name: 'Namespace' })).toHaveValue('zeta-project')
+  })
   test('namespace filter limits the agenda', async ({ backend, page }) => {
     await backend.open('/agenda')
-    await page.getByRole('textbox', { name: 'Namespace' }).fill('work')
+    await page.getByRole('combobox', { name: 'Namespace' }).fill('work')
     await expect(page.locator('[data-section="overdue"] [data-testid="agenda-item"]')).toHaveCount(0)
     await expect(page.locator('[data-section="upcoming"] [data-testid="agenda-item"]')).toHaveCount(1)
   })
