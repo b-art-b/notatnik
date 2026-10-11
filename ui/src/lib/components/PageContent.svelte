@@ -1,6 +1,7 @@
 <script lang="ts">
   import { setContext } from 'svelte'
   import { backend } from '../api'
+  import { toast, errorMessage } from '../stores/app.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
   import { startEditing, stopEditing } from '../stores/editing.svelte'
@@ -80,6 +81,29 @@
       cancelled = true
     }
   })
+  // The template of this page's `type` and what of it the page lacks: offered as a button below the properties.
+  let tpl = $state<{ template: string | null; missing: string[] } | null>(null)
+  $effect(() => {
+    void bus.version
+    void view?.hash
+    const n = name
+    let cancelled = false
+    backend.call('template_info', { page: n }).then((r) => {
+      if (!cancelled) tpl = r
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+  async function applyTemplate() {
+    try {
+      const r = await backend.call('apply_template', { page: name })
+      toast(`Added ${r.template_added.join(', ')} from the template “${r.template}”.`)
+      await doc.load()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
   const lastPlaces = $derived(segPlaces[segments.length - 1] ?? 0)
   // Progressive rendering (NF-4): the first blocks appear at once, the rest stream in over the next frames.
   const FIRST_BATCH = 120
@@ -345,6 +369,11 @@
                 >{#each knownKeys as k (k)}<option value={k}></option>{/each}</datalist
               >
             </form>
+            {#if tpl?.template && tpl.missing.length}
+              <button class="act" data-testid="apply-template" onclick={applyTemplate}
+                >Add missing from template “{tpl.template}” ({tpl.missing.join(', ')})</button
+              >
+            {/if}
           </div>
         {/if}
         {#if view.diagnostics.length}

@@ -85,3 +85,33 @@ test('`[[]]` in a query means the page the block is on', async ({ backend, page 
   await expect(blocks.getByText('Jane Roe').first()).toBeVisible()
   await expect(blocks.getByText('John Doe')).toHaveCount(0)
 })
+
+// PR-10: setting `type` adds the properties of templates/<type>.md; the button adds fields added to it later.
+test('setting a type adds the properties of its template, and the button adds new ones later', async ({
+  backend,
+  page,
+}) => {
+  backend.write('templates/person.md', '---\ntype: person\nimportance: 1\npartner:\n---\n- Contact\n')
+  backend.write('pages/Dawid Benski.md', '')
+  await backend.open('/page/Dawid Benski')
+  await page.getByTestId('props-toggle').click()
+  await page.getByLabel('New property name').fill('type')
+  await page.getByRole('combobox', { name: 'New property value' }).fill('person')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect.poll(() => backend.read('pages/Dawid Benski.md')).toContain('importance: 1')
+  const text = backend.read('pages/Dawid Benski.md')
+  expect(text).toContain('partner:\n')
+  expect(text).toContain('- Contact')
+  await expect(page.getByRole('combobox', { name: 'importance' })).toHaveValue('1')
+  await expect(page.getByTestId('apply-template')).toHaveCount(0)
+  // a field added to the template later: offered as a button, written once
+  backend.write('templates/person.md', '---\ntype: person\nimportance: 1\npartner:\nemail:\n---\n- Contact\n')
+  await page.reload()
+  await page.getByTestId('props-toggle').click()
+  const btn = page.getByTestId('apply-template')
+  await expect(btn).toContainText('email')
+  await btn.click()
+  await expect.poll(() => backend.read('pages/Dawid Benski.md')).toContain('email:')
+  await expect(btn).toHaveCount(0)
+  expect(backend.read('pages/Dawid Benski.md').match(/importance:/g)).toHaveLength(1)
+})

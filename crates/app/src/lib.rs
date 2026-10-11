@@ -4,6 +4,7 @@
 pub mod dto;
 pub mod render;
 mod state;
+mod templates;
 mod ts;
 pub mod views;
 
@@ -72,6 +73,8 @@ commands! {
     set_collapsed(SetCollapsedArgs) -> NoArgs => set_collapsed,
     list_conflicts(NoArgs) -> StringList => list_conflicts,
     read_conflict(ReadConflictArgs) -> ConflictView => read_conflict,
+    template_info(PageArgs) -> TemplateInfo => template_info,
+    apply_template(PageArgs) -> ApplyResult => apply_template,
     run_query(RunQueryArgs) -> QueryView => run_query,
     agenda(AgendaArgs) -> AgendaView => agenda,
     list_saved_queries(NoArgs) -> Vec<SavedQueryView> => list_saved_queries,

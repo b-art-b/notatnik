@@ -224,6 +224,19 @@ pub struct GraphInfo {
 pub struct ApplyResult {
     /// The page after the edit.
     pub page: PageView,
+    /// The template this edit applied (setting `type`, PR-10); `None` when none.
+    pub template: Option<String>,
+    /// The properties the template added.
+    pub template_added: Vec<String>,
+}
+
+/// `template_info`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateInfo {
+    /// The template of the page's `type` (its name), if there is one.
+    pub template: Option<String>,
+    /// Properties of the template that the page lacks.
+    pub missing: Vec<String>,
 }
 
 /// Full-text search hit.
@@ -773,6 +786,8 @@ pub struct SettingsView {
     pub backup_dir: String,
     /// Device: take snapshots automatically.
     pub backup_auto: bool,
+    /// Device: apply the template of a page's type when `type` is set (PR-10).
+    pub templates_auto: bool,
     /// Graph: `monday` or `sunday`.
     pub week_start: String,
     /// Graph: the page-icon rules (`type: person` → 👤).
@@ -806,6 +821,8 @@ pub struct SetSettingsArgs {
     pub backup_dir: Option<String>,
     /// Device: automatic snapshots.
     pub backup_auto: Option<bool>,
+    /// Device: a page template is applied when `type` is set.
+    pub templates_auto: Option<bool>,
     /// Graph: week start.
     pub week_start: Option<String>,
     /// Graph: completed log limit.

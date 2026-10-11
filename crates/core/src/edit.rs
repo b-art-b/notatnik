@@ -820,7 +820,7 @@ fn set_page_property(
             "frontmatter values are single-line".into(),
         ));
     }
-    let line = format!("{key}: {}", value.trim());
+    let line = format!("{key}: {}", value.trim()).trim_end().to_string();
     match &page.frontmatter {
         None => {
             let at = if page.style.bom { 3 } else { 0 };

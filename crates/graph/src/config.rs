@@ -414,6 +414,9 @@ pub struct UiSettings {
     /// Take a snapshot at start and then daily while the app is open, when something changed (BK-3).
     #[serde(default = "default_true")]
     pub backup_auto: bool,
+    /// Setting `type` on a page adds the properties of `templates/<type>.md` it lacks (PR-10).
+    #[serde(default = "default_true")]
+    pub templates_auto: bool,
 }
 
 /// The accepted values of `UiSettings::date_format`.
@@ -450,6 +453,7 @@ impl Default for UiSettings {
             date_pattern: String::new(),
             backup_dir: String::new(),
             backup_auto: true,
+            templates_auto: true,
         }
     }
 }

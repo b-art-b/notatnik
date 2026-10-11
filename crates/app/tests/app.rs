@@ -1904,3 +1904,81 @@ fn priority_labels_are_configurable() {
             .is_ok()
     );
 }
+
+/// PR-10: setting `type` adds the properties (and, for an empty page, the blocks) of `templates/<type>.md`.
+#[test]
+fn setting_type_applies_the_template_of_that_type() {
+    let t = start("basic");
+    std::fs::create_dir_all(t.graph().join("templates")).unwrap();
+    std::fs::write(
+        t.graph().join("templates/Person.md"),
+        "---\ntype: person\nimportance: 1\npartner:\nadded: {{date}}\n---\n- Contact {{title}}\n  - Phone\n- Notes\n",
+    )
+    .unwrap();
+    // a new page: properties and blocks, one write
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "people/Jan", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "person"}]}),
+    );
+    assert_eq!(r["template"], "Person");
+    assert_eq!(
+        r["template_added"],
+        json!(["importance", "partner", "added"])
+    );
+    let text = t.read("pages/people/Jan.md");
+    assert!(
+        text.starts_with("---\ntype: person\nimportance: 1\npartner:\nadded: 2026-10-03\n---\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("- Contact Jan\n  - Phone\n- Notes\n"),
+        "{text}"
+    );
+    // a page with its own value and blocks: only the missing properties, no blocks
+    let p = t.ok("get_page", json!({"name": "inbox"}));
+    let hash = p["hash"].as_str().unwrap().to_string();
+    let before = t.read("pages/inbox.md");
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "inbox", "base_hash": hash, "ops": [
+            {"op": "set_page_property", "key": "importance", "value": "5"},
+            {"op": "set_page_property", "key": "type", "value": "person"}]}),
+    );
+    assert_eq!(r["template_added"], json!(["partner", "added"]));
+    let after = t.read("pages/inbox.md");
+    assert!(after.contains("importance: 5"), "{after}");
+    assert!(!after.contains("Contact"), "{after}");
+    assert!(after.contains(before.lines().last().unwrap()), "{after}");
+    // the info and the explicit action
+    let info = t.ok("template_info", json!({"page": "people/Jan"}));
+    assert_eq!(info, json!({"template": "Person", "missing": []}));
+    let hash = t.ok("get_page", json!({"name": "inbox"}))["hash"].clone();
+    t.ok(
+        "apply_ops",
+        json!({"page": "inbox", "base_hash": hash, "ops": [{"op": "remove_page_property", "key": "partner"}]}),
+    );
+    let info = t.ok("template_info", json!({"page": "inbox"}));
+    assert_eq!(info["missing"], json!(["partner"]));
+    let r = t.ok("apply_template", json!({"page": "inbox"}));
+    assert_eq!(r["template_added"], json!(["partner"]));
+    // turned off: setting `type` changes nothing else
+    t.ok("set_settings", json!({"templates_auto": false}));
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "people/Eva", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "person"}]}),
+    );
+    assert_eq!(r["template"], Value::Null);
+    assert_eq!(t.read("pages/people/Eva.md"), "---\ntype: person\n---\n");
+    // no template for the type: nothing happens, and the explicit action says so
+    t.ok(
+        "apply_ops",
+        json!({"page": "people/Odd", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "gadget"}]}),
+    );
+    assert!(
+        t.call("apply_template", json!({"page": "people/Odd"}))
+            .is_err()
+    );
+}

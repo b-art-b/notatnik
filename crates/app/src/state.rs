@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::dto::*;
+use crate::templates;
 use crate::views::{PageInput, ViewOptions, find_block, page_view};
 
 /// Error returned by every command.
@@ -344,6 +345,15 @@ impl AppState {
 
     /// `apply_ops`
     pub fn apply_ops(&self, a: ApplyOpsArgs) -> ApiResult<ApplyResult> {
+        self.apply_ops_with(a, None)
+    }
+
+    /// `apply_ops`; `force_type` applies the template of that type even when the ops do not set `type`.
+    fn apply_ops_with(
+        &self,
+        a: ApplyOpsArgs,
+        force_type: Option<String>,
+    ) -> ApiResult<ApplyResult> {
         let name = Self::parse_name(&a.page)?;
         self.with_open(|o| {
             let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
@@ -355,7 +365,25 @@ impl AppState {
                 .and_then(|i| i.file_path)
                 .unwrap_or_else(|| page_to_path(&canonical));
             let created = a.base_hash.is_none();
-            let out = o.graph.edit_page(&rel, a.base_hash.as_deref(), &a.ops)?;
+            // setting `type` also adds the template's missing properties, in the same edit (one undo step)
+            let mut ops = a.ops.clone();
+            let mut applied = (None, Vec::new());
+            let set_type = ops.iter().find_map(|op| match op {
+                BlockOp::SetPageProperty { key, value } if key.eq_ignore_ascii_case("type") => {
+                    templates::type_name(value)
+                }
+                _ => None,
+            });
+            let auto = force_type.is_some() || self.templates_auto();
+            if let Some(ty) = force_type.or(set_type).filter(|_| auto) {
+                if let Some((name_, tops, added)) =
+                    Self::template_ops(o, &canonical, &rel, !created, &ty, &ops, self.today())
+                {
+                    ops.extend(tops);
+                    applied = (Some(name_), added);
+                }
+            }
+            let out = o.graph.edit_page(&rel, a.base_hash.as_deref(), &ops)?;
             if !out.patches.is_empty() || created {
                 let entry = if created {
                     UndoEntry {
@@ -383,8 +411,151 @@ impl AppState {
                 "graph-changed",
                 json!({ "pages": [canonical.to_string()], "paths": [], "own": true }),
             );
-            Ok(ApplyResult { page })
+            Ok(ApplyResult {
+                page,
+                template: applied.0,
+                template_added: applied.1,
+            })
         })
+    }
+
+    fn templates_auto(&self) -> bool {
+        notatnik_graph::DeviceSettings::load(&self.dirs)
+            .unwrap_or_default()
+            .ui
+            .templates_auto
+    }
+
+    /// The template file of a type: `templates/<type>.md`, the name compared without regard to case.
+    fn template_text(o: &Open, ty: &str) -> Option<(String, String)> {
+        let dir = o.graph.root().join("templates");
+        let file = std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
+            let n = e.file_name().into_string().ok()?;
+            let stem = n.strip_suffix(".md")?;
+            stem.eq_ignore_ascii_case(ty).then(|| stem.to_string())
+        })?;
+        let text = o
+            .graph
+            .read_page(&format!("templates/{file}.md"))
+            .ok()?
+            .text;
+        Some((file, text))
+    }
+
+    /// What template of type `ty` adds to the page: `(template name, ops, added keys)`; `None` without a template.
+    fn template_ops(
+        o: &Open,
+        page: &PageName,
+        rel: &str,
+        exists: bool,
+        ty: &str,
+        pending: &[BlockOp],
+        today: NaiveDate,
+    ) -> Option<(String, Vec<BlockOp>, Vec<String>)> {
+        let (file, text) = Self::template_text(o, ty)?;
+        let date = today.format("%Y-%m-%d").to_string();
+        let t = templates::parse_template(
+            &text,
+            &templates::Vars {
+                title: page.as_str(),
+                date: &date,
+            },
+        );
+        let mut have: Vec<String> = pending
+            .iter()
+            .filter_map(|op| match op {
+                BlockOp::SetPageProperty { key, .. } => Some(key.to_lowercase()),
+                _ => None,
+            })
+            .collect();
+        let mut no_blocks = true;
+        if exists {
+            if let Ok(f) = o.graph.read_page(rel) {
+                let p = notatnik_core::parse_page(&f.text);
+                no_blocks = p.blocks.is_empty();
+                if let Some(fm) = p.frontmatter {
+                    have.extend(fm.entries.iter().map(|e| e.key.to_lowercase()));
+                }
+            }
+        }
+        let with_blocks = no_blocks
+            && !pending
+                .iter()
+                .any(|op| matches!(op, BlockOp::Insert { .. }));
+        let (ops, added) = templates::ops_for(&t, &have, with_blocks);
+        Some((file, ops, added))
+    }
+
+    /// `template_info`: which template the page's `type` selects and what of it is missing.
+    pub fn template_info(&self, a: PageArgs) -> ApiResult<TemplateInfo> {
+        let name = Self::parse_name(&a.page)?;
+        self.with_open(|o| {
+            let rel = Self::page_rel(o, name.as_str())?;
+            let Ok(f) = o.graph.read_page(&rel) else {
+                return Ok(TemplateInfo {
+                    template: None,
+                    missing: Vec::new(),
+                });
+            };
+            let fm = notatnik_core::parse_page(&f.text).frontmatter;
+            let ty = fm
+                .as_ref()
+                .and_then(|fm| {
+                    fm.entries
+                        .iter()
+                        .find(|e| e.key.eq_ignore_ascii_case("type"))
+                })
+                .and_then(|e| templates::type_name(&e.raw));
+            let found =
+                ty.and_then(|ty| Self::template_ops(o, &name, &rel, true, &ty, &[], self.today()));
+            Ok(match found {
+                Some((template, _, missing)) => TemplateInfo {
+                    template: Some(template),
+                    missing,
+                },
+                None => TemplateInfo {
+                    template: None,
+                    missing: Vec::new(),
+                },
+            })
+        })
+    }
+
+    /// `apply_template`: adds the properties of the page's template that the page lacks.
+    pub fn apply_template(&self, a: PageArgs) -> ApiResult<ApplyResult> {
+        let name = Self::parse_name(&a.page)?;
+        let (hash, ty) = self.with_open(|o| {
+            let rel = Self::page_rel(o, name.as_str())?;
+            let f = o
+                .graph
+                .read_page(&rel)
+                .map_err(|_| ApiError::new("not_found", "the page has no properties yet"))?;
+            let ty = notatnik_core::parse_page(&f.text)
+                .frontmatter
+                .and_then(|fm| {
+                    fm.entries
+                        .iter()
+                        .find(|e| e.key.eq_ignore_ascii_case("type"))
+                        .and_then(|e| templates::type_name(&e.raw))
+                });
+            Ok((f.hash, ty))
+        })?;
+        let ty = ty.ok_or_else(|| ApiError::new("invalid", "the page has no `type` property"))?;
+        let r = self.apply_ops_with(
+            ApplyOpsArgs {
+                page: a.page,
+                base_hash: Some(hash),
+                ops: Vec::new(),
+            },
+            Some(ty.clone()),
+        )?;
+        if r.template.is_none() {
+            return Err(ApiError::new(
+                "not_found",
+                format!("there is no template `templates/{ty}.md`"),
+            ));
+        }
+        Ok(r)
     }
 
     #[allow(clippy::unused_self)]
@@ -1448,6 +1619,7 @@ impl AppState {
             date_pattern: dev.ui.date_pattern,
             backup_dir: dev.ui.backup_dir,
             backup_auto: dev.ui.backup_auto,
+            templates_auto: dev.ui.templates_auto,
             priorities: cfg.priority_labels(),
             week_start: cfg.graph.week_start.clone(),
             completed_log_limit: cfg.tasks.completed_log_limit,
@@ -1570,6 +1742,7 @@ impl AppState {
                 || a.date_pattern.is_some()
                 || a.backup_dir.is_some()
                 || a.backup_auto.is_some()
+                || a.templates_auto.is_some()
             {
                 if let Some(d) = a.backup_dir.as_deref().map(str::trim) {
                     if !d.is_empty() && Path::new(d).starts_with(o.graph.root()) {
@@ -1606,6 +1779,9 @@ impl AppState {
                 }
                 if let Some(b) = a.backup_auto {
                     dev.ui.backup_auto = b;
+                }
+                if let Some(b) = a.templates_auto {
+                    dev.ui.templates_auto = b;
                 }
                 dev.save(&self.dirs)?;
             }

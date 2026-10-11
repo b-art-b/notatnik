@@ -49,6 +49,7 @@
     { id: 'dates', label: 'Dates & language', icon: '▦' },
     { id: 'tasks', label: 'Tasks', icon: '☐' },
     { id: 'icons', label: 'Page icons', icon: '☺' },
+    { id: 'templates', label: 'Templates', icon: '⎘' },
     { id: 'backup', label: 'Backup', icon: '⤓' },
     { id: 'graph', label: 'Graph', icon: '▤' },
   ] as const
@@ -201,6 +202,7 @@
     block_properties: string
     backup_dir: string
     backup_auto: boolean
+    templates_auto: boolean
     week_start: string
     completed_log_limit: number
     priorities: string[]
@@ -227,6 +229,7 @@
         block_properties: null,
         backup_dir: null,
         backup_auto: null,
+        templates_auto: null,
         week_start: null,
         completed_log_limit: null,
         priorities: null,
@@ -648,6 +651,39 @@
               <p class="muted">A rule is saved when its property, value and icon are all filled in.</p>
             {/if}
           </div>
+        {:else if tab === 'templates'}
+          <h2>Templates</h2>
+          <p class="scope">
+            <span class="badge graph">This graph</span>
+            Template files live in the <code>templates</code> folder of the graph and sync with your notes. Whether
+            they are applied automatically is a setting of this device.
+          </p>
+          <p class="intro">
+            A template belongs to a page type: <code>templates/person.md</code> is used by every page with
+            <code>type: person</code>. Its properties are the fields a page of that type should have (an empty
+            value shows the field empty), its blocks are the starting content. Variables:
+            <code>{'{{title}}'}</code>, <code>{'{{namespace}}'}</code>, <code>{'{{date}}'}</code>.
+          </p>
+          <p class="intro">
+            When you set <code>type</code> on a page, the properties of its template that the page lacks are
+            added. Values you already set are never changed, and the blocks are added only to a page that has
+            none. An existing page can pick up new template fields with <em>Add missing from template</em> in its
+            properties.
+          </p>
+          <SettingRow
+            title="Apply templates when a type is set"
+            description="Off: nothing is added automatically; the button in the page properties still works."
+            labelFor="templates-auto"
+          >
+            <input
+              id="templates-auto"
+              class="switch"
+              type="checkbox"
+              role="switch"
+              checked={s.templates_auto}
+              onchange={(e) => save({ templates_auto: (e.currentTarget as HTMLInputElement).checked })}
+            />
+          </SettingRow>
         {:else if tab === 'backup'}
           <h2>Backup</h2>
           <p class="scope">

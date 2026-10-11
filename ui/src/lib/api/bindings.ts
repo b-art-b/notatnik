@@ -352,7 +352,15 @@ export type ApplyResult = {
 /**
  * The page after the edit.
  */
-page: PageView, };
+page: PageView, 
+/**
+ * The template this edit applied (setting `type`, PR-10); `None` when none.
+ */
+template: string | null, 
+/**
+ * The properties the template added.
+ */
+template_added: Array<string>, };
 export type SearchHitView = { 
 /**
  * `page` or `block`.
@@ -840,6 +848,15 @@ view: string | null,
  * The page the query sits on: `[[]]` in the text means this page (QV-8).
  */
 page: string | null, };
+export type TemplateInfo = { 
+/**
+ * The template of the page's `type` (its name), if there is one.
+ */
+template: string | null, 
+/**
+ * Properties of the template that the page lacks.
+ */
+missing: Array<string>, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
@@ -988,6 +1005,10 @@ backup_dir: string,
  */
 backup_auto: boolean, 
 /**
+ * Device: apply the template of a page's type when `type` is set (PR-10).
+ */
+templates_auto: boolean, 
+/**
  * Graph: `monday` or `sunday`.
  */
 week_start: string, 
@@ -1044,6 +1065,10 @@ backup_dir: string | null,
  * Device: automatic snapshots.
  */
 backup_auto: boolean | null, 
+/**
+ * Device: a page template is applied when `type` is set.
+ */
+templates_auto: boolean | null, 
 /**
  * Graph: week start.
  */
@@ -1169,6 +1194,8 @@ export type Commands = {
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
   list_conflicts: { args: NoArgs; result: StringList };
   read_conflict: { args: ReadConflictArgs; result: ConflictView };
+  template_info: { args: PageArgs; result: TemplateInfo };
+  apply_template: { args: PageArgs; result: ApplyResult };
   run_query: { args: RunQueryArgs; result: QueryView };
   agenda: { args: AgendaArgs; result: AgendaView };
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };

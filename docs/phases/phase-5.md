@@ -111,7 +111,7 @@ Namespace-aware autocomplete ranking (NS-7, phase 2) covers the convenience part
 ## 5D: Templates and journals
 
 ### P5.11 Templates (NS-10, JR-6)
-- [ ] Templates are Markdown files in `.notatnik/templates/`; variables: `{{date}}`, `{{title}}`, `{{namespace}}`, `{{cursor}}`
+- [x] Templates are Markdown files in `templates/` of the graph, one per page type (PR-10); variables: `{{date}}`, `{{title}}`, `{{namespace}}`, `{{cursor}}` (done: type templates; not yet: namespace and journal templates, `/template`)
 - [ ] Per-namespace default templates (config `[namespaces."people"] template = …`, applies to new pages below `people`), the journal template, and a `/template` slash command for inserting any template as blocks
 
 **Verify**
