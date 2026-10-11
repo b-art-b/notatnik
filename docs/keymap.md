@@ -144,7 +144,7 @@ Setting `type` on a page adds the template's properties that the page lacks, and
 
 **New pages and days:** in *Settings → Templates* pick a **Journal template** (every new journal day starts from it, `{{date}}` is that day) and add **namespace templates** (`people` → `person`: every new page below `people`, not `people` itself, starts from `person`: its `type`, properties and blocks). The longest matching namespace wins. What you type first comes after the template's blocks. The switch *Apply templates automatically* covers these too.
 
-**/template:** type `/template` in a block and pick **Template: person**. In an empty block the template's first block takes its place and the rest follows; in a block with text the template's blocks are inserted after it. Properties of the template are not inserted (they belong to the page); `{{title}}`, `{{namespace}}` and `{{date}}` are filled in for the current page.
+**/template:** type `/template` in a block and pick **Template: person**. In an empty block the template's first block takes its place and the rest follows; in a block with text the template's blocks are inserted after it. The page also gets the template's `type` and properties that it lacks (an empty field in the template stays an empty field; values you already have are kept). `{{title}}`, `{{namespace}}` and `{{date}}` are filled in for the current page.
 
 **Deleting and restoring:** *Settings → Templates → Delete* removes the file; it is kept for 30 days on this device under *Deleted templates* with **Restore**. Restoring is refused while a template of that name exists.
 

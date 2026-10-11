@@ -114,8 +114,10 @@ export function templateOps(
   stored: string,
   typed: string,
   blocks: { parent: number[]; index: number; text: string }[],
+  props: BlockOp[] = [],
 ): BlockOp[] {
-  const ops: BlockOp[] = []
+  // the template's page properties first (only the ones the page lacks: the server leaves the others out)
+  const ops: BlockOp[] = [...props]
   const empty = typed.trim() === ''
   if (!empty && stored !== typed) ops.push({ op: 'update_text', block: { path, hash: null }, text: typed })
   const parent = path.slice(0, -1)
@@ -217,7 +219,7 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       await ctx.doc.applyWith((v) => {
         const hit = v ? findById(v.blocks, blockId) : undefined
         if (!hit) return null
-        return templateOps(hit.path, hit.block.text, a.text, tpl)
+        return templateOps(hit.path, hit.block.text, a.text, tpl.blocks, tpl.props)
       })
       stopEditing()
       return true

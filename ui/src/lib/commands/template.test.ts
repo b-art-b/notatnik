@@ -27,6 +27,16 @@ describe('templateOps', () => {
   })
 })
 
+describe('templateOps with properties', () => {
+  it('sets the template properties first', () => {
+    const props = [{ op: 'set_page_property', key: 'partner', value: '' } as const]
+    expect(templateOps([0], '', '', [{ parent: [], index: 0, text: 'Contact' }], [...props])).toEqual([
+      { op: 'set_page_property', key: 'partner', value: '' },
+      { op: 'update_text', block: { path: [0], hash: null }, text: 'Contact' },
+    ])
+  })
+})
+
 describe('/template commands', () => {
   it('there is one per template, found by `template` and by the name', () => {
     setTemplateNames(['person', 'Meeting Notes'])

@@ -96,6 +96,7 @@ pub fn typescript_bindings() -> String {
         RestoreTemplateArgs,
         TemplateBlocksArgs,
         TemplateBlockView,
+        TemplateContent,
         NamespaceTemplateView,
         TemplateEntry,
         SaveTemplateArgs,

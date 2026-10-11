@@ -80,7 +80,7 @@ commands! {
     delete_template(NameArgs) -> Vec<TemplateEntry> => delete_template,
     deleted_templates(NoArgs) -> Vec<DeletedTemplate> => deleted_templates,
     restore_template(RestoreTemplateArgs) -> Vec<TemplateEntry> => restore_template,
-    template_blocks(TemplateBlocksArgs) -> Vec<TemplateBlockView> => template_blocks,
+    template_blocks(TemplateBlocksArgs) -> TemplateContent => template_blocks,
     run_query(RunQueryArgs) -> QueryView => run_query,
     agenda(AgendaArgs) -> AgendaView => agenda,
     list_saved_queries(NoArgs) -> Vec<SavedQueryView> => list_saved_queries,

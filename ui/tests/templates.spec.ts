@@ -48,5 +48,7 @@ test('/template inserts the blocks of a template after the block', async ({ back
   await expect(tip).toContainText('Template: person', { timeout: 5000 })
   await page.waitForTimeout(150) // CodeMirror ignores an accept within 75 ms of the popup opening
   await page.keyboard.press('Enter')
-  await expect.poll(() => backend.read('pages/Meeting.md')).toBe('- note\n- Contact Meeting\n  - Phone\n')
+  await expect
+    .poll(() => backend.read('pages/Meeting.md'))
+    .toBe('---\ntype: person\nimportance: 1\n---\n\n- note\n- Contact Meeting\n  - Phone\n')
 })

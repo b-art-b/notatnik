@@ -2121,10 +2121,18 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
         json!({"name": "person", "page": "people/Eva"}),
     );
     assert_eq!(
-        b,
+        b["blocks"],
         json!([
             {"parent": [], "index": 0, "text": "Contact Eva"},
             {"parent": [0], "index": 0, "text": "Phone"}
+        ])
+    );
+    // and the page properties it lacks: the template's own type and its fields, empty ones stay empty
+    assert_eq!(
+        b["props"],
+        json!([
+            {"op": "set_page_property", "key": "type", "value": "person"},
+            {"op": "set_page_property", "key": "importance", "value": "1"}
         ])
     );
     // deleted templates can be listed and restored; not over an existing one

@@ -905,6 +905,16 @@ index: number,
  * Block text, variables filled in.
  */
 text: string, };
+export type TemplateContent = { 
+/**
+ * The blocks, in insertion order.
+ */
+blocks: Array<TemplateBlockView>, 
+/**
+ * Page properties to set: the template's `type` and fields that the page lacks (values as in the template,
+ * empty where the template has empty fields).
+ */
+props: Array<BlockOp>, };
 export type NamespaceTemplateView = { 
 /**
  * Namespace, e.g. `people`.
@@ -1300,7 +1310,7 @@ export type Commands = {
   delete_template: { args: NameArgs; result: TemplateEntry[] };
   deleted_templates: { args: NoArgs; result: DeletedTemplate[] };
   restore_template: { args: RestoreTemplateArgs; result: TemplateEntry[] };
-  template_blocks: { args: TemplateBlocksArgs; result: TemplateBlockView[] };
+  template_blocks: { args: TemplateBlocksArgs; result: TemplateContent };
   run_query: { args: RunQueryArgs; result: QueryView };
   agenda: { args: AgendaArgs; result: AgendaView };
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };

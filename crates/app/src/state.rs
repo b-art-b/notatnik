@@ -737,7 +737,7 @@ impl AppState {
 
     /// `template_blocks`: the blocks of a template with the variables filled in for `page`, to insert at the cursor
     /// (`/template`).
-    pub fn template_blocks(&self, a: TemplateBlocksArgs) -> ApiResult<Vec<TemplateBlockView>> {
+    pub fn template_blocks(&self, a: TemplateBlocksArgs) -> ApiResult<TemplateContent> {
         let page = Self::parse_name(&a.page)?;
         self.with_open(|o| {
             let (_, text) = Self::template_text(o, &a.name).ok_or_else(|| {
@@ -751,7 +751,28 @@ impl AppState {
                     date: &date,
                 },
             );
-            Ok(t.blocks
+            // the page properties the template has and the page lacks
+            let rel = Self::page_rel(o, page.as_str())?;
+            let exists = o.graph.read_page(&rel).is_ok();
+            let props = Self::template_ops(
+                o,
+                &page,
+                &rel,
+                exists,
+                &a.name,
+                &[],
+                self.today(),
+                TemplateMode::NewPage,
+            )?
+            .map(|t| {
+                t.ops
+                    .into_iter()
+                    .filter(|op| matches!(op, BlockOp::SetPageProperty { .. }))
+                    .collect()
+            })
+            .unwrap_or_default();
+            let blocks = t
+                .blocks
                 .into_iter()
                 .map(|(parent, index, text)| TemplateBlockView {
                     parent: parent
@@ -761,7 +782,8 @@ impl AppState {
                     index: u32::try_from(index).unwrap_or(u32::MAX),
                     text,
                 })
-                .collect())
+                .collect();
+            Ok(TemplateContent { blocks, props })
         })
     }
 

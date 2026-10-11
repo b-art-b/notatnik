@@ -283,6 +283,16 @@ pub struct TemplateBlocksArgs {
     pub page: String,
 }
 
+/// What `/template` inserts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateContent {
+    /// The blocks, in insertion order.
+    pub blocks: Vec<TemplateBlockView>,
+    /// Page properties to set: the template's `type` and fields that the page lacks (values as in the template,
+    /// empty where the template has empty fields).
+    pub props: Vec<BlockOp>,
+}
+
 /// A block of a template: where it goes relative to the insertion point.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct TemplateBlockView {
