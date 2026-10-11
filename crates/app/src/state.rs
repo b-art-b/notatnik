@@ -1647,9 +1647,24 @@ impl AppState {
 
     /// `run_query`
     pub fn run_query(&self, a: RunQueryArgs) -> ApiResult<QueryView> {
-        let text = match &a.page {
-            Some(p) => a.text.replace("[[]]", &format!("[[{p}]]")),
-            None => a.text.clone(),
+        let today = self.today().format("%Y-%m-%d").to_string();
+        let text = match templates::expand_query(&a.text, a.page.as_deref(), &today) {
+            Ok(t) => t,
+            Err((line, column, message)) => {
+                return Ok(QueryView {
+                    errors: vec![QueryErrorView {
+                        line: u32::try_from(line).unwrap_or(1),
+                        column: u32::try_from(column).unwrap_or(1),
+                        message,
+                        suggestion: None,
+                    }],
+                    target: "block".into(),
+                    view: a.view.clone().unwrap_or_else(|| "list".into()),
+                    columns: Vec::new(),
+                    group_by: None,
+                    rows: Vec::new(),
+                });
+            }
         };
         let (query, errs) = notatnik_core::parse_query_partial(&text);
         let view_name = a

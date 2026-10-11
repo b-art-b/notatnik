@@ -666,9 +666,9 @@ fn agenda_sections_for_the_tasks_fixture() {
     );
 }
 
-/// QV-12: `[[]]` in a query is the page the query sits on.
+/// QV-12: `{{page}}` in a query is the page the query sits on (`[[]]` still works).
 #[test]
-fn empty_link_in_a_query_means_the_page_it_sits_on() {
+fn page_variable_in_a_query_means_the_page_it_sits_on() {
     let t = start("queries");
     let named = t.ok(
         "run_query",
@@ -676,16 +676,22 @@ fn empty_link_in_a_query_means_the_page_it_sits_on() {
     );
     let here = t.ok(
         "run_query",
+        json!({"text": "page: {{page}}\ntask: todo", "view": null, "page": "work/tasks"}),
+    );
+    let old = t.ok(
+        "run_query",
         json!({"text": "page: [[]]\ntask: todo", "view": null, "page": "work/tasks"}),
     );
+    assert_eq!(old["rows"], named["rows"]);
     assert_eq!(here["errors"], json!([]));
     assert!(!here["rows"].as_array().unwrap().is_empty());
     assert_eq!(here["rows"], named["rows"]);
     // without a page (agenda, sidebar) it stays an error instead of matching everything
     let none = t.ok(
         "run_query",
-        json!({"text": "page: [[]]\ntask: todo", "view": null}),
+        json!({"text": "task: todo\npage: {{page}}", "view": null}),
     );
+    assert_eq!(none["errors"][0]["line"], 2);
     assert!(!none["errors"].as_array().unwrap().is_empty());
 }
 

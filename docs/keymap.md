@@ -198,7 +198,7 @@ modification time; journals and pages without a file can be hidden) or **Namespa
 
 A ```` ```query ```` block shows its results live. To change the query, click anywhere on the block except the results: the header (it says "✎ click here to edit the query"), the frame around it or the text shown by *show query* opens the block for editing. A click on a result keeps its own meaning (editing that block, opening a card, ...).
 
-**This page:** `[[]]` in a query stands for the page the query block is on. On the page `part. Capgemini`, `type: page` + `prop.partner: [[]]` lists every page whose `partner` is that page; the same block pasted into another partner page lists that partner's pages. Typing `[[` offers pages as usual; leave the brackets empty (Esc closes the list) to mean this page. In a saved query (sidebar) there is no page, so `[[]]` is reported as an error.
+**This page:** `{{page}}` in a query stands for the page the query block is on. On the page `part. Capgemini`, `type: page` + `prop.partner: {{page}}` lists every page whose `partner` is that page; the same block pasted into another partner page lists that partner's pages. It works wherever a page is allowed (`page:`, `links:`, `prop.x:`; `[[{{page}}]]` is the same). `{{title}}` is the last part of the name, `{{namespace}}` the part before it, `{{date}}` today. In a saved query (sidebar) and in the agenda there is no page, so `{{page}}`, `{{title}}` and `{{namespace}}` are reported as an error. The older `[[]]` still works.
 
 ## Tasks of a page
 

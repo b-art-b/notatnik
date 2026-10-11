@@ -43,7 +43,7 @@
 
   const doc = $derived(getDoc(name))
   const view = $derived(doc.view)
-  // query blocks below read the page they sit on from here (`[[]]` in a query means this page); a getter, because
+  // query blocks below read the page they sit on from here (`{{page}}` in a query means this page); a getter, because
   // `name` can change while the component lives
   setContext('queryPage', () => name)
   const roots = $derived.by(() => {

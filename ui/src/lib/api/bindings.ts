@@ -849,7 +849,7 @@ text: string,
  */
 view: string | null, 
 /**
- * The page the query sits on: `[[]]` in the text means this page (QV-8).
+ * The page the query sits on: `{{page}}` in the text means this page (QV-12).
  */
 page: string | null, };
 export type TemplateInfo = { 

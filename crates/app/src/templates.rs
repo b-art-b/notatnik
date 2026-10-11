@@ -180,6 +180,42 @@ pub fn render(src: &str, keep_values: bool) -> Option<(String, String)> {
     Some((name, out))
 }
 
+/// A variable that needs a page, used in a query that is not on one: the position (1-based line and column) and
+/// the message.
+pub type QueryVarError = (usize, usize, String);
+
+/// Fills the variables of a query (QV-12): `{{page}}` is a link to the page the query block sits on (`[[Page]]`; also
+/// inside brackets, `[[{{page}}]]`), `{{title}}` its last name segment, `{{namespace}}` the part before it and
+/// `{{date}}` today. The empty link `[[]]` still means the page. Without a page (agenda, saved queries) the first
+/// three are an error, so a query never silently matches nothing.
+pub fn expand_query(text: &str, page: Option<&str>, today: &str) -> Result<String, QueryVarError> {
+    let Some(p) = page else {
+        for var in ["{{page}}", "{{title}}", "{{namespace}}"] {
+            if let Some(at) = text.find(var) {
+                let before = &text[..at];
+                let line = before.matches('\n').count() + 1;
+                let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+                return Err((
+                    line,
+                    col,
+                    format!("`{var}` needs a page: use it in a query block on a page"),
+                ));
+            }
+        }
+        return Ok(text.replace("{{date}}", today));
+    };
+    let link = format!("[[{p}]]");
+    let leaf = p.rsplit('/').next().unwrap_or(p);
+    let ns = p.rsplit_once('/').map_or("", |(ns, _)| ns);
+    Ok(text
+        .replace("[[{{page}}]]", &link)
+        .replace("{{page}}", &link)
+        .replace("[[]]", &link)
+        .replace("{{title}}", leaf)
+        .replace("{{namespace}}", ns)
+        .replace("{{date}}", today))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +300,26 @@ mod tests {
         assert_eq!(ops.len(), 2);
         let (_, added) = ops_for(&t, &["type".into()], false, true);
         assert_eq!(added, vec!["a"]);
+    }
+
+    #[test]
+    fn query_variables() {
+        let q = "type: page\nprop.partner: {{page}}\nns: {{namespace}}\ntag: [[{{page}}]]\nprop.x: [[]]\n";
+        assert_eq!(
+            expand_query(q, Some("part/Acme"), "2026-10-11").unwrap(),
+            "type: page\nprop.partner: [[part/Acme]]\nns: part\ntag: [[part/Acme]]\nprop.x: [[part/Acme]]\n"
+        );
+        assert_eq!(
+            expand_query("prop.n: {{title}}", Some("a/b/Jan"), "").unwrap(),
+            "prop.n: Jan"
+        );
+        // without a page: an error with the position; `{{date}}` still works
+        let e = expand_query("task: todo\nprop.partner: {{page}}", None, "2026-10-11").unwrap_err();
+        assert_eq!((e.0, e.1), (2, 15));
+        assert_eq!(
+            expand_query("deadline: {{date}}", None, "2026-10-11").unwrap(),
+            "deadline: 2026-10-11"
+        );
     }
 
     #[test]
