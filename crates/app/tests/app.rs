@@ -1618,6 +1618,78 @@ fn backups_are_taken_listed_and_restored() {
     );
 }
 
+/// A rename that touches several files and a delete of several pages first save a restore point (BK-6); the page
+/// history lists, shows and restores versions (VH-1..VH-3).
+#[test]
+fn bulk_changes_take_a_restore_point_and_pages_have_a_history() {
+    let t = start("basic");
+    let custom = t.tmp.path().join("bk");
+    t.ok(
+        "set_settings",
+        json!({"backup_dir": custom.to_str().unwrap()}),
+    );
+    let count = |t: &T| {
+        t.ok("list_backups", json!({}))["backups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|b| b["before"] == true)
+            .count()
+    };
+    assert_eq!(count(&t), 0);
+    // `people/anna` is linked from several pages: the rename rewrites them
+    t.ok(
+        "rename_apply",
+        json!({"old": "people/anna", "new": "team/anna"}),
+    );
+    assert_eq!(count(&t), 1);
+    // the restore point has the old name, the graph the new one
+    let l = t.ok("list_backups", json!({}));
+    let name = l["backups"][0]["name"].as_str().unwrap().to_string();
+    assert!(name.ends_with("-before.zip"), "{name}");
+    let target = t.tmp.path().join("old");
+    t.ok(
+        "restore_backup",
+        json!({"name": name, "target": target.to_str().unwrap()}),
+    );
+    assert!(target.join("pages/people/anna.md").exists());
+    assert!(!t.graph().join("pages/people/anna.md").exists());
+    // with automatic backups off nothing is saved
+    t.ok("set_settings", json!({"backup_auto": false}));
+    t.ok(
+        "rename_apply",
+        json!({"old": "team/anna", "new": "people/anna"}),
+    );
+    assert_eq!(count(&t), 1);
+
+    // page history
+    let p = t.ok("get_page", json!({"name": "inbox"}));
+    let hash = p["hash"].as_str().unwrap().to_string();
+    let original = t.read("pages/inbox.md");
+    assert_eq!(t.ok("page_versions", json!({"page": "inbox"})), json!([]));
+    t.ok(
+        "apply_ops",
+        json!({"page": "inbox", "base_hash": hash, "ops": [
+            {"op": "insert", "parent": [], "index": 0, "text": "history test"}
+        ]}),
+    );
+    let v = t.ok("page_versions", json!({"page": "inbox"}));
+    let v = v.as_array().unwrap();
+    assert_eq!(v.len(), 2, "{v:?}");
+    let oldest = v.last().unwrap()["id"].as_str().unwrap().to_string();
+    let text = t.ok("page_version_text", json!({"page": "inbox", "id": oldest}));
+    assert_eq!(text["value"], original);
+    t.ok(
+        "restore_page_version",
+        json!({"page": "inbox", "id": oldest}),
+    );
+    assert_eq!(t.read("pages/inbox.md"), original);
+    assert!(
+        t.call("page_version_text", json!({"page": "inbox", "id": "../x"}))
+            .is_err()
+    );
+}
+
 /// Deleting a page moves it to the trash (outside the graph folder), links stay, and it can be restored; archived
 /// pages are listed and their tasks stay off the agenda.
 #[test]

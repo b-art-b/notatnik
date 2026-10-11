@@ -703,12 +703,40 @@
               The last automatic backup failed: {bk.error}
             </p>
           {/if}
+          <h3>How to restore</h3>
+          <ol class="howto">
+            <li>
+              <strong>One page:</strong> choose a snapshot below, <em>Restore…</em>, type the page name and
+              press
+              <em>Restore page</em>. That page's file is replaced by its version in the snapshot. Before that,
+              the page as it is now is saved in a new snapshot, so you can go back.
+            </li>
+            <li>
+              <strong>Everything:</strong> <em>Restore…</em>, type a new or empty folder (an absolute path)
+              and press <em>Restore folder</em>. The snapshot is unpacked there. Then open that folder as a
+              graph (Settings → Graph → <em>Open or create another graph</em>) to look around or copy files
+              back, or use the folder as your graph from now on. The open graph itself is never replaced as a
+              whole.
+            </li>
+            <li>
+              <strong>Without the app:</strong> a snapshot is a normal zip file. Unzip it with any tool; the result
+              is a graph folder of Markdown files.
+            </li>
+            <li>
+              Snapshots marked <em>before a change</em> were taken automatically before a rename or delete of
+              several pages. For a single page's earlier states use <em>History</em> under the page's title.
+            </li>
+          </ol>
           <h3>Snapshots</h3>
           <ul class="snaps" data-testid="backup-list" aria-label="Snapshots">
             {#each bk?.backups ?? [] as b (b.name)}
               <li data-testid="backup-item">
                 <span class="when">{b.created}</span>
                 <span class="muted">{mb(b.bytes)}</span>
+                {#if b.before}<span
+                    class="badge"
+                    title="Taken automatically before a rename, delete or restore">before a change</span
+                  >{/if}
                 <button class="plain" aria-expanded={restoreOf === b.name} onclick={() => openRestore(b.name)}
                   >Restore…</button
                 >
@@ -1036,6 +1064,15 @@
   }
   .open input {
     min-width: 16em;
+  }
+  .howto {
+    margin: 0 0 1em;
+    padding-left: 1.3em;
+    max-width: 42em;
+    font-size: 0.9em;
+  }
+  .howto li {
+    margin: 0.3em 0;
   }
   .snaps {
     list-style: none;

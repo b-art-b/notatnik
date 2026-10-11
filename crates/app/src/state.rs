@@ -845,6 +845,9 @@ impl AppState {
             let plan =
                 o.graph
                     .plan_rename_with(&a.old, &a.new, a.include_subpages.unwrap_or(true))?;
+            if plan.file_moves.len() + plan.edits.len() > 1 {
+                self.snapshot_before_change(o);
+            }
             if let Err(e) = o.graph.apply_rename(&plan) {
                 // remember it: the user can revert what was already written
                 *self
@@ -895,6 +898,9 @@ impl AppState {
                 ));
             }
             let rels: Vec<String> = pages.iter().map(|p| p.1.clone()).collect();
+            if rels.len() > 1 {
+                self.snapshot_before_change(o);
+            }
             let trash_id = o.graph.trash_pages(&rels)?;
             let names: Vec<String> = pages.into_iter().map(|p| p.0).collect();
             // the history of a deleted page can't be undone any more
@@ -1659,6 +1665,7 @@ impl AppState {
                 name: b.name,
                 created: b.created.format("%Y-%m-%d %H:%M:%S").to_string(),
                 bytes: b.bytes as f64,
+                before: b.before,
             })
             .collect();
         BackupList {
@@ -1714,6 +1721,76 @@ impl AppState {
         // no thread, no automatic snapshots; "Back up now" still works
         drop(spawned);
         BackupTask { stop, error }
+    }
+
+    /// A restore point before a rename or delete that touches several files (BK-6). Skipped when automatic backups
+    /// are off, and never blocks the operation: a failure only means there is no restore point.
+    fn snapshot_before_change(&self, o: &Open) {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        if !dev.ui.backup_auto {
+            return;
+        }
+        let _ = o
+            .graph
+            .backup_before_change(&self.backup_dir(), chrono::Local::now().naive_local());
+    }
+
+    // ---- page history (VH-1..VH-3) ------------------------------------------------------------
+
+    /// The file of a page: the indexed one, or where it would be created.
+    fn page_rel(o: &Open, page: &str) -> ApiResult<String> {
+        let name = Self::parse_name(page)?;
+        let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
+        Ok(info
+            .and_then(|i| i.file_path)
+            .unwrap_or_else(|| page_to_path(&name)))
+    }
+
+    /// `page_versions`: the recorded states of the page's file, newest first.
+    pub fn page_versions(&self, a: PageArgs) -> ApiResult<Vec<PageVersionView>> {
+        self.with_open(|o| {
+            let rel = Self::page_rel(o, &a.page)?;
+            Ok(o.graph
+                .page_versions(&rel)?
+                .into_iter()
+                .map(|v| PageVersionView {
+                    id: v.id,
+                    at_ms: v.at_ms as f64,
+                    bytes: v.bytes as f64,
+                })
+                .collect())
+        })
+    }
+
+    /// `page_version_text`
+    pub fn page_version_text(&self, a: PageVersionArgs) -> ApiResult<StringValue> {
+        self.with_open(|o| {
+            let rel = Self::page_rel(o, &a.page)?;
+            // `current` is the file as it is now, for the comparison
+            let value = if a.id == "current" {
+                o.graph.read_page(&rel).map(|p| p.text).unwrap_or_default()
+            } else {
+                o.graph.read_page_version(&rel, &a.id)?
+            };
+            Ok(StringValue { value })
+        })
+    }
+
+    /// `restore_page_version`: the version becomes the file; the text it replaces is recorded as a version.
+    pub fn restore_page_version(&self, a: PageVersionArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            let rel = Self::page_rel(o, &a.page)?;
+            o.graph.restore_page_version(&rel, &a.id)?;
+            o.undo.retain(|e| e.rel != rel);
+            o.redo.retain(|e| e.rel != rel);
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [a.page.clone()], "paths": [rel], "own": true }),
+            );
+            Ok(StringList {
+                items: vec![a.page],
+            })
+        })
     }
 
     /// `list_backups`

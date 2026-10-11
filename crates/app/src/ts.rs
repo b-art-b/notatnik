@@ -104,6 +104,8 @@ pub fn typescript_bindings() -> String {
         SettingsView,
         SetSettingsArgs,
         BackupView,
+        PageVersionView,
+        PageVersionArgs,
         BackupList,
         RestoreBackupArgs,
         RestoreBackupPageArgs,

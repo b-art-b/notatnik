@@ -42,11 +42,13 @@ Outside the graph (per device, never synced):
 └── state.json                   # collapsed blocks, open tabs, window layout
 ~/.config/notatnik/settings.toml # device settings, list of graphs
 ~/.local/share/notatnik/backups/ # snapshots (default folder; the device setting `backup_dir` can change it)
+~/.local/share/notatnik/graphs/<graph-id>/journal/pending.json   # operation in progress (D38); exists only after a crash
+~/.local/share/notatnik/graphs/<graph-id>/versions/<hash>/<ms>.md # page history (D39); `<ms>-w.md` = written by the app
 ```
 
 A snapshot is `notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>.zip` (local time) with the graph folder's files under their
 relative paths, minus `.notatnik/tmp/`. The zip comment is `notatnik-backup v1 <fingerprint>`. Unzipping one gives a
-folder that opens as the graph (BK-1).
+folder that opens as the graph (BK-1). A snapshot taken before a bulk change ends in `-before.zip` (BK-6).
 
 ## 2. Page names and file paths
 

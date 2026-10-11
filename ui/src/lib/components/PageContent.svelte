@@ -12,6 +12,7 @@
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
+  import HistoryDialog from './HistoryDialog.svelte'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
   import { shownDate } from '../stores/format.svelte'
 
@@ -100,6 +101,7 @@
   let draft = $state(false)
   let renaming = $state(false)
   let deleting = $state(false)
+  let history = $state(false)
   let showProps = $state(false)
 
   // --- page properties (frontmatter): edit, remove, add ---
@@ -229,19 +231,28 @@
               >{/each}
           </nav>
         {/if}
-        {#if !hideProps && !view.is_journal}
+        {#if !hideProps}
           <span class="page-actions">
             <button
               class="act"
-              data-testid="archive-toggle"
-              title={isArchivedItself(view.name)
-                ? 'Show this page in the sidebar and the agenda again'
-                : 'Hide this page (and the pages below it) from the sidebar and the agenda'}
-              onclick={toggleArchive}>{isArchivedItself(view.name) ? 'Unarchive' : 'Archive'}</button
+              data-testid="history-toggle"
+              title="Earlier versions of this page"
+              aria-expanded={history}
+              onclick={() => (history = !history)}>History</button
             >
-            <button class="act danger" data-testid="delete-page" onclick={() => (deleting = !deleting)}
-              >Delete…</button
-            >
+            {#if !view.is_journal}
+              <button
+                class="act"
+                data-testid="archive-toggle"
+                title={isArchivedItself(view.name)
+                  ? 'Show this page in the sidebar and the agenda again'
+                  : 'Hide this page (and the pages below it) from the sidebar and the agenda'}
+                onclick={toggleArchive}>{isArchivedItself(view.name) ? 'Unarchive' : 'Archive'}</button
+              >
+              <button class="act danger" data-testid="delete-page" onclick={() => (deleting = !deleting)}
+                >Delete…</button
+              >
+            {/if}
           </span>
         {/if}
         {#if !hideProps}
@@ -332,6 +343,7 @@
       </header>
     {/if}
     {#if renaming}<RenameDialog old={view.name} onclose={() => (renaming = false)} />{/if}
+    {#if history}<HistoryDialog page={view.name} onclose={() => (history = false)} />{/if}
     {#if deleting}<DeleteDialog page={view.name} onclose={() => (deleting = false)} />{/if}
     {#if !compact && isArchived(view.name)}
       <p class="archived" data-testid="archived-banner" role="status">

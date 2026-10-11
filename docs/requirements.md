@@ -55,6 +55,11 @@ A **graph** is a folder of notes.
 | BK-3 | Automatic snapshots (device setting, on by default): shortly after a graph opens and then every hour a check takes one when the newest is at least a day old and the files changed. A failed run is shown in Settings; it never interrupts editing. | V1 |
 | BK-4 | Retention: the newest snapshot of each of the last 7 days, 4 weeks and 6 months is kept, the rest is removed. A snapshot a page is being restored from is kept. | V1 |
 | BK-5 | Settings → Backup: folder, automatic on/off, *Back up now*, the list of snapshots, restore of one page (the current file is replaced after a new snapshot of it was taken) or of everything into a new or empty folder. | V1 |
+| BK-6 | Before a rename that touches several files or a delete of several pages, a restore point is saved (a snapshot named `...-before.zip`, only if automatic backups are on and the files changed since the newest snapshot). The newest ten are kept apart from the day/week/month scheme. Replacing a page from a snapshot saves one too. | V1 |
+| ST-11 | Multi-file operations (rename with reference rewriting, namespace move, delete of several pages) are journaled outside the graph before their first step. If the app dies in the middle, the next open undoes the partial operation (or only drops the record when it had completed) and says so. | V1 |
+| VH-1 | Every file the app writes, and every change from outside it notices, is recorded in a per-page version history on this device (outside the graph, never synced); the text before the first change is kept too. | V1 |
+| VH-2 | Versions thin out: all of the last 10 minutes (bursts of typing are one), then one per 10 minutes for 3 hours, one per hour for 2 days, one per day for 30 days; the oldest is kept for 30 days. The history follows a renamed or moved page. | V1 |
+| VH-3 | *History* under a page's title (journal days too) lists the versions, shows what restoring would change as a line diff and restores one; the text it replaces becomes a version. | V1 |
 
 ## 4. Outliner editor
 

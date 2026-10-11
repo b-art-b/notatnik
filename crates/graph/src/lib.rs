@@ -8,8 +8,10 @@
 pub mod backup;
 mod config;
 mod error;
+mod journal;
 mod rename;
 pub mod synth;
+mod versions;
 mod watch;
 
 pub use backup::BackupFile;
@@ -20,6 +22,7 @@ pub use config::{
 };
 pub use error::{Error, Result};
 pub use rename::{FileEdit, RenamePlan, RenameReport};
+pub use versions::PageVersion;
 pub use watch::{GraphChanged, Watcher};
 
 use std::collections::HashSet;
@@ -271,6 +274,11 @@ impl Graph {
             })),
             root,
         };
+        // an operation that was interrupted by a crash is undone before anything else looks at the files
+        if let Some(m) = graph.journal_recover() {
+            report.warnings.push(m);
+        }
+        graph.lock().prune_versions();
         // history snapshots for everything that was (re)indexed
         let paths: Vec<String> = if info.rebuilt || fresh {
             walk::scan(&graph.root)?
@@ -456,7 +464,7 @@ impl Graph {
             _ => return Err(Error::Conflict { path: rel.into() }),
         }
         atomic_write(&self.root, &abs, new_text.as_bytes())?;
-        self.lock().snapshot_file(rel);
+        self.lock().snapshot_file_as(rel, true);
         Ok(WriteOutcome {
             hash: hash_bytes(new_text.as_bytes()),
         })
@@ -532,6 +540,11 @@ impl Graph {
             }
             std::fs::write(&dest, bytes)?;
         }
+        // from here a crash must leave a record: the copies are in the trash entry already
+        let _journal = self.journal_begin(&journal::Pending::Delete {
+            trash_id: id.clone(),
+            rels: rels.to_vec(),
+        })?;
         for (rel, bytes) in &files {
             self.delete_page(rel, &hash_bytes(bytes))?;
         }
@@ -746,6 +759,11 @@ impl Inner {
 
     /// Stores the file's current content as the merge base. Failures are not fatal (it's a cache).
     pub(crate) fn snapshot_file(&self, rel: &str) {
+        self.snapshot_file_as(rel, false);
+    }
+
+    /// `app_write`: the change is a write by the app (editing), not something seen from outside.
+    pub(crate) fn snapshot_file_as(&self, rel: &str, app_write: bool) {
         let Ok(bytes) = std::fs::read(self.root.join(rel)) else {
             return;
         };
@@ -753,9 +771,13 @@ impl Inner {
         if let Some(dir) = p.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
+        // what was seen last time: with the new content it is a change to record in the page history
+        let before = std::fs::read(&p).ok();
         let tmp = p.with_extension("tmp");
-        if std::fs::write(&tmp, bytes).is_ok() {
-            let _ = std::fs::rename(&tmp, &p);
+        if std::fs::write(&tmp, &bytes).is_ok() && std::fs::rename(&tmp, &p).is_ok() {
+            if let Some(old) = before {
+                self.record_versions(rel, &old, &bytes, app_write);
+            }
         }
     }
 

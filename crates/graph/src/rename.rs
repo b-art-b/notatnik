@@ -7,7 +7,7 @@ use notatnik_core::{
 use crate::{Error, Graph, Result};
 
 /// The rewrite of one file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileEdit {
     /// Graph-relative path.
     pub path: String,
@@ -22,7 +22,7 @@ pub struct FileEdit {
 }
 
 /// Everything a rename would do; produced by [`Graph::plan_rename`] and applied by [`Graph::apply_rename`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RenamePlan {
     /// Old page name.
     pub old: String,
@@ -277,6 +277,7 @@ impl Graph {
                 let root = g.root.clone();
                 g.index.reindex_file(&root, to)?;
                 g.index.reindex_file(&root, from)?;
+                g.move_versions(to, from);
                 restored.push(from.clone());
             }
         }
@@ -296,6 +297,9 @@ impl Graph {
     /// If a file conflicts, stops and reports what was already done; nothing is moved in that case.
     pub fn apply_rename(&self, plan: &RenamePlan) -> Result<RenameReport> {
         let mut report = RenameReport::default();
+        // the record stays if the app dies half way; it is removed when this returns, whatever the result
+        let _journal =
+            self.journal_begin(&crate::journal::Pending::Rename { plan: plan.clone() })?;
         for e in &plan.edits {
             match self.write_page(&e.path, &e.new_text, Some(&e.base_hash)) {
                 Ok(_) => report.rewritten.push(e.path.clone()),
@@ -338,6 +342,7 @@ impl Graph {
                 g.index.reindex_file(&root, from)?;
                 g.index.reindex_file(&root, to)?;
                 g.remove_snapshot(from);
+                g.move_versions(from, to);
                 g.snapshot_file(to);
             }
             report.moved.push((from.clone(), to.clone()));

@@ -14,6 +14,9 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
   await expect(pane.getByRole('heading', { name: 'Backup' })).toBeVisible()
   await expect(pane.getByRole('switch', { name: 'Automatic backups' })).toBeChecked()
   await expect(pane.getByTestId('backup-item')).toHaveCount(0)
+  // the way back is explained on the page
+  await expect(pane.getByRole('heading', { name: 'How to restore' })).toBeVisible()
+  await expect(pane.getByText('Restore folder', { exact: false }).first()).toBeVisible()
 
   // the folder is configurable; a path inside the graph is refused
   const dir = path.join(backend.dir, '..', 'my-backups')
@@ -37,12 +40,15 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
   await items.first().getByRole('button', { name: 'Restore page' }).click()
   await expect.poll(() => backend.read('pages/t.md')).toBe('- original\n')
 
+  // the snapshot taken before the page was replaced is marked; the one made by hand is not
+  const scheduled = items.filter({ hasNotText: 'before a change' })
+  await expect(items.filter({ hasText: 'before a change' })).toHaveCount(1)
   // everything into a new folder, from the original snapshot (the newest one holds the ruined page)
   await expect(items).toHaveCount(2)
-  await items.last().getByRole('button', { name: 'Restore…' }).click()
+  await scheduled.getByRole('button', { name: 'Restore…' }).click()
   const target = path.join(backend.dir, '..', 'restored')
-  await items.last().getByLabel('Target folder').fill(target)
-  await items.last().getByRole('button', { name: 'Restore folder' }).click()
+  await scheduled.getByLabel('Target folder').fill(target)
+  await scheduled.getByRole('button', { name: 'Restore folder' }).click()
   await expect.poll(() => fs.existsSync(path.join(target, 'pages/t.md'))).toBe(true)
   expect(fs.readFileSync(path.join(target, 'pages/t.md'), 'utf8')).toBe('- original\n')
 

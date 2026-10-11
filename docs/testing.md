@@ -125,3 +125,8 @@ must never regress:
 6. **Backups round-trip and stay outside:** a snapshot restores byte for byte (all files but `.notatnik/tmp/`), is refused
    inside the graph folder, never leaves a `.partial` file, and replacing a page from a snapshot first saves the version
    it replaces (BK-1..BK-5; `crates/graph/tests/graph.rs`, `crates/app/tests/app.rs`, `ui/tests/backup.spec.ts`).
+7. **Interrupted operations are undone:** a journal record left by a rename or delete that stopped half way is rolled back on
+   open (files byte for byte as before), a completed one is only dropped, and a normal operation leaves no record
+   (`crates/graph/tests/graph.rs`: `a_rename_that_died_half_way...`, `a_delete_that_died_half_way...`).
+8. **Page history never loses a replaced text:** restoring a version, or a write from outside, leaves the text it replaced
+   as a version (`a_restore_right_after_an_edit_keeps_the_text_it_replaces`, `ui/tests/history.spec.ts`).

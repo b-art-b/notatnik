@@ -19,6 +19,9 @@ use crate::{Error, Graph, Result};
 const KEEP_DAYS: usize = 7;
 const KEEP_WEEKS: usize = 4;
 const KEEP_MONTHS: usize = 6;
+/// Snapshots taken before a bulk change (`-before` in the name) are not part of the day/week/month scheme: the
+/// newest ones are kept.
+const KEEP_BEFORE: usize = 10;
 const COMMENT_PREFIX: &str = "notatnik-backup v1 ";
 
 /// One snapshot file.
@@ -30,21 +33,32 @@ pub struct BackupFile {
     pub path: PathBuf,
     /// When it was taken (local time of the device).
     pub created: NaiveDateTime,
+    /// Taken automatically before a bulk change (rename, delete, restore), not on the schedule.
+    pub before: bool,
     /// Size of the zip in bytes.
     pub bytes: u64,
 }
 
-fn file_name(graph_id: &str, at: NaiveDateTime) -> String {
-    format!("notatnik-{graph_id}-{}.zip", at.format("%Y%m%d-%H%M%S"))
+fn file_name(graph_id: &str, at: NaiveDateTime, before: bool) -> String {
+    let tag = if before { "-before" } else { "" };
+    format!(
+        "notatnik-{graph_id}-{}{tag}.zip",
+        at.format("%Y%m%d-%H%M%S")
+    )
 }
 
-fn parse_name(graph_id: &str, name: &str) -> Option<NaiveDateTime> {
+fn parse_name(graph_id: &str, name: &str) -> Option<(NaiveDateTime, bool)> {
     let stamp = name
         .strip_prefix("notatnik-")?
         .strip_prefix(graph_id)?
         .strip_prefix('-')?
         .strip_suffix(".zip")?;
-    NaiveDateTime::parse_from_str(stamp, "%Y%m%d-%H%M%S").ok()
+    let (stamp, before) = match stamp.strip_suffix("-before") {
+        Some(s) => (s, true),
+        None => (stamp, false),
+    };
+    let at = NaiveDateTime::parse_from_str(stamp, "%Y%m%d-%H%M%S").ok()?;
+    Some((at, before))
 }
 
 /// A snapshot name is a plain file name of this module's form: never a path.
@@ -69,12 +83,13 @@ pub fn list_backups(dir: &Path, graph_id: &str) -> Vec<BackupFile> {
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_str()?.to_string();
-            let created = parse_name(graph_id, &name)?;
+            let (created, before) = parse_name(graph_id, &name)?;
             let bytes = e.metadata().ok()?.len();
             Some(BackupFile {
                 name,
                 path: e.path(),
                 created,
+                before,
                 bytes,
             })
         })
@@ -83,14 +98,22 @@ pub fn list_backups(dir: &Path, graph_id: &str) -> Vec<BackupFile> {
     out
 }
 
-/// Which snapshots to delete: everything but the newest of each of the last days, weeks and months.
-/// `newest_first` must be sorted that way.
+/// Which snapshots to delete: of the scheduled ones everything but the newest of each of the last days, weeks and
+/// months; of the `-before` ones everything but the newest ten. `newest_first` must be sorted that way.
 pub fn expired(newest_first: &[BackupFile]) -> Vec<&BackupFile> {
     let mut days: BTreeSet<NaiveDate> = BTreeSet::new();
     let mut weeks: BTreeSet<(i32, u32)> = BTreeSet::new();
     let mut months: BTreeSet<(i32, u32)> = BTreeSet::new();
     let mut out = Vec::new();
+    let mut before = 0;
     for b in newest_first {
+        if b.before {
+            before += 1;
+            if before > KEEP_BEFORE {
+                out.push(b);
+            }
+            continue;
+        }
         let d = b.created.date();
         let w = d.iso_week();
         let mut keep = false;
@@ -228,7 +251,17 @@ impl Graph {
         force: bool,
         min_age: Option<chrono::Duration>,
     ) -> Result<Option<BackupFile>> {
-        self.snapshot(dir, now, force, min_age, None)
+        self.snapshot(dir, now, force, min_age, None, false)
+    }
+
+    /// A restore point before a bulk change: like [`Graph::backup_now`] without `force`, so nothing is written when
+    /// the newest snapshot (of any kind) already holds the same files. The file is named `...-before.zip`.
+    pub fn backup_before_change(
+        &self,
+        dir: &Path,
+        now: NaiveDateTime,
+    ) -> Result<Option<BackupFile>> {
+        self.snapshot(dir, now, false, None, None, true)
     }
 
     /// [`Graph::backup_now`]; the snapshot named `protect` is never removed by the retention.
@@ -239,6 +272,7 @@ impl Graph {
         force: bool,
         min_age: Option<chrono::Duration>,
         protect: Option<&str>,
+        before: bool,
     ) -> Result<Option<BackupFile>> {
         let root = self.root().to_path_buf();
         let id = self.id();
@@ -263,10 +297,10 @@ impl Graph {
         std::fs::create_dir_all(dir)?;
         // two snapshots in one second (a forced one right after another): the later one waits for a free name
         let mut at = now.with_nanosecond(0).unwrap_or(now);
-        while dir.join(file_name(&id, at)).exists() {
+        while dir.join(file_name(&id, at, before)).exists() {
             at += chrono::Duration::seconds(1);
         }
-        let name = file_name(&id, at);
+        let name = file_name(&id, at, before);
         let dest = dir.join(&name);
         let partial = dir.join(format!("{name}.partial"));
         let written = (|| -> Result<()> {
@@ -301,6 +335,7 @@ impl Graph {
             name,
             path: dest,
             created: at,
+            before,
             bytes,
         };
         let all = list_backups(dir, &id);
@@ -332,12 +367,13 @@ impl Graph {
                 .map_err(|_| Error::NotFound(format!("{rel} in {name}")))?;
             entry.read_to_string(&mut text)?;
         }
-        self.snapshot(dir, now, true, None, Some(name))?;
+        self.snapshot(dir, now, true, None, Some(name), true)?;
         let current = match self.read_page(rel) {
             Ok(p) => Some(p.hash),
             Err(Error::NotFound(_)) => None,
             Err(e) => return Err(e),
         };
+        self.lock().pin_newest_version(rel);
         self.write_page(rel, &text, current.as_deref())?;
         Ok(())
     }
@@ -370,25 +406,51 @@ mod tests {
 
     fn fake(id: &str, s: &str) -> BackupFile {
         let created = at(s);
-        let name = file_name(id, created);
+        let name = file_name(id, created, false);
         BackupFile {
             path: PathBuf::from(&name),
             name,
             created,
+            before: false,
             bytes: 1,
         }
     }
 
     #[test]
     fn names_round_trip_and_belong_to_one_graph() {
-        let n = file_name("gab12cd", at("2026-10-10 09:30:05"));
+        let n = file_name("gab12cd", at("2026-10-10 09:30:05"), false);
         assert_eq!(n, "notatnik-gab12cd-20261010-093005.zip");
-        assert_eq!(parse_name("gab12cd", &n), Some(at("2026-10-10 09:30:05")));
+        assert_eq!(
+            parse_name("gab12cd", &n),
+            Some((at("2026-10-10 09:30:05"), false))
+        );
+        let b = file_name("gab12cd", at("2026-10-10 09:30:05"), true);
+        assert_eq!(b, "notatnik-gab12cd-20261010-093005-before.zip");
+        assert_eq!(
+            parse_name("gab12cd", &b),
+            Some((at("2026-10-10 09:30:05"), true))
+        );
+        assert!(check_name(&b).is_ok());
         assert_eq!(parse_name("gother", &n), None);
         assert_eq!(parse_name("gab12cd", "notatnik-gab12cd-x.zip"), None);
         assert!(check_name(&n).is_ok());
         assert!(check_name("../notatnik-g-20261010-093005.zip").is_err());
         assert!(check_name("notes.zip").is_err());
+    }
+
+    #[test]
+    fn before_snapshots_keep_the_newest_ten_and_stay_out_of_the_schedule() {
+        let mut all: Vec<BackupFile> = (0..14)
+            .map(|i| {
+                let mut b = fake("g1", &format!("2026-10-10 {:02}:00:00", 23 - i));
+                b.before = true;
+                b
+            })
+            .collect();
+        all.push(fake("g1", "2026-10-10 08:00:00"));
+        let gone = expired(&all);
+        assert_eq!(gone.len(), 4);
+        assert!(gone.iter().all(|b| b.before));
     }
 
     #[test]

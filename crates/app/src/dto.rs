@@ -822,6 +822,28 @@ pub struct BackupView {
     pub created: String,
     /// Size of the file.
     pub bytes: f64,
+    /// Taken automatically before a rename or delete of several files (or before a page was replaced).
+    pub before: bool,
+}
+
+/// One recorded version of a page file.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageVersionView {
+    /// What `page_version_text` and `restore_page_version` take.
+    pub id: String,
+    /// Unix time in milliseconds when it was recorded.
+    pub at_ms: f64,
+    /// Size of the file.
+    pub bytes: f64,
+}
+
+/// `page_version_text`, `restore_page_version`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct PageVersionArgs {
+    /// Page name.
+    pub page: String,
+    /// `PageVersionView.id`, or `current` (`page_version_text` only) for the file as it is now.
+    pub id: String,
 }
 
 /// `list_backups`, `backup_now`: the snapshots of the open graph, newest first.

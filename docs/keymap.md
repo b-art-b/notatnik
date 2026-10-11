@@ -130,7 +130,17 @@ Settings → Backup (this device). A snapshot is a zip of the whole graph folder
 - **Backup folder:** an absolute path, empty for the default (`~/.local/share/notatnik/backups`). A folder inside the graph is refused. Put it on another disk, or in a folder another tool copies elsewhere; a snapshot on the same disk does not protect against losing the disk. Press Enter or leave the field to apply; **Use default** resets it.
 - **Back up now** always takes a snapshot. A failed automatic backup shows its message here.
 - **Snapshots:** time and size, newest first. **Restore…** opens two forms: *One page* (type the page name; the page file is replaced by its version in the snapshot, after a new snapshot of the current state was taken, so the replaced version is in the list too) and *Everything*, which unpacks into a new or empty folder you name; open that folder as a graph (Settings → Graph) to look around or copy files out. Restoring never overwrites the open graph as a whole.
+- **Before a change:** a rename that touches several files and a delete of several pages first save a snapshot marked *before a change* (when automatic backups are on and files changed since the newest snapshot), so there is a restore point if the result is not what you wanted. Restoring a page does the same. The newest ten are kept.
+- The settings page explains the ways to restore in *How to restore*.
 - Not in a snapshot: the search index (rebuilt from the files), the trash, history copies and passwords of calendar accounts.
+
+## Page history
+
+*History* next to *Archive* under a page's title (journal days have it too). It lists the versions of the page's file recorded on this device, newest first. Click one to see what restoring it would change (red: the page now, green: that version) and press *Restore this version*; the text it replaced becomes a version, so a restore can be undone from the same list. Versions are recorded whenever the page is saved or changed from outside (sync, another editor); the text before the first change is kept. Typing is one version per minute; older versions thin out to one per 10 minutes for 3 hours, per hour for 2 days and per day for 30 days. The history is on this device only and follows a renamed or moved page.
+
+## If the app stops in the middle of a rename or delete
+
+A rename (with the links it rewrites), a namespace move and a delete of several pages are written to a journal before they start. If the app is killed or the computer loses power half way, the next time the graph opens the unfinished operation is undone and a warning says what was put back. A single page save needs none of this: it is replaced atomically.
 
 ## Grouping pages by a property
 

@@ -1112,3 +1112,214 @@ fn one_page_comes_back_from_a_snapshot() {
         .is_err()
     );
 }
+
+// ---- operation journal and page history (WAL, VH-1..VH-3) --------------------------------
+
+#[test]
+fn a_rename_that_died_half_way_is_undone_when_the_graph_opens() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let before = graph_files_snapshot(&e.graph_dir);
+    let plan = g.plan_rename("people/anna", "team/anna").unwrap();
+    assert!(plan.edits.len() >= 2);
+    // what the app did before it died: the record, one rewritten file, no file move
+    let journal = e.dirs.graph_data(&g.id()).join("journal");
+    std::fs::create_dir_all(&journal).unwrap();
+    let first = &plan.edits[0];
+    g.write_page(&first.path, &first.new_text, Some(&first.base_hash))
+        .unwrap();
+    std::fs::write(
+        journal.join("pending.json"),
+        serde_json::json!({
+            "op": "rename",
+            "plan": {
+                "old": plan.old, "new": plan.new,
+                "file_moves": plan.file_moves,
+                "edits": plan.edits.iter().map(|x| serde_json::json!({
+                    "path": x.path, "base_hash": x.base_hash,
+                    "old_text": x.old_text, "new_text": x.new_text, "patches": []
+                })).collect::<Vec<_>>(),
+                "warnings": []
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    assert_ne!(graph_files_snapshot(&e.graph_dir), before);
+    drop(g);
+    let (_g, report) = Graph::open(&e.graph_dir, &e.dirs).unwrap();
+    assert!(
+        report.warnings.iter().any(|w| w.contains("undone")),
+        "{:?}",
+        report.warnings
+    );
+    assert_eq!(graph_files_snapshot(&e.graph_dir), before);
+    assert!(!journal.join("pending.json").exists());
+}
+
+#[test]
+fn a_finished_rename_leaves_no_record_and_a_completed_one_is_not_undone() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let journal = e.dirs.graph_data(&g.id()).join("journal/pending.json");
+    let plan = g.plan_rename("people/anna", "team/anna").unwrap();
+    g.apply_rename(&plan).unwrap();
+    assert!(!journal.exists(), "removed when the operation returned");
+    // the app died after the last step, before removing the record: nothing is undone
+    std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+    std::fs::write(
+        &journal,
+        serde_json::json!({
+            "op": "rename",
+            "plan": {
+                "old": plan.old, "new": plan.new, "file_moves": plan.file_moves,
+                "edits": plan.edits.iter().map(|x| serde_json::json!({
+                    "path": x.path, "base_hash": x.base_hash,
+                    "old_text": x.old_text, "new_text": x.new_text, "patches": []
+                })).collect::<Vec<_>>(),
+                "warnings": []
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let after = graph_files_snapshot(&e.graph_dir);
+    drop(g);
+    let (_g, report) = Graph::open(&e.graph_dir, &e.dirs).unwrap();
+    assert!(
+        !report.warnings.iter().any(|w| w.contains("undone")),
+        "{:?}",
+        report.warnings
+    );
+    assert_eq!(graph_files_snapshot(&e.graph_dir), after);
+    assert!(!journal.exists());
+}
+
+#[test]
+fn a_delete_that_died_half_way_puts_the_pages_back() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let rels = vec![
+        "pages/people/anna.md".to_string(),
+        "pages/inbox.md".to_string(),
+    ];
+    let before = graph_files_snapshot(&e.graph_dir);
+    // the trash entry holds both files; only the first original was deleted
+    let data = e.dirs.graph_data(&g.id());
+    for r in &rels {
+        let dest = data.join("trash/123").join(r);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::copy(e.graph_dir.join(r), dest).unwrap();
+    }
+    std::fs::remove_file(e.graph_dir.join(&rels[0])).unwrap();
+    std::fs::create_dir_all(data.join("journal")).unwrap();
+    std::fs::write(
+        data.join("journal/pending.json"),
+        serde_json::json!({"op": "delete", "trash_id": "123", "rels": rels}).to_string(),
+    )
+    .unwrap();
+    drop(g);
+    let (_g, report) = Graph::open(&e.graph_dir, &e.dirs).unwrap();
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("deletion was undone")),
+        "{:?}",
+        report.warnings
+    );
+    assert_eq!(graph_files_snapshot(&e.graph_dir), before);
+}
+
+#[test]
+fn page_versions_record_changes_coalesce_bursts_and_restore() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let rel = "pages/inbox.md";
+    let original = g.read_page(rel).unwrap();
+    assert!(
+        g.page_versions(rel).unwrap().is_empty(),
+        "nothing changed yet"
+    );
+    // first change: the original and the new text
+    let p1 = g
+        .write_page(
+            rel,
+            &format!("{}- one\n", original.text),
+            Some(&original.hash),
+        )
+        .unwrap();
+    let v = g.page_versions(rel).unwrap();
+    assert_eq!(v.len(), 2);
+    assert_eq!(g.read_page_version(rel, &v[1].id).unwrap(), original.text);
+    // a second change right after replaces the newest one instead of adding to it
+    g.write_page(
+        rel,
+        &format!("{}- one\n- two\n", original.text),
+        Some(&p1.hash),
+    )
+    .unwrap();
+    let v = g.page_versions(rel).unwrap();
+    assert_eq!(v.len(), 2, "a burst of edits is one version");
+    assert!(
+        g.read_page_version(rel, &v[0].id)
+            .unwrap()
+            .ends_with("- two\n")
+    );
+    // a change from outside is recorded too
+    std::fs::write(e.graph_dir.join(rel), "- from sync\n").unwrap();
+    g.refresh_file(rel, "").unwrap();
+    // restoring the original: the file is back and the text it replaced is a version
+    let v = g.page_versions(rel).unwrap();
+    let oldest = v.last().unwrap();
+    g.restore_page_version(rel, &oldest.id).unwrap();
+    assert_eq!(g.read_page(rel).unwrap().text, original.text);
+    assert!(
+        g.page_versions(rel)
+            .unwrap()
+            .iter()
+            .any(|x| g.read_page_version(rel, &x.id).unwrap() == "- from sync\n")
+    );
+    // ids are numbers only
+    assert!(g.read_page_version(rel, "../x").is_err());
+}
+
+#[test]
+fn page_history_follows_a_renamed_page() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let rel = "pages/people/anna.md";
+    let t = g.read_page(rel).unwrap();
+    g.write_page(
+        rel,
+        &format!("{}\n- note\n", t.text.trim_end()),
+        Some(&t.hash),
+    )
+    .unwrap();
+    assert_eq!(g.page_versions(rel).unwrap().len(), 2);
+    let plan = g.plan_rename("people/anna", "team/anna").unwrap();
+    g.apply_rename(&plan).unwrap();
+    assert!(g.page_versions(rel).unwrap().is_empty());
+    assert_eq!(g.page_versions("pages/team/anna.md").unwrap().len(), 2);
+}
+
+#[test]
+fn a_restore_right_after_an_edit_keeps_the_text_it_replaces() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let rel = "pages/inbox.md";
+    let t = g.read_page(rel).unwrap();
+    g.write_page(rel, &format!("{}- typed just now\n", t.text), Some(&t.hash))
+        .unwrap();
+    let edited = g.read_page(rel).unwrap().text;
+    let original = g.page_versions(rel).unwrap().last().unwrap().id.clone();
+    g.restore_page_version(rel, &original).unwrap();
+    assert_eq!(g.read_page(rel).unwrap().text, t.text);
+    let texts: Vec<String> = g
+        .page_versions(rel)
+        .unwrap()
+        .iter()
+        .map(|v| g.read_page_version(rel, &v.id).unwrap())
+        .collect();
+    assert!(texts.contains(&edited), "the replaced text is a version");
+}

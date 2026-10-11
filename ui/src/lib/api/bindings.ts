@@ -1068,7 +1068,33 @@ created: string,
 /**
  * Size of the file.
  */
+bytes: number, 
+/**
+ * Taken automatically before a rename or delete of several files (or before a page was replaced).
+ */
+before: boolean, };
+export type PageVersionView = { 
+/**
+ * What `page_version_text` and `restore_page_version` take.
+ */
+id: string, 
+/**
+ * Unix time in milliseconds when it was recorded.
+ */
+at_ms: number, 
+/**
+ * Size of the file.
+ */
 bytes: number, };
+export type PageVersionArgs = { 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * `PageVersionView.id`, or `current` (`page_version_text` only) for the file as it is now.
+ */
+id: string, };
 export type BackupList = { 
 /**
  * The folder in use (the setting, or the default).
@@ -1152,4 +1178,7 @@ export type Commands = {
   backup_now: { args: NoArgs; result: BackupList };
   restore_backup: { args: RestoreBackupArgs; result: StringValue };
   restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
+  page_versions: { args: PageArgs; result: PageVersionView[] };
+  page_version_text: { args: PageVersionArgs; result: StringValue };
+  restore_page_version: { args: PageVersionArgs; result: StringList };
 };
