@@ -187,6 +187,7 @@ A **graph** is a folder of notes.
 | PR-6 | Block properties are shown as a compact card under the block: bold key, value (links open the page, other values open the view of all blocks with that value), the key opens the view of all blocks with the property (optionally with the blocks below them). Edit, remove and add happen in the card's row and change only that line of the file. | V1 |
 | PR-7 | Typing `::` on a line after the first (or `key::`, or `/property`) opens a menu of known keys with a "Create property" row for a new one; the value menu then lists the values used for the key and pages (written as `[[Page]]`). | V1 |
 | PR-8 | Device setting *Block properties: compact*: on pages and journals a block's property card becomes one small `⋯ n` indicator at the end of its first row (the properties as its tooltip); the card, with edit, remove and add, opens on hover, focus or click. Independent of *Task details*. The agenda, query results and linked references always show the card. | V1 |
+| PR-9 | A property value can be a page: value fields of page properties and of the block card suggest used values and matching pages; a page is written as a link (quoted in frontmatter). Query blocks offer the same for `prop.<key>:`, and `prop.<key>: [[Page]]` filters by it. | V1 |
 | PR-4 | Hidden/system properties (e.g. `id`) are not rendered in normal view. | MVP |
 
 ## 10. Search

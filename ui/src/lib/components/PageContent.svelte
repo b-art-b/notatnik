@@ -13,6 +13,8 @@
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
+  import ValueInput from './ValueInput.svelte'
+  import { displayValue, linkedPages, yamlValue } from '../props'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
   import { shownDate } from '../stores/format.svelte'
 
@@ -143,14 +145,13 @@
     return inner.map((x) => x.trim().replace(/^(["'])(.*)\1$/, '$2')).filter((x) => x && !x.includes('[['))
   }
 
-  /** A plain word stays as it is; anything YAML could misread (`a: b`, `#x`, ...) is quoted. */
-  function yamlValue(v: string): string {
-    const t = v.trim()
-    if (/^\[.*\]$/.test(t) || /^[\p{L}\p{N}][\p{L}\p{N} ._/@+-]*$/u.test(t)) return t
-    return JSON.stringify(t)
+  /** Values in use for a property of other pages (offered when its value field is focused). */
+  async function valuesOfKey(key: string): Promise<string[]> {
+    const g = await backend.call('page_groups', { key })
+    return g.flatMap((x) => (x.value === null ? [] : [x.value]))
   }
   async function setProp(key: string, value: string) {
-    await doc.apply([{ op: 'set_page_property', key, value: value.trim() }])
+    await doc.apply([{ op: 'set_page_property', key, value: yamlValue(value) }])
   }
   async function toggleArchive() {
     if (isArchivedItself(view?.name ?? '')) await removeProp('archived')
@@ -291,11 +292,21 @@
                   title={`All pages with “${p.key}”`}
                   data-testid="prop-key-link">{p.key}</a
                 >
-                <input
-                  aria-label={p.key}
-                  value={p.raw}
-                  onchange={(e) => setProp(p.key, (e.currentTarget as HTMLInputElement).value)}
+                <ValueInput
+                  label={p.key}
+                  value={displayValue(p.raw)}
+                  loadValues={() => valuesOfKey(p.key)}
+                  oncommit={(v) => setProp(p.key, v)}
                 />
+                {#each linkedPages(displayValue(p.raw)) as n (n)}
+                  <a
+                    class="pv"
+                    href={pageHash(n)}
+                    title={`Open ${n}`}
+                    data-page={n}
+                    data-testid="prop-page-link">→ {n}</a
+                  >
+                {/each}
                 {#each valueItems(p.raw) as v (v)}
                   <a
                     class="pv"
@@ -319,18 +330,15 @@
                 placeholder="property, e.g. type"
                 aria-label="New property name"
               />
-              <input
-                list="page-prop-values"
+              <ValueInput
                 bind:value={newValue}
-                placeholder="value, e.g. person"
-                aria-label="New property value"
+                values={knownValues}
+                placeholder="value, or a page"
+                label="New property value"
               />
               <button type="submit" disabled={!validKey || !newValue.trim()}>Add</button>
               <datalist id="page-prop-keys"
                 >{#each knownKeys as k (k)}<option value={k}></option>{/each}</datalist
-              >
-              <datalist id="page-prop-values"
-                >{#each knownValues as v (v)}<option value={v}></option>{/each}</datalist
               >
             </form>
           </div>

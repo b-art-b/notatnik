@@ -7,6 +7,7 @@
   import { setPropertyOf } from '../commands/exec'
   import { blockPropertyHash, pageHash } from '../route'
   import { shownProps } from '../props'
+  import ValueInput from './ValueInput.svelte'
 
   interface Props {
     block: BlockView
@@ -54,6 +55,11 @@
     editKey = null
     const doc = getDoc(docName)
     if (key && value && doc) await setPropertyOf(doc, block.id, key, value)
+  }
+
+  /** Values already used for a property, offered in its value field. */
+  async function valuesOfKey(key: string): Promise<string[]> {
+    return (await backend.call('property_values', { key })).items
   }
 
   async function remove(key: string) {
@@ -125,16 +131,13 @@
             }}
           >
             <span class="key">{p.key}:</span>
-            <input
-              use:focus
+            <ValueInput
+              focusOnMount
               bind:value={draft}
-              aria-label="Value of {p.key}"
-              onkeydown={(e) => {
-                if (e.key === 'Escape') {
-                  e.stopPropagation()
-                  editKey = null
-                }
-              }}
+              label="Value of {p.key}"
+              loadValues={() => valuesOfKey(p.key)}
+              oncommit={() => void save()}
+              onescape={() => (editKey = null)}
             />
             <button type="submit" class="ok" aria-label="Save {p.key}">✓</button>
           </form>
@@ -197,21 +200,13 @@
             {#each knownKeys as k (k)}<option value={k}></option>{/each}
           </datalist>
           <span class="key">::</span>
-          <input
+          <ValueInput
             bind:value={newValue}
-            list="prop-values-{block.id}"
-            placeholder="value or [[page]]"
-            aria-label="New property value"
-            onkeydown={(e) => {
-              if (e.key === 'Escape') {
-                e.stopPropagation()
-                adding = false
-              }
-            }}
+            values={knownValues}
+            placeholder="value or a page"
+            label="New property value"
+            onescape={() => (adding = false)}
           />
-          <datalist id="prop-values-{block.id}">
-            {#each knownValues as v (v)}<option value={v}></option>{/each}
-          </datalist>
           <button type="submit" class="ok" aria-label="Add property">✓</button>
         </form>
       {/if}

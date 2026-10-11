@@ -99,7 +99,7 @@ test('the property card edits, adds and removes single lines', async ({ backend,
   // edit
   await card.locator('.prop[data-key="type"]').hover()
   await card.getByRole('button', { name: 'Edit type' }).click()
-  await card.getByRole('textbox', { name: 'Value of type' }).fill('customer')
+  await card.getByRole('combobox', { name: 'Value of type' }).fill('customer')
   await page.keyboard.press('Enter')
   await expect
     .poll(() => backend.read('pages/t.md'))

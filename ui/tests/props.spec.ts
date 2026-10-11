@@ -54,7 +54,7 @@ test('adding, changing and removing a page property from the page header updates
   const groups = page.getByTestId('grouped-pages')
   await expect(groups.locator('section[data-group="client"] a[data-page="Misc"]')).toBeVisible()
   // change the value: the page moves to another group
-  const field = page.getByTestId('page-props').getByRole('textbox', { name: 'type' })
+  const field = page.getByTestId('page-props').getByRole('combobox', { name: 'type' })
   await field.fill('person')
   await field.blur()
   await expect.poll(() => backend.read('pages/Misc.md')).toContain('type: person')
@@ -70,7 +70,8 @@ test('adding, changing and removing a page property from the page header updates
   await expect.poll(() => backend.read('pages/Misc.md')).not.toContain('note:')
   // the typed key offers the values already in use
   await page.getByLabel('New property name').fill('type')
-  await expect(page.locator('#page-prop-values option[value="person"]')).toHaveCount(1)
+  await page.getByRole('combobox', { name: 'New property value' }).focus()
+  await expect(page.getByRole('option', { name: /person/ })).toBeVisible()
 })
 
 test('properties can be added and edited on a journal page too', async ({ backend, page }) => {
@@ -80,7 +81,7 @@ test('properties can be added and edited on a journal page too', async ({ backen
   await page.getByLabel('New property value').fill('good')
   await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect.poll(() => backend.read('journals/2026/2026-10-03.md')).toMatch(/^---\nmood: good\n---\n/)
-  const field = page.getByTestId('page-props').getByRole('textbox', { name: 'mood' })
+  const field = page.getByTestId('page-props').getByRole('combobox', { name: 'mood' })
   await field.fill('great')
   await field.blur()
   await expect.poll(() => backend.read('journals/2026/2026-10-03.md')).toContain('mood: great')

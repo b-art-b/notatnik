@@ -273,6 +273,7 @@
     </aside>
     <!-- a focusable separator: drag it, or use the arrow keys (Home resets) -->
     {#if app.leftOpen}
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
       <div
         class="resizer"
         class:active={resizing}

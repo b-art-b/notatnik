@@ -221,3 +221,29 @@ fn priority_is_a_label_of_the_graph_with_a_rank() {
             .any(|d| d.code == "invalid-priority")
     );
 }
+
+/// A page-valued property: quoted, unquoted (YAML would read `[[x]]` as a list in a list) and as a list of links.
+#[test]
+fn frontmatter_page_links_in_every_written_form() {
+    let p = parse_page(
+        "---\na: \"[[part. Capgemini]]\"\nb: [[part. Capgemini]]\nc: [\"[[One]]\", \"[[Two]]\"]\nd: [x, y]\n---\n- b\n",
+    );
+    let fm = p.frontmatter.unwrap();
+    assert!(fm.valid && p.diagnostics.is_empty());
+    let get = |k: &str| {
+        fm.properties
+            .iter()
+            .find(|p| p.key == k)
+            .unwrap()
+            .value
+            .clone()
+    };
+    let cap = PropertyValue::Links(vec!["part. Capgemini".into()]);
+    assert_eq!(get("a"), cap);
+    assert_eq!(get("b"), cap);
+    assert_eq!(
+        get("c"),
+        PropertyValue::Links(vec!["One".into(), "Two".into()])
+    );
+    assert!(matches!(get("d"), PropertyValue::List(_)));
+}

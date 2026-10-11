@@ -363,6 +363,8 @@
           <div class="nodes"><Nodes nodes={block.content} {chain} /></div>
           {#if isCompact}
             <!-- compact task details: small indicators; the full chips and logbook open in a popover -->
+            <!-- hover and focus open the popover; the controls inside it are real buttons and inputs -->
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <span
               class="meta"
               role="group"

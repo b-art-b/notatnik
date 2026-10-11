@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { backend, CommandError, type RenamePlanView } from '../api'
   import { navigate, toast, errorMessage } from '../stores/app.svelte'
   import { getDoc, reloadOpenDocs } from '../stores/pages.svelte'
@@ -6,7 +7,8 @@
   import { prefixRename, underPrefix } from '../rename'
 
   let { old, onclose }: { old: string; onclose: () => void } = $props()
-  let name = $state(old)
+  // the field starts as the old name; the dialog is created per rename, so `old` does not change under it
+  let name = $state(untrack(() => old))
   let plan = $state<RenamePlanView | null>(null)
   let error = $state('')
   // set when the move stopped half way (a file changed on disk): the user can revert what was written

@@ -32,7 +32,30 @@ fn yaml_to_value(y: &Yaml, raw: &str) -> PropertyValue {
             .map(PropertyValue::Number)
             .unwrap_or_else(|_| PropertyValue::Text(r.clone())),
         Yaml::Boolean(b) => PropertyValue::Bool(*b),
-        Yaml::Array(a) => PropertyValue::List(a.iter().map(|i| yaml_to_value(i, "")).collect()),
+        Yaml::Array(a) => {
+            // `partner: [[Page]]` written without quotes is YAML for a list holding a list: it was meant as the
+            // link (as in a block property), so read it as one
+            if let [Yaml::Array(inner)] = a.as_slice() {
+                if let [Yaml::String(s)] = inner.as_slice() {
+                    if let l @ PropertyValue::Links(_) = infer_scalar(&format!("[[{s}]]")) {
+                        return l;
+                    }
+                }
+            }
+            let items: Vec<PropertyValue> = a.iter().map(|i| yaml_to_value(i, "")).collect();
+            // `["[[A]]", "[[B]]"]`: a list of page links is one link value
+            if items.len() > 1 && items.iter().all(|i| matches!(i, PropertyValue::Links(_))) {
+                let links = items
+                    .into_iter()
+                    .flat_map(|i| match i {
+                        PropertyValue::Links(l) => l,
+                        _ => Vec::new(),
+                    })
+                    .collect();
+                return PropertyValue::Links(links);
+            }
+            PropertyValue::List(items)
+        }
         Yaml::Null => PropertyValue::Text(String::new()),
         _ => infer_value(raw),
     }

@@ -72,9 +72,6 @@
     font-size: 0.88em;
     white-space: pre;
   }
-  .query-block {
-    border-left: 3px solid var(--accent);
-  }
   blockquote {
     margin: 0.2em 0;
     padding-left: 0.8em;

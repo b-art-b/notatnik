@@ -134,6 +134,12 @@ Settings → Backup (this device). A snapshot is a zip of the whole graph folder
 - The settings page explains the ways to restore in *How to restore*.
 - Not in a snapshot: the search index (rebuilt from the files), the trash, history copies and passwords of calendar accounts.
 
+## Pages as property values
+
+A property can hold a page. In a page's *properties* (the `▸ properties` section under the title) and in the card under a block, the value field suggests the values already used for that property and, below them, pages that match what you type (marked *page*). Arrow keys and Enter pick, a click picks, Esc closes the list. A picked page is written as a link: `partner: "[[part. Capgemini]]"` in the page's frontmatter (quoted, because YAML would read bare `[[x]]` as a list), `partner:: [[part. Capgemini]]` in a block. The value then shows an `→ part. Capgemini` link that opens the page; type `[[A]], [[B]]` for several.
+
+In a query block, `prop.partner: ` offers the same list: values in use and pages, a page is inserted as `[[part. Capgemini]]`. `prop.partner: [[part. Capgemini]]` finds the pages and blocks whose `partner` is that page; `-prop.partner: ...` excludes them, `prop.partner: any` / `none` test for presence.
+
 ## Page history
 
 *History* next to *Archive* under a page's title (journal days have it too). It lists the versions of the page's file recorded on this device, newest first. Click one to see what restoring it would change (red: the page now, green: that version) and press *Restore this version*; the text it replaced becomes a version, so a restore can be undone from the same list. Versions are recorded whenever the page is saved or changed from outside (sync, another editor); the text before the first change is kept. Typing is one version per minute; older versions thin out to one per 10 minutes for 3 hours, per hour for 2 days and per day for 30 days. The history is on this device only and follows a renamed or moved page.

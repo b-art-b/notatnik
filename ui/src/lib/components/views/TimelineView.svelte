@@ -2,6 +2,7 @@
   import type { ResultRow } from '../../api'
   import { setProperty } from '../../commands/exec'
   import { jumpToBlock } from '../../jump'
+  import { untrack } from 'svelte'
   import { app } from '../../stores/app.svelte'
   import { getDoc } from '../../stores/pages.svelte'
   import { addMonths, monthGrid, moveDateValue, weekOf } from '../../views'
@@ -10,8 +11,11 @@
   let { rows }: { rows: ResultRow[] } = $props()
   const weekStart = $derived(app.graph?.week_start === 'sunday' ? 'sunday' : 'monday')
   let mode = $state<'month' | 'week'>('month')
+  // the starting choice only: later result changes must not flip the user's field (hence untrack)
   let field = $state<'deadline' | 'scheduled'>(
-    rows.some((r) => r.deadline) || !rows.some((r) => r.scheduled) ? 'deadline' : 'scheduled',
+    untrack(() =>
+      rows.some((r) => r.deadline) || !rows.some((r) => r.scheduled) ? 'deadline' : 'scheduled',
+    ),
   )
   let month = $state((app.today || new Date().toISOString().slice(0, 10)).slice(0, 7))
   let weekDay = $state(app.today || new Date().toISOString().slice(0, 10))

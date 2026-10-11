@@ -1,7 +1,7 @@
 <script lang="ts">
   // One CodeMirror 6 instance, mounted on the focused block only (ED-2). It edits the block's raw
   // Markdown. Svelte idiom: `onMount` creates the view, and the returned function destroys it.
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import { EditorState, Prec, type Extension } from '@codemirror/state'
   import {
     Decoration,
@@ -49,7 +49,8 @@
   let host: HTMLDivElement
   let view: EditorView | undefined
   let idle: ReturnType<typeof setTimeout> | undefined
-  let lastSent = text
+  // the text the editor starts with; updated as changes are sent (not reactive on purpose)
+  let lastSent = untrack(() => text)
   /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
   let picker = $state<{ kind: DateKind | 'emoji'; at: number; x: number; y: number } | null>(null)
 

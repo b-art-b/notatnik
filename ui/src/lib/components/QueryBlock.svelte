@@ -70,6 +70,8 @@
   const views = ['list', 'table', 'kanban', 'timeline']
 </script>
 
+<!-- keys typed in the query UI must not reach the block's own key handling; nothing here is a control itself -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="query"
   data-testid="query-block"

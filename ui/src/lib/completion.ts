@@ -206,6 +206,19 @@ export function rankTitles(hits: TitleHit[], page: string, typed: string): Title
 export type PropertyTrigger =
   { kind: 'value'; key: string; typed: string } | { kind: 'bare' | 'colons' | 'picked'; typed: string }
 
+/**
+ * In a query block: the cursor is in the value of `prop.<key>:`. `typed` is the text of the value being written
+ * (after an operator such as `=` or `contains`, after an earlier alternative and its comma); `bare` is that text
+ * without the brackets of a page link.
+ */
+export function queryPropValueTrigger(before: string): { key: string; typed: string; bare: string } | null {
+  const m =
+    /^\s*-?prop\.([A-Za-z0-9_.-]+):\s*(?:.*,\s*)?(?:(?:!=|<=|>=|<|>|=|contains\s)\s*)?([^,\n]*)$/.exec(before)
+  if (!m) return null
+  const typed = m[2]
+  return { key: m[1], typed, bare: typed.replace(/^\[\[/, '').replace(/\]\]$/, '') }
+}
+
 export function propertyTrigger(before: string): PropertyTrigger | null {
   let m = /^\s*([a-z0-9_-]+)::\s(.*)$/.exec(before)
   if (m) return { kind: 'value', key: m[1], typed: m[2] }
@@ -363,6 +376,32 @@ export function wikiCompletions(
                   type: 'keyword',
                   apply: `${key}: `,
                 })),
+              }
+            }
+            const pv = queryPropValueTrigger(cx.before)
+            if (pv) {
+              // `prop.partner: ` offers the values in use and pages, a page is written as `[[Page]]`
+              const [vals, pages] = await Promise.all([
+                backend.call('property_values', { key: pv.key }),
+                titleCompletions(pv.bare, pageName()),
+              ])
+              const q = pv.bare.toLowerCase()
+              return {
+                from: ctx.pos - pv.typed.length,
+                filter: false,
+                options: [
+                  ...vals.items
+                    .filter((x) => !q || x.toLowerCase().includes(q))
+                    .map((x): Completion => ({ label: x, type: 'text', detail: 'value' })),
+                  ...pages
+                    .filter((o) => !o.displayLabel)
+                    .map((o): Completion => ({
+                      label: o.label,
+                      type: 'variable',
+                      detail: 'page',
+                      apply: `[[${o.label}]]`,
+                    })),
+                ],
               }
             }
             const v = /^\s*-?(?:tag|ns|page|links):\s*(?:.*,\s*)?([^,\n]*)$/.exec(cx.before)
