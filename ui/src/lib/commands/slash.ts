@@ -1,4 +1,5 @@
 // Slash commands in the editor (`/today`, `/todo`, ...). Dates come from the server's clock (injectable in tests).
+import { backend } from '../api'
 import { app } from '../stores/app.svelte'
 import { parseNaturalDate } from '../dates'
 
@@ -31,6 +32,41 @@ export interface SlashCommand {
   log?: boolean
   /** `/emoji` opens the emoji picker under the cursor. */
   emoji?: boolean
+  /** `/template-<name>` inserts the blocks of this template (a page type) after the block. */
+  template?: string
+}
+
+// The templates of the graph, for `/template`. Refreshed whenever an editor opens (a block is being edited before
+// a command can be typed), so a template saved a moment ago is offered.
+let templateNames: string[] = []
+export async function refreshTemplateNames(): Promise<void> {
+  try {
+    templateNames = (await backend.call('list_templates', {})).map((t) => t.name)
+  } catch {
+    templateNames = []
+  }
+}
+/** For tests. */
+export function setTemplateNames(names: string[]): void {
+  templateNames = names
+}
+
+function templateCommands(): SlashCommand[] {
+  return templateNames.map((n) => ({
+    name: `template-${
+      n
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'x'
+    }`,
+    label: `Template: ${n}`,
+    icon: '⎘',
+    group: 'Insert' as const,
+    keywords: ['template', n.toLowerCase()],
+    title: `Insert the blocks of the template “${n}”`,
+    template: n,
+    insert: () => ({ text: '' }),
+  }))
 }
 
 /** `YYYY-MM-DD HH:MM` for a new logbook line: the app's date and the local time of day. */
@@ -240,7 +276,9 @@ export function slashPool(at: { typed: string; midWord: boolean }): SlashCommand
 export const isMetadataCommand = (c: SlashCommand): boolean =>
   !!(c.marker || c.log || c.property || c.newProperty || (c.date && c.date !== 'link'))
 
-export function slashCommands(): SlashCommand[] {
+export const slashCommands = (): SlashCommand[] => [...baseCommands(), ...templateCommands()]
+
+function baseCommands(): SlashCommand[] {
   const today = app.today || new Date().toISOString().slice(0, 10)
   const day = (phrase: string) => parseNaturalDate(phrase, today) ?? today
   const none = () => ({ text: '' })

@@ -28,7 +28,7 @@
   import type { Cursor } from '../tree'
   import type { EditorAction } from '../commands/exec'
   import { wikiCompletions } from '../completion'
-  import { dateChanges, DATE_TITLES, type DateKind } from '../commands/slash'
+  import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
 
@@ -267,6 +267,7 @@
   }
 
   onMount(() => {
+    void refreshTemplateNames()
     view = new EditorView({
       parent: host,
       state: EditorState.create({
@@ -282,6 +283,11 @@
             () => pageName,
             openPicker,
             (at) => openPicker('emoji', at),
+            (name) => {
+              if (!view) return
+              clearTimeout(idle)
+              void onaction({ kind: 'template', name, text: view.state.doc.toString(), prev: lastSent })
+            },
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),

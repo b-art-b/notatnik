@@ -273,6 +273,7 @@ export function wikiCompletions(
   pageName: () => string,
   onpickdate: (kind: DateKind, at: number) => void,
   onemoji: (at: number) => void,
+  ontemplate: (name: string) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -515,6 +516,13 @@ export function wikiCompletions(
                 apply: (view, _comp, f, t) => {
                   if (c.marker) {
                     view.dispatch({ changes: markerChanges(view.state.doc.toString(), f, t, c.marker) })
+                    return
+                  }
+                  if (c.template) {
+                    // the command goes away (with the space before it); the blocks are inserted by the host
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    ontemplate(c.template)
                     return
                   }
                   if (c.emoji) {

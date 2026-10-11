@@ -142,6 +142,12 @@ Setting `type` on a page adds the template's properties that the page lacks, and
 
 **Making a template:** set up one page the way you want (`type`, properties, blocks), open its properties and click **Save as template…**. Choose *Fields empty* or *Keep these values as defaults* and **Save**; if a template of that type exists you are asked to **Replace it** (the old text stays in the history of the file). The properties `title`, `aliases`, `archived` and `template`, and multi-line values, are left out; block IDs are not copied. *Settings → Templates* lists the templates with their fields and **Delete…** (asks again).
 
+**New pages and days:** in *Settings → Templates* pick a **Journal template** (every new journal day starts from it, `{{date}}` is that day) and add **namespace templates** (`people` → `person`: every new page below `people`, not `people` itself, starts from `person`: its `type`, properties and blocks). The longest matching namespace wins. What you type first comes after the template's blocks. The switch *Apply templates automatically* covers these too.
+
+**/template:** type `/template` in a block and pick **Template: person**. In an empty block the template's first block takes its place and the rest follows; in a block with text the template's blocks are inserted after it. Properties of the template are not inserted (they belong to the page); `{{title}}`, `{{namespace}}` and `{{date}}` are filled in for the current page.
+
+**Deleting and restoring:** *Settings → Templates → Delete* removes the file; it is kept for 30 days on this device under *Deleted templates* with **Restore**. Restoring is refused while a template of that name exists.
+
 ## Pages as property values
 
 A property can hold a page. In a page's *properties* (the `▸ properties` section under the title) and in the card under a block, the value field suggests the values already used for that property and, below them, pages that match what you type (marked *page*). Arrow keys and Enter pick, a click picks, Esc closes the list. A picked page is written as a link: `partner: "[[part. Capgemini]]"` in the page's frontmatter (quoted, because YAML would read bare `[[x]]` as a list), `partner:: [[part. Capgemini]]` in a block. The value then shows an `→ part. Capgemini` link that opens the page; type `[[A]], [[B]]` for several.

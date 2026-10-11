@@ -17,6 +17,19 @@ use serde_json::{Value, json};
 
 use crate::dto::*;
 use crate::templates;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TemplateMode {
+    Type,
+    NewPage,
+}
+
+struct TemplateOps {
+    file: String,
+    ops: Vec<BlockOp>,
+    added: Vec<String>,
+    top_level: usize,
+}
 use crate::views::{PageInput, ViewOptions, find_block, page_view};
 
 /// Error returned by every command.
@@ -368,6 +381,7 @@ impl AppState {
             // setting `type` also adds the template's missing properties, in the same edit (one undo step)
             let mut ops = a.ops.clone();
             let mut applied = (None, Vec::new());
+            let mut template_error: Option<String> = None;
             let set_type = ops.iter().find_map(|op| match op {
                 BlockOp::SetPageProperty { key, value } if key.eq_ignore_ascii_case("type") => {
                     templates::type_name(value)
@@ -375,12 +389,58 @@ impl AppState {
                 _ => None,
             });
             let auto = force_type.is_some() || self.templates_auto();
+            let today = self.today();
+            // a new page below a namespace (or a new journal day) starts from that template (NS-10, JR-6)
+            if created && auto {
+                if let Some(ty) = Self::creation_template(o, &canonical, &rel) {
+                    let r = Self::template_ops(
+                        o,
+                        &canonical,
+                        &rel,
+                        false,
+                        &ty,
+                        &ops,
+                        today,
+                        TemplateMode::NewPage,
+                    );
+                    if let Some(t) = r.unwrap_or_else(|e| {
+                        template_error = Some(e.message);
+                        None
+                    }) {
+                        // the user's first blocks come after the template's
+                        for op in &mut ops {
+                            if let BlockOp::Insert { index, .. } = op {
+                                *index += t.top_level;
+                            }
+                        }
+                        let mut all = t.ops;
+                        all.append(&mut ops);
+                        ops = all;
+                        applied = (Some(t.file), t.added);
+                    }
+                }
+            }
             if let Some(ty) = force_type.or(set_type).filter(|_| auto) {
-                if let Some((name_, tops, added)) =
-                    Self::template_ops(o, &canonical, &rel, !created, &ty, &ops, self.today())
-                {
-                    ops.extend(tops);
-                    applied = (Some(name_), added);
+                let r = Self::template_ops(
+                    o,
+                    &canonical,
+                    &rel,
+                    !created,
+                    &ty,
+                    &ops,
+                    today,
+                    TemplateMode::Type,
+                );
+                if let Some(t) = r.unwrap_or_else(|e| {
+                    template_error = Some(e.message);
+                    None
+                }) {
+                    ops.extend(t.ops);
+                    if applied.0.is_none() {
+                        applied = (Some(t.file), t.added);
+                    } else {
+                        applied.1.extend(t.added);
+                    }
                 }
             }
             let out = o.graph.edit_page(&rel, a.base_hash.as_deref(), &ops)?;
@@ -415,6 +475,7 @@ impl AppState {
                 page,
                 template: applied.0,
                 template_added: applied.1,
+                template_error,
             })
         })
     }
@@ -442,7 +503,36 @@ impl AppState {
         Some((file, text))
     }
 
-    /// What template of type `ty` adds to the page: `(template name, ops, added keys)`; `None` without a template.
+    /// The template for a page that is being created: the journal template for a journal day, otherwise the one of
+    /// the longest configured namespace the page is below. Returns the template name.
+    fn creation_template(o: &Open, page: &PageName, rel: &str) -> Option<String> {
+        let cfg = o.graph.config();
+        if rel.starts_with("journals/") {
+            return cfg
+                .graph
+                .journal_template
+                .as_deref()
+                .and_then(templates::template_name);
+        }
+        let lower = page.as_str().to_lowercase();
+        cfg.namespaces
+            .iter()
+            .filter_map(|(ns, sec)| {
+                let ns = ns.trim().trim_matches('/').to_lowercase();
+                let below = !ns.is_empty()
+                    && lower.len() > ns.len()
+                    && lower.starts_with(&ns)
+                    && lower.as_bytes()[ns.len()] == b'/';
+                below.then_some((ns.len(), sec.template.as_deref()))
+            })
+            .max_by_key(|(len, _)| *len)
+            .and_then(|(_, t)| t.and_then(templates::template_name))
+    }
+
+    /// What the template of type `ty` adds to the page (`None` without a template). `Type`: the properties the page
+    /// lacks, and the blocks of a page without any. `NewPage`: also the template's own `type`, and the blocks when
+    /// the edit only inserts top-level blocks (they are moved after the template's).
+    #[allow(clippy::too_many_arguments)]
     fn template_ops(
         o: &Open,
         page: &PageName,
@@ -451,9 +541,27 @@ impl AppState {
         ty: &str,
         pending: &[BlockOp],
         today: NaiveDate,
-    ) -> Option<(String, Vec<BlockOp>, Vec<String>)> {
-        let (file, text) = Self::template_text(o, ty)?;
-        let date = today.format("%Y-%m-%d").to_string();
+        mode: TemplateMode,
+    ) -> ApiResult<Option<TemplateOps>> {
+        let Some((file, text)) = Self::template_text(o, ty) else {
+            return Ok(None);
+        };
+        // nothing is inserted from a template that cannot be read (no partial insert)
+        if notatnik_core::parse_page(&text)
+            .frontmatter
+            .is_some_and(|f| !f.valid)
+        {
+            return Err(ApiError::new(
+                "invalid",
+                format!("the template `templates/{file}.md` has invalid frontmatter; fix it first"),
+            ));
+        }
+        // a journal day: `{{date}}` is that day
+        let date = if rel.starts_with("journals/") {
+            page.as_str().to_string()
+        } else {
+            today.format("%Y-%m-%d").to_string()
+        };
         let t = templates::parse_template(
             &text,
             &templates::Vars {
@@ -478,12 +586,31 @@ impl AppState {
                 }
             }
         }
-        let with_blocks = no_blocks
-            && !pending
-                .iter()
-                .any(|op| matches!(op, BlockOp::Insert { .. }));
-        let (ops, added) = templates::ops_for(&t, &have, with_blocks);
-        Some((file, ops, added))
+        let with_blocks = match mode {
+            TemplateMode::Type => {
+                no_blocks
+                    && !pending
+                        .iter()
+                        .any(|op| matches!(op, BlockOp::Insert { .. }))
+            }
+            TemplateMode::NewPage => pending.iter().all(|op| {
+                matches!(op, BlockOp::SetPageProperty { .. })
+                    || matches!(op, BlockOp::Insert { parent, .. } if parent.is_empty())
+            }),
+        };
+        let (ops, added) =
+            templates::ops_for(&t, &have, with_blocks, mode == TemplateMode::NewPage);
+        let top_level = if with_blocks {
+            u32::try_from(t.blocks.iter().filter(|b| b.0.is_empty()).count()).unwrap_or(0) as usize
+        } else {
+            0
+        };
+        Ok(Some(TemplateOps {
+            file,
+            ops,
+            added,
+            top_level,
+        }))
     }
 
     /// `template_info`: which template the page's `type` selects and what of it is missing.
@@ -506,12 +633,24 @@ impl AppState {
                         .find(|e| e.key.eq_ignore_ascii_case("type"))
                 })
                 .and_then(|e| templates::type_name(&e.raw));
-            let found =
-                ty.and_then(|ty| Self::template_ops(o, &name, &rel, true, &ty, &[], self.today()));
+            let found = ty.and_then(|ty| {
+                Self::template_ops(
+                    o,
+                    &name,
+                    &rel,
+                    true,
+                    &ty,
+                    &[],
+                    self.today(),
+                    TemplateMode::Type,
+                )
+                .ok()
+                .flatten()
+            });
             Ok(match found {
-                Some((template, _, missing)) => TemplateInfo {
-                    template: Some(template),
-                    missing,
+                Some(t) => TemplateInfo {
+                    template: Some(t.file),
+                    missing: t.added,
                 },
                 None => TemplateInfo {
                     template: None,
@@ -557,6 +696,73 @@ impl AppState {
             .unwrap_or_default();
         out.sort_by_key(|t| t.name.to_lowercase());
         out
+    }
+
+    /// `deleted_templates`: templates in the trash that can be restored.
+    pub fn deleted_templates(&self, _a: NoArgs) -> ApiResult<Vec<DeletedTemplate>> {
+        self.with_open(|o| Ok(Self::deleted_in(o)))
+    }
+
+    fn deleted_in(o: &Open) -> Vec<DeletedTemplate> {
+        o.graph
+            .deleted_templates()
+            .into_iter()
+            .map(|(id, name, ms)| DeletedTemplate {
+                id,
+                name,
+                #[allow(clippy::cast_precision_loss)]
+                deleted_ms: ms as f64,
+            })
+            .collect()
+    }
+
+    /// `restore_template`
+    pub fn restore_template(&self, a: RestoreTemplateArgs) -> ApiResult<Vec<TemplateEntry>> {
+        self.with_open(|o| {
+            o.graph
+                .restore_template(&a.id, &a.name)
+                .map_err(|e| match e {
+                    GraphError::Conflict { .. } => ApiError::new(
+                        "exists",
+                        format!(
+                            "a template `{}` exists now; delete or rename it first",
+                            a.name
+                        ),
+                    ),
+                    e => e.into(),
+                })?;
+            Ok(Self::templates_in(o))
+        })
+    }
+
+    /// `template_blocks`: the blocks of a template with the variables filled in for `page`, to insert at the cursor
+    /// (`/template`).
+    pub fn template_blocks(&self, a: TemplateBlocksArgs) -> ApiResult<Vec<TemplateBlockView>> {
+        let page = Self::parse_name(&a.page)?;
+        self.with_open(|o| {
+            let (_, text) = Self::template_text(o, &a.name).ok_or_else(|| {
+                ApiError::new("not_found", format!("there is no template `{}`", a.name))
+            })?;
+            let date = self.today().format("%Y-%m-%d").to_string();
+            let t = templates::parse_template(
+                &text,
+                &templates::Vars {
+                    title: page.as_str(),
+                    date: &date,
+                },
+            );
+            Ok(t.blocks
+                .into_iter()
+                .map(|(parent, index, text)| TemplateBlockView {
+                    parent: parent
+                        .into_iter()
+                        .map(|p| u32::try_from(p).unwrap_or(u32::MAX))
+                        .collect(),
+                    index: u32::try_from(index).unwrap_or(u32::MAX),
+                    text,
+                })
+                .collect())
+        })
     }
 
     /// `delete_template`
@@ -624,6 +830,9 @@ impl AppState {
             },
             Some(ty.clone()),
         )?;
+        if let Some(m) = r.template_error {
+            return Err(ApiError::new("invalid", m));
+        }
         if r.template.is_none() {
             return Err(ApiError::new(
                 "not_found",
@@ -1695,6 +1904,22 @@ impl AppState {
             backup_dir: dev.ui.backup_dir,
             backup_auto: dev.ui.backup_auto,
             templates_auto: dev.ui.templates_auto,
+            journal_template: cfg
+                .graph
+                .journal_template
+                .as_deref()
+                .and_then(templates::template_name)
+                .unwrap_or_default(),
+            namespace_templates: cfg
+                .namespaces
+                .iter()
+                .filter_map(|(ns, sec)| {
+                    Some(NamespaceTemplateView {
+                        namespace: ns.clone(),
+                        template: templates::template_name(sec.template.as_deref()?)?,
+                    })
+                })
+                .collect(),
             priorities: cfg.priority_labels(),
             week_start: cfg.graph.week_start.clone(),
             completed_log_limit: cfg.tasks.completed_log_limit,
@@ -1867,8 +2092,31 @@ impl AppState {
                 || a.completed_log_limit.is_some()
                 || a.page_icons.is_some()
                 || a.priorities.is_some()
+                || a.journal_template.is_some()
+                || a.namespace_templates.is_some()
             {
                 o.graph.update_config(|c| {
+                    if let Some(j) = &a.journal_template {
+                        c.graph.journal_template =
+                            templates::template_name(j).map(|n| format!("templates/{n}.md"));
+                    }
+                    if let Some(list) = &a.namespace_templates {
+                        c.namespaces = list
+                            .iter()
+                            .filter_map(|r| {
+                                let ns = r.namespace.trim().trim_matches('/').to_string();
+                                let t = templates::template_name(&r.template)?;
+                                (!ns.is_empty()).then(|| {
+                                    (
+                                        ns,
+                                        notatnik_graph::NamespaceSection {
+                                            template: Some(format!("templates/{t}.md")),
+                                        },
+                                    )
+                                })
+                            })
+                            .collect();
+                    }
                     if let Some(rules) = &a.page_icons {
                         c.page_icons = rules
                             .iter()

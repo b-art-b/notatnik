@@ -228,6 +228,8 @@ pub struct ApplyResult {
     pub template: Option<String>,
     /// The properties the template added.
     pub template_added: Vec<String>,
+    /// Why a template was not applied (it cannot be read); the edit itself went through.
+    pub template_error: Option<String>,
 }
 
 /// `save_template`
@@ -250,6 +252,55 @@ pub struct TemplateEntry {
     pub fields: Vec<String>,
     /// Number of blocks (all levels).
     pub blocks: u32,
+}
+
+/// A deleted template that can be restored.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct DeletedTemplate {
+    /// Trash entry.
+    pub id: String,
+    /// The page type.
+    pub name: String,
+    /// When it was deleted, unix ms.
+    pub deleted_ms: f64,
+}
+
+/// `restore_template`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RestoreTemplateArgs {
+    /// Trash entry.
+    pub id: String,
+    /// The page type.
+    pub name: String,
+}
+
+/// `template_blocks`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TemplateBlocksArgs {
+    /// The template (a page type).
+    pub name: String,
+    /// The page the blocks are inserted into (for `{{title}}`).
+    pub page: String,
+}
+
+/// A block of a template: where it goes relative to the insertion point.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateBlockView {
+    /// Path of the parent within the template (empty = top level).
+    pub parent: Vec<u32>,
+    /// Position among the parent's children.
+    pub index: u32,
+    /// Block text, variables filled in.
+    pub text: String,
+}
+
+/// A namespace and the template for new pages below it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct NamespaceTemplateView {
+    /// Namespace, e.g. `people`.
+    pub namespace: String,
+    /// Template name (a page type).
+    pub template: String,
 }
 
 /// `template_info`
@@ -810,6 +861,10 @@ pub struct SettingsView {
     pub backup_auto: bool,
     /// Device: apply the template of a page's type when `type` is set (PR-10).
     pub templates_auto: bool,
+    /// Graph: template for new journal days (a template name, empty = none).
+    pub journal_template: String,
+    /// Graph: templates for new pages below a namespace.
+    pub namespace_templates: Vec<NamespaceTemplateView>,
     /// Graph: `monday` or `sunday`.
     pub week_start: String,
     /// Graph: the page-icon rules (`type: person` → 👤).
@@ -845,6 +900,10 @@ pub struct SetSettingsArgs {
     pub backup_auto: Option<bool>,
     /// Device: a page template is applied when `type` is set.
     pub templates_auto: Option<bool>,
+    /// Graph: journal template (empty = none).
+    pub journal_template: Option<String>,
+    /// Graph: namespace templates (replaces the list).
+    pub namespace_templates: Option<Vec<NamespaceTemplateView>>,
     /// Graph: week start.
     pub week_start: Option<String>,
     /// Graph: completed log limit.

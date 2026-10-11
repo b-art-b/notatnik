@@ -2048,3 +2048,131 @@ fn a_page_is_saved_as_the_template_of_its_type() {
     assert!(!t.graph().join("templates/person.md").exists());
     assert!(t.call("delete_template", json!({"name": "../x"})).is_err());
 }
+
+/// NS-10, JR-6, PR-10: templates of a namespace and of new journal days; `/template` blocks; restoring a deleted one.
+#[test]
+fn namespace_and_journal_templates_apply_to_new_pages() {
+    let t = start("basic");
+    std::fs::create_dir_all(t.graph().join("templates")).unwrap();
+    std::fs::write(
+        t.graph().join("templates/person.md"),
+        "---\ntype: person\nimportance: 1\n---\n- Contact {{title}}\n  - Phone\n",
+    )
+    .unwrap();
+    std::fs::write(
+        t.graph().join("templates/journal.md"),
+        "---\nmood:\n---\n- Plan for {{date}}\n- Notes\n",
+    )
+    .unwrap();
+    let s = t.ok(
+        "set_settings",
+        json!({"journal_template": "journal",
+               "namespace_templates": [{"namespace": "people", "template": "person"}]}),
+    );
+    assert_eq!(s["journal_template"], "journal");
+    assert_eq!(
+        s["namespace_templates"],
+        json!([{"namespace": "people", "template": "person"}])
+    );
+    assert!(
+        t.read(".notatnik/config.toml")
+            .contains("templates/person.md")
+    );
+    // a new page below the namespace: type, properties and blocks, and the typed first block comes after them
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "people/Jan", "base_hash": null,
+               "ops": [{"op": "insert", "parent": [], "index": 0, "text": "my note"}]}),
+    );
+    assert_eq!(r["template"], "person");
+    assert_eq!(r["template_added"], json!(["type", "importance"]));
+    let text = t.read("pages/people/Jan.md");
+    assert!(
+        text.starts_with("---\ntype: person\nimportance: 1\n---\n"),
+        "{text}"
+    );
+    assert!(
+        text.ends_with("- Contact Jan\n  - Phone\n- my note\n"),
+        "{text}"
+    );
+    // the namespace page itself, and a page elsewhere, are not touched
+    t.ok(
+        "apply_ops",
+        json!({"page": "people", "base_hash": null,
+               "ops": [{"op": "insert", "parent": [], "index": 0, "text": "all people"}]}),
+    );
+    assert_eq!(t.read("pages/people.md"), "- all people\n");
+    // a new journal day
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "2026-10-20", "base_hash": null,
+               "ops": [{"op": "insert", "parent": [], "index": 0, "text": "typed"}]}),
+    );
+    assert_eq!(r["template"], "journal");
+    let text = t.read("journals/2026/2026-10-20.md");
+    assert!(text.contains("mood:"), "{text}");
+    assert!(
+        text.contains("- Plan for 2026-10-20\n- Notes\n- typed\n"),
+        "{text}"
+    );
+    // `/template` gets the blocks with the variables of the page it is inserted into
+    let b = t.ok(
+        "template_blocks",
+        json!({"name": "person", "page": "people/Eva"}),
+    );
+    assert_eq!(
+        b,
+        json!([
+            {"parent": [], "index": 0, "text": "Contact Eva"},
+            {"parent": [0], "index": 0, "text": "Phone"}
+        ])
+    );
+    // deleted templates can be listed and restored; not over an existing one
+    t.ok("delete_template", json!({"name": "person"}));
+    let d = t.ok("deleted_templates", json!({}));
+    assert_eq!(d[0]["name"], "person");
+    let id = d[0]["id"].clone();
+    let l = t.ok("restore_template", json!({"id": id, "name": "person"}));
+    assert_eq!(l.as_array().unwrap().len(), 2);
+    assert!(t.graph().join("templates/person.md").exists());
+    assert_eq!(t.ok("deleted_templates", json!({})), json!([]));
+    // turned off: new pages stay as they are
+    t.ok("set_settings", json!({"templates_auto": false}));
+    t.ok(
+        "apply_ops",
+        json!({"page": "people/Zed", "base_hash": null,
+               "ops": [{"op": "insert", "parent": [], "index": 0, "text": "x"}]}),
+    );
+    assert_eq!(t.read("pages/people/Zed.md"), "- x\n");
+}
+
+/// P5.11: a template that cannot be read inserts nothing and says why.
+#[test]
+fn a_broken_template_inserts_nothing_and_reports_it() {
+    let t = start("basic");
+    std::fs::create_dir_all(t.graph().join("templates")).unwrap();
+    std::fs::write(
+        t.graph().join("templates/person.md"),
+        "---\na: [unclosed\n---\n- Contact\n",
+    )
+    .unwrap();
+    // the user's own edit goes through; nothing of the template, and the reason is reported
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "people/Bad", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "person"}]}),
+    );
+    assert!(
+        r["template_error"]
+            .as_str()
+            .unwrap()
+            .contains("templates/person.md"),
+        "{r}"
+    );
+    assert_eq!(r["template"], Value::Null);
+    assert_eq!(t.read("pages/people/Bad.md"), "---\ntype: person\n---\n");
+    let err = t
+        .call("apply_template", json!({"page": "people/Bad"}))
+        .unwrap_err();
+    assert_eq!(err.code, "invalid");
+}

@@ -360,7 +360,11 @@ template: string | null,
 /**
  * The properties the template added.
  */
-template_added: Array<string>, };
+template_added: Array<string>, 
+/**
+ * Why a template was not applied (it cannot be read); the edit itself went through.
+ */
+template_error: string | null, };
 export type SearchHitView = { 
 /**
  * `page` or `block`.
@@ -857,6 +861,59 @@ template: string | null,
  * Properties of the template that the page lacks.
  */
 missing: Array<string>, };
+export type DeletedTemplate = { 
+/**
+ * Trash entry.
+ */
+id: string, 
+/**
+ * The page type.
+ */
+name: string, 
+/**
+ * When it was deleted, unix ms.
+ */
+deleted_ms: number, };
+export type RestoreTemplateArgs = { 
+/**
+ * Trash entry.
+ */
+id: string, 
+/**
+ * The page type.
+ */
+name: string, };
+export type TemplateBlocksArgs = { 
+/**
+ * The template (a page type).
+ */
+name: string, 
+/**
+ * The page the blocks are inserted into (for `{{title}}`).
+ */
+page: string, };
+export type TemplateBlockView = { 
+/**
+ * Path of the parent within the template (empty = top level).
+ */
+parent: Array<number>, 
+/**
+ * Position among the parent's children.
+ */
+index: number, 
+/**
+ * Block text, variables filled in.
+ */
+text: string, };
+export type NamespaceTemplateView = { 
+/**
+ * Namespace, e.g. `people`.
+ */
+namespace: string, 
+/**
+ * Template name (a page type).
+ */
+template: string, };
 export type TemplateEntry = { 
 /**
  * The page type it belongs to (the file name).
@@ -1035,6 +1092,14 @@ backup_auto: boolean,
  */
 templates_auto: boolean, 
 /**
+ * Graph: template for new journal days (a template name, empty = none).
+ */
+journal_template: string, 
+/**
+ * Graph: templates for new pages below a namespace.
+ */
+namespace_templates: Array<NamespaceTemplateView>, 
+/**
  * Graph: `monday` or `sunday`.
  */
 week_start: string, 
@@ -1095,6 +1160,14 @@ backup_auto: boolean | null,
  * Device: a page template is applied when `type` is set.
  */
 templates_auto: boolean | null, 
+/**
+ * Graph: journal template (empty = none).
+ */
+journal_template: string | null, 
+/**
+ * Graph: namespace templates (replaces the list).
+ */
+namespace_templates: Array<NamespaceTemplateView> | null, 
 /**
  * Graph: week start.
  */
@@ -1225,6 +1298,9 @@ export type Commands = {
   save_template: { args: SaveTemplateArgs; result: TemplateEntry };
   list_templates: { args: NoArgs; result: TemplateEntry[] };
   delete_template: { args: NameArgs; result: TemplateEntry[] };
+  deleted_templates: { args: NoArgs; result: DeletedTemplate[] };
+  restore_template: { args: RestoreTemplateArgs; result: TemplateEntry[] };
+  template_blocks: { args: TemplateBlocksArgs; result: TemplateBlockView[] };
   run_query: { args: RunQueryArgs; result: QueryView };
   agenda: { args: AgendaArgs; result: AgendaView };
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };

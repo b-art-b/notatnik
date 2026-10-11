@@ -1,8 +1,8 @@
 // Runs block commands: turns a Plan from tree.ts into a request and moves the cursor afterwards.
-import type { BlockOp } from '../api'
+import { backend, type BlockOp } from '../api'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
 import { undoRedo, type PageDoc } from '../stores/pages.svelte'
-import { app, navigate } from '../stores/app.svelte'
+import { app, navigate, toast, errorMessage } from '../stores/app.svelte'
 import { doneAt, nextTaskState } from '../tasks'
 import {
   deleteBlocks,
@@ -107,6 +107,32 @@ function pathOf(ctx: Ctx, blockId: number): Path | undefined {
   return view ? findById(view.blocks, blockId)?.path : undefined
 }
 
+/** The ops that insert a template's blocks at `path`. In an empty block the first template block takes its place;
+ * otherwise the blocks go after it, as siblings. `stored` is the block's text in the page, `typed` the editor's. */
+export function templateOps(
+  path: Path,
+  stored: string,
+  typed: string,
+  blocks: { parent: number[]; index: number; text: string }[],
+): BlockOp[] {
+  const ops: BlockOp[] = []
+  const empty = typed.trim() === ''
+  if (!empty && stored !== typed) ops.push({ op: 'update_text', block: { path, hash: null }, text: typed })
+  const parent = path.slice(0, -1)
+  const base = path[path.length - 1] + (empty ? 0 : 1)
+  for (const b of blocks) {
+    if (b.parent.length === 0) {
+      if (empty && b.index === 0) ops.push({ op: 'update_text', block: { path, hash: null }, text: b.text })
+      else ops.push({ op: 'insert', parent, index: base + b.index, text: b.text })
+    } else {
+      const [top, ...rest] = b.parent
+      const at = empty && top === 0 ? path : [...parent, base + top]
+      ops.push({ op: 'insert', parent: [...at, ...rest], index: b.index, text: b.text })
+    }
+  }
+  return ops
+}
+
 export type EditorAction =
   | { kind: 'enter'; text: string; cursor: number; prev: string }
   | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string; prev: string }
@@ -114,6 +140,7 @@ export type EditorAction =
   | { kind: 'nav-up' | 'nav-down'; text: string; column: number; prev: string }
   | { kind: 'escape'; text: string; prev: string }
   | { kind: 'cycle-task'; text: string; prev: string }
+  | { kind: 'template'; name: string; text: string; prev: string }
 
 /** Handles an action raised by the editor. Returns true when the key press was consumed. */
 export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): Promise<boolean> {
@@ -176,6 +203,23 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       const hit = findById(view.blocks, blockId)
       if (!hit) return false
       await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state), a.text)
+      return true
+    }
+    case 'template': {
+      let tpl
+      try {
+        tpl = await backend.call('template_blocks', { name: a.name, page: ctx.doc.name })
+      } catch (e) {
+        toast(errorMessage(e), 'error')
+        return true
+      }
+      // built from the page as it is when the request reaches the front of the queue
+      await ctx.doc.applyWith((v) => {
+        const hit = v ? findById(v.blocks, blockId) : undefined
+        if (!hit) return null
+        return templateOps(hit.path, hit.block.text, a.text, tpl)
+      })
+      stopEditing()
       return true
     }
     case 'escape': {

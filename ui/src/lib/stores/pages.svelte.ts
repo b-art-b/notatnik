@@ -65,7 +65,8 @@ export class PageDoc {
           ops,
         })
         this.view = r.page
-        if (r.template && r.template_added.length)
+        if (r.template_error) toast(r.template_error, 'error')
+        else if (r.template && r.template_added.length)
           toast(`Added ${r.template_added.join(', ')} from the template “${r.template}”.`)
         return r.page
       } catch (e) {

@@ -496,13 +496,75 @@ impl Graph {
         Ok(old.is_some())
     }
 
-    /// Deletes the template of a page type (the file goes to the version history first).
+    /// Deletes the template of a page type. A copy goes to `<data dir>/trash/<id>/templates/` first
+    /// ([`Graph::deleted_templates`], [`Graph::restore_template`]).
     pub fn delete_template(&self, name: &str) -> Result<()> {
         let rel = template_rel(name)?;
         let abs = self.root.join(&rel);
         let old = std::fs::read(&abs).map_err(|_| Error::NotFound(rel.clone()))?;
-        self.lock().record_versions(&rel, &old, b"", true);
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis())
+            .to_string();
+        let dest = self.lock().data_dir.join("trash").join(id).join(&rel);
+        if let Some(dir) = dest.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(&dest, &old)?;
         std::fs::remove_file(&abs)?;
+        Ok(())
+    }
+
+    /// Deleted templates still in the trash, newest first: `(trash id, name, deleted at in unix ms)`. Of one
+    /// name only the newest is listed.
+    pub fn deleted_templates(&self) -> Vec<(String, String, u128)> {
+        let trash = self.lock().data_dir.join("trash");
+        let mut all: Vec<(String, String, u128)> = Vec::new();
+        for e in std::fs::read_dir(&trash).into_iter().flatten().flatten() {
+            let Some(ms) = e.file_name().to_str().and_then(|n| n.parse::<u128>().ok()) else {
+                continue;
+            };
+            let id = ms.to_string();
+            for f in std::fs::read_dir(e.path().join("templates"))
+                .into_iter()
+                .flatten()
+                .flatten()
+            {
+                if let Some(name) = f.file_name().to_str().and_then(|n| n.strip_suffix(".md")) {
+                    all.push((id.clone(), name.to_string(), ms));
+                }
+            }
+        }
+        all.sort_by_key(|a| std::cmp::Reverse(a.2));
+        let mut seen = std::collections::BTreeSet::new();
+        all.retain(|(_, n, _)| seen.insert(n.to_lowercase()));
+        all
+    }
+
+    /// Puts a deleted template back. Refused when a template of that name exists now.
+    pub fn restore_template(&self, id: &str, name: &str) -> Result<()> {
+        let rel = template_rel(name)?;
+        if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(Error::NotFound(format!("trash entry `{id}`")));
+        }
+        let (src, root) = {
+            let g = self.lock();
+            (g.data_dir.join("trash").join(id).join(&rel), g.root.clone())
+        };
+        let bytes = std::fs::read(&src)
+            .map_err(|_| Error::NotFound(format!("deleted template `{name}`")))?;
+        let abs = root.join(&rel);
+        if abs.exists() {
+            return Err(Error::Conflict { path: rel });
+        }
+        atomic_write(&root, &abs, &bytes)?;
+        let _ = std::fs::remove_file(&src);
+        if let Some(dir) = src.parent() {
+            let _ = std::fs::remove_dir(dir); // only when empty
+            if let Some(up) = dir.parent() {
+                let _ = std::fs::remove_dir(up);
+            }
+        }
         Ok(())
     }
 

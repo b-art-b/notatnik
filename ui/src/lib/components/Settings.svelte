@@ -65,21 +65,42 @@
   // --- templates: one file per page type (PR-10) ---
   type TemplateRow = { name: string; fields: string[]; blocks: number }
   let templates = $state<TemplateRow[]>([])
-  let deletingTpl = $state<string | null>(null)
+  let deletedTpls = $state<{ id: string; name: string; deleted_ms: number }[]>([])
+  let nsTemplates = $state<{ namespace: string; template: string }[]>([])
+  let nsLoaded = false
   $effect(() => {
     if (tab !== 'templates' || !s) return
+    if (!nsLoaded) {
+      nsTemplates = s.namespace_templates.map((r) => ({ ...r }))
+      nsLoaded = true
+    }
     backend.call('list_templates', {}).then(
       (r) => (templates = r),
       (e) => toast(errorMessage(e), 'error'),
     )
+    backend.call('deleted_templates', {}).then((r) => (deletedTpls = r))
   })
   async function deleteTemplate(name: string) {
     try {
       templates = await backend.call('delete_template', { name })
-      deletingTpl = null
+      deletedTpls = await backend.call('deleted_templates', {})
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
+  }
+  async function restoreTemplate(id: string, name: string) {
+    try {
+      templates = await backend.call('restore_template', { id, name })
+      deletedTpls = await backend.call('deleted_templates', {})
+      toast(`Restored the template “${name}”`)
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  function saveNsTemplates() {
+    // a row counts once both fields are filled; the others stay as a draft
+    const rows = nsTemplates.filter((r) => r.namespace.trim() && r.template.trim())
+    void save({ namespace_templates: rows.map((r) => ({ ...r })) })
   }
 
   // --- backup: snapshots of the graph in a folder outside it (BK-1..BK-5) ---
@@ -223,6 +244,8 @@
     backup_dir: string
     backup_auto: boolean
     templates_auto: boolean
+    journal_template: string
+    namespace_templates: { namespace: string; template: string }[]
     week_start: string
     completed_log_limit: number
     priorities: string[]
@@ -250,6 +273,8 @@
         backup_dir: null,
         backup_auto: null,
         templates_auto: null,
+        journal_template: null,
+        namespace_templates: null,
         week_start: null,
         completed_log_limit: null,
         priorities: null,
@@ -685,6 +710,9 @@
             <code>{'{{title}}'}</code>, <code>{'{{namespace}}'}</code>, <code>{'{{date}}'}</code>.
           </p>
           <p class="intro">
+            <code>/template</code> in a block inserts the blocks of a template there.
+          </p>
+          <p class="intro">
             When you set <code>type</code> on a page, the properties of its template that the page lacks are
             added. Values you already set are never changed, and the blocks are added only to a page that has
             none. An existing page can pick up new template fields with <em>Add missing from template</em> in its
@@ -706,19 +734,73 @@
                   <span class="muted"
                     >{t.fields.length ? t.fields.join(', ') : 'no fields'} · {t.blocks} blocks</span
                   >
-                  {#if deletingTpl === t.name}
-                    <button class="plain" onclick={() => deleteTemplate(t.name)}>Delete for good</button>
-                    <button class="plain" onclick={() => (deletingTpl = null)}>Keep</button>
-                  {:else}
-                    <button class="plain" onclick={() => (deletingTpl = t.name)}>Delete…</button>
-                  {/if}
+                  <button class="plain" onclick={() => deleteTemplate(t.name)}>Delete</button>
                 </li>
               {/each}
             </ul>
           {/if}
+          {#if deletedTpls.length}
+            <h3>Deleted templates</h3>
+            <p class="intro">Kept for 30 days on this device.</p>
+            <ul class="snaps" data-testid="deleted-templates">
+              {#each deletedTpls as d (d.id + d.name)}
+                <li>
+                  <strong>{d.name}</strong>
+                  <span class="muted">deleted {new Date(d.deleted_ms).toLocaleString()}</span>
+                  <button class="plain" onclick={() => restoreTemplate(d.id, d.name)}>Restore</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <h3>New pages and days</h3>
+          <p class="intro">
+            A new page below a namespace starts from its template (properties, <code>type</code> and blocks), and
+            so does a new journal day. Your first block comes after the template's.
+          </p>
           <SettingRow
-            title="Apply templates when a type is set"
-            description="Off: nothing is added automatically; the button in the page properties still works."
+            title="Journal template"
+            description="Used for every new journal day."
+            labelFor="journal-template"
+          >
+            <select
+              id="journal-template"
+              value={s.journal_template}
+              onchange={(e) => save({ journal_template: (e.currentTarget as HTMLSelectElement).value })}
+            >
+              <option value="">None</option>
+              {#each templates as t (t.name)}<option value={t.name}>{t.name}</option>{/each}
+            </select>
+          </SettingRow>
+          <div class="rules" data-testid="namespace-templates">
+            {#each nsTemplates as r, i (i)}
+              <div class="rule">
+                <input
+                  aria-label="Namespace"
+                  placeholder="namespace, e.g. people"
+                  bind:value={r.namespace}
+                  onchange={saveNsTemplates}
+                />
+                <select aria-label="Template" bind:value={r.template} onchange={saveNsTemplates}>
+                  <option value="">choose a template…</option>
+                  {#each templates as t (t.name)}<option value={t.name}>{t.name}</option>{/each}
+                </select>
+                <button
+                  class="plain"
+                  aria-label="Remove this namespace template"
+                  onclick={() => {
+                    nsTemplates.splice(i, 1)
+                    saveNsTemplates()
+                  }}>✕</button
+                >
+              </div>
+            {/each}
+            <button class="plain" onclick={() => nsTemplates.push({ namespace: '', template: '' })}
+              >Add a namespace template</button
+            >
+          </div>
+          <SettingRow
+            title="Apply templates automatically"
+            description="When a type is set, and to new pages below a namespace or new journal days. Off: nothing is added automatically; the button in the page properties and /template still work."
             labelFor="templates-auto"
           >
             <input

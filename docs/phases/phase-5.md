@@ -111,13 +111,13 @@ Namespace-aware autocomplete ranking (NS-7, phase 2) covers the convenience part
 ## 5D: Templates and journals
 
 ### P5.11 Templates (NS-10, JR-6)
-- [x] Templates are Markdown files in `templates/` of the graph, one per page type (PR-10); variables: `{{date}}`, `{{title}}`, `{{namespace}}`, `{{cursor}}` (done: type templates; not yet: namespace and journal templates, `/template`)
-- [ ] Per-namespace default templates (config `[namespaces."people"] template = …`, applies to new pages below `people`), the journal template, and a `/template` slash command for inserting any template as blocks
+- [x] Templates are Markdown files in `templates/` of the graph, one per page type (PR-10); variables: `{{date}}`, `{{title}}`, `{{namespace}}`, `{{cursor}}`
+- [x] Per-namespace default templates (config `[namespaces."people"] template = …`, applies to new pages below `people`), the journal template, and a `/template` slash command for inserting any template as blocks
 
 **Verify**
-- [ ] Creating `people/jan` (via a link + first edit, or via the tree) → the page starts with the person template, with variables filled
-- [ ] Today's journal, when created, contains the journal template
-- [ ] A template with invalid syntax → a clear error, and no partial insert
+- [x] Creating `people/jan` (via a link + first edit, or via the tree) → the page starts with the person template, with variables filled
+- [x] Today's journal, when created, contains the journal template
+- [x] A template with invalid syntax → a clear error, and no partial insert
 
 ### P5.12 Journal calendar widget (JR-4)
 - [ ] A month calendar in the sidebar; days with journal content marked; days with tasks or events marked differently; click → open that journal
