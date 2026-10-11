@@ -50,3 +50,35 @@ export function doneAt(today: string, now = new Date()): string {
 export function isOverdue(value: string | null | undefined, today: string): boolean {
   return !!value && value.slice(0, 10) < today
 }
+
+export type DueTone = 'overdue' | 'today' | 'soon' | 'later'
+
+export interface DueIndicator {
+  /** Which date it shows: the deadline if there is one, else the scheduled date. */
+  kind: 'deadline' | 'scheduled'
+  date: string
+  /** `3d overdue`, `today`, `tomorrow`, or `null` when the caller should format the date itself. */
+  text: string | null
+  tone: DueTone
+}
+
+const DAY = 86_400_000
+const dayNumber = (iso: string) => Math.floor(Date.parse(iso.slice(0, 10) + 'T00:00:00Z') / DAY)
+
+/** The one date a compact task row shows (TK-13): the deadline, else the scheduled date; nothing for a finished
+ * task. Overdue and today get words and a tone so urgency stays visible without opening the details. */
+export function dueIndicator(
+  task: { state: string; scheduled: string | null; deadline: string | null },
+  today: string,
+): DueIndicator | null {
+  if (task.state === 'DONE' || task.state === 'CANCELED') return null
+  const kind = task.deadline ? 'deadline' : task.scheduled ? 'scheduled' : null
+  if (!kind) return null
+  const date = (kind === 'deadline' ? task.deadline : task.scheduled) as string
+  const diff = dayNumber(date) - dayNumber(today)
+  if (Number.isNaN(diff)) return { kind, date, text: null, tone: 'later' }
+  if (diff < 0) return { kind, date, text: `${-diff}d overdue`, tone: 'overdue' }
+  if (diff === 0) return { kind, date, text: 'today', tone: 'today' }
+  if (diff === 1) return { kind, date, text: 'tomorrow', tone: 'soon' }
+  return { kind, date, text: null, tone: diff <= 7 ? 'soon' : 'later' }
+}

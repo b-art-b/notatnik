@@ -1,4 +1,4 @@
-//! Renaming a page with reference rewriting (P1.34, LN-7).
+//! Renaming a page, or moving a whole namespace, with reference rewriting (P1.34, LN-7, NS-8).
 
 use notatnik_core::{
     Block, PageName, ParseOptions, RefKind, TextPatch, apply_patches, page_to_path, parse_page_with,
@@ -13,6 +13,8 @@ pub struct FileEdit {
     pub path: String,
     /// Hash of the file content the edit was computed from (guard).
     pub base_hash: String,
+    /// The text before the rewrite (kept to revert it).
+    pub old_text: String,
     /// The text after the rewrite.
     pub new_text: String,
     /// The individual replacements (for previews).
@@ -49,18 +51,49 @@ fn plain_tag_ok(name: &str) -> bool {
         && !name.ends_with(['-', '/'])
 }
 
-fn collect(b: &Block, source: &str, old_key: &str, new: &PageName, out: &mut Vec<TextPatch>) {
+/// Maps the name of a page in the moved subtree (the page itself and everything below it) to its new name.
+struct Mapper {
+    old_key: String,
+    old_segments: usize,
+    new: PageName,
+    /// Also map the pages below the moved one (a namespace move); false renames only the page itself.
+    subtree: bool,
+}
+
+impl Mapper {
+    fn new(old: &PageName, new: &PageName, subtree: bool) -> Self {
+        Mapper {
+            old_key: old.lookup_key(),
+            old_segments: old.as_str().split('/').count(),
+            new: new.clone(),
+            subtree,
+        }
+    }
+
+    /// The new name for `target`, or `None` if it is outside the subtree. The segments below the moved page keep
+    /// the spelling the reference was written with.
+    fn map(&self, target: &str) -> Option<PageName> {
+        let t = PageName::parse(target).ok()?;
+        let key = t.lookup_key();
+        if key == self.old_key {
+            return Some(self.new.clone());
+        }
+        if self.subtree && key.starts_with(&format!("{}/", self.old_key)) {
+            let rest: Vec<&str> = t.as_str().split('/').skip(self.old_segments).collect();
+            return PageName::parse(&format!("{}/{}", self.new, rest.join("/"))).ok();
+        }
+        None
+    }
+}
+
+fn collect(b: &Block, source: &str, map: &Mapper, out: &mut Vec<TextPatch>) {
     for r in &b.refs {
         if !matches!(r.kind, RefKind::Page | RefKind::Tag | RefKind::PageEmbed) {
             continue;
         }
-        if PageName::parse(&r.target)
-            .map(|n| n.lookup_key())
-            .as_deref()
-            != Ok(old_key)
-        {
+        let Some(new) = map.map(&r.target) else {
             continue;
-        }
+        };
         let (range, text) = if r.kind == RefKind::Tag
             && !r.span.slice(source).starts_with("#[[")
             && !plain_tag_ok(new.as_str())
@@ -76,13 +109,20 @@ fn collect(b: &Block, source: &str, old_key: &str, new: &PageName, out: &mut Vec
         });
     }
     for c in &b.children {
-        collect(c, source, old_key, new, out);
+        collect(c, source, map, out);
     }
 }
 
 impl Graph {
-    /// Computes a rename without touching anything (preview, LN-7).
+    /// Computes a rename without touching anything (preview, LN-7). A page with subpages moves with them (NS-8).
     pub fn plan_rename(&self, old: &str, new: &str) -> Result<RenamePlan> {
+        self.plan_rename_with(old, new, true)
+    }
+
+    /// Like [`Graph::plan_rename`]. With `subpages = false` only the page itself is renamed or moved and the pages
+    /// below it stay where they are; that is also the only way to move a page to a name below itself
+    /// (`a` → `a/b/c`).
+    pub fn plan_rename_with(&self, old: &str, new: &str, subpages: bool) -> Result<RenamePlan> {
         let old_name = PageName::parse(old)
             .map_err(|e| Error::Rename(format!("invalid page name `{old}`: {e}")))?;
         let new_name = PageName::parse(new)
@@ -96,11 +136,26 @@ impl Graph {
             return Err(Error::Rename("journal pages can't be renamed".into()));
         }
         let old_key = old_name.lookup_key();
-        let (info, children, referencing) = self.with_index(|i| {
+        let new_key = new_name.lookup_key();
+        if subpages && new_key.starts_with(&format!("{old_key}/")) {
+            return Err(Error::Rename(format!(
+                "can't move `{old}` with its subpages into itself (`{new}` is below it); \
+                 move only this page instead (leave the subpages where they are)"
+            )));
+        }
+        let (info, subtree, referencing) = self.with_index(|i| {
             Ok::<_, Error>((
                 i.page_info(old)?,
-                i.namespace_children(old)?,
-                i.files_referencing(old)?,
+                if subpages {
+                    i.subtree_pages(old)?
+                } else {
+                    Vec::new()
+                },
+                if subpages {
+                    i.files_referencing_subtree(old)?
+                } else {
+                    i.files_referencing(old)?
+                },
             ))
         })?;
         let info = info.ok_or_else(|| Error::NotFound(old.to_string()))?;
@@ -122,25 +177,35 @@ impl Graph {
                 )));
             }
         }
-        if !children.is_empty() {
-            return Err(Error::Rename(format!(
-                "`{old}` has subpages ({}); moving a whole namespace is not supported yet (NS-8)",
-                children.join(", ")
-            )));
-        }
+        let map = Mapper::new(&old_name, &new_name, subpages);
         let mut file_moves = Vec::new();
-        if let Some(from) = &info.file_path {
-            let to = page_to_path(&new_name);
-            if self.root().join(&to).exists() {
+        let mut moved_pages = vec![(new_name.clone(), info.file_path.clone())];
+        for d in &subtree {
+            let dest = map
+                .map(&d.name)
+                .ok_or_else(|| Error::Rename(format!("`{}` can't be moved to `{new}`", d.name)))?;
+            // a page of that name that is not part of the moved subtree blocks the move
+            if let Some(existing) = self.with_index(|i| i.page_info(dest.as_str()))? {
+                if !existing.is_virtual {
+                    return Err(Error::Rename(format!(
+                        "a page named `{}` already exists",
+                        existing.name
+                    )));
+                }
+            }
+            moved_pages.push((dest, d.file_path.clone()));
+        }
+        for (dest, from) in &moved_pages {
+            let Some(from) = from else { continue };
+            let to = page_to_path(dest);
+            if self.root().join(&to).exists() && *from != to {
                 return Err(Error::Rename(format!("the file {to} already exists")));
             }
             if *from != to {
                 file_moves.push((from.clone(), to));
             }
         }
-        let opts = ParseOptions {
-            property_types: self.config().property_types(),
-        };
+        let opts: ParseOptions = self.config().parse_options();
         let mut edits = Vec::new();
         let mut warnings = Vec::new();
         for path in referencing {
@@ -148,16 +213,13 @@ impl Graph {
             let page = parse_page_with(&file.text, &opts);
             let mut patches = Vec::new();
             if let Some(p) = &page.preamble {
-                collect(p, &file.text, &old_key, &new_name, &mut patches);
+                collect(p, &file.text, &map, &mut patches);
             }
             for b in &page.blocks {
-                collect(b, &file.text, &old_key, &new_name, &mut patches);
+                collect(b, &file.text, &map, &mut patches);
             }
             if let Some(fm) = page.frontmatter.as_ref().filter(|f| f.valid) {
-                let mentions = fm.tags.iter().any(|t| {
-                    PageName::parse(t).map(|n| n.lookup_key()).as_deref() == Ok(old_key.as_str())
-                });
-                if mentions {
+                if fm.tags.iter().any(|t| map.map(t).is_some()) {
                     warnings.push(format!(
                         "{path}: frontmatter tags still mention `{old}`; edit them by hand"
                     ));
@@ -172,9 +234,20 @@ impl Graph {
             edits.push(FileEdit {
                 path,
                 base_hash: file.hash,
+                old_text: file.text.clone(),
                 new_text,
                 patches,
             });
+        }
+        // a moved page that changes folder depth breaks relative paths (`../assets/x.png`): not rewritten
+        for (from, _) in &file_moves {
+            if let Ok(f) = self.read_page(from) {
+                if f.text.contains("](../") || f.text.contains("](./") {
+                    warnings.push(format!(
+                        "{from}: contains relative links or images; check them after the move"
+                    ));
+                }
+            }
         }
         Ok(RenamePlan {
             old: old_name.to_string(),
@@ -183,6 +256,40 @@ impl Graph {
             edits,
             warnings,
         })
+    }
+
+    /// Undoes (as far as it got) a rename that stopped half way: rewritten files get their old text back
+    /// (only if they still hold exactly what the rename wrote, so nobody's newer edit is lost) and moved files
+    /// go back to their old place. Safe to call on a plan that was never applied or only partly.
+    pub fn revert_rename(&self, plan: &RenamePlan) -> Result<Vec<String>> {
+        let mut restored = Vec::new();
+        for (from, to) in plan.file_moves.iter().rev() {
+            let (abs_from, abs_to) = (self.root().join(from), self.root().join(to));
+            if abs_to.exists() && !abs_from.exists() {
+                if let Some(parent) = abs_from.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::rename(&abs_to, &abs_from)?;
+                if let Some(parent) = abs_from.parent() {
+                    crate::sync_dir(parent);
+                }
+                let mut g = self.lock();
+                let root = g.root.clone();
+                g.index.reindex_file(&root, to)?;
+                g.index.reindex_file(&root, from)?;
+                restored.push(from.clone());
+            }
+        }
+        for e in plan.edits.iter().rev() {
+            let Ok(now) = self.read_page(&e.path) else {
+                continue;
+            };
+            if now.text == e.new_text {
+                self.write_page(&e.path, &e.old_text, Some(&now.hash))?;
+                restored.push(e.path.clone());
+            }
+        }
+        Ok(restored)
     }
 
     /// Applies a plan: rewrites references first (each file with its base-hash guard), moves files last.

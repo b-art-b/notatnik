@@ -1,6 +1,7 @@
 import { backend, CommandError, type BlockOp, type PageView } from '../api'
 import { collapsedHashes } from '../tree'
 import { app, errorMessage, toast } from './app.svelte'
+import { bus } from './events.svelte'
 
 export type SaveStatus = 'saved' | 'saving' | 'error'
 
@@ -90,6 +91,7 @@ export class PageDoc {
   }
 
   async toggleCollapsed(id: number): Promise<void> {
+    await this.loaded // a click before the first load finished must still work (blocks shown elsewhere, e.g. in references)
     const v = this.view
     if (!v) return
     const flip = (list: PageView['blocks']): boolean => {
@@ -105,6 +107,9 @@ export class PageDoc {
     flip(v.blocks)
     try {
       await backend.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) })
+      // Blocks shown outside this page's own view (linked references, agenda, query results) are copies that
+      // read the saved state when fetched: tell them to fetch again.
+      bus.version++
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -120,9 +125,9 @@ export class PageDoc {
       }
     }
     walk(v.blocks)
-    return backend
-      .call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) })
-      .then(() => undefined)
+    return backend.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) }).then(() => {
+      bus.version++
+    })
   }
 }
 
@@ -163,7 +168,9 @@ export async function undoRedo(kind: 'undo' | 'redo'): Promise<string | null> {
 /** Reloads documents whose page changed on disk. */
 export function handleExternalChange(pages: string[], isEditing: (doc: PageDoc) => boolean) {
   for (const d of openDocs()) {
-    if (!pages.includes(d.name)) continue
+    // the page itself, or a page below it: its list of subpages (and the hierarchy) changed too
+    const below = d.name.toLowerCase() + '/'
+    if (!pages.some((p) => p === d.name || p.toLowerCase().startsWith(below))) continue
     if (d.busy) continue
     if (isEditing(d)) {
       d.externalChange = true
@@ -173,6 +180,16 @@ export function handleExternalChange(pages: string[], isEditing: (doc: PageDoc) 
     }
   }
   void app
+}
+
+/** Reloads every open document. A rename rewrites the links in many files (journals included) without telling the
+ * documents that are already open, and a moved page keeps a document under its old name. */
+export function reloadOpenDocs(): Promise<unknown> {
+  return Promise.all(
+    openDocs()
+      .filter((d) => !d.busy)
+      .map((d) => d.load()),
+  )
 }
 
 export function flushAll(): Promise<unknown> {

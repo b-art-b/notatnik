@@ -4,6 +4,10 @@ export type Route =
   | { kind: 'page'; name: string; zoom: number[] }
   | { kind: 'settings' }
   | { kind: 'agenda' }
+  | { kind: 'pages' }
+  | { kind: 'property'; key: string; value: string | null }
+  | { kind: 'blockprop'; key: string; value: string | null }
+  | { kind: 'segment'; name: string }
   | { kind: 'saved'; name: string }
 
 export function parseRoute(hash: string): Route {
@@ -25,6 +29,17 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/settings') return { kind: 'settings' }
   if (path === '/agenda') return { kind: 'agenda' }
+  if (path === '/pages') return { kind: 'pages' }
+  if (path.startsWith('/segment/'))
+    return { kind: 'segment', name: decodeURIComponent(path.slice('/segment/'.length)) }
+  if (path.startsWith('/property/')) {
+    const value = new URLSearchParams(query).get('value')
+    return { kind: 'property', key: decodeURIComponent(path.slice('/property/'.length)), value }
+  }
+  if (path.startsWith('/block-property/')) {
+    const value = new URLSearchParams(query).get('value')
+    return { kind: 'blockprop', key: decodeURIComponent(path.slice('/block-property/'.length)), value }
+  }
   if (path.startsWith('/saved/'))
     return { kind: 'saved', name: decodeURIComponent(path.slice('/saved/'.length)) }
   return { kind: 'journals' }
@@ -38,6 +53,14 @@ export function routeHash(r: Route): string {
       return '#/settings'
     case 'agenda':
       return '#/agenda'
+    case 'pages':
+      return '#/pages'
+    case 'segment':
+      return `#/segment/${encodeURIComponent(r.name)}`
+    case 'property':
+      return `#/property/${encodeURIComponent(r.key)}${r.value === null ? '' : `?value=${encodeURIComponent(r.value)}`}`
+    case 'blockprop':
+      return `#/block-property/${encodeURIComponent(r.key)}${r.value === null ? '' : `?value=${encodeURIComponent(r.value)}`}`
     case 'saved':
       return `#/saved/${encodeURIComponent(r.name)}`
     case 'page':
@@ -46,3 +69,14 @@ export function routeHash(r: Route): string {
 }
 
 export const pageHash = (name: string, zoom: number[] = []) => routeHash({ kind: 'page', name, zoom })
+
+/** The view of all pages that have a page property (optionally with one value). */
+export const propertyHash = (key: string, value: string | null = null) =>
+  routeHash({ kind: 'property', key, value })
+
+/** The view of all blocks that have a block property (optionally with one value). */
+export const blockPropertyHash = (key: string, value: string | null = null) =>
+  routeHash({ kind: 'blockprop', key, value })
+
+/** The view of every place where a name occurs as a path segment (`Renewal` in `P/EY/Renewal/APotheke`). */
+export const segmentHash = (name: string) => routeHash({ kind: 'segment', name })

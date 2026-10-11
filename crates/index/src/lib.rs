@@ -15,7 +15,10 @@ pub use error::{Error, Result};
 pub use fuzzy::FuzzyHit;
 pub use ingest::{DuplicateId, FileStat, ReconcileStats, ReindexOutcome};
 pub use qsql::{CompileError, CompiledQuery, QueryContext, QueryResults, QueryRow, compile};
-pub use read::{Backlink, Counts, IssueRow, NamespaceRow, PageInfo, SearchHit, SearchKind};
+pub use read::{
+    Backlink, Counts, IssueRow, NamespaceRow, PageGroup, PageInfo, PageKeyCount, PageRow,
+    SearchHit, SearchKind, SegmentGroup, SubPage, Unlinked,
+};
 pub use schema::SCHEMA_VERSION;
 
 use std::collections::BTreeMap;
@@ -29,12 +32,15 @@ use rusqlite::Connection;
 pub struct IndexOptions {
     /// Declared property types (`[properties] types` in config).
     pub property_types: BTreeMap<String, PropType>,
+    /// Priority labels (`[tasks] priorities`), most important first.
+    pub priority_labels: Vec<String>,
 }
 
 impl IndexOptions {
     pub(crate) fn parse_options(&self) -> ParseOptions {
         ParseOptions {
             property_types: self.property_types.clone(),
+            priority_labels: self.priority_labels.clone(),
         }
     }
 }
@@ -54,6 +60,17 @@ pub struct Index {
 }
 
 impl Index {
+    /// The labels the index was built with.
+    pub fn priority_labels(&self) -> &[String] {
+        &self.options.priority_labels
+    }
+
+    /// Replaces the options. Files indexed before were parsed with the old ones: call [`Index::index_all`] after
+    /// changing something that affects parsing (the priority labels).
+    pub fn set_options(&mut self, options: IndexOptions) {
+        self.options = options;
+    }
+
     /// Opens (or creates) the index at `path`. On a schema-version mismatch the database is
     /// deleted and recreated.
     pub fn open(path: &Path, options: IndexOptions) -> Result<(Index, OpenInfo)> {

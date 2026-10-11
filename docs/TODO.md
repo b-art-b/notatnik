@@ -13,7 +13,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done
 | 2 | [Desktop app MVP](phases/phase-2.md) | Tauri + Svelte outliner: editing, keyboard model, undo, links, backlinks, namespaces, journals, search, packaging | 🟨 (implemented and browser-tested; see the status table in the phase doc) |
 | 3 | [Tasks, queries, views](phases/phase-3.md) | Task states and dates, agenda, live query blocks, list/table/kanban/timeline views, repeating tasks | 🟨 (implemented and browser-tested; manual acceptance open) |
 | 4 | [Calendar (CalDAV)](phases/phase-4.md) | Two-way task sync and event display with Nextcloud, safe conflict/deletion handling | ⬜ |
-| 5 | [V1 polish](phases/phase-5.md) | 3-way merge + conflict UI, multiple graphs, assets, aliases, unlinked refs, namespace moves, templates, drag-drop, smart paste, themes | ⬜ |
+| 5 | [V1 polish](phases/phase-5.md) | (P5.8 unlinked references already built) 3-way merge + conflict UI, multiple graphs, assets, aliases, unlinked refs, namespace moves, templates, drag-drop, smart paste, themes | ⬜ |
 | 6 | [Plugins and scripting](phases/phase-6.md) | Sandboxed TypeScript plugin API with permissions, custom views, user scripts, example plugins, security suite | ⬜ |
 | 7 | [AI (optional)](phases/phase-7.md) | Ollama provider, embeddings in sqlite-vec, hybrid search, related notes, chat with citations, privacy guarantees | ⬜ |
 | 8 | [Android](phases/phase-8.md) | Tauri Android build, built-in WebDAV sync, mobile UI, quick capture, share target, CalDAV on mobile | ⬜ |
@@ -31,25 +31,23 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done
 | 7 | Search and ask questions by meaning |
 | 8 | Use the app on Android |
 
+## Built beyond the phase plans (2026-10)
+
+Done while using the app, each with requirement IDs in [requirements.md](requirements.md) and tests; the per-feature status is in the tables of
+[phase-2.md](phases/phase-2.md) and [phase-3.md](phases/phase-3.md), how to use it in [keymap.md](keymap.md):
+
+- Editor: slash menu (grouped, searchable), date pickers with an ISO calendar, `/log` task logbook, emojis (`:shortcode`, `/emoji`), drag-and-drop reordering, path to the focused block, page zoom, Firefox-style mouse navigation.
+- Pages: Hierarchy, page Tasks section, Recent list, All pages, page properties (edit, group the sidebar by a property, click a property to list its pages), page icons, unlinked references, namespace move/rename (with revert), path segments as implicit tags (`path:`). Renaming a middle path segment renames the namespace (NS-19). Linked references show the block with its sub-bullets (LN-10); links and tags apply to the subtree in queries, `direct: yes` opts out (LN-11, D31). Agenda has a Later section.
+- Settings: four panes (device vs graph), date language/format/custom pattern, link brackets.
+- Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image paste (P5.5).
+
 ## Known issues
 
-- UI e2e flake (~1 in 10 runs, hidden by `retries: 2`): in `ui/tests/editing.spec.ts` the first Ctrl+Z pressed after Esc, Esc sometimes
-  doesn't reach the global key handler (no request is sent, no toast). Investigate the focus/mode transition in `App.svelte` `globalKey`.
-- Phase 2 is incomplete: see `docs/phases/phase-2.md` (rendering, basic editing, undo, search, journals, namespace tree, rename and
-  conflict banner exist; selection tests, Tauri crate, settings, a11y tests, packaging, perf measurements and the manual checklist are open).
-  UI tests run against the real Rust backend through `notatnik-dev-server` instead of a WASM mock (decision pending in architecture.md).
+- UI e2e flake, only when several browsers run in parallel (a few percent of runs, hidden by `retries: 2`): occasionally the **first** request of the app (`graph_info` at start-up, or a `get_block`) gets no answer, so `app.today` stays empty or a `((id))` stays at `…`. It does not happen with `--workers=1` and could not be reproduced with `curl`. Found and fixed on the way: the UI ran **two** `/poll` long-polls (now one shared loop in `api/http.ts`), which cut the failure rate of the refs test from ~25% to 0 in 20 runs. Still open: the dev server (`tiny_http`, one thread per request) under CPU load. Next step: log requests on the server side with timestamps and compare with the browser's request log.
+- Never build another checkout (e.g. a `git worktree`) into this repository's `target/`: Cargo reuses artifacts by crate id, so it silently hands the e2e tests a stale `notatnik-dev-server` (missing new fields). Use `CARGO_TARGET_DIR` for other checkouts.
 
-## Later / ideas backlog
-
-Not scheduled; may become phase 9+ or plugins.
-
-- WASM plugins via Extism (PG-6)
-- Graph view (LN-9)
-- KaTeX and Mermaid (ED-12)
-- Meeting notes from calendar events (CA-10)
-- Email-to-note (IN-3), Nextcloud Deck/Notes (IN-4)
-- Export / publish a static site from a namespace (IN-5)
-- Windows / macOS builds (PL-2)
-- Polish UI translation (NF-10)
-- Background sync on Android via WorkManager
-- Home-screen widget on Android
+- Fixed 2026-10-05: the "selecting blocks: indent all and copy as Markdown" flake (~1 in 10) was a real race. Selection commands (indent, outdent, move, delete) computed their ops from the page as it was when the key was pressed, so a Delete right after a Tab used the page from before the indent. They now build the ops when the request reaches the front of the page's queue (`applyWith`), like the editor commits. 30/30 runs pass.
+- Phase 2 is implemented and browser-tested but not finished: WebKitGTK performance (S1), an AppImage, the `tauri-driver` end-to-end
+  harness, paste/flush-on-quit browser tests and the manual checklist are open. See the status table in `docs/phases/phase-2.md`.
+  UI tests run against the real Rust backend through `notatnik-dev-server` (decision D21).
+- Page zoom (Ctrl +/-/0) is unit-tested only; check it once in a real `cargo tauri dev` window (needs the capability rebuild).

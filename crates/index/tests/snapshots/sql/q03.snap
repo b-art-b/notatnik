@@ -6,6 +6,6 @@ links: people/anna
 text: parser, spec
 limit: 5
 ---
-SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE b.id IN (SELECT r.src_block_id FROM refs r WHERE r.kind IN ('page','tag','page_embed') AND r.src_block_id IS NOT NULL AND r.target_key IN (?1)) AND b.id IN (SELECT rowid FROM fts WHERE rowid > 0 AND fts MATCH ?2) ORDER BY p.key, b.id LIMIT 5
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE b.id IN (WITH RECURSIVE sub(id) AS (SELECT r.src_block_id FROM refs r WHERE r.kind IN ('page','tag','page_embed') AND r.src_block_id IS NOT NULL AND r.target_key IN (?1) UNION SELECT c.id FROM blocks c JOIN sub s ON c.parent_id = s.id) SELECT id FROM sub) AND b.id IN (SELECT rowid FROM fts WHERE rowid > 0 AND fts MATCH ?2) ORDER BY p.key, b.id LIMIT 5
 ---
 [Text("people/anna"), Text("(\"parser\") OR (\"spec\")")]

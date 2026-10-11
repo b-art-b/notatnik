@@ -14,5 +14,5 @@
 </script>
 
 {#each blocks as block (block.id)}
-  <Block {block} {docName} {viewKey} {readonly} {chain} />
+  <Block {block} {docName} {viewKey} {readonly} {chain} compact />
 {/each}

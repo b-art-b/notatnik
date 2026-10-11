@@ -378,7 +378,7 @@ expression: page
         },
         "scheduled": "2026-10-05",
         "deadline": null,
-        "priority": "high",
+        "priority": "A",
         "repeat": null,
         "done": null
       },

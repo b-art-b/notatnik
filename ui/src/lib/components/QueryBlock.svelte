@@ -8,7 +8,12 @@
   import KanbanView from './views/KanbanView.svelte'
   import TimelineView from './views/TimelineView.svelte'
 
-  let { text, saved = false }: { text: string; saved?: boolean } = $props()
+  // `forcedView`: the caller picks the view (the agenda has its own switcher), so the view buttons are hidden
+  let {
+    text,
+    saved = false,
+    forcedView = null,
+  }: { text: string; saved?: boolean; forcedView?: string | null } = $props()
   let viewOverride = $state<string | null>(null)
   let result = $state<QueryView | null>(null)
   let showQuery = $state(false)
@@ -17,12 +22,12 @@
   // not reactive on purpose: reading `result` inside the effect would make it re-run after every result
   let firstRun = true
   const id = `q${Math.random().toString(36).slice(2, 8)}`
-  const view = $derived(viewOverride ?? result?.view ?? 'list')
+  const view = $derived(forcedView ?? viewOverride ?? result?.view ?? 'list')
 
   $effect(() => {
     void bus.version
     const q = text
-    const v = viewOverride
+    const v = forcedView ?? viewOverride
     let cancelled = false
     const timer = setTimeout(
       async () => {
@@ -70,19 +75,24 @@
   data-testid="query-block"
   role="group"
   aria-label="Query results"
-  onclick={(e) => e.stopPropagation()}
   onkeydown={(e) => e.stopPropagation()}
 >
   <div class="head">
     <span class="count" data-testid="query-count"
       >{result ? `${result.rows.length} result${result.rows.length === 1 ? '' : 's'}` : '…'}</span
     >
-    <span class="grow"></span>
-    {#each views as v (v)}
-      <button class="v" class:on={view === v} aria-pressed={view === v} onclick={() => (viewOverride = v)}
-        >{v}</button
-      >
-    {/each}
+    <!-- not a button on purpose: a click on the header (or the frame, or the shown query text) is a click on
+         the block, which opens it for editing; only the results below keep their own clicks -->
+    <span class="grow edit-hint"
+      >{#if !forcedView && !saved}✎ click here to edit the query{/if}</span
+    >
+    {#if !forcedView}
+      {#each views as v (v)}
+        <button class="v" class:on={view === v} aria-pressed={view === v} onclick={() => (viewOverride = v)}
+          >{v}</button
+        >
+      {/each}
+    {/if}
     <button class="v" onclick={() => (showQuery = !showQuery)} aria-expanded={showQuery}>show query</button>
     {#if !saved}<button class="v" onclick={() => (saving = !saving)}>save</button>{/if}
   </div>
@@ -98,21 +108,23 @@
   {/if}
   {#if showQuery}<pre class="code">{text}</pre>{/if}
   {#if result}
-    {#if result.errors.length}
-      <ul class="errors" role="alert" data-testid="query-errors">
-        {#each result.errors as e, i (i)}
-          <li>line {e.line}, column {e.column}: {e.message}{e.suggestion ? `; ${e.suggestion}` : ''}</li>
-        {/each}
-      </ul>
-    {:else if view === 'table'}
-      <TableView rows={result.rows} columns={result.columns} />
-    {:else if view === 'kanban'}
-      <KanbanView rows={result.rows} groupBy={result.group_by} />
-    {:else if view === 'timeline'}
-      <TimelineView rows={result.rows} />
-    {:else}
-      <ListView rows={result.rows} groupBy={result.group_by} {id} />
-    {/if}
+    <div class="results" role="presentation" onclick={(e) => e.stopPropagation()}>
+      {#if result.errors.length}
+        <ul class="errors" role="alert" data-testid="query-errors">
+          {#each result.errors as e, i (i)}
+            <li>line {e.line}, column {e.column}: {e.message}{e.suggestion ? `; ${e.suggestion}` : ''}</li>
+          {/each}
+        </ul>
+      {:else if view === 'table'}
+        <TableView rows={result.rows} columns={result.columns} />
+      {:else if view === 'kanban'}
+        <KanbanView rows={result.rows} groupBy={result.group_by} />
+      {:else if view === 'timeline'}
+        <TimelineView rows={result.rows} />
+      {:else}
+        <ListView rows={result.rows} groupBy={result.group_by} {id} />
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -133,6 +145,12 @@
   }
   .grow {
     flex: 1;
+    align-self: stretch;
+  }
+  .edit-hint {
+    color: var(--muted);
+    cursor: text;
+    padding: 0.2em 0;
   }
   .count {
     font-weight: 650;

@@ -80,5 +80,6 @@ expression: q
     "by": "task"
   },
   "view": "kanban",
-  "columns": []
+  "columns": [],
+  "direct": false
 }

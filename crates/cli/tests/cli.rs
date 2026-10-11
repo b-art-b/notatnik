@@ -171,9 +171,9 @@ fn errors_exit_with_one_and_a_clear_message() {
     let (_, err, code) = e.run(&["index", "/definitely/not/here"]);
     assert_eq!(code, 1);
     assert!(err.contains("not found"), "{err}");
-    let (_, err, code) = e.run(&["rename", e.g(), "work", "jobs"]);
+    let (_, err, code) = e.run(&["rename", e.g(), "work", "work/projects/x"]);
     assert_eq!(code, 1);
-    assert!(err.contains("subpages"), "{err}");
+    assert!(err.contains("into itself"), "{err}");
 }
 
 #[test]

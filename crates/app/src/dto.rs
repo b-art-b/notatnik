@@ -101,8 +101,10 @@ pub struct TaskView {
     pub scheduled: Option<String>,
     /// `deadline::` as text.
     pub deadline: Option<String>,
-    /// `high`, `medium` or `low`.
+    /// The priority label as written in the file (`A`, `B`, `C` by default).
     pub priority: Option<String>,
+    /// Its rank: 0 is the most important.
+    pub priority_rank: Option<u32>,
     /// `repeat::` as text.
     pub repeat: Option<String>,
 }
@@ -124,12 +126,25 @@ pub struct BlockView {
     pub content: Vec<Node>,
     /// Task data.
     pub task: Option<TaskView>,
+    /// Progress notes from the `:LOGBOOK:` drawer, in file order.
+    pub logbook: Vec<LogEntryView>,
     /// Properties.
     pub props: Vec<PropView>,
     /// Collapsed on this device.
     pub collapsed: bool,
     /// Children.
     pub children: Vec<BlockView>,
+}
+
+/// One line of a task's logbook.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct LogEntryView {
+    /// `YYYY-MM-DD` or `YYYY-MM-DD HH:MM`; empty for a line without a date.
+    pub when: String,
+    /// The note as written.
+    pub text: String,
+    /// The note rendered (links, tags, emphasis ...).
+    pub content: Vec<Node>,
 }
 
 /// Frontmatter for display.
@@ -200,6 +215,8 @@ pub struct GraphInfo {
     pub week_start: String,
     /// `[tasks] completed_log_limit` (0 = keep all dates of repeating tasks).
     pub completed_log_limit: u32,
+    /// `[tasks] priorities`: the priority labels, most important first.
+    pub priority_labels: Vec<String>,
 }
 
 /// Result of an edit.
@@ -240,12 +257,132 @@ pub struct BacklinkView {
     pub source_page: String,
     /// Block path, `None` for page-level links.
     pub block_path: Option<Vec<u32>>,
-    /// The linking block (rendered), without its children.
+    /// The linking block (rendered) with its whole subtree.
     pub block: Option<BlockView>,
-    /// Parent block texts, outermost first.
+    /// Parent block texts, outermost first; entry `i` is the block at `block_path[..=i]`.
     pub breadcrumbs: Vec<String>,
     /// `page`, `tag` or `page_embed`.
     pub kind: String,
+}
+
+/// A block that mentions a page in plain text without linking to it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct UnlinkedView {
+    /// Source page.
+    pub source_page: String,
+    /// Block path in the source page.
+    pub block_path: Vec<u32>,
+    /// The mentioning block (rendered), without its children.
+    pub block: BlockView,
+    /// Parent block texts, outermost first.
+    pub breadcrumbs: Vec<String>,
+    /// The page name or alias that matched.
+    pub term: String,
+    /// The block's text with the first mention turned into a link (what "Link" writes).
+    pub link_text: String,
+}
+
+/// One row of the all-pages list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageListRow {
+    /// Full page name.
+    pub name: String,
+    /// No file behind it (only referenced).
+    pub is_virtual: bool,
+    /// Journal page.
+    pub is_journal: bool,
+    /// Number of blocks.
+    pub blocks: u32,
+    /// Number of blocks/pages that link here.
+    pub backlinks: u32,
+    /// File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
+    pub modified: Option<String>,
+}
+
+/// Arguments of `page_groups`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageGroupsArgs {
+    /// The page-property key to group by.
+    pub key: String,
+}
+
+/// A page-property key and how many pages have it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageKeyView {
+    /// Key.
+    pub key: String,
+    /// Pages that have it.
+    pub pages: u32,
+}
+
+/// Pages sharing one value of a property.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageGroupView {
+    /// The value; `None` for the pages without the property.
+    pub value: Option<String>,
+    /// Page names.
+    pub pages: Vec<String>,
+}
+
+/// One page-icon rule.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageIconRuleView {
+    /// Page property.
+    pub key: String,
+    /// The value that selects the pages.
+    pub value: String,
+    /// The emoji.
+    pub icon: String,
+}
+
+/// A page and its icon.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageIconView {
+    /// Full page name.
+    pub name: String,
+    /// The emoji.
+    pub icon: String,
+}
+
+/// Arguments of `segment_view`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SegmentArgs {
+    /// A name used as a path segment (`Renewal`), or several in a row (`Renewal/Snowflake`).
+    pub segment: String,
+}
+
+/// One place where a segment occurs in page paths.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SegmentGroupView {
+    /// The path up to and including the segment.
+    pub occurrence: String,
+    /// That page has no file of its own.
+    pub occurrence_is_virtual: bool,
+    /// The pages below it.
+    pub pages: Vec<TitleHit>,
+}
+
+/// Everything about a path segment (`segment_view`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SegmentView {
+    /// The segment as asked for.
+    pub segment: String,
+    /// The places where it occurs.
+    pub groups: Vec<SegmentGroupView>,
+}
+
+/// Arguments of `segment_places`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SegmentPlacesArgs {
+    /// The segments to count.
+    pub segments: Vec<String>,
+}
+
+/// In how many places each segment occurs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct SegmentPlacesView {
+    /// One number per asked segment, same order.
+    pub places: Vec<u32>,
 }
 
 /// One node of the namespace tree.
@@ -386,6 +523,9 @@ pub struct RenameArgs {
     pub old: String,
     /// New name.
     pub new: String,
+    /// Move the pages below it too (default). `false` renames only this page, which also allows a name below
+    /// the old one.
+    pub include_subpages: Option<bool>,
 }
 
 /// `ensure_block_id`
@@ -553,6 +693,8 @@ pub struct AgendaView {
     pub today_items: Vec<AgendaItem>,
     /// The next 7 days, one entry per day that has tasks.
     pub upcoming: Vec<AgendaDay>,
+    /// Open tasks dated after the next 7 days, earliest first.
+    pub later: Vec<AgendaItem>,
     /// Open tasks without any date.
     pub undated: Vec<AgendaItem>,
 }
@@ -564,6 +706,33 @@ pub struct SavedQueryView {
     pub name: String,
     /// Query text.
     pub query: String,
+}
+
+/// `delete_pages`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct DeletePagesArgs {
+    /// Page name.
+    pub page: String,
+    /// Also delete every page below it (a namespace).
+    pub include_subpages: bool,
+}
+
+/// `delete_pages`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct DeletePagesResult {
+    /// Hand this to `restore_pages` to undo; the files wait in the trash for 30 days.
+    pub trash_id: String,
+    /// Names of the pages that were deleted.
+    pub deleted: Vec<String>,
+    /// Pages that still link to the deleted pages (their links stay and point to an empty page).
+    pub linked_from: Vec<String>,
+}
+
+/// `restore_pages`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RestorePagesArgs {
+    /// Value of `DeletePagesResult.trash_id`.
+    pub trash_id: String,
 }
 
 /// `delete_saved_query`
@@ -587,10 +756,24 @@ pub struct SettingsView {
     pub theme: String,
     /// Device: locale for date formatting.
     pub date_locale: String,
+    /// Device: show `[[ ]]` around rendered links.
+    pub link_brackets: bool,
+    /// Device: `full` or `compact` task details on pages.
+    pub task_details: String,
+    /// Device: `full` or `compact` block properties on pages.
+    pub block_properties: String,
+    /// Device: `full`, `long`, `short`, `iso` or `custom`.
+    pub date_format: String,
+    /// Device: pattern used when `date_format` is `custom`.
+    pub date_pattern: String,
     /// Graph: `monday` or `sunday`.
     pub week_start: String,
+    /// Graph: the page-icon rules (`type: person` → 👤).
+    pub page_icons: Vec<PageIconRuleView>,
     /// Graph: keep only the last N completion dates of repeating tasks (0 = all).
     pub completed_log_limit: u32,
+    /// Graph: the priority labels (one to nine), most important first.
+    pub priorities: Vec<String>,
     /// The open graph's folder.
     pub graph_root: String,
 }
@@ -602,8 +785,22 @@ pub struct SetSettingsArgs {
     pub theme: Option<String>,
     /// Device: date locale.
     pub date_locale: Option<String>,
+    /// Device: show brackets around rendered links.
+    pub link_brackets: Option<bool>,
+    /// Device: `full` or `compact` task details.
+    pub task_details: Option<String>,
+    /// Device: `full` or `compact` block properties.
+    pub block_properties: Option<String>,
+    /// Device: date format.
+    pub date_format: Option<String>,
+    /// Device: custom date pattern.
+    pub date_pattern: Option<String>,
     /// Graph: week start.
     pub week_start: Option<String>,
     /// Graph: completed log limit.
     pub completed_log_limit: Option<u32>,
+    /// Graph: the priority labels (validated: one to nine).
+    pub priorities: Option<Vec<String>>,
+    /// Graph: replaces the page-icon rules.
+    pub page_icons: Option<Vec<PageIconRuleView>>,
 }

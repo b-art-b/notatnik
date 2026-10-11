@@ -170,3 +170,54 @@ fn id_excluded_from_search_text() {
         "See [[work/alpha|the alpha]] and #tag ((abc123))\nstatus:: active\nmore [[b]] text"
     );
 }
+
+#[test]
+fn priority_is_a_label_of_the_graph_with_a_rank() {
+    use notatnik_core::{ParseOptions, Priority, parse_page_with};
+    // the default labels A, B, C; `high`, `medium`, `low` are the first, middle and last
+    for (v, label, rank) in [
+        ("A", "A", 0),
+        ("b", "B", 1),
+        ("c", "C", 2),
+        ("high", "A", 0),
+        ("medium", "B", 1),
+        ("low", "C", 2),
+    ] {
+        let p = Priority::parse(v).unwrap_or_else(|| panic!("{v}"));
+        assert_eq!((p.name(), p.rank()), (label, rank), "{v}");
+    }
+    assert_eq!(Priority::parse("P1"), None);
+    assert_eq!(Priority::parse(""), None);
+    // any number of labels
+    let two = vec!["!!".to_string(), "!".to_string()];
+    assert_eq!(Priority::parse_with("!", &two).unwrap().rank(), 1);
+    assert_eq!(Priority::parse_with("high", &two).unwrap().name(), "!!");
+    assert_eq!(Priority::parse_with("low", &two).unwrap().name(), "!");
+    assert_eq!(
+        Priority::parse_with("A", &two),
+        None,
+        "A is not one of these labels"
+    );
+    let four: Vec<String> = ["P1", "P2", "P3", "P4"]
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(Priority::parse_with("p4", &four).unwrap().rank(), 3);
+    assert_eq!(Priority::parse_with("medium", &four).unwrap().name(), "P3");
+    // a page parsed with the labels: no warning; without them the label is unknown
+    let src = "- TODO x\n  priority:: P1\n";
+    let opts = ParseOptions {
+        priority_labels: four,
+        ..ParseOptions::default()
+    };
+    let page = parse_page_with(src, &opts);
+    let t = page.blocks[0].task.as_ref().unwrap();
+    assert_eq!(t.priority.as_ref().unwrap().name(), "P1");
+    assert!(page.diagnostics.is_empty());
+    let page = parse_page_with(src, &ParseOptions::default());
+    assert!(
+        page.diagnostics
+            .iter()
+            .any(|d| d.code == "invalid-priority")
+    );
+}

@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use chrono::{Days, NaiveDate};
 use notatnik_core::{
-    BlockIdentity, BlockOp, BlockRef, PageName, ParseOptions, TextPatch, apply_patches,
-    invert_patches, page_to_path, parse_page_with,
+    BlockIdentity, BlockOp, BlockRef, PageName, TextPatch, apply_patches, invert_patches,
+    page_to_path, parse_page_with,
 };
 use notatnik_graph::{Dirs, Error as GraphError, Graph, Watcher};
 use serde::{Deserialize, Serialize};
@@ -110,6 +110,8 @@ pub struct AppState {
     today: Arc<dyn Fn() -> NaiveDate + Send + Sync>,
     dirs: Dirs,
     watch: bool,
+    /// The plan of a rename that stopped half way (for `rename_revert`).
+    last_rename: Mutex<Option<notatnik_graph::RenamePlan>>,
 }
 
 /// Options for [`AppState::new`].
@@ -161,6 +163,7 @@ impl AppState {
             today: o.today,
             dirs: o.dirs,
             watch: o.watch,
+            last_rename: Mutex::new(None),
         }
     }
 
@@ -237,6 +240,7 @@ impl AppState {
             warnings,
             week_start: graph.config().graph.week_start,
             completed_log_limit: graph.config().tasks.completed_log_limit,
+            priority_labels: graph.config().priority_labels(),
         }
     }
 
@@ -279,12 +283,7 @@ impl AppState {
             None => (String::new(), None, false),
         };
         let cfg = o.graph.config();
-        let parsed = parse_page_with(
-            &text,
-            &ParseOptions {
-                property_types: cfg.property_types(),
-            },
-        );
+        let parsed = parse_page_with(&text, &cfg.parse_options());
         let hidden: HashSet<String> = cfg.properties.hidden.iter().cloned().collect();
         let collapsed: HashSet<String> =
             o.ui.collapsed
@@ -509,6 +508,28 @@ impl AppState {
     pub fn backlinks(&self, a: PageArgs) -> ApiResult<Vec<BacklinkView>> {
         self.with_open(|o| {
             let links = o.graph.with_index(|i| i.backlinks(&a.page))?;
+            // A reference is shown with its whole subtree (LN-10), so a block below another referencing block of the
+            // same page is already part of that one and is left out.
+            let mut paths: std::collections::HashSet<(&str, &str)> =
+                std::collections::HashSet::new();
+            for l in &links {
+                if let Some(p) = l.block_path.as_deref() {
+                    paths.insert((l.source_page.as_str(), p));
+                }
+            }
+            let nested = |l: &notatnik_index::Backlink| {
+                l.block_path.as_deref().is_some_and(|p| {
+                    let mut cut = p;
+                    while let Some((head, _)) = cut.rsplit_once('.') {
+                        if paths.contains(&(l.source_page.as_str(), head)) {
+                            return true;
+                        }
+                        cut = head;
+                    }
+                    false
+                })
+            };
+            let links: Vec<_> = links.iter().filter(|l| !nested(l)).cloned().collect();
             let mut views: HashMap<String, PageView> = HashMap::new();
             let mut out = Vec::new();
             for l in links {
@@ -525,11 +546,7 @@ impl AppState {
                         views
                             .get(&l.source_page)
                             .and_then(|v| find_block(&v.blocks, bp))
-                            .map(|b| {
-                                let mut b = b.clone();
-                                b.children = Vec::new();
-                                b
-                            })
+                            .cloned()
                     }
                     _ => None,
                 };
@@ -542,6 +559,195 @@ impl AppState {
                 });
             }
             Ok(out)
+        })
+    }
+
+    /// `unlinked_refs`: plain-text mentions of the page (or its aliases) that are not links (LN-4).
+    pub fn unlinked_refs(&self, a: PageArgs) -> ApiResult<Vec<UnlinkedView>> {
+        self.with_open(|o| {
+            let found = o.graph.with_index(|i| i.unlinked_refs(&a.page, 200))?;
+            // the target of the new link: the page's real name (a virtual page keeps the name as typed)
+            let target = Self::parse_name(&a.page)?.as_str().to_string();
+            let mut views: HashMap<String, PageView> = HashMap::new();
+            let mut out = Vec::new();
+            for u in found {
+                let path: Vec<u32> = u
+                    .block_path
+                    .split('.')
+                    .filter_map(|x| x.parse().ok())
+                    .collect();
+                if !views.contains_key(&u.source_page) {
+                    let n = Self::parse_name(&u.source_page)?;
+                    views.insert(u.source_page.clone(), Self::build_view(o, &n)?.0);
+                }
+                let Some(block) = views
+                    .get(&u.source_page)
+                    .and_then(|v| find_block(&v.blocks, &path))
+                else {
+                    continue;
+                };
+                let Some(link_text) =
+                    notatnik_core::mentions::link_first_mention(&block.text, &u.term, &target)
+                else {
+                    continue; // the index was stale: the text no longer mentions it
+                };
+                let mut block = block.clone();
+                block.children = Vec::new();
+                out.push(UnlinkedView {
+                    source_page: u.source_page,
+                    block_path: path,
+                    block,
+                    breadcrumbs: u.breadcrumbs,
+                    term: u.term,
+                    link_text,
+                });
+            }
+            Ok(out)
+        })
+    }
+
+    /// `page_property_keys`: the page properties in use, for the "group by" picker.
+    pub fn page_property_keys(&self, _a: NoArgs) -> ApiResult<Vec<PageKeyView>> {
+        self.with_open(|o| {
+            Ok(o.graph
+                .with_index(|i| i.page_property_keys())?
+                .into_iter()
+                .map(|k| PageKeyView {
+                    key: k.key,
+                    pages: k.pages as u32,
+                })
+                .collect())
+        })
+    }
+
+    /// `page_groups`: pages grouped by the value of a page property.
+    pub fn page_groups(&self, a: PageGroupsArgs) -> ApiResult<Vec<PageGroupView>> {
+        self.with_open(|o| {
+            Ok(o.graph
+                .with_index(|i| i.page_groups(&a.key))?
+                .into_iter()
+                .map(|g| PageGroupView {
+                    value: g.value,
+                    pages: g.pages,
+                })
+                .collect())
+        })
+    }
+
+    /// `subpages`: every page below a page in the namespace tree, at any depth, in tree order (the "Hierarchy" list).
+    pub fn subpages(&self, a: PageArgs) -> ApiResult<Vec<TitleHit>> {
+        self.with_open(|o| {
+            Ok(o.graph
+                .with_index(|i| i.subtree_pages(&a.page))?
+                .into_iter()
+                .map(|p| TitleHit {
+                    name: p.name,
+                    is_virtual: p.is_virtual,
+                })
+                .collect())
+        })
+    }
+
+    /// `page_icons`: the icon of every page that has one. A page's own `icon:` property wins; otherwise the first
+    /// matching rule of the graph's `[[page_icons]]` decides.
+    pub fn page_icons(&self, _a: NoArgs) -> ApiResult<Vec<PageIconView>> {
+        self.with_open(|o| {
+            let rules = o.graph.config().page_icons.clone();
+            let found = o.graph.with_index(|i| {
+                let mut by_rule = Vec::new();
+                for r in &rules {
+                    by_rule.push((r.icon.clone(), i.pages_with_property(&r.key, &r.value)?));
+                }
+                Ok::<_, notatnik_index::Error>((by_rule, i.page_property_values("icon")?))
+            })?;
+            let mut icons: std::collections::BTreeMap<String, (String, String)> =
+                std::collections::BTreeMap::new();
+            // rules first (the first matching rule wins), then the explicit `icon:` of a page overrides
+            for (icon, pages) in found.0 {
+                for name in pages {
+                    icons
+                        .entry(name.to_lowercase())
+                        .or_insert((name.clone(), icon.clone()));
+                }
+            }
+            for (name, icon) in found.1 {
+                icons.insert(name.to_lowercase(), (name, icon));
+            }
+            // today's journal may have no file yet, so it has no `type: journal` row: give it the journal rule's
+            // icon (unless a file of that name exists and says otherwise)
+            if let Some(rule) = rules.iter().find(|r| {
+                r.key.eq_ignore_ascii_case("type") && r.value.trim().eq_ignore_ascii_case("journal")
+            }) {
+                let today = (self.today)().format("%Y-%m-%d").to_string();
+                let has_file = o
+                    .graph
+                    .with_index(|i| i.page_property_values("type"))?
+                    .iter()
+                    .any(|(n, _)| n == &today);
+                if !has_file {
+                    icons
+                        .entry(today.clone())
+                        .or_insert((today, rule.icon.clone()));
+                }
+            }
+            Ok(icons
+                .into_values()
+                .map(|(name, icon)| PageIconView { name, icon })
+                .collect())
+        })
+    }
+
+    /// `segment_view`: every place where a name occurs as a path segment, with the pages below it (the
+    /// "implicit tag" view of `Renewal` in `P/EY/Renewal/APotheke`).
+    pub fn segment_view(&self, a: SegmentArgs) -> ApiResult<SegmentView> {
+        self.with_open(|o| {
+            let groups = o.graph.with_index(|i| i.segment_groups(&a.segment))?;
+            Ok(SegmentView {
+                segment: a.segment,
+                groups: groups
+                    .into_iter()
+                    .map(|g| SegmentGroupView {
+                        occurrence: g.occurrence,
+                        occurrence_is_virtual: g.occurrence_is_virtual,
+                        pages: g
+                            .pages
+                            .into_iter()
+                            .map(|(name, is_virtual)| TitleHit { name, is_virtual })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+        })
+    }
+
+    /// `segment_places`: in how many places each segment occurs (for the badge in the hierarchy).
+    pub fn segment_places(&self, a: SegmentPlacesArgs) -> ApiResult<SegmentPlacesView> {
+        self.with_open(|o| {
+            let n = o.graph.with_index(|i| i.segment_places(&a.segments))?;
+            Ok(SegmentPlacesView {
+                places: n.into_iter().map(|x| x as u32).collect(),
+            })
+        })
+    }
+
+    /// `all_pages`: every page with counts, for the all-pages view.
+    pub fn all_pages(&self, _a: NoArgs) -> ApiResult<Vec<PageListRow>> {
+        self.with_open(|o| {
+            let rows = o.graph.with_index(|i| i.all_pages())?;
+            Ok(rows
+                .into_iter()
+                .map(|r| PageListRow {
+                    name: r.name,
+                    is_virtual: r.is_virtual,
+                    is_journal: r.is_journal,
+                    blocks: r.blocks as u32,
+                    backlinks: r.backlinks as u32,
+                    modified: r.mtime_ns.and_then(|ns| {
+                        chrono::DateTime::from_timestamp(ns.div_euclid(1_000_000_000), 0)
+                            .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+                    }),
+                })
+                .collect())
         })
     }
 
@@ -596,7 +802,9 @@ impl AppState {
     /// `rename_plan`
     pub fn rename_plan(&self, a: RenameArgs) -> ApiResult<RenamePlanView> {
         self.with_open(|o| {
-            let p = o.graph.plan_rename(&a.old, &a.new)?;
+            let p = o
+                .graph
+                .plan_rename_with(&a.old, &a.new, a.include_subpages.unwrap_or(true))?;
             Ok(RenamePlanView {
                 old: p.old,
                 new: p.new,
@@ -617,8 +825,21 @@ impl AppState {
     /// `rename_apply`
     pub fn rename_apply(&self, a: RenameArgs) -> ApiResult<PageView> {
         self.with_open(|o| {
-            let plan = o.graph.plan_rename(&a.old, &a.new)?;
-            o.graph.apply_rename(&plan)?;
+            let plan =
+                o.graph
+                    .plan_rename_with(&a.old, &a.new, a.include_subpages.unwrap_or(true))?;
+            if let Err(e) = o.graph.apply_rename(&plan) {
+                // remember it: the user can revert what was already written
+                *self
+                    .last_rename
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(plan);
+                return Err(e.into());
+            }
+            *self
+                .last_rename
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
             // history of the old name can't be undone safely
             o.undo.retain(|e| e.page != plan.old);
             o.redo.retain(|e| e.page != plan.old);
@@ -628,6 +849,105 @@ impl AppState {
                 json!({ "pages": [plan.old.clone(), plan.new.clone()], "paths": [], "own": true }),
             );
             Ok(Self::build_view(o, &n)?.0)
+        })
+    }
+
+    /// `delete_pages`: moves a page (and optionally everything below it) to the trash. Links to it stay: the page
+    /// becomes an empty page again. `restore_pages` brings the files back.
+    pub fn delete_pages(&self, a: DeletePagesArgs) -> ApiResult<DeletePagesResult> {
+        self.with_open(|o| {
+            let info = o
+                .graph
+                .with_index(|i| i.page_info(&a.page))?
+                .ok_or_else(|| ApiError::new("not_found", format!("no page `{}`", a.page)))?;
+            let mut pages: Vec<(String, String)> = Vec::new();
+            if let Some(f) = info.file_path.clone() {
+                pages.push((info.name.clone(), f));
+            }
+            if a.include_subpages {
+                for s in o.graph.with_index(|i| i.subtree_pages(&info.name))? {
+                    if let Some(f) = s.file_path {
+                        pages.push((s.name, f));
+                    }
+                }
+            }
+            if pages.is_empty() {
+                return Err(ApiError::new(
+                    "invalid",
+                    format!("`{}` has no file: there is nothing to delete", info.name),
+                ));
+            }
+            let rels: Vec<String> = pages.iter().map(|p| p.1.clone()).collect();
+            let trash_id = o.graph.trash_pages(&rels)?;
+            let names: Vec<String> = pages.into_iter().map(|p| p.0).collect();
+            // the history of a deleted page can't be undone any more
+            o.undo.retain(|e| !names.contains(&e.page));
+            o.redo.retain(|e| !names.contains(&e.page));
+            let mut linked_from: Vec<String> = Vec::new();
+            for n in &names {
+                for l in o.graph.with_index(|i| i.backlinks(n))? {
+                    if !names.contains(&l.source_page) && !linked_from.contains(&l.source_page) {
+                        linked_from.push(l.source_page);
+                    }
+                }
+            }
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": names.clone(), "paths": rels, "own": true }),
+            );
+            Ok(DeletePagesResult {
+                trash_id,
+                deleted: names,
+                linked_from,
+            })
+        })
+    }
+
+    /// `restore_pages`: puts deleted pages back (what `delete_pages` returned as `trash_id`).
+    pub fn restore_pages(&self, a: RestorePagesArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            let restored = o.graph.restore_trash(&a.trash_id)?;
+            let pages: Vec<String> = restored
+                .iter()
+                .filter_map(|r| o.graph.with_index(|i| i.page_for_file(r)).ok().flatten())
+                .collect();
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": pages, "paths": restored.clone(), "own": true }),
+            );
+            Ok(StringList { items: pages })
+        })
+    }
+
+    /// `archived_pages`: pages with `archived: true` (the pages below them are archived too; the UI applies that).
+    pub fn archived_pages(&self, _a: NoArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            Ok(StringList {
+                items: o.graph.with_index(|i| i.archived_pages())?,
+            })
+        })
+    }
+
+    /// `rename_revert`: undoes a rename that stopped half way (files rewritten before the conflict get their old
+    /// text back, moved files return). Returns the restored paths.
+    pub fn rename_revert(&self, _a: NoArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            let plan = self
+                .last_rename
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take()
+                .ok_or_else(|| {
+                    ApiError::new("invalid", "there is no unfinished rename to revert")
+                })?;
+            let restored = o.graph.revert_rename(&plan)?;
+            o.undo.retain(|e| e.page != plan.old && e.page != plan.new);
+            o.redo.retain(|e| e.page != plan.old && e.page != plan.new);
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": [plan.old.clone(), plan.new.clone()], "paths": [], "own": false }),
+            );
+            Ok(StringList { items: restored })
         })
     }
 
@@ -939,13 +1259,17 @@ impl AppState {
             text.push_str(&format!("tag: {}\n", name(tag)));
         }
         if let Some(p) = &a.priority {
-            if !matches!(p.as_str(), "high" | "medium" | "low") {
+            let labels = self.with_open(|o| Ok(o.graph.config().priority_labels()))?;
+            if !labels.iter().any(|l| l.eq_ignore_ascii_case(p)) {
                 return Err(ApiError::new(
                     "invalid",
-                    "priority must be high, medium or low",
+                    format!(
+                        "unknown priority `{p}` (the labels are {})",
+                        labels.join(", ")
+                    ),
                 ));
             }
-            text.push_str(&format!("prop.priority: {p}\n"));
+            text.push_str(&format!("priority: {p}\n"));
         }
         let (query, errs) = notatnik_core::parse_query_partial(&text);
         if let Some(e) = errs.first() {
@@ -967,10 +1291,25 @@ impl AppState {
                 overdue: Vec::new(),
                 today_items: Vec::new(),
                 upcoming: Vec::new(),
+                later: Vec::new(),
                 undated: Vec::new(),
             };
             let mut days: BTreeMap<String, Vec<AgendaItem>> = BTreeMap::new();
+            // tasks of archived pages (and pages below them) are not on the agenda
+            let archived: Vec<String> = o
+                .graph
+                .with_index(|i| i.archived_pages())?
+                .into_iter()
+                .map(|n| n.to_lowercase())
+                .collect();
             for r in res.rows {
+                let lower = r.page.to_lowercase();
+                if archived
+                    .iter()
+                    .any(|a| lower == *a || lower.starts_with(&format!("{a}/")))
+                {
+                    continue;
+                }
                 let date = match (&r.scheduled, &r.deadline) {
                     (Some(s), Some(d)) => Some(s.min(d).clone()),
                     (Some(x), None) | (None, Some(x)) => Some(x.clone()),
@@ -989,10 +1328,11 @@ impl AppState {
                     Some(d) if d < today_s => view.overdue.push(item),
                     Some(d) if d == today_s => view.today_items.push(item),
                     Some(d) if d <= horizon => days.entry(d).or_default().push(item),
-                    Some(_) => {}
+                    Some(_) => view.later.push(item),
                 }
             }
             view.overdue.sort_by(|x, y| x.date.cmp(&y.date));
+            view.later.sort_by(|x, y| x.date.cmp(&y.date));
             view.upcoming = days
                 .into_iter()
                 .map(|(date, items)| AgendaDay { date, items })
@@ -1074,8 +1414,23 @@ impl AppState {
         Ok(SettingsView {
             theme: dev.ui.theme,
             date_locale: dev.ui.date_locale,
-            week_start: cfg.graph.week_start,
+            link_brackets: dev.ui.link_brackets,
+            task_details: dev.ui.task_details,
+            block_properties: dev.ui.block_properties,
+            date_format: dev.ui.date_format,
+            date_pattern: dev.ui.date_pattern,
+            priorities: cfg.priority_labels(),
+            week_start: cfg.graph.week_start.clone(),
             completed_log_limit: cfg.tasks.completed_log_limit,
+            page_icons: cfg
+                .page_icons
+                .iter()
+                .map(|r| PageIconRuleView {
+                    key: r.key.clone(),
+                    value: r.value.clone(),
+                    icon: r.icon.clone(),
+                })
+                .collect(),
             graph_root: o.graph.root().to_string_lossy().into_owned(),
         })
     }
@@ -1095,6 +1450,67 @@ impl AppState {
                 ));
             }
         }
+        if let Some(rules) = &a.page_icons {
+            for r in rules {
+                let (k, v, i) = (r.key.trim(), r.value.trim(), r.icon.trim());
+                if k.is_empty() || v.is_empty() || i.is_empty() {
+                    return Err(ApiError::new(
+                        "invalid",
+                        "a page icon needs a property, a value and an icon",
+                    ));
+                }
+                if k.chars().count() > 60 || v.chars().count() > 120 || i.chars().count() > 16 {
+                    return Err(ApiError::new(
+                        "invalid",
+                        "page icon: property or value too long, or more than a few characters of icon",
+                    ));
+                }
+                if k.chars().any(char::is_control) || v.chars().any(char::is_control) {
+                    return Err(ApiError::new("invalid", "page icon: no control characters"));
+                }
+            }
+        }
+        for (name, v) in [
+            ("task_details", &a.task_details),
+            ("block_properties", &a.block_properties),
+        ] {
+            if let Some(m) = v {
+                if !matches!(m.as_str(), "full" | "compact") {
+                    return Err(ApiError::new(
+                        "invalid",
+                        format!("{name} must be full or compact"),
+                    ));
+                }
+            }
+        }
+        if let Some(f) = &a.date_format {
+            if !notatnik_graph::DATE_FORMATS.contains(&f.as_str()) {
+                return Err(ApiError::new(
+                    "invalid",
+                    "date_format must be full, long, short, iso or custom",
+                ));
+            }
+        }
+        if let Some(p) = &a.date_pattern {
+            if p.chars().count() > 80 || p.chars().any(char::is_control) {
+                return Err(ApiError::new(
+                    "invalid",
+                    "date_pattern must be at most 80 characters, without control characters",
+                ));
+            }
+        }
+        if let Some(l) = &a.date_locale {
+            // a BCP 47 tag, e.g. `pl-PL`; the UI only offers known ones, this guards the settings file
+            let ok = !l.is_empty()
+                && l.len() <= 20
+                && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+            if !ok {
+                return Err(ApiError::new(
+                    "invalid",
+                    "date_locale must be a locale tag like pl-PL",
+                ));
+            }
+        }
         if let Some(w) = &a.week_start {
             if !matches!(w.as_str(), "monday" | "sunday") {
                 return Err(ApiError::new(
@@ -1104,7 +1520,14 @@ impl AppState {
             }
         }
         self.with_open(|o| {
-            if a.theme.is_some() || a.date_locale.is_some() {
+            if a.theme.is_some()
+                || a.date_locale.is_some()
+                || a.link_brackets.is_some()
+                || a.task_details.is_some()
+                || a.block_properties.is_some()
+                || a.date_format.is_some()
+                || a.date_pattern.is_some()
+            {
                 let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs)?;
                 if let Some(t) = a.theme {
                     dev.ui.theme = t;
@@ -1112,15 +1535,50 @@ impl AppState {
                 if let Some(l) = a.date_locale {
                     dev.ui.date_locale = l;
                 }
+                if let Some(f) = a.date_format {
+                    dev.ui.date_format = f;
+                }
+                if let Some(p) = a.date_pattern {
+                    dev.ui.date_pattern = p;
+                }
+                if let Some(b) = a.link_brackets {
+                    dev.ui.link_brackets = b;
+                }
+                if let Some(m) = a.task_details {
+                    dev.ui.task_details = m;
+                }
+                if let Some(m) = a.block_properties {
+                    dev.ui.block_properties = m;
+                }
                 dev.save(&self.dirs)?;
             }
-            if a.week_start.is_some() || a.completed_log_limit.is_some() {
+            if let Some(p) = &a.priorities {
+                notatnik_graph::validate_priorities(p).map_err(|m| ApiError::new("invalid", m))?;
+            }
+            if a.week_start.is_some()
+                || a.completed_log_limit.is_some()
+                || a.page_icons.is_some()
+                || a.priorities.is_some()
+            {
                 o.graph.update_config(|c| {
+                    if let Some(rules) = &a.page_icons {
+                        c.page_icons = rules
+                            .iter()
+                            .map(|r| notatnik_graph::PageIconRule {
+                                key: r.key.trim().to_string(),
+                                value: r.value.trim().to_string(),
+                                icon: r.icon.trim().to_string(),
+                            })
+                            .collect();
+                    }
                     if let Some(w) = &a.week_start {
                         c.graph.week_start = w.clone();
                     }
                     if let Some(n) = a.completed_log_limit {
                         c.tasks.completed_log_limit = n;
+                    }
+                    if let Some(p) = &a.priorities {
+                        c.tasks.priorities = p.iter().map(|l| l.trim().to_string()).collect();
                     }
                 })?;
             }

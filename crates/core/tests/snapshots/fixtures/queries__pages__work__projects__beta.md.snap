@@ -201,7 +201,7 @@ expression: page
         },
         "scheduled": null,
         "deadline": null,
-        "priority": "low",
+        "priority": "C",
         "repeat": null,
         "done": null
       },

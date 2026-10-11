@@ -148,8 +148,34 @@ test.describe('autocomplete', () => {
     await page.keyboard.type('sta')
     await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('status', { timeout: 5000 })
     await expect(page.locator('.cm-tooltip-autocomplete [aria-selected="true"]')).toBeVisible()
+    await page.waitForTimeout(150) // CodeMirror ignores an accept within 75 ms of the popup opening
     await page.keyboard.press('Enter')
     await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('draft', { timeout: 5000 })
     await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('reading')
   })
+})
+
+test('a query block opens for editing from its header, its frame and its shown query text', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/q.md', '- ```query\n  task: todo\n  ```\n- TODO find me\n')
+  await backend.open('/page/q')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  const q = blocks.getByTestId('query-block').first()
+  await expect(q).toContainText('find me')
+  // the header (a wide target, with a hint) edits the block
+  await q.getByText('click here to edit the query').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await expect(page.getByTestId('block-editor')).toContainText('task: todo')
+  await page.keyboard.press('Escape')
+  // so does the frame around it and the text of "show query"
+  await q.getByRole('button', { name: 'show query' }).click()
+  await q.locator('pre.code').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  // a click on a result is still the result's own (it does not open the query for editing)
+  await blocks.getByTestId('query-block').first().getByText('find me').first().click()
+  await expect(page.getByTestId('block-editor')).toBeFocused() // that editor is the task block's own
+  await expect(page.getByTestId('block-editor')).not.toContainText('task: todo')
 })

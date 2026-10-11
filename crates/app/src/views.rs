@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use notatnik_core::{Block, BlockIdentity, BlockKind, Page, PropertyValue};
 
-use crate::dto::{BlockView, FrontmatterView, Node, PageView, PropView, TaskView};
+use crate::dto::{BlockView, FrontmatterView, LogEntryView, Node, PageView, PropView, TaskView};
 use crate::render::{RefSpan, render};
 
 /// Per-device and per-graph display settings used while building views.
@@ -44,13 +44,25 @@ pub(crate) fn content_text(b: &Block, source: &str) -> (String, Vec<RefSpan>) {
     let props = b.props_span;
     let mut pos = b.first_line.start;
     let mut first = true;
-    for line in source
+    let own: Vec<&str> = source
         .get(b.first_line.start..own_end)
         .unwrap_or("")
         .split_inclusive('\n')
-    {
+        .collect();
+    // the logbook drawer is not rendered as text (it has its own list)
+    let drawer = {
+        let bodies: Vec<&str> = own
+            .iter()
+            .map(|l| l.trim_end_matches(['\n', '\r']))
+            .collect();
+        notatnik_core::logbook::find(&bodies)
+    };
+    for (idx, line) in own.iter().copied().enumerate() {
         let line_start = pos;
         pos += line.len();
+        if idx > 0 && drawer.as_ref().is_some_and(|d| d.contains(&idx)) {
+            continue;
+        }
         let body = line.trim_end_matches(['\n', '\r']);
         let (mut skip_front, mut end) = (0usize, body.len());
         if first {
@@ -109,6 +121,29 @@ pub(crate) fn content_text(b: &Block, source: &str) -> (String, Vec<RefSpan>) {
     (out, refs)
 }
 
+/// Renders a short single-line text (a logbook note) with its links, tags and emphasis.
+fn render_inline_text(text: &str) -> Vec<Node> {
+    if text.trim().is_empty() {
+        return Vec::new();
+    }
+    let mut items = Vec::new();
+    notatnik_core::inline::scan_line(text, 0, &mut items, &mut Vec::new());
+    let refs: Vec<RefSpan> = items
+        .into_iter()
+        .filter_map(|i| match i {
+            notatnik_core::inline::InlineItem::Ref(r) => Some(RefSpan {
+                start: r.span.start,
+                end: r.span.end,
+                kind: r.kind,
+                target: r.target.clone(),
+                label: r.label_span.map(|l| l.slice(text).to_string()),
+            }),
+            notatnik_core::inline::InlineItem::Highlight(_) => None,
+        })
+        .collect();
+    render(text, &refs)
+}
+
 fn block_view(
     b: &Block,
     source: &str,
@@ -131,7 +166,8 @@ fn block_view(
         state: t.state,
         scheduled: t.scheduled.map(|m| m.to_string()),
         deadline: t.deadline.map(|m| m.to_string()),
-        priority: t.priority.map(|p| p.name().to_string()),
+        priority: t.priority.as_ref().map(|p| p.name().to_string()),
+        priority_rank: t.priority.as_ref().map(|p| u32::from(p.rank())),
         repeat: b
             .properties
             .iter()
@@ -139,6 +175,22 @@ fn block_view(
             .map(|p| p.raw.clone()),
     });
     let hash = b.content_hash(source);
+    let logbook = {
+        let own: Vec<&str> = source
+            .get(b.first_line.start..b.own_span.end)
+            .unwrap_or("")
+            .lines()
+            .skip(1)
+            .collect();
+        notatnik_core::logbook::entries(&own)
+            .into_iter()
+            .map(|e| LogEntryView {
+                when: e.when,
+                content: render_inline_text(&e.text),
+                text: e.text,
+            })
+            .collect()
+    };
     let mut children = Vec::with_capacity(b.children.len());
     for (i, c) in b.children.iter().enumerate() {
         path.push(i);
@@ -158,6 +210,7 @@ fn block_view(
         text: b.edit_text(source),
         content,
         task,
+        logbook,
         props: b
             .properties
             .iter()

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { backend, type SearchHitView } from '../api'
-  import { app, navigate } from '../stores/app.svelte'
+  import { app } from '../stores/app.svelte'
+  import { jumpToBlock } from '../jump'
 
   let q = $state('')
   let hits = $state<SearchHitView[]>([])
@@ -20,9 +21,7 @@
   }
   function open(h: SearchHitView) {
     app.searchOpen = false
-    sessionStorage.setItem('notatnik-flash', JSON.stringify({ page: h.page, path: h.path }))
-    navigate({ kind: 'page', name: h.page, zoom: [] })
-    setTimeout(() => window.dispatchEvent(new CustomEvent('notatnik-flash')), 150)
+    jumpToBlock(h.page, h.path)
   }
   function marked(h: SearchHitView): { t: string; hl: boolean }[] {
     const out: { t: string; hl: boolean }[] = []

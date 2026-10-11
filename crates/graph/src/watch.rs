@@ -124,6 +124,12 @@ impl Graph {
         let mut dups: Vec<(String, Vec<DuplicateId>)> = Vec::new();
         let mut full = false;
         let mut conflict_paths: Vec<String> = Vec::new();
+        // `.notatnik/config.toml` edited by hand (or synced from another device): read it again
+        let config_touched = paths.iter().any(|p| {
+            p.strip_prefix(&root)
+                .is_ok_and(|r| r == Path::new(".notatnik/config.toml"))
+        });
+        let config_changed = config_touched && self.reload_config();
         {
             let mut g = self.lock();
             let mut files: Vec<String> = Vec::new();
@@ -210,6 +216,12 @@ impl Graph {
             let _ = self.fix_duplicates(&rel, &d);
         }
         if changed.is_empty() {
+            if config_changed {
+                return Some(GraphChanged {
+                    pages: Vec::new(),
+                    paths: vec![".notatnik/config.toml".to_string()],
+                });
+            }
             // conflict copies aren't pages, but the UI wants to know that the list changed
             if conflict_paths.is_empty() {
                 return None;
@@ -220,6 +232,9 @@ impl Graph {
                 pages: Vec::new(),
                 paths: conflict_paths,
             });
+        }
+        if config_changed {
+            changed.push(".notatnik/config.toml".to_string());
         }
         changed.sort();
         changed.dedup();

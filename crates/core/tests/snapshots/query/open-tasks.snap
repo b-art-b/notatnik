@@ -24,5 +24,6 @@ expression: q
   "limit": null,
   "group": null,
   "view": null,
-  "columns": []
+  "columns": [],
+  "direct": false
 }

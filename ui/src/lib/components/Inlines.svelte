@@ -4,7 +4,7 @@
   import { backend, type Inline } from '../api'
   import { app } from '../stores/app.svelte'
   import { pageHash } from '../route'
-  import { formatDate } from '../dates'
+  import { shownDate } from '../stores/format.svelte'
   import Self from './Inlines.svelte'
   import BlockRefView from './BlockRefView.svelte'
   import EmbedView from './EmbedView.svelte'
@@ -17,6 +17,7 @@
       if (!app.rightPanels.includes(name)) app.rightPanels.push(name)
     }
   }
+  import PageIcon from './PageIcon.svelte'
 </script>
 
 {#each items as it, i (i)}
@@ -49,7 +50,9 @@
       >{#if it.label}<Self
           items={it.label}
           {chain}
-        />{:else if /^\d{4}-\d{2}-\d{2}$/.test(it.target)}{formatDate(it.target)}{:else}{it.target}{/if}</a
+        />{:else if /^\d{4}-\d{2}-\d{2}$/.test(it.target)}{shownDate(it.target)}{:else}<PageIcon
+          name={it.target}
+        />{it.target}{/if}</a
     >{:else if it.type === 'tag'}<a
       class="tag"
       href={pageHash(it.target)}

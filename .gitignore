@@ -6,3 +6,5 @@ node_modules/
 *.sqlite-*
 .DS_Store
 /crates/core-wasm/pkg*/
+/ui/test-results/
+/ui/playwright-report/

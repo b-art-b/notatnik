@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BlockView } from './api'
 import {
   deleteBlocks,
+  dropMove,
   getBlock,
   indent,
   indentMany,
@@ -30,6 +31,7 @@ function b(text: string, children: BlockView[] = [], extra: Partial<BlockView> =
     content: [],
     task: null,
     props: [],
+    logbook: [],
     collapsed: false,
     children,
     ...extra,
@@ -191,5 +193,36 @@ describe('markdown', () => {
     expect(parsePasted('line one\nline two').map((x) => x.text)).toEqual(['line one', 'line two'])
     expect(parsePasted('1. one\n2. two').map((x) => x.text)).toEqual(['one', 'two'])
     expect(parsePasted('- a\n\tnested with tab\n').length).toBeGreaterThan(0)
+  })
+})
+
+describe('dropMove (drag and drop)', () => {
+  const mv = (op: ReturnType<typeof dropMove>) =>
+    op && op.op === 'move' ? { parent: op.new_parent, index: op.index } : null
+  it('moves among siblings, counting the moved block out', () => {
+    expect(mv(dropMove([0], [2], 'before'))).toEqual({ parent: [], index: 1 })
+    expect(mv(dropMove([0], [2], 'after'))).toEqual({ parent: [], index: 2 })
+    expect(mv(dropMove([2], [0], 'before'))).toEqual({ parent: [], index: 0 })
+    expect(mv(dropMove([2], [0], 'after'))).toEqual({ parent: [], index: 1 })
+  })
+  it('does nothing when the block would stay where it is', () => {
+    expect(dropMove([1], [1], 'before')).toBeNull()
+    expect(dropMove([1], [2], 'before')).toBeNull() // already right before [2]
+    expect(dropMove([1], [0], 'after')).toBeNull() // already right after [0]
+  })
+  it('makes a block the first child of the target', () => {
+    expect(mv(dropMove([3], [1], 'child'))).toEqual({ parent: [1], index: 0 })
+    // from a sibling list into a nested one, paths are those of the current page
+    expect(mv(dropMove([0], [1, 0], 'before'))).toEqual({ parent: [1], index: 0 })
+    expect(mv(dropMove([0, 2], [0], 'after'))).toEqual({ parent: [], index: 1 })
+  })
+  it('refuses a block onto itself or into its own subtree', () => {
+    expect(dropMove([0], [0], 'child')).toBeNull()
+    expect(dropMove([0], [0, 1], 'before')).toBeNull()
+    expect(dropMove([0], [0, 1, 2], 'child')).toBeNull()
+  })
+  it('moves a nested block up and out', () => {
+    expect(mv(dropMove([1, 2], [0], 'before'))).toEqual({ parent: [], index: 0 })
+    expect(mv(dropMove([1, 2], [1, 0], 'before'))).toEqual({ parent: [1], index: 0 })
   })
 })

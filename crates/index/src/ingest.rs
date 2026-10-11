@@ -198,12 +198,13 @@ fn old_keys(tx: &Transaction, page_id: i64) -> Result<HashSet<String>> {
 
 /// Deletes virtual pages that nothing needs any more (no children, no refs, not an alias key).
 fn gc_virtual(tx: &Transaction, candidates: HashSet<String>) -> Result<()> {
-    let mut queue: VecDeque<String> = candidates.into_iter().collect();
-    let mut seen: HashSet<String> = HashSet::new();
+    // Deepest first, so a child is gone before its parent is looked at. A parent that was kept because a child
+    // still existed is looked at again when that child is deleted (it is queued then), so no key is skipped for
+    // having been seen: every queued key is the parent of a row just deleted, which bounds the loop.
+    let mut keys: Vec<String> = candidates.into_iter().collect();
+    keys.sort_by_key(|k| std::cmp::Reverse(k.matches('/').count()));
+    let mut queue: VecDeque<String> = keys.into();
     while let Some(key) = queue.pop_front() {
-        if !seen.insert(key.clone()) {
-            continue;
-        }
         let row: Option<(i64, Option<i64>)> = tx
             .query_row(
                 "SELECT id, ns_parent_id FROM pages WHERE key = ?1 AND is_virtual = 1",
@@ -283,7 +284,11 @@ fn insert_prop_rows(
         PropertyValue::List(items) => {
             let raws = split_top_level_commas(raw);
             for (i, item) in items.iter().enumerate() {
-                let item_raw = raws.get(i).map_or("", |s| s.trim());
+                // text items come from a YAML list (`[red, blue]`): use the parsed item, not a piece of the raw text
+                let item_raw = match item {
+                    PropertyValue::Text(s) => s.as_str(),
+                    _ => raws.get(i).map_or("", |s| s.trim()),
+                };
                 let (n, d, t) = scalar(item, item_raw);
                 st.execute(params![
                     kind,
@@ -371,7 +376,7 @@ fn insert_block(
             t.deadline
                 .and_then(|m| m.time)
                 .map(|x| x.format("%H:%M").to_string()),
-            t.priority,
+            t.priority.clone(),
         ),
         None => (None, None, None, None, None, None),
     };
@@ -392,8 +397,8 @@ fn insert_block(
         sched_t,
         dead,
         dead_t,
-        prio.map(|p| p.name()),
-        prio.map(|p| i64::from(p.rank())),
+        prio.as_ref().map(|p| p.name().to_string()),
+        prio.as_ref().map(|p| i64::from(p.rank())),
         b.span.start as i64,
         b.span.end as i64,
         i64::from(b.kind == notatnik_core::BlockKind::Preamble),
@@ -521,6 +526,17 @@ fn write_page(tx: &Transaction, p: &Parsed) -> Result<ReindexOutcome> {
                 }
             }
         }
+    }
+
+    // a journal page has `type: journal` unless its frontmatter says otherwise: derived here, never written to
+    // the file (ST-2), so icon rules, page queries and the type grouping see journals like any other page
+    if p.name.journal_date().is_some()
+        && !fm.is_some_and(|f| f.entries.iter().any(|e| e.key == "type"))
+    {
+        tx.execute(
+            "INSERT INTO props(owner_kind, owner_id, key, ord, value_text, value_fold) VALUES ('page', ?1, 'type', 0, 'journal', 'journal')",
+            [page_id],
+        )?;
     }
 
     let mut path = Vec::new();

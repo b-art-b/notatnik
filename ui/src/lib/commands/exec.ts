@@ -189,12 +189,6 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
 
 // ---- selection commands (blocks selected, not edited) --------------------------------------
 
-function selectedPaths(ctx: Ctx): Path[] {
-  const view = ctx.doc.view
-  if (!view) return []
-  return editing.selection.map((id) => findById(view.blocks, id)?.path).filter((p): p is Path => !!p)
-}
-
 export function selectionMarkdown(ctx: Ctx): string {
   const view = ctx.doc.view
   if (!view) return ''
@@ -202,18 +196,27 @@ export function selectionMarkdown(ctx: Ctx): string {
   return toMarkdown(blocks)
 }
 
+/** Paths of the blocks with these runtime ids in `view`. */
+function pathsOf(view: NonNullable<PageDoc['view']>, ids: number[]): Path[] {
+  return ids.map((id) => findById(view.blocks, id)?.path).filter((p): p is Path => !!p)
+}
+
+/** Runs a command on the selected blocks. The ops are built when the request reaches the front of the page's queue,
+ * from the page as it is then: a key pressed right after another command (Tab, then Delete) must not use a page
+ * that the first command has not finished changing yet. Returns whether anything was sent. */
 async function runOnSelection(
   ctx: Ctx,
   f: (blocks: NonNullable<PageDoc['view']>['blocks'], paths: Path[]) => Plan | null,
-) {
-  const view = ctx.doc.view
-  if (!view) return
-  const paths = selectedPaths(ctx)
-  const plan = f(view.blocks, paths)
-  if (!plan) return
+): Promise<boolean> {
   const ids = [...editing.selection]
-  const after = await ctx.doc.apply(plan.ops)
-  if (after) {
+  let sent = false
+  const after = await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    const plan = f(view.blocks, pathsOf(view, ids))
+    sent = !!plan && plan.ops.length > 0
+    return plan ? plan.ops : null
+  })
+  if (sent && after) {
     // keep the same blocks selected (runtime ids survive the edit)
     startSelecting(
       ctx.viewKey,
@@ -222,26 +225,29 @@ async function runOnSelection(
       editing.anchorId,
     )
   }
+  return sent
 }
 
 export const selectionIndent = (ctx: Ctx) => runOnSelection(ctx, indentMany)
 export const selectionOutdent = (ctx: Ctx) => runOnSelection(ctx, outdentMany)
 
 export async function selectionDelete(ctx: Ctx) {
-  const view = ctx.doc.view
-  if (!view) return
-  const plan = deleteBlocks(view.blocks, selectedPaths(ctx))
-  if (!plan) return
-  const after = await ctx.doc.apply(plan.ops)
-  if (after) stopEditing()
+  const ids = [...editing.selection]
+  let sent = false
+  const after = await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    const plan = deleteBlocks(view.blocks, pathsOf(view, ids))
+    sent = !!plan
+    return plan ? plan.ops : null
+  })
+  if (sent && after) stopEditing()
 }
 
 export async function selectionMove(ctx: Ctx, dir: 'up' | 'down') {
-  const view = ctx.doc.view
-  if (!view || editing.selection.length !== 1) return
-  const path = selectedPaths(ctx)[0]
-  const plan = (dir === 'up' ? moveUp : moveDown)(view.blocks, path)
-  if (plan) await runOnSelection(ctx, () => ({ ops: plan.ops }))
+  if (editing.selection.length !== 1) return
+  await runOnSelection(ctx, (blocks, paths) =>
+    paths.length === 1 ? (dir === 'up' ? moveUp : moveDown)(blocks, paths[0]) : null,
+  )
 }
 
 /** Shift+↑/↓: extend the selection among visible siblings; plain ↑/↓: move it. */
@@ -370,6 +376,24 @@ export async function setTaskState(
     editing.nonce++
     startEditing(ctx.viewKey, ctx.doc.name, blockId, 'end')
   }
+}
+
+/** Like `setProperty`, for a block known by its runtime id: the path is looked up when the request reaches the
+ * front of the queue, so an edit made right before cannot make it hit another block. */
+export async function setPropertyOf(
+  doc: PageDoc,
+  blockId: number,
+  key: string,
+  value: string | null,
+): Promise<void> {
+  await doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    if (!hit) return null
+    const block = { path: hit.path, hash: null }
+    return [
+      value === null ? { op: 'remove_property', block, key } : { op: 'set_property', block, key, value },
+    ]
+  })
 }
 
 /** Sets (or, with `null`, removes) a property of a block. */

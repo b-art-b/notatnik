@@ -488,3 +488,37 @@ fn conflict_files_are_not_indexed() {
     assert!(idx.search("conflicted", 5).unwrap().is_empty());
     assert_eq!(idx.counts().unwrap().pages, 9);
 }
+
+/// Removing a deep page leaves none of its virtual ancestors behind, whatever order the candidates come in
+/// (a moved namespace used to leave `P/Capgemini/RfP` as a "no page" place in the topic view).
+#[test]
+fn removing_a_deep_page_collects_all_its_virtual_ancestors() {
+    for round in 0..12 {
+        let dir = tempfile::tempdir().unwrap();
+        let rel = format!("pages/P{round}/Cap/RfP/cli/PDD.md");
+        let abs = dir.path().join(&rel);
+        std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+        std::fs::write(&abs, "- note\n").unwrap();
+        let mut idx = Index::open_in_memory(IndexOptions::default()).unwrap();
+        idx.index_all(dir.path()).unwrap();
+        for k in [
+            format!("P{round}"),
+            format!("P{round}/Cap"),
+            format!("P{round}/Cap/RfP"),
+            format!("P{round}/Cap/RfP/cli"),
+        ] {
+            assert!(idx.page_info(&k).unwrap().unwrap().is_virtual, "{k}");
+        }
+        std::fs::remove_file(&abs).unwrap();
+        idx.reindex_file(dir.path(), &rel).unwrap();
+        for k in [
+            format!("P{round}/Cap/RfP/cli/PDD"),
+            format!("P{round}/Cap/RfP/cli"),
+            format!("P{round}/Cap/RfP"),
+            format!("P{round}/Cap"),
+            format!("P{round}"),
+        ] {
+            assert!(idx.page_info(&k).unwrap().is_none(), "{k} left behind");
+        }
+    }
+}

@@ -109,6 +109,30 @@ export function moveDown(blocks: BlockView[], path: Path): Plan | null {
   }
 }
 
+/** Where a dragged block lands relative to the block it is dropped on. */
+export type DropZone = 'before' | 'after' | 'child'
+
+/**
+ * The move for dropping the block at `from` (with all its children) onto the block at `to`:
+ * `before`/`after` make it a sibling, `child` makes it the first child. Paths are those of the page as it is now
+ * (the backend resolves the destination before it removes the block). Null when nothing would change, or when the
+ * target is the block itself or inside it.
+ */
+export function dropMove(from: Path, to: Path, zone: DropZone): BlockOp | null {
+  if (from.length === 0 || to.length === 0) return null
+  if (samePath(from, to) || isAncestor(from, to)) return null
+  if (zone === 'child') {
+    return { op: 'move', block: ref(from), new_parent: to, index: 0 }
+  }
+  const parent = parentOf(to)
+  let index = to[to.length - 1]
+  // the block being moved is skipped when counting its new siblings
+  if (samePath(parentOf(from), parent) && from[from.length - 1] < index) index--
+  if (zone === 'after') index++
+  if (samePath(parentOf(from), parent) && index === from[from.length - 1]) return null
+  return { op: 'move', block: ref(from), new_parent: parent, index }
+}
+
 const FENCE = /^\s*(```|~~~)/
 
 /** True when the cursor's line is inside a fenced code block of `text` (the closing fence line counts as outside). */

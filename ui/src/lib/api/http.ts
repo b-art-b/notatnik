@@ -21,6 +21,8 @@ function apiBase(): string {
 /** Talks to `notatnik-dev-server` over HTTP; events arrive by long-polling. */
 export function createHttpBackend(): Backend {
   const base = apiBase()
+  const listeners = new Set<(e: GraphChangedEvent) => void>()
+  let polling = false
   return {
     async call(name, args) {
       const res = await fetch(`${base}/api/${name}`, {
@@ -32,27 +34,34 @@ export function createHttpBackend(): Backend {
       if (!res.ok) throw new CommandError(body)
       return body
     },
+    // One long-poll shared by every subscriber: each extra poll would hold one of the browser's few
+    // connections to the server for up to 15 s.
     onGraphChanged(cb) {
-      let stopped = false
-      let after = 0
-      const loop = async () => {
-        while (!stopped) {
-          try {
-            const res = await fetch(`${base}/poll?after=${after}`)
-            const body = (await res.json()) as {
-              last: number
-              events: { id: number; name: string; payload: GraphChangedEvent }[]
+      listeners.add(cb)
+      if (!polling) {
+        polling = true
+        void (async () => {
+          let after = 0
+          while (listeners.size > 0) {
+            try {
+              const res = await fetch(`${base}/poll?after=${after}`)
+              const body = (await res.json()) as {
+                last: number
+                events: { id: number; name: string; payload: GraphChangedEvent }[]
+              }
+              after = body.last
+              for (const e of body.events) {
+                if (e.name === 'graph-changed') for (const l of [...listeners]) l(e.payload)
+              }
+            } catch {
+              await new Promise((r) => setTimeout(r, 500))
             }
-            after = body.last
-            for (const e of body.events) if (e.name === 'graph-changed') cb(e.payload)
-          } catch {
-            await new Promise((r) => setTimeout(r, 500))
           }
-        }
+          polling = false
+        })()
       }
-      void loop()
       return () => {
-        stopped = true
+        listeners.delete(cb)
       }
     },
     assetUrl: (path) => `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}`,

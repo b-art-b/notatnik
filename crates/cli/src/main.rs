@@ -307,12 +307,7 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 .file_path
                 .ok_or_else(|| format!("`{}` has no file (it is only referenced)", info.name))?;
             let file = g.read_page(&rel).map_err(|e| e.to_string())?;
-            let parsed = notatnik_core::parse_page_with(
-                &file.text,
-                &notatnik_core::ParseOptions {
-                    property_types: g.config().property_types(),
-                },
-            );
+            let parsed = notatnik_core::parse_page_with(&file.text, &g.config().parse_options());
             if common.json {
                 print_json(&parsed);
             } else {

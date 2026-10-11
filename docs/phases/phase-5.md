@@ -87,23 +87,26 @@ JR-4, JR-6, ED-10, ED-11, ED-14, NF-10 (string externalisation).
 - [ ] Two pages claiming the same alias → a health-check warning; links resolve deterministically (documented rule)
 
 ### P5.8 Unlinked references (LN-4)
-- [ ] Panel below the backlinks: plain-text mentions of the page title and aliases (FTS-based, whole-word, case-insensitive); a "Link" action converts one mention to `[[…]]`
+*Built early (with phase 2/3 work), see decision D26.* Aliases: the panel uses the folded alias keys as search terms until P5.7 adds display names.
+- [x] Panel below the backlinks: plain-text mentions of the page title and aliases (FTS-based, whole-word, case-insensitive); a "Link" action converts one mention to `[[…]]`
 
 **Verify**
-- [ ] A page "Anna" with mentions "anna", "Anna's" and "Annabelle" → the first two are listed, not "Annabelle"
-- [ ] "Link" changes only that occurrence in the source file (golden diff)
+- [x] A page "Anna" with mentions "anna", "Anna's" and "Annabelle" → the first two are listed, not "Annabelle" (`app.rs`, `mentions.rs` unit tests, `navigation.spec.ts`)
+- [x] "Link" changes only that occurrence in the source file (`notes.md` compared byte for byte in `app.rs` and the browser test)
 
 ### P5.9 ~~Relative links in the UI~~ (removed)
 Removed on 2026-10-03: all links are global (NS-6 removed). The task number is kept so other references stay valid.
 Namespace-aware autocomplete ranking (NS-7, phase 2) covers the convenience part.
 
 ### P5.10 Namespace move / rename (NS-8)
-- [ ] Rename/move a whole subtree: folder move + rewrite all links (and tags) pointing into the subtree + relative asset paths in moved pages; preview listing all files and the link count; guarded writes; if something fails mid-way, report exactly which files were changed and offer to finish or revert
+*Built early: `Graph::plan_rename` / `apply_rename` / `revert_rename`, app commands `rename_plan`, `rename_apply`, `rename_revert`, the rename dialog. Tested in `graph.rs` (subtree move, root move, virtual root, conflict + revert, full revert), `app.rs` and `navigation.spec.ts`.*
+- [x] Rename/move a whole subtree: folder move + rewrite all links (and tags) pointing into the subtree + relative asset paths in moved pages; preview listing all files and the link count; guarded writes; if something fails mid-way, report exactly which files were changed and offer to finish or revert
 
 **Verify**
-- [ ] Fixture `namespaces`: move `work/projects` → `archive/2026/projects` → `notatnik check` reports 0 broken links; the folder structure matches; unaffected files are byte-identical
-- [ ] Moving into its own descendant → rejected
-- [ ] Simulated write conflict on file 3 of 10 → the report lists files 1–2 as done, and "revert" restores them byte-identically
+- [x] Fixture `namespaces`: move `work/projects` → `archive/2026/projects` → `notatnik check` reports 0 broken links; the folder structure matches; unaffected files are byte-identical
+- [x] Moving into its own descendant → rejected ("can't move `x` into itself")
+- [x] Simulated write conflict (test: file 2 of 2) → the error lists the files already written; "Revert" in the dialog (`rename_revert`) restores them byte-identically; pressing Preview/Rename again finishes the move
+- Not done: relative asset paths inside moved pages are not rewritten (assets are P5.5); a warning is shown for pages that contain relative links
 
 ## 5D: Templates and journals
 

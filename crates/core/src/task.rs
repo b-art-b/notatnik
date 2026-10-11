@@ -67,45 +67,68 @@ impl TaskState {
     }
 }
 
-/// Task priority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Priority {
-    /// `high`
-    High,
-    /// `medium`
-    Medium,
-    /// `low`
-    Low,
+/// A task priority: the rank (0 = most important) and the label the graph gives that rank (`A`, `B`, `C` by
+/// default; `[tasks] priorities` in the config sets how many there are and what they are called).
+///
+/// In a file the property is the label (`priority:: A`); `high`, `medium` and `low` are still understood and mean
+/// the first, the middle and the last label.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Priority {
+    rank: u8,
+    label: String,
+}
+
+impl serde::Serialize for Priority {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.label)
+    }
 }
 
 impl Priority {
-    /// Parses `high`, `medium` or `low`.
+    /// `A`, `B`, `C`.
+    pub fn default_labels() -> Vec<String> {
+        vec!["A".into(), "B".into(), "C".into()]
+    }
+
+    /// Parses a property value against the default labels.
     pub fn parse(s: &str) -> Option<Priority> {
-        match s {
-            "high" => Some(Priority::High),
-            "medium" => Some(Priority::Medium),
-            "low" => Some(Priority::Low),
-            _ => None,
-        }
+        Priority::parse_with(s, &[])
     }
 
-    /// The property text.
-    pub const fn name(self) -> &'static str {
-        match self {
-            Priority::High => "high",
-            Priority::Medium => "medium",
-            Priority::Low => "low",
-        }
+    /// Parses a property value against the graph's labels (most important first; none = `A`, `B`, `C`). The
+    /// match ignores case. `high` is the first label, `low` the last, `medium` the middle one.
+    pub fn parse_with(s: &str, labels: &[String]) -> Option<Priority> {
+        let defaults;
+        let labels = if labels.is_empty() {
+            defaults = Priority::default_labels();
+            &defaults[..]
+        } else {
+            labels
+        };
+        let t = s.trim().to_lowercase();
+        let n = labels.len();
+        let rank = match t.as_str() {
+            _ if t.is_empty() => return None,
+            "high" if labels.iter().all(|l| l.to_lowercase() != "high") => 0,
+            "low" if labels.iter().all(|l| l.to_lowercase() != "low") => n - 1,
+            "medium" if labels.iter().all(|l| l.to_lowercase() != "medium") => n / 2,
+            _ => labels.iter().position(|l| l.trim().to_lowercase() == t)?,
+        };
+        let rank = rank.min(n - 1);
+        Some(Priority {
+            rank: u8::try_from(rank).ok()?,
+            label: labels[rank].trim().to_string(),
+        })
     }
 
-    /// Sort rank: high first.
-    pub const fn rank(self) -> u8 {
-        match self {
-            Priority::High => 0,
-            Priority::Medium => 1,
-            Priority::Low => 2,
-        }
+    /// The label as it is written in the file.
+    pub fn name(&self) -> &str {
+        &self.label
+    }
+
+    /// Sort rank: the most important first.
+    pub const fn rank(&self) -> u8 {
+        self.rank
     }
 }
 

@@ -28,6 +28,9 @@
   import type { Cursor } from '../tree'
   import type { EditorAction } from '../commands/exec'
   import { wikiCompletions } from '../completion'
+  import { dateChanges, DATE_TITLES, type DateKind } from '../commands/slash'
+  import DatePicker from './DatePicker.svelte'
+  import EmojiPicker from './EmojiPicker.svelte'
 
   interface Props {
     text: string
@@ -47,6 +50,47 @@
   let view: EditorView | undefined
   let idle: ReturnType<typeof setTimeout> | undefined
   let lastSent = text
+  /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
+  let picker = $state<{ kind: DateKind | 'emoji'; at: number; x: number; y: number } | null>(null)
+
+  function openPicker(kind: DateKind | 'emoji', at: number) {
+    if (!view) return
+    const c = view.coordsAtPos(at)
+    const h = host.getBoundingClientRect()
+    picker = { kind, at, x: c ? c.left - h.left : 0, y: c ? c.bottom - h.top + 4 : 24 }
+  }
+
+  function closePicker() {
+    picker = null
+    view?.focus()
+  }
+
+  /** Escape in the emoji picker: drop the space that was typed before `/emoji` if nothing follows it. */
+  function cancelEmoji() {
+    if (
+      picker &&
+      view &&
+      picker.at === view.state.doc.length &&
+      view.state.sliceDoc(picker.at - 1, picker.at) === ' '
+    ) {
+      view.dispatch({ changes: { from: picker.at - 1, to: picker.at, insert: '' } })
+    }
+    closePicker()
+  }
+
+  function pickEmoji(char: string) {
+    if (!picker || !view) return
+    const { at } = picker
+    view.dispatch({ changes: { from: at, to: at, insert: char }, selection: { anchor: at + char.length } })
+    closePicker()
+  }
+
+  function pickDate(iso: string) {
+    if (!picker || !view || picker.kind === 'emoji') return
+    const { kind, at } = picker
+    view.dispatch({ changes: dateChanges(view.state.doc.toString(), at, kind, iso) })
+    closePicker()
+  }
 
   const wiki = new MatchDecorator({
     regexp:
@@ -233,7 +277,11 @@
           markdown(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           wikiPlugin,
-          wikiCompletions(() => pageName),
+          wikiCompletions(
+            () => pageName,
+            openPicker,
+            (at) => openPicker('emoji', at),
+          ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
           EditorView.updateListener.of((u) => {
@@ -246,7 +294,7 @@
             blur: () => {
               queueMicrotask(() => {
                 // a popup (autocomplete) taking focus is not leaving the block
-                if (view && !view.hasFocus && !document.activeElement?.closest('.cm-tooltip')) {
+                if (view && !view.hasFocus && !picker && !document.activeElement?.closest('.cm-tooltip')) {
                   clearTimeout(idle)
                   const t = currentText()
                   const prev = lastSent
@@ -287,22 +335,43 @@
   }
 </script>
 
-<div class="editor" bind:this={host}></div>
+<div class="editor" bind:this={host}>
+  {#if picker}
+    <div class="picker-anchor" style:left="{picker.x}px" style:top="{picker.y}px">
+      {#if picker.kind === 'emoji'}
+        <EmojiPicker onpick={pickEmoji} oncancel={cancelEmoji} />
+      {:else}
+        <DatePicker title={DATE_TITLES[picker.kind]} onpick={pickDate} oncancel={closePicker} />
+      {/if}
+    </div>
+  {/if}
+</div>
 
 <style>
   .editor {
     width: 100%;
+    position: relative;
+  }
+  .picker-anchor {
+    position: absolute;
+    z-index: 20;
   }
   .editor :global(.cm-editor) {
     outline: none;
     background: transparent;
     font: inherit;
   }
+  /* the same font, size and line height as the rendered block (`.body` in Block.svelte), so the text
+     does not move when editing starts; CodeMirror's own defaults are monospace with a 1.4 line height */
+  .editor :global(.cm-scroller) {
+    font-family: inherit;
+    line-height: inherit;
+  }
   .editor :global(.cm-content) {
     padding: 0;
     caret-color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 0.93em;
+    font-family: inherit;
+    line-height: inherit;
   }
   .editor :global(.cm-line) {
     padding: 0;

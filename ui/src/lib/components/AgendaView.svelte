@@ -1,30 +1,65 @@
 <script lang="ts">
   import { backend, type AgendaItem, type AgendaView } from '../api'
   import { bus } from '../stores/events.svelte'
-  import { formatDate } from '../dates'
-  import Block from './Block.svelte'
+  import { app } from '../stores/app.svelte'
+  import { shownDate } from '../stores/format.svelte'
+  import SourcedTask from './SourcedTask.svelte'
+  import QueryBlock from './QueryBlock.svelte'
+  import { GROUPS, SORTS, groupItems, sortItems } from '../agenda'
 
   let ns = $state('')
   let tag = $state('')
   let priority = $state('')
+  // `sections` is the classic agenda; the others show the same tasks through the query views
+  type Mode = 'sections' | 'list' | 'table' | 'kanban' | 'timeline'
+  const MODES: Mode[] = ['sections', 'list', 'table', 'kanban', 'timeline']
+  let mode = $state<Mode>('sections')
+  let showDone = $state(false)
+  let group = $state('')
+  let sort = $state('')
   let data = $state<AgendaView | null>(null)
   try {
     const saved = JSON.parse(localStorage.getItem('notatnik-agenda-filters') ?? '{}')
     ns = saved.ns ?? ''
     tag = saved.tag ?? ''
     priority = saved.priority ?? ''
+    if (MODES.includes(saved.mode)) mode = saved.mode
+    showDone = saved.showDone === true
+    group = typeof saved.group === 'string' ? saved.group : ''
+    sort = typeof saved.sort === 'string' ? saved.sort : ''
   } catch {
     /* defaults */
   }
 
+  // the agenda's filters as a query: what the other views run (and what "show query" displays)
+  const queryText = $derived.by(() => {
+    const name = (n: string) => (/^[\w./-]+$/.test(n) ? n : `[[${n}]]`)
+    // a board needs the done and canceled columns filled: a card moved there must stay on the board
+    const lines = [`task: ${showDone || mode === 'kanban' ? 'any' : 'todo, doing, waiting'}`]
+    if (ns.trim()) lines.push(`ns: ${name(ns.trim().replace(/^#/, ''))}`)
+    if (tag.trim()) lines.push(`tag: ${name(tag.trim().replace(/^#/, ''))}`)
+    if (priority) lines.push(`priority: ${priority}`)
+    lines.push(`sort: ${sort || 'deadline asc'}`)
+    if (group) lines.push(`group: ${group}`)
+    return lines.join('\n')
+  })
+
+  // remember the choices on this device
   $effect(() => {
-    void bus.version
-    const args = { ns: ns.trim() || null, tag: tag.trim() || null, priority: priority || null }
     try {
-      localStorage.setItem('notatnik-agenda-filters', JSON.stringify({ ns, tag, priority }))
+      localStorage.setItem(
+        'notatnik-agenda-filters',
+        JSON.stringify({ ns, tag, priority, mode, showDone, group, sort }),
+      )
     } catch {
       /* not remembered */
     }
+  })
+
+  $effect(() => {
+    void bus.version
+    if (mode !== 'sections') return
+    const args = { ns: ns.trim() || null, tag: tag.trim() || null, priority: priority || null }
     let cancelled = false
     const timer = setTimeout(async () => {
       try {
@@ -41,32 +76,65 @@
   })
 </script>
 
-{#snippet items(list: AgendaItem[])}
+{#snippet items(raw: AgendaItem[])}
+  {#each groupItems(sort ? sortItems(raw, sort) : raw, group) as g (g.key)}
+    {#if g.label}<h4 class="group" data-testid="agenda-group-head">
+        {g.label} <span class="n">{g.items.length}</span>
+      </h4>{/if}
+    {@render rows(g.items)}
+  {/each}
+{/snippet}
+
+{#snippet rows(list: AgendaItem[])}
   {#each list as it (it.page + it.block.id)}
-    <div class="item" data-testid="agenda-item">
-      <div class="crumbs">
-        {it.page}{it.breadcrumbs.length ? ' › ' + it.breadcrumbs.join(' › ') : ''}{it.date
-          ? ` · ${it.date}`
-          : ''}
-      </div>
-      <Block block={it.block} docName={it.page} viewKey={`agenda-${it.page}-${it.block.id}`} />
-    </div>
+    <SourcedTask
+      block={it.block}
+      page={it.page}
+      breadcrumbs={it.breadcrumbs}
+      viewKey={`agenda-${it.page}-${it.block.id}`}
+    />
   {/each}
 {/snippet}
 
 <h1>Agenda</h1>
+<div class="modes" role="group" aria-label="Agenda view">
+  {#each MODES as m (m)}
+    <button class="mode" class:on={mode === m} aria-pressed={mode === m} onclick={() => (mode = m)}
+      >{m}</button
+    >
+  {/each}
+</div>
 <div class="filters" role="search" aria-label="Agenda filters">
   <label>Namespace <input bind:value={ns} placeholder="work" /></label>
   <label>Tag <input bind:value={tag} placeholder="urgent" /></label>
   <label
     >Priority
     <select bind:value={priority}
-      ><option value="">any</option><option value="high">high</option><option value="medium">medium</option
-      ><option value="low">low</option></select
+      ><option value="">any</option>
+      {#each app.graph?.priority_labels ?? [] as lbl (lbl)}
+        <option value={lbl}>{lbl}</option>
+      {/each}</select
     >
   </label>
+  {#if mode !== 'sections' && mode !== 'kanban'}
+    <label><input type="checkbox" bind:checked={showDone} data-testid="agenda-done" /> Show done</label>
+  {/if}
+  <label
+    >Group
+    <select bind:value={group} data-testid="agenda-group">
+      {#each GROUPS as g (g.value)}<option value={g.value}>{g.label}</option>{/each}
+    </select>
+  </label>
+  <label
+    >Sort
+    <select bind:value={sort} data-testid="agenda-sort">
+      {#each SORTS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
+    </select>
+  </label>
 </div>
-{#if data}
+{#if mode !== 'sections'}
+  <QueryBlock text={queryText} forcedView={mode} />
+{:else if data}
   <section data-section="overdue">
     <h2 class:warn={data.overdue.length > 0}>Overdue <span class="n">{data.overdue.length}</span></h2>
     {@render items(data.overdue)}
@@ -78,9 +146,13 @@
   <section data-section="upcoming">
     <h2>Next 7 days <span class="n">{data.upcoming.reduce((n, d) => n + d.items.length, 0)}</span></h2>
     {#each data.upcoming as day (day.date)}
-      <h3 data-day={day.date}>{formatDate(day.date)}</h3>
+      <h3 data-day={day.date}>{shownDate(day.date)}</h3>
       {@render items(day.items)}
     {/each}
+  </section>
+  <section data-section="later">
+    <h2>Later <span class="n">{data.later.length}</span></h2>
+    {@render items(data.later)}
   </section>
   <section data-section="undated">
     <h2>No date <span class="n">{data.undated.length}</span></h2>
@@ -89,7 +161,28 @@
 {/if}
 
 <style>
+  .modes {
+    display: flex;
+    gap: 0.3em;
+    margin-bottom: 0.8em;
+  }
+  .mode {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 0.15em 0.7em;
+    cursor: pointer;
+  }
+  .mode.on {
+    background: var(--selection);
+    color: var(--text);
+    border-color: transparent;
+    font-weight: 600;
+  }
   .filters {
+    flex-wrap: wrap;
+    align-items: center;
     display: flex;
     gap: 1em;
     margin-bottom: 1em;
@@ -103,6 +196,12 @@
   h2.warn {
     color: var(--danger);
   }
+  h4.group {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0.9em 0 0.2em 34px;
+  }
   h3 {
     font-size: 0.9em;
     color: var(--muted);
@@ -114,10 +213,5 @@
     padding: 0 0.5em;
     font-size: 0.8em;
     font-weight: 400;
-  }
-  .crumbs {
-    font-size: 0.72em;
-    color: var(--muted);
-    margin-left: 34px;
   }
 </style>

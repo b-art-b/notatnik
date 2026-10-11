@@ -24,6 +24,13 @@ pub struct Query {
     pub view: Option<String>,
     /// Columns for table-like views.
     pub columns: Vec<String>,
+    /// `direct: yes`: `links:` and `tag:` match only blocks that carry the link themselves. By default a block
+    /// also matches through its ancestors (a link applies to everything below it).
+    pub direct: bool,
+    /// `inherit: client, type`: these properties also apply to everything below the block that has them (the
+    /// nearest block wins; the page's frontmatter is the root). Ignored with `direct: yes` and for page queries.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub inherit: Vec<String>,
 }
 
 /// What a query returns.
@@ -60,6 +67,11 @@ pub enum FilterKind {
     Ns(Vec<String>),
     /// `page: work`: only that page.
     Page(Vec<String>),
+    /// `path: renewal`: pages that have this name as a segment anywhere in their path (`p/ey/renewal/x`,
+    /// `x/renewal`); `a/b` matches the two segments next to each other.
+    Path(Vec<String>),
+    /// `priority: A, B`: tasks with one of these priority labels (compared without regard to case).
+    Priority(Vec<String>),
     /// `prop.status: active`
     Prop {
         /// Property key.
@@ -377,6 +389,7 @@ impl Query {
                 FilterKind::Links(v) => ("links".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Ns(v) => ("ns".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Page(v) => ("page".into(), v.iter().map(|s| name_text(s)).collect()),
+                FilterKind::Path(v) => ("path".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Prop { key, conds } => (
                     format!("prop.{key}"),
                     conds.iter().map(ToString::to_string).collect(),
@@ -390,6 +403,7 @@ impl Query {
                     v.iter().map(ToString::to_string).collect(),
                 ),
                 FilterKind::Text(v) => ("text".into(), v.clone()),
+                FilterKind::Priority(v) => ("priority".into(), v.clone()),
             };
             let _ = writeln!(out, "{neg}{key}: {}", vals.join(", "));
         }
@@ -424,6 +438,12 @@ impl Query {
                 GroupBy::Prop(p) => format!("prop.{p}"),
             };
             let _ = writeln!(out, "group: {v}");
+        }
+        if self.direct {
+            let _ = writeln!(out, "direct: yes");
+        }
+        if !self.inherit.is_empty() {
+            let _ = writeln!(out, "inherit: {}", self.inherit.join(", "));
         }
         if let Some(l) = self.limit {
             let _ = writeln!(out, "limit: {l}");

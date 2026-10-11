@@ -69,6 +69,14 @@ A **graph** is a folder of notes.
 | ED-12 | Math (KaTeX) and Mermaid diagrams in code blocks. | Later |
 | ED-13 | Command palette (Ctrl+K) for navigation and all commands. | MVP |
 | ED-14 | Light and dark themes; user CSS override. | V1 |
+| ED-15 | The path to the focused block is highlighted: the guide line turns dark from the top of its siblings down to an elbow into each ancestor's and the block's own bullet. | V1 |
+| ED-16 | The `/` menu is grouped (Tasks, Dates, Task details, Blocks) while empty and a relevance-ranked list once typed; rows show an icon, label, description and the `/name`; matches names, keywords and descriptions; shows key hints. | V1 |
+| ED-17 | Date pickers (`/date`, `/scheduled`, `/deadline`, task chips) accept typed or natural-language dates, quick choices and an own calendar grid; every date in them is `YYYY-MM-DD`. | V1 |
+| ED-18 | Settings page organised by topic (Appearance, Dates & language, Tasks, Graph), each pane stating whether its values are per device or per graph; changes apply at once and are confirmed inline. Device settings: theme, zoom, brackets around rendered links (off by default), date language, date format (presets or a custom pattern, [date-formats.md](date-formats.md)). Graph settings: week start, completion dates kept. | V1 |
+| ED-19 | Mouse navigation like Firefox: back/forward mouse buttons and Alt+←/→ move through the page history; middle click or Ctrl+click on a page link opens it in the right sidebar; clicking a day's title in the journals feed opens that day as a page. | V1 |
+| ED-20 | Blocks can be reordered with the mouse: drag a bullet (with all its sub-bullets) above, below or into another block of the same page; a drop line shows where it lands; undo restores it. | V1 |
+| ED-21 | Emojis: `:shortcode` completion in the editor inserts the emoji character, `/emoji` opens a searchable picker; notes store plain Unicode, never shortcodes. | V1 |
+| ED-22 | A "Recent" list in the sidebar with the pages opened last (per device, renames follow). | V1 |
 
 ## 5. Pages, links and namespaces
 
@@ -77,12 +85,14 @@ A **graph** is a folder of notes.
 | LN-1 | `[[Page name]]` links to a page. Linking to a page that doesn't exist creates it lazily, on first content. | MVP |
 | LN-2 | `#tag` and `#[[multi word tag]]` are links to the page of the same name. Tags may contain letters (including Polish), digits, `_`, `-` and `/`: `#123`, `#tag_name`, `#tagName`, `#tag-name` and `#work/alpha` are all tags. | MVP |
 | LN-3 | Backlinks panel on every page, grouped by source page with context (parent breadcrumbs). | MVP |
-| LN-4 | "Unlinked references": plain-text mentions of the page title, with a one-click link action. | V1 |
+| LN-4 | "Unlinked references": plain-text mentions of the page title (and aliases) outside markup, listed below the linked references, with a one-click link action. | V1 |
 | LN-5 | Block references `((id))` render the referenced block inline (read-only), and embeds render it editable. Block IDs are created on demand. | MVP |
 | LN-6 | Page aliases (frontmatter `aliases`); links via an alias resolve to the page. | V1 |
 | LN-7 | Rename a page and update all references across the graph, with a preview of affected files. | MVP |
 | LN-8 | Case-insensitive page name matching; the display name keeps its original case. | MVP |
 | LN-9 | Graph view (pages and links) with namespace filtering. | Later |
+| LN-10 | A linked reference shows the linking block with all its sub-bullets (editable in place) and its ancestor path as links that open the page at that block. A block below another referencing block of the same page is part of that one, not a second reference. | V1 |
+| LN-11 | A link or tag on a block applies to everything below it: queries (`links:`, `tag:`), the page's "Mentioning this page" tasks and the agenda tag filter match descendants too. `direct: yes` limits a query to blocks that carry the link themselves. Dates and other properties are not inherited. | V1 |
 
 ### Namespaces (key feature)
 
@@ -92,12 +102,24 @@ A **graph** is a folder of notes.
 | NS-2 | Parent namespace pages exist implicitly (virtual) and become real files once given content. | MVP |
 | NS-3 | Sidebar namespace tree: expand/collapse, create a child page, rename/move a subtree, page counts. | MVP |
 | NS-4 | Breadcrumbs on every namespaced page; each segment is clickable. | MVP |
-| NS-5 | Namespace page shows its children (list or table view, with properties) above its own content. | MVP |
+| NS-5 | Namespace page shows its children: the **Hierarchy** section below the content lists every page below it (NS-15). | MVP |
 | NS-6 | ~~Relative links~~ **Removed (2026-10-03):** all links are global (full page name from the graph root). `[[./x]]`-style links are not supported. | — |
 | NS-7 | Autocomplete ranks pages in the current namespace and its siblings first; typing `/` after a segment drills into it. | MVP |
 | NS-8 | Moving or renaming a namespace moves the folder and rewrites all absolute links to pages inside it. | V1 |
 | NS-9 | Namespace-scoped queries and search: `ns: work` = `work` and all pages below it (decided 2026-10-03). | MVP |
 | NS-10 | Namespace templates: a per-namespace default template for new child pages (e.g. every `people/*` page starts with a set of fields). | V1 |
+| NS-11 | "All pages" view: a namespace tree and a flat list that can be filtered by name and sorted by name, block count, backlinks and modification time; journals and pages without a file can be hidden. | V1 |
+| NS-12 | The left panel can group pages by a page property instead of by namespace (`type: person`, `type: client` → a *person* group and a *client* group); the property is picked from the keys in use and remembered per device; pages without it are in a folded last group; list values put a page in several groups. | V1 |
+| NS-13 | Page properties can be added, changed and removed in the page header (they are the YAML frontmatter of the file); values already used for a key are suggested. | V1 |
+| NS-14 | Clicking a page property in the page header opens a view of all pages that have it: the key lists them grouped by value, a value (one link per item of a list) lists the pages with that value; the other values are links. | V1 |
+| NS-15 | A page shows a **Hierarchy** section (like Logseq): every page below it at any depth, each as its path with every segment a link. | V1 |
+| NS-16 | Renaming a page with subpages moves them with it (all links follow); "Move the subpages too" can be switched off to rename only the page, which also allows a name below the old one (`a` → `a/b/c`). | V1 |
+| NS-17 | Page icons: rules in the graph (`type = person` → 👤, synced) and a page's own `icon:` property give pages an emoji, shown next to the page in titles, lists and links. | V1 |
+| NS-23 | A journal day has the default page property `type: journal` unless its frontmatter sets a `type`: derived in the index, never written to the file. Icon rules, page queries (`prop.type: journal`) and the properties section see it; the calendar glyph is only the fallback when no icon applies. Today's journal, which has no file until something is written, gets the journal rule's icon too, so the feed's titles match. | V1 |
+| NS-18 | Every segment of a page name is an automatic, indirect tag: a segment that occurs in more than one place (`Renewal` in `P/Capgemini/Renewal/…`, `P/EY/Renewal/…`, `X/Renewal/…`) is marked with its count (in the Hierarchy, in the path above a page's title and next to its title) and opens a view of all its places, the pages below them, their open tasks and the explicit `#renewal` references. The query clause `path: Renewal` selects the same pages (and, in block queries, their blocks). | V1 |
+| NS-19 | Changing one non-final segment of a page's name in the rename dialog offers (ticked by default) to rename that namespace for all pages below it; unticked, or with other changes, only the page moves. | V1 |
+| NS-20 | Archive a page: `archived: true` in its frontmatter hides it and everything below it from the sidebar, property groups, Recent and All pages (unless asked for) and its tasks from the agenda; it is reversible and nothing moves. | V1 |
+| NS-21 | Delete a page (optionally with its subpages): the file goes to a trash outside the graph folder (30 days), links stay, one Undo restores it. | V1 |
 
 ## 6. Journals
 
@@ -117,9 +139,16 @@ A **graph** is a folder of notes.
 | TK-1 | A block starting with `TODO`, `DOING`, `WAITING`, `DONE` or `CANCELED` is a task. Ctrl+Enter cycles TODO → DOING → DONE. | MVP |
 | TK-2 | Tasks have optional `scheduled`, `deadline` (date or date+time), `priority` (high/medium/low) and `repeat` (recurrence). | MVP |
 | TK-3 | Completing a repeating task appends the date to a hidden `completed::` property, resets it to TODO and moves `scheduled`/`deadline` to the next occurrence. | V1 |
-| TK-4 | Agenda view: overdue, today, upcoming 7 days, no date. Filters by namespace, tag and priority. | MVP |
+| TK-4 | Agenda view: overdue, today, upcoming 7 days, later (dated beyond 7 days), no date. Filters by namespace, tag and priority. | MVP |
 | TK-5 | Completion timestamp recorded when a task is marked DONE. | MVP |
 | TK-6 | Subtask progress shown on parent tasks (e.g. 2/5). | V1 |
+| TK-7 | Task logbook: dated progress notes in a `:LOGBOOK:` drawer ([file-format.md](file-format.md) §3.6), added with `/log`, shown as a collapsible list and hidden from the block text. | V1 |
+| TK-8 | A task in the agenda shows the note it lives in as a link; following it opens that note and flashes the task, like a search result. | V1 |
+| TK-9 | A page has a **Tasks** section between its content and its references: its own open tasks, the tasks of its subpages, and the tasks elsewhere that link to it; done tasks on request; each task can be changed in place and links to its note. | V1 |
+| TK-10 | The agenda can be shown through the query views (list, table, kanban, timeline) with the same filters, plus done tasks, grouping and sorting; the query it runs can be shown and saved. | V1 |
+| TK-11 | The priority of a task is shown right after the task marker as `[#A]`; the labels are configurable in `config.toml` (`[tasks] priorities`) and in Settings, any number from one to nine (`A`, `B`, `C` by default); a task has no priority by default; each priority has a `/` command; the query clause `priority: A` and the agenda filter use the labels; `high`/`medium`/`low` in files mean the first, middle and last label. | V1 |
+| TK-12 | A task listed outside its note (agenda sections, the page's Tasks section) shows its source note in the task's own first row, right-aligned, so it can only be read as belonging to that task; the full parent path is in the tooltip and a click opens the note with the task flashed. | V1 |
+| TK-13 | Device setting *Task details: compact*: on pages and journals a task's date (the deadline, else the scheduled date; words for overdue, today and tomorrow, red when overdue), repeat and logbook are small indicators at the end of its first row; the usual chips and logbook open on hover, focus or click. The agenda, page tasks, query results and linked references always show everything. | V1 |
 
 ## 8. Queries and views
 
@@ -135,6 +164,7 @@ A **graph** is a folder of notes.
 | QV-8 | Saved queries usable as sidebar entries. | V1 |
 | QV-9 | Plugins can register new view types (see PG-*). | V1 |
 | QV-10 | Query errors are shown inline with position info; never crash the page. | MVP |
+| QV-11 | A query block in a note is edited by clicking anywhere on it except its results: the header (with a visible hint), the frame or the shown query text open the block for editing; a click on a result keeps its own meaning. | V1 |
 
 ## 9. Properties
 
@@ -143,6 +173,10 @@ A **graph** is a folder of notes.
 | PR-1 | Page properties in YAML frontmatter; block properties as `key:: value` lines. | MVP |
 | PR-2 | Property values: text, number, date, boolean, page link(s), list. Type inferred, optionally declared in config. | MVP |
 | PR-3 | Property autocomplete (keys and existing values). | V1 |
+| PR-5 | A query can let block properties apply to everything below the block that has them: `inherit: client, type`. The nearest block with the key decides (its own value wins), the page's frontmatter is the root; `direct: yes` and page queries ignore it; dates, priority and task data are never inherited. | V1 |
+| PR-6 | Block properties are shown as a compact card under the block: bold key, value (links open the page, other values open the view of all blocks with that value), the key opens the view of all blocks with the property (optionally with the blocks below them). Edit, remove and add happen in the card's row and change only that line of the file. | V1 |
+| PR-7 | Typing `::` on a line after the first (or `key::`, or `/property`) opens a menu of known keys with a "Create property" row for a new one; the value menu then lists the values used for the key and pages (written as `[[Page]]`). | V1 |
+| PR-8 | Device setting *Block properties: compact*: on pages and journals a block's property card becomes one small `⋯ n` indicator at the end of its first row (the properties as its tooltip); the card, with edit, remove and add, opens on hover, focus or click. Independent of *Task details*. The agenda, query results and linked references always show the card. | V1 |
 | PR-4 | Hidden/system properties (e.g. `id`) are not rendered in normal view. | MVP |
 
 ## 10. Search

@@ -29,6 +29,21 @@ pub struct Config {
     /// `[[saved_queries]]`: queries pinned to the sidebar (they sync with the graph).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub saved_queries: Vec<SavedQuery>,
+    /// `[[page_icons]]`: an emoji for every page whose property has a value (`type: person` → 👤). They sync with the
+    /// graph. A page's own `icon:` property wins over these rules.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub page_icons: Vec<PageIconRule>,
+}
+
+/// One page-icon rule: pages with `key: value` get `icon`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageIconRule {
+    /// Page property (frontmatter key), e.g. `type`.
+    pub key: String,
+    /// The value that selects the pages, compared without regard to case or accents, e.g. `person`.
+    pub value: String,
+    /// The emoji (or a few characters) shown with those pages.
+    pub icon: String,
 }
 
 /// A query pinned to the sidebar.
@@ -101,11 +116,63 @@ pub struct NamespaceSection {
 }
 
 /// `[tasks]`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TasksSection {
     /// 0 = keep all completion dates of repeating tasks; N = keep the last N.
     #[serde(default)]
     pub completed_log_limit: u32,
+    /// The priority labels, most important first (one to nine). Shown after the task marker (`TODO [#A] ...`); in a
+    /// file `priority::` is one of them (`high`/`medium`/`low` still work). A task has no priority unless one is set.
+    #[serde(
+        default = "default_priorities",
+        skip_serializing_if = "is_default_priorities"
+    )]
+    pub priorities: Vec<String>,
+}
+
+/// The default priority labels.
+pub fn default_priorities() -> Vec<String> {
+    vec!["A".into(), "B".into(), "C".into()]
+}
+fn is_default_priorities(p: &[String]) -> bool {
+    p == default_priorities().as_slice()
+}
+
+impl Default for TasksSection {
+    fn default() -> Self {
+        TasksSection {
+            completed_log_limit: 0,
+            priorities: default_priorities(),
+        }
+    }
+}
+
+/// Checks priority labels: one to nine, each 1 to 8 characters without spaces, all different (ignoring case).
+pub fn validate_priorities(labels: &[String]) -> std::result::Result<(), String> {
+    if labels.is_empty() || labels.len() > 9 {
+        return Err(
+            "give between one and nine priority labels, most important first (A, B, C)".into(),
+        );
+    }
+    let mut seen: Vec<String> = Vec::new();
+    for l in labels {
+        let l = l.trim();
+        if l.is_empty()
+            || l.chars().count() > 8
+            || l.chars().any(char::is_whitespace)
+            || l.contains(['[', ']', '#', ':', ','])
+        {
+            return Err(format!(
+                "`{l}` is not a usable priority label (1 to 8 characters, no spaces or `[]#:,`)"
+            ));
+        }
+        let k = l.to_lowercase();
+        if seen.contains(&k) {
+            return Err(format!("the label `{l}` is used twice"));
+        }
+        seen.push(k);
+    }
+    Ok(())
 }
 
 /// `[calendar]`
@@ -138,7 +205,7 @@ impl Default for CalendarSection {
 const KNOWN: &[(&str, &[&str])] = &[
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
-    ("tasks", &["completed_log_limit"]),
+    ("tasks", &["completed_log_limit", "priorities"]),
     ("calendar", &["tasks_as", "on_delete"]),
 ];
 
@@ -160,7 +227,7 @@ impl Config {
                         }
                     }
                 }
-                None if k == "saved_queries" => {}
+                None if k == "saved_queries" || k == "page_icons" => {}
                 None if k == "namespaces" => {
                     if let Some(t) = v.as_table() {
                         for (ns, nv) in t {
@@ -195,6 +262,27 @@ impl Config {
     /// Serialises to TOML.
     pub fn to_toml(&self) -> String {
         toml::to_string_pretty(self).unwrap_or_default()
+    }
+
+    /// The priority labels in use: `[tasks] priorities` when valid, else `A`, `B`, `C`.
+    pub fn priority_labels(&self) -> Vec<String> {
+        if validate_priorities(&self.tasks.priorities).is_ok() {
+            self.tasks
+                .priorities
+                .iter()
+                .map(|l| l.trim().to_string())
+                .collect()
+        } else {
+            default_priorities()
+        }
+    }
+
+    /// Parser options derived from the config.
+    pub fn parse_options(&self) -> notatnik_core::ParseOptions {
+        notatnik_core::ParseOptions {
+            property_types: self.property_types(),
+            priority_labels: self.priority_labels(),
+        }
     }
 
     /// Declared property types as the parser wants them.
@@ -302,6 +390,35 @@ pub struct UiSettings {
     /// BCP 47 locale used to format dates (`en-GB`, `pl-PL`, ...).
     #[serde(default = "default_date_locale")]
     pub date_locale: String,
+    /// Show `[[ ]]` around rendered page links (they are always visible while a block is edited).
+    #[serde(default)]
+    pub link_brackets: bool,
+    /// Task details (schedule, deadline, repeat, logbook) under a task on pages: `full` (always shown) or `compact`
+    /// (one small indicator in the task's row, the details on hover, focus or tap).
+    #[serde(default = "default_task_details")]
+    pub task_details: String,
+    /// Block properties (`key:: value` lines) under a block on pages: `full` or `compact` (one small indicator in
+    /// the block's row, the property card in a popover).
+    #[serde(default = "default_task_details")]
+    pub block_properties: String,
+    /// How dates are written: `full` (Sat, 3 Oct 2026), `long` (3 October 2026), `short` (03/10/2026, order by
+    /// locale), `iso` (2026-10-03) or `custom` (use `date_pattern`).
+    #[serde(default = "default_date_format")]
+    pub date_format: String,
+    /// Pattern for `date_format = "custom"`, e.g. `dddd, D MMMM YYYY`. Tokens: see `docs/date-formats.md`.
+    #[serde(default)]
+    pub date_pattern: String,
+}
+
+/// The accepted values of `UiSettings::date_format`.
+pub const DATE_FORMATS: [&str; 5] = ["full", "long", "short", "iso", "custom"];
+
+fn default_task_details() -> String {
+    "full".into()
+}
+
+fn default_date_format() -> String {
+    "full".into()
 }
 
 fn default_theme() -> String {
@@ -316,6 +433,11 @@ impl Default for UiSettings {
         UiSettings {
             theme: default_theme(),
             date_locale: default_date_locale(),
+            link_brackets: false,
+            task_details: default_task_details(),
+            block_properties: default_task_details(),
+            date_format: default_date_format(),
+            date_pattern: String::new(),
         }
     }
 }
@@ -395,5 +517,30 @@ mod tests {
         assert_eq!(Config::parse(&c2.to_toml()).unwrap().0, c2);
         assert_ne!(new_graph_id(), new_graph_id());
         assert!(Config::parse("[graph\nbroken").is_err());
+    }
+}
+
+#[cfg(test)]
+mod priority_tests {
+    use super::*;
+
+    #[test]
+    fn labels_are_validated_and_default_to_abc() {
+        assert!(validate_priorities(&["A".into(), "B".into(), "C".into()]).is_ok());
+        assert!(validate_priorities(&["1".into(), "2".into(), "3".into()]).is_ok());
+        assert!(validate_priorities(&["A".into(), "B".into()]).is_ok());
+        assert!(validate_priorities(&[]).is_err());
+        assert!(validate_priorities(&(1..=10).map(|n| n.to_string()).collect::<Vec<_>>()).is_err());
+        assert!(validate_priorities(&["A".into(), "a".into(), "C".into()]).is_err());
+        assert!(validate_priorities(&["A B".into(), "B".into(), "C".into()]).is_err());
+        let (c, _) = Config::parse("[tasks]\npriorities = [\"!\", \"!!\", \"!!!\"]\n").unwrap();
+        assert_eq!(c.priority_labels(), ["!", "!!", "!!!"]);
+        // an invalid list falls back to A, B, C instead of breaking the graph
+        let (c, _) = Config::parse("[tasks]\npriorities = [\"a b\"]\n").unwrap();
+        assert_eq!(c.priority_labels(), ["A", "B", "C"]);
+        let (c, _) = Config::parse("[tasks]\npriorities = [\"1\", \"2\", \"3\", \"4\"]\n").unwrap();
+        assert_eq!(c.priority_labels().len(), 4);
+        // the default is not written out
+        assert!(!Config::default().to_toml().contains("priorities"));
     }
 }

@@ -13,6 +13,8 @@ pub mod hash;
 pub mod identity;
 pub mod ids;
 pub mod inline;
+pub mod logbook;
+pub mod mentions;
 pub mod model;
 pub mod names;
 pub mod outline;

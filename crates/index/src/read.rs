@@ -57,6 +57,19 @@ pub struct Backlink {
     pub kind: String,
 }
 
+/// A block that mentions a page in plain text without linking to it (LN-4).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Unlinked {
+    /// Page that contains the mention.
+    pub source_page: String,
+    /// Block path (`0.2.1`).
+    pub block_path: String,
+    /// First lines of the parent blocks, outermost first.
+    pub breadcrumbs: Vec<String>,
+    /// The name or alias that matched.
+    pub term: String,
+}
+
 /// What a search hit is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -342,6 +355,99 @@ impl Index {
         Ok(out)
     }
 
+    /// Blocks that mention `name` (or one of its aliases) as a whole word outside markup, and don't link to the
+    /// page. FTS finds the candidates, `find_mention` checks the word boundaries and the markup.
+    pub fn unlinked_refs(&self, name: &str, limit: usize) -> Result<Vec<Unlinked>> {
+        let keys = self.keys_for(name);
+        let own = self.resolve_page_id(keys.first().map_or("", String::as_str))?;
+        let display: String = match own {
+            Some(id) => self
+                .conn
+                .query_row("SELECT name FROM pages WHERE id = ?1", [id], |r| r.get(0))?,
+            None => name.to_string(),
+        };
+        // the page name first, then its aliases (stored folded)
+        let mut terms = vec![display];
+        terms.extend(keys.iter().skip(1).cloned());
+        let ph = vec!["?"; keys.len()].join(",");
+        let linked_sql =
+            format!("SELECT 1 FROM refs WHERE src_block_id = ? AND target_key IN ({ph}) LIMIT 1");
+        let mut out: Vec<Unlinked> = Vec::new();
+        let mut seen: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        for term in terms {
+            let Some(m) = fts_match(&term) else { continue };
+            let mut st = self.conn.prepare_cached(
+                "SELECT rowid FROM fts WHERE fts MATCH ?1 AND rowid > 0 LIMIT 1000",
+            )?;
+            let ids: Vec<i64> = st
+                .query_map([m], |r| r.get(0))?
+                .collect::<std::result::Result<_, _>>()?;
+            for bid in ids {
+                if out.len() >= limit {
+                    return Ok(out);
+                }
+                if !seen.insert(bid) {
+                    continue;
+                }
+                let (text, path, page_id, parent, page): (
+                    String,
+                    String,
+                    i64,
+                    Option<i64>,
+                    String,
+                ) = self.conn.query_row(
+                    "SELECT b.text, b.path, b.page_id, b.parent_id, p.name FROM blocks b
+                         JOIN pages p ON p.id = b.page_id WHERE b.id = ?1",
+                    [bid],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+                )?;
+                if Some(page_id) == own
+                    || notatnik_core::mentions::find_mention(&text, &term).is_none()
+                {
+                    continue;
+                }
+                let mut args: Vec<rusqlite::types::Value> = vec![bid.into()];
+                args.extend(keys.iter().map(|k| k.clone().into()));
+                if self
+                    .conn
+                    .query_row(&linked_sql, params_from_iter(args.iter()), |_| Ok(()))
+                    .is_ok()
+                {
+                    continue; // already linked: it is in the linked references
+                }
+                out.push(Unlinked {
+                    source_page: page,
+                    block_path: path,
+                    breadcrumbs: self.breadcrumbs(parent)?,
+                    term: term.clone(),
+                });
+            }
+        }
+        out.sort_by(|a, b| {
+            a.source_page
+                .to_lowercase()
+                .cmp(&b.source_page.to_lowercase())
+                .then(a.block_path.cmp(&b.block_path))
+        });
+        Ok(out)
+    }
+
+    /// First lines of the ancestors of a block, outermost first.
+    fn breadcrumbs(&self, mut cur: Option<i64>) -> Result<Vec<String>> {
+        let mut crumbs = Vec::new();
+        while let Some(pid) = cur {
+            let (t, pp): (String, Option<i64>) = self.conn.query_row(
+                "SELECT text, parent_id FROM blocks WHERE id = ?1",
+                [pid],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            crumbs.push(t.lines().next().unwrap_or("").to_string());
+            cur = pp;
+        }
+        crumbs.reverse();
+        Ok(crumbs)
+    }
+
     /// Full-text search (case- and diacritic-insensitive; trailing `*` = prefix). Page-name hits come
     /// first, then block hits, each ordered by bm25 relevance.
     pub fn search(&self, q: &str, limit: usize) -> Result<Vec<SearchHit>> {
@@ -502,6 +608,273 @@ impl Index {
         Ok(rows)
     }
 
+    /// Page-property keys (frontmatter) with the number of pages that have them, most used first.
+    pub fn page_property_keys(&self) -> Result<Vec<PageKeyCount>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT pr.key, COUNT(DISTINCT pr.owner_id) AS n FROM props pr
+             JOIN pages p ON p.id = pr.owner_id
+             WHERE pr.owner_kind = 'page' AND p.is_journal = 0
+             GROUP BY pr.key ORDER BY n DESC, pr.key",
+        )?;
+        let rows = st
+            .query_map([], |r| {
+                Ok(PageKeyCount {
+                    key: r.get(0)?,
+                    pages: r.get::<_, i64>(1)? as usize,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Pages grouped by the value of a page property. A page with several values (a list) appears in each group;
+    /// values that differ only in case or accents are one group. Pages without the property come last in a group
+    /// whose `value` is `None`. Journals and pages without a file are not listed.
+    pub fn page_groups(&self, key: &str) -> Result<Vec<PageGroup>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT pr.value_fold, pr.value_text, p.name FROM props pr JOIN pages p ON p.id = pr.owner_id
+             WHERE pr.owner_kind = 'page' AND pr.key = ?1 AND p.is_journal = 0 AND p.is_virtual = 0
+               AND pr.value_text IS NOT NULL AND pr.value_text <> ''
+             ORDER BY pr.value_fold, p.key",
+        )?;
+        let rows: Vec<(String, String, String)> = st
+            .query_map([key], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<std::result::Result<_, _>>()?;
+        let mut groups: Vec<(String, PageGroup)> = Vec::new();
+        for (fold, text, page) in rows {
+            match groups.last_mut() {
+                Some((f, g)) if *f == fold => {
+                    if !g.pages.contains(&page) {
+                        g.pages.push(page);
+                    }
+                }
+                _ => groups.push((
+                    fold,
+                    PageGroup {
+                        value: Some(text),
+                        pages: vec![page],
+                    },
+                )),
+            }
+        }
+        let mut out: Vec<PageGroup> = groups.into_iter().map(|(_, g)| g).collect();
+        let mut st = self.conn.prepare_cached(
+            "SELECT p.name FROM pages p WHERE p.is_journal = 0 AND p.is_virtual = 0
+               AND p.id NOT IN (SELECT owner_id FROM props WHERE owner_kind = 'page' AND key = ?1
+                                AND value_text IS NOT NULL AND value_text <> '')
+             ORDER BY p.key",
+        )?;
+        let none: Vec<String> = st
+            .query_map([key], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        if !none.is_empty() {
+            out.push(PageGroup {
+                value: None,
+                pages: none,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Pages whose page property `key` has `value` (no regard to case or accents). Pages without a file are skipped.
+    pub fn pages_with_property(&self, key: &str, value: &str) -> Result<Vec<String>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT DISTINCT p.name FROM props pr JOIN pages p ON p.id = pr.owner_id
+             WHERE pr.owner_kind = 'page' AND pr.key = ?1 AND pr.value_fold = ?2 AND p.is_virtual = 0
+             ORDER BY p.key",
+        )?;
+        let rows = st
+            .query_map(params![key, search_fold(value)], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Name of the page whose file is `rel` (relative path).
+    pub fn page_for_file(&self, rel: &str) -> Result<Option<String>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT p.name FROM files f JOIN pages p ON p.id = f.page_id WHERE f.path = ?1",
+        )?;
+        let mut rows = st.query_map([rel], |r| r.get::<_, String>(0))?;
+        Ok(rows.next().transpose()?)
+    }
+
+    /// Pages whose frontmatter says `archived: true` (also `yes`, `1`). Pages below an archived page count as
+    /// archived too; that is the caller's rule, this lists only the pages that carry the property.
+    pub fn archived_pages(&self) -> Result<Vec<String>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT DISTINCT p.name FROM props pr JOIN pages p ON p.id = pr.owner_id
+             WHERE pr.owner_kind = 'page' AND pr.key = 'archived' AND p.is_virtual = 0
+               AND lower(trim(pr.value_text)) IN ('true', 'yes', '1', 'y')
+             ORDER BY p.key",
+        )?;
+        let rows = st
+            .query_map([], |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// `(page, value)` for every page that has the page property `key` (one row per value of a list).
+    pub fn page_property_values(&self, key: &str) -> Result<Vec<(String, String)>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT p.name, pr.value_text FROM props pr JOIN pages p ON p.id = pr.owner_id
+             WHERE pr.owner_kind = 'page' AND pr.key = ?1 AND p.is_virtual = 0
+               AND pr.value_text IS NOT NULL AND pr.value_text <> ''
+             ORDER BY p.key, pr.ord",
+        )?;
+        let rows = st
+            .query_map([key], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Every place where `segment` (a name, or `a/b` for two segments in a row) occurs in a page path, with the pages
+    /// below it: `Renewal` finds `P/Capgemini/Renewal` (and its `Siemens Energy`), `P/EY/Renewal`, `X/Renewal`.
+    /// Matching ignores case. Journals are skipped. Ordered by the path.
+    pub fn segment_groups(&self, segment: &str) -> Result<Vec<SegmentGroup>> {
+        let Ok(n) = PageName::parse(segment) else {
+            return Ok(Vec::new());
+        };
+        let seg_key = n.lookup_key();
+        let seg: Vec<&str> = segs_of(&seg_key);
+        let mut st = self.conn.prepare_cached(
+            "SELECT name, key, is_virtual FROM pages WHERE is_journal = 0 ORDER BY key",
+        )?;
+        let rows: Vec<(String, String, bool)> = st
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0)))?
+            .collect::<std::result::Result<_, _>>()?;
+        // group by the lookup key of the occurrence; the first page seen names the display form
+        let mut groups: Vec<(String, SegmentGroup)> = Vec::new();
+        let mut heads: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
+        for (name, key, is_virtual) in &rows {
+            let ks = segs_of(key);
+            let Some(end) = occurrence_end(&ks, &seg) else {
+                continue;
+            };
+            let occ_key = ks[..end].join("/");
+            if end == ks.len() {
+                heads.insert(occ_key.clone(), *is_virtual);
+            }
+            let occ_name = name.split('/').take(end).collect::<Vec<_>>().join("/");
+            // a top-level placeholder (only referenced, e.g. by a `#renewal` tag) with nothing below it is the tag, not a
+            // place; a page inside a path (`Napis/first/deepest`, linked but never written) belongs to the hierarchy
+            if ks.len() == 1
+                && end == ks.len()
+                && *is_virtual
+                && !rows
+                    .iter()
+                    .any(|(_, k, _)| k.starts_with(&format!("{key}/")))
+            {
+                continue;
+            }
+            let idx = match groups.iter().position(|(k, _)| *k == occ_key) {
+                Some(i) => i,
+                None => {
+                    groups.push((
+                        occ_key.clone(),
+                        SegmentGroup {
+                            occurrence: occ_name,
+                            occurrence_is_virtual: true,
+                            pages: Vec::new(),
+                        },
+                    ));
+                    groups.len() - 1
+                }
+            };
+            if end < ks.len() {
+                groups[idx].1.pages.push((name.clone(), *is_virtual));
+            }
+        }
+        Ok(groups
+            .into_iter()
+            .map(|(k, mut g)| {
+                g.occurrence_is_virtual = heads.get(&k).copied().unwrap_or(true);
+                g
+            })
+            .collect())
+    }
+
+    /// For each segment, in how many different places it occurs (see `segment_groups`); one pass over all pages.
+    pub fn segment_places(&self, segments: &[String]) -> Result<Vec<usize>> {
+        let wanted: Vec<String> = segments
+            .iter()
+            .map(|s| {
+                PageName::parse(s)
+                    .map(|n| n.lookup_key())
+                    .unwrap_or_default()
+            })
+            .collect();
+        let mut st = self.conn.prepare_cached(
+            "SELECT key, is_virtual FROM pages WHERE is_journal = 0 ORDER BY key",
+        )?;
+        let keys: Vec<(String, bool)> = st
+            .query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0)))?
+            .collect::<std::result::Result<_, _>>()?;
+        let mut sets: Vec<std::collections::HashSet<String>> =
+            vec![Default::default(); wanted.len()];
+        for (n, (key, is_virtual)) in keys.iter().enumerate() {
+            let ks = segs_of(key);
+            // sorted by key, the pages below a page follow it directly
+            let has_below = keys
+                .get(n + 1)
+                .is_some_and(|(next, _)| next.starts_with(&format!("{key}/")));
+            for (i, w) in wanted.iter().enumerate() {
+                if w.is_empty() {
+                    continue;
+                }
+                if let Some(end) = occurrence_end(&ks, &segs_of(w)) {
+                    // a top-level placeholder with nothing below it is not a place (see `segment_groups`)
+                    if ks.len() == 1 && end == ks.len() && *is_virtual && !has_below {
+                        continue;
+                    }
+                    sets[i].insert(ks[..end].join("/"));
+                }
+            }
+        }
+        Ok(sets.into_iter().map(|s| s.len()).collect())
+    }
+
+    /// Every page below `name` in the namespace tree (all depths, real and virtual), by name.
+    pub fn subtree_pages(&self, name: &str) -> Result<Vec<SubPage>> {
+        let Ok(n) = PageName::parse(name) else {
+            return Ok(Vec::new());
+        };
+        let key = n.lookup_key();
+        let mut st = self.conn.prepare(
+            "SELECT name, is_virtual, file_path FROM pages
+             WHERE key > ?1 || '/' AND key < ?1 || '0' ORDER BY key",
+        )?;
+        let rows = st
+            .query_map([key], |r| {
+                Ok(SubPage {
+                    name: r.get(0)?,
+                    is_virtual: r.get::<_, i64>(1)? != 0,
+                    file_path: r.get(2)?,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Files that reference `name` (aliases included) or any page below it (used by namespace moves).
+    pub fn files_referencing_subtree(&self, name: &str) -> Result<Vec<String>> {
+        let keys = self.keys_for(name);
+        let own = keys.first().cloned().unwrap_or_default();
+        let ph = vec!["?"; keys.len()].join(",");
+        let sql = format!(
+            "SELECT DISTINCT p.file_path FROM refs r JOIN pages p ON p.id = r.src_page_id
+             WHERE (r.target_key IN ({ph}) OR (r.target_key > ? || '/' AND r.target_key < ? || '0'))
+               AND r.kind IN ('page','tag','page_embed') AND p.file_path IS NOT NULL ORDER BY p.file_path"
+        );
+        let mut args: Vec<Value> = keys.iter().map(|k| Value::Text(k.clone())).collect();
+        args.push(Value::Text(own.clone()));
+        args.push(Value::Text(own));
+        let mut st = self.conn.prepare(&sql)?;
+        let rows = st
+            .query_map(params_from_iter(args.iter()), |r| r.get(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
     /// Direct child pages in the namespace tree (names), real and virtual.
     pub fn namespace_children(&self, name: &str) -> Result<Vec<String>> {
         let Ok(n) = PageName::parse(name) else {
@@ -525,6 +898,79 @@ impl Index {
             })
             .optional()?)
     }
+}
+
+/// Pages that share one value of a page property (`type: person`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PageGroup {
+    /// The value as first written; `None` for the pages that don't have the property.
+    pub value: Option<String>,
+    /// Display names of the pages, ordered by name.
+    pub pages: Vec<String>,
+}
+
+/// A page-property key with the number of pages that have it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PageKeyCount {
+    /// Property key.
+    pub key: String,
+    /// Pages that have it.
+    pub pages: usize,
+}
+
+/// One place where a path segment occurs: the page that ends in it and the pages below that page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SegmentGroup {
+    /// The path up to and including the segment (`P/EY/Renewal`).
+    pub occurrence: String,
+    /// The occurrence has no file of its own (it only exists as the parent of other pages).
+    pub occurrence_is_virtual: bool,
+    /// The pages below the occurrence, by name (`(name, is_virtual)`).
+    pub pages: Vec<(String, bool)>,
+}
+
+/// Where a segment of a page name (or several segments in a row) ends: the number of segments up to and including its
+/// first occurrence in `key_segments`, if any.
+fn occurrence_end(key_segments: &[&str], seg: &[&str]) -> Option<usize> {
+    if seg.is_empty() || key_segments.len() < seg.len() {
+        return None;
+    }
+    (0..=key_segments.len() - seg.len())
+        .find(|i| key_segments[*i..*i + seg.len()] == *seg)
+        .map(|i| i + seg.len())
+}
+
+/// A page name as lookup-key segments (case and Unicode form folded).
+fn segs_of(key: &str) -> Vec<&str> {
+    key.split('/').collect()
+}
+
+/// A page below another one in the namespace tree.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SubPage {
+    /// Display name.
+    pub name: String,
+    /// No file behind it.
+    pub is_virtual: bool,
+    /// Path of its file relative to the graph root.
+    pub file_path: Option<String>,
+}
+
+/// One row of the "all pages" list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PageRow {
+    /// Display name.
+    pub name: String,
+    /// No file behind it.
+    pub is_virtual: bool,
+    /// Name is a date.
+    pub is_journal: bool,
+    /// Blocks in the page (without the preamble).
+    pub blocks: usize,
+    /// Blocks and pages elsewhere that link to it (page links, tags, embeds).
+    pub backlinks: usize,
+    /// File modification time, nanoseconds since the Unix epoch.
+    pub mtime_ns: Option<i64>,
 }
 
 /// One entry of the namespace tree.
@@ -566,6 +1012,37 @@ impl Index {
                     name: r.get(0)?,
                     is_virtual: r.get::<_, i64>(1)? != 0,
                     descendants: r.get::<_, i64>(2)? as usize,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    /// Every page (files and referenced-only pages) with a few counts, ordered by name.
+    pub fn all_pages(&self) -> Result<Vec<PageRow>> {
+        // grouped once instead of one subquery per page (10,000 pages: 4 s -> tens of ms)
+        let sql = "WITH bc AS (SELECT page_id, COUNT(*) n FROM blocks WHERE is_preamble = 0 GROUP BY page_id),
+                        bl AS (SELECT p2.id AS pid, COUNT(*) n
+                               FROM (SELECT DISTINCT src_page_id, COALESCE(src_block_id, 0) AS b, target_key
+                                     FROM refs WHERE kind IN ('page','tag','page_embed')) r
+                               JOIN pages p2 ON p2.key = r.target_key
+                               WHERE r.src_page_id <> p2.id GROUP BY p2.id)
+                   SELECT p.name, p.is_virtual, p.is_journal, COALESCE(bc.n, 0), COALESCE(bl.n, 0), f.mtime_ns
+                   FROM pages p
+                   LEFT JOIN bc ON bc.page_id = p.id
+                   LEFT JOIN bl ON bl.pid = p.id
+                   LEFT JOIN files f ON f.path = p.file_path
+                   ORDER BY p.key";
+        let mut st = self.conn.prepare_cached(sql)?;
+        let rows = st
+            .query_map([], |r| {
+                Ok(PageRow {
+                    name: r.get(0)?,
+                    is_virtual: r.get::<_, i64>(1)? != 0,
+                    is_journal: r.get::<_, i64>(2)? != 0,
+                    blocks: r.get::<_, i64>(3)? as usize,
+                    backlinks: r.get::<_, i64>(4)? as usize,
+                    mtime_ns: r.get(5)?,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?;

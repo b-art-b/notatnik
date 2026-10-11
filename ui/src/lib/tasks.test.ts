@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockView } from './api'
-import { doneAt, isOverdue, nextTaskState, progress } from './tasks'
+import { doneAt, dueIndicator, isOverdue, nextTaskState, progress } from './tasks'
 
 import type { TaskState } from './api'
 
@@ -14,6 +14,7 @@ const blk = (state: TaskState | null, children: BlockView[] = []): BlockView =>
     content: [],
     task: state ? { state, scheduled: null, deadline: null, priority: null, repeat: null } : null,
     props: [],
+    logbook: [],
     collapsed: false,
     children,
   }) as BlockView
@@ -37,5 +38,36 @@ describe('tasks', () => {
     expect(isOverdue('2026-10-02 17:00', '2026-10-03')).toBe(true)
     expect(isOverdue('2026-10-03', '2026-10-03')).toBe(false)
     expect(isOverdue(null, '2026-10-03')).toBe(false)
+  })
+})
+
+describe('dueIndicator', () => {
+  const t = (state: string, scheduled: string | null, deadline: string | null) => ({
+    state,
+    scheduled,
+    deadline,
+  })
+  it('prefers the deadline and uses words for overdue, today and tomorrow', () => {
+    expect(dueIndicator(t('TODO', '2026-10-01', '2026-10-08'), '2026-10-11')).toMatchObject({
+      kind: 'deadline',
+      text: '3d overdue',
+      tone: 'overdue',
+    })
+    expect(dueIndicator(t('TODO', null, '2026-10-11'), '2026-10-11')).toMatchObject({
+      text: 'today',
+      tone: 'today',
+    })
+    expect(dueIndicator(t('DOING', '2026-10-12', null), '2026-10-11')).toMatchObject({
+      kind: 'scheduled',
+      text: 'tomorrow',
+    })
+  })
+  it('leaves the text to the caller for later dates and shows nothing for finished tasks', () => {
+    expect(dueIndicator(t('TODO', null, '2026-12-24'), '2026-10-11')).toMatchObject({
+      text: null,
+      tone: 'later',
+    })
+    expect(dueIndicator(t('DONE', null, '2026-10-01'), '2026-10-11')).toBeNull()
+    expect(dueIndicator(t('TODO', null, null), '2026-10-11')).toBeNull()
   })
 })

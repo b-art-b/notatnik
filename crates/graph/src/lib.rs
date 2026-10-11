@@ -12,8 +12,9 @@ pub mod synth;
 mod watch;
 
 pub use config::{
-    CalendarSection, Config, DeviceSettings, Dirs, GraphEntry, GraphSection, NamespaceSection,
-    PropertiesSection, SavedQuery, TasksSection, new_graph_id,
+    CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, GraphEntry, GraphSection,
+    NamespaceSection, PageIconRule, PropertiesSection, SavedQuery, TasksSection,
+    default_priorities, new_graph_id, validate_priorities,
 };
 pub use error::{Error, Result};
 pub use rename::{FileEdit, RenamePlan, RenameReport};
@@ -232,6 +233,7 @@ impl Graph {
         let data_dir = dirs.graph_data(&config.graph.id);
         let options = IndexOptions {
             property_types: config.property_types(),
+            priority_labels: config.priority_labels(),
         };
         let (mut index, info) = Index::open(&data_dir.join("index.sqlite"), options)?;
         let mut report = OpenReport {
@@ -311,8 +313,50 @@ impl Graph {
         let path = g.root.join(".notatnik").join("config.toml");
         let root = g.root.clone();
         atomic_write(&root, &path, cfg.to_toml().as_bytes())?;
+        // the priority labels decide how `priority::` parses: files are indexed again when they change
+        let relabel = g.index.priority_labels() != cfg.priority_labels().as_slice();
         g.config = cfg;
+        if relabel {
+            let options = IndexOptions {
+                property_types: g.config.property_types(),
+                priority_labels: g.config.priority_labels(),
+            };
+            g.index.set_options(options);
+            g.index.index_all(&root)?;
+        }
         Ok(())
+    }
+
+    /// Reads `config.toml` again (it was edited outside the app). Returns whether the settings changed. A file that
+    /// does not parse is ignored: the settings in use stay. The priority labels decide how files are parsed, so a
+    /// change of them re-reads everything.
+    pub fn reload_config(&self) -> bool {
+        let mut g = self.lock();
+        let path = g.root.join(".notatnik").join("config.toml");
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return false;
+        };
+        let Ok((mut cfg, _)) = Config::parse(&text) else {
+            return false;
+        };
+        if cfg.graph.id.is_empty() {
+            cfg.graph.id = g.config.graph.id.clone();
+        }
+        if cfg == g.config {
+            return false;
+        }
+        let relabel = g.index.priority_labels() != cfg.priority_labels().as_slice();
+        g.config = cfg;
+        if relabel {
+            let options = IndexOptions {
+                property_types: g.config.property_types(),
+                priority_labels: g.config.priority_labels(),
+            };
+            let root = g.root.clone();
+            g.index.set_options(options);
+            let _ = g.index.index_all(&root);
+        }
+        true
     }
 
     /// A copy of the current config.
@@ -453,6 +497,104 @@ impl Graph {
         Ok(())
     }
 
+    /// Moves page files to the trash: each is copied below `<data dir>/trash/<id>/` (outside the graph folder, so it
+    /// is never synced) and then deleted like [`Graph::delete_page`]. Returns the trash id for
+    /// [`Graph::restore_trash`]. Trash older than 30 days is removed on the way.
+    pub fn trash_pages(&self, rels: &[String]) -> Result<String> {
+        let (data_dir, root) = {
+            let g = self.lock();
+            (g.data_dir.clone(), g.root.clone())
+        };
+        let trash = data_dir.join("trash");
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis())
+            .to_string();
+        // read everything first: if one file is unreadable nothing was touched
+        let mut files = Vec::new();
+        for rel in rels {
+            check_rel(rel)?;
+            let bytes = std::fs::read(root.join(rel)).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    Error::NotFound(rel.clone())
+                } else {
+                    Error::Io(e)
+                }
+            })?;
+            files.push((rel.clone(), bytes));
+        }
+        for (rel, bytes) in &files {
+            let dest = trash.join(&id).join(rel);
+            if let Some(dir) = dest.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            std::fs::write(&dest, bytes)?;
+        }
+        for (rel, bytes) in &files {
+            self.delete_page(rel, &hash_bytes(bytes))?;
+        }
+        // retention
+        let cutoff = std::time::SystemTime::now()
+            .checked_sub(std::time::Duration::from_secs(30 * 24 * 3600))
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_millis());
+        if let Ok(rd) = std::fs::read_dir(&trash) {
+            for e in rd.flatten() {
+                let old = e
+                    .file_name()
+                    .to_str()
+                    .and_then(|n| n.parse::<u128>().ok())
+                    .is_some_and(|ms| ms < cutoff);
+                if old {
+                    let _ = std::fs::remove_dir_all(e.path());
+                }
+            }
+        }
+        Ok(id)
+    }
+
+    /// Puts a trash entry back: every file returns to its old path unless something else is there now (that file
+    /// stays in the trash entry). Returns the restored paths; the entry is removed once all files are back.
+    pub fn restore_trash(&self, id: &str) -> Result<Vec<String>> {
+        if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(Error::NotFound(format!("trash entry `{id}`")));
+        }
+        let (dir, root) = {
+            let g = self.lock();
+            (g.data_dir.join("trash").join(id), g.root.clone())
+        };
+        if !dir.is_dir() {
+            return Err(Error::NotFound(format!("trash entry `{id}`")));
+        }
+        let mut stack = vec![dir.clone()];
+        let mut found = Vec::new();
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d)?.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if let Ok(rel) = p.strip_prefix(&dir) {
+                    found.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+        found.sort();
+        let mut restored = Vec::new();
+        for rel in &found {
+            check_rel(rel)?;
+            if root.join(rel).exists() {
+                continue;
+            }
+            let text = std::fs::read_to_string(dir.join(rel))?;
+            self.write_page(rel, &text, None)?; // also reindexes the file
+            restored.push(rel.clone());
+        }
+        if restored.len() == found.len() {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+        Ok(restored)
+    }
+
     /// Applies edit operations to a page file: reads it, applies the ops in order (reparsing between
     /// them), and writes the result with the base-hash guard.
     ///
@@ -471,9 +613,7 @@ impl Graph {
             (Err(Error::NotFound(_)), Some(_)) => return Err(Error::Conflict { path: rel.into() }),
             (Err(e), _) => return Err(e),
         };
-        let opts = notatnik_core::ParseOptions {
-            property_types: self.config().property_types(),
-        };
+        let opts = self.config().parse_options();
         let mut text = old_text.clone();
         for op in ops {
             let page = notatnik_core::parse_page_with(&text, &opts);
@@ -506,12 +646,7 @@ impl Graph {
         for d in dups {
             let new = notatnik_core::ids::generate_block_id(&used, &mut rng);
             used.insert(new.clone());
-            let page = notatnik_core::parse_page_with(
-                &file.text,
-                &notatnik_core::ParseOptions {
-                    property_types: self.config().property_types(),
-                },
-            );
+            let page = notatnik_core::parse_page_with(&file.text, &self.config().parse_options());
             match notatnik_core::replace_block_id(&file.text, &page, &d.path, &new) {
                 Ok(r) => {
                     file.text = r.new_source;

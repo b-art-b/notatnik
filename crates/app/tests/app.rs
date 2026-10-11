@@ -86,7 +86,11 @@ fn page_view_of_the_alpha_page() {
     let spec = &blocks[1];
     assert_eq!(spec["task"]["state"], "TODO");
     assert_eq!(spec["task"]["scheduled"], "2026-10-05");
-    assert_eq!(spec["task"]["priority"], "high");
+    assert_eq!(
+        spec["task"]["priority"], "A",
+        "`high` in the file is the first label"
+    );
+    assert_eq!(spec["task"]["priority_rank"], 0);
     assert_eq!(spec["uid"], "k3x9qa");
     assert_eq!(
         spec["content"][0]["children"][0],
@@ -383,10 +387,23 @@ fn rename_plan_and_apply() {
         t.read("pages/work/projects/alpha.md")
             .contains("[[team/anna]]")
     );
+    // a whole namespace moves with its pages (NS-8)
+    let plan = t.ok("rename_plan", json!({"old": "work", "new": "jobs"}));
+    assert!(plan["file_moves"].as_array().unwrap().len() >= 2, "{plan}");
+    // moving a namespace into itself is refused
     let e = t
-        .call("rename_plan", json!({"old": "work", "new": "jobs"}))
+        .call(
+            "rename_plan",
+            json!({"old": "work", "new": "work/projects/x"}),
+        )
         .unwrap_err();
     assert_eq!(e.code, "invalid");
+    assert!(e.message.contains("into itself"), "{}", e.message);
+    // nothing to revert when no rename stopped half way
+    assert!(t.call("rename_revert", json!({})).is_err());
+    let p = t.ok("rename_apply", json!({"old": "work", "new": "jobs"}));
+    assert_eq!(p["name"], "jobs");
+    assert!(t.graph().join("pages/jobs/projects/alpha.md").exists());
 }
 
 #[test]
@@ -608,7 +625,11 @@ fn agenda_sections_for_the_tasks_fixture() {
         ["2026-10-04", "2026-10-05", "2026-10-07", "2026-10-08"]
     );
     assert_eq!(a["undated"].as_array().unwrap().len(), 8);
-    assert!(!serde_json::to_string(&a).unwrap().contains("Far future"));
+    // beyond the 7-day window: in `later`, nowhere else
+    assert_eq!(a["later"].as_array().unwrap().len(), 1);
+    assert!(texts(&a["later"])[0].contains("Far future"));
+    let rest = json!([a["overdue"], a["today_items"], a["upcoming"], a["undated"]]);
+    assert!(!rest.to_string().contains("Far future"));
     // filters
     let w = t.ok(
         "agenda",
@@ -630,10 +651,7 @@ fn agenda_sections_for_the_tasks_fixture() {
             .unwrap(),
         "TODO Work task urgent #urgent"
     );
-    let h = t.ok(
-        "agenda",
-        json!({"ns": null, "tag": null, "priority": "high"}),
-    );
+    let h = t.ok("agenda", json!({"ns": null, "tag": null, "priority": "A"}));
     assert_eq!(
         h["upcoming"][0]["items"].as_array().unwrap().len(),
         1,
@@ -801,5 +819,916 @@ fn settings_change_only_their_own_file() {
         "{cfg_after}"
     );
     assert_eq!(t.ok("graph_info", json!({}))["week_start"], "sunday");
+    // the link-bracket flag is a device setting too
+    let s = t.ok("set_settings", json!({"link_brackets": true}));
+    assert_eq!(s["link_brackets"], true);
+    assert_eq!(std::fs::read_to_string(&cfg_path).unwrap(), cfg_after);
+    assert!(
+        std::fs::read_to_string(&dev_path)
+            .unwrap()
+            .contains("link_brackets = true")
+    );
+    // date format and language
+    let s = t.ok(
+        "set_settings",
+        json!({"date_format": "iso", "date_locale": "de-DE"}),
+    );
+    assert_eq!(
+        (s["date_format"].as_str(), s["date_locale"].as_str()),
+        (Some("iso"), Some("de-DE"))
+    );
+    let s = t.ok(
+        "set_settings",
+        json!({"date_format": "custom", "date_pattern": "dddd, D MMMM YYYY"}),
+    );
+    assert_eq!(
+        (s["date_format"].as_str(), s["date_pattern"].as_str()),
+        (Some("custom"), Some("dddd, D MMMM YYYY"))
+    );
+    assert!(
+        std::fs::read_to_string(&dev_path)
+            .unwrap()
+            .contains("date_pattern = \"dddd, D MMMM YYYY\"")
+    );
+    assert!(
+        t.call("set_settings", json!({"date_pattern": "a\nb"}))
+            .is_err()
+    );
+    assert!(
+        t.call("set_settings", json!({"date_format": "weird"}))
+            .is_err()
+    );
+    assert!(
+        t.call("set_settings", json!({"date_locale": "x y"}))
+            .is_err()
+    );
     assert!(t.call("set_settings", json!({"theme": "neon", "date_locale": null, "week_start": null, "completed_log_limit": null})).is_err());
+}
+
+/// Task logbook: the drawer is hidden from the rendered text, listed as entries, and kept in the raw text.
+#[test]
+fn logbook_is_listed_and_not_rendered() {
+    let t = start("edge-cases");
+    let p = t.ok("get_page", json!({"name": "logbook"}));
+    let first = &p["blocks"][0];
+    let log = first["logbook"].as_array().unwrap();
+    assert_eq!(log.len(), 2, "{first}");
+    assert_eq!(log[0]["when"], "2026-10-04 14:30");
+    assert_eq!(log[0]["text"], "Outline done");
+    assert_eq!(log[1]["when"], "2026-10-05");
+    // the note is rendered: `[[Anna]]` is a page link, not text
+    let rendered_note = log[1]["content"].to_string();
+    assert!(
+        rendered_note.contains("page_ref") && rendered_note.contains("Anna"),
+        "{rendered_note}"
+    );
+    // rendered content has the title only; the drawer lines are not text
+    let rendered = first["content"].to_string();
+    assert!(rendered.contains("Write the spec"), "{rendered}");
+    assert!(
+        !rendered.contains("LOGBOOK") && !rendered.contains("Outline done"),
+        "{rendered}"
+    );
+    // the raw editor text keeps the drawer
+    let raw = first["text"].as_str().unwrap();
+    assert!(raw.contains(":LOGBOOK:") && raw.contains(":END:"), "{raw}");
+    // the property above the drawer is still a property, and the child is still a child
+    assert_eq!(first["props"][0]["key"], "deadline");
+    assert_eq!(first["children"].as_array().unwrap().len(), 1);
+    // without `:END:` it is plain text and no logbook
+    let second = &p["blocks"][1];
+    assert!(second["logbook"].as_array().unwrap().is_empty());
+    assert!(second["content"].to_string().contains("LOGBOOK"));
+    // the entry text is searchable and a no-op rewrite keeps the file identical
+    let src = std::fs::read_to_string(t.graph().join("pages/logbook.md")).unwrap();
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "logbook", "base_hash": p["hash"], "ops": []}),
+    );
+    assert_eq!(
+        std::fs::read_to_string(t.graph().join("pages/logbook.md")).unwrap(),
+        src
+    );
+    let _ = r;
+}
+
+/// "Hierarchy": all pages below a page, at every depth, in tree order, virtual ones included.
+#[test]
+fn subpages_lists_the_whole_subtree() {
+    let t = start("namespaces");
+    let r = t.ok("subpages", json!({"page": "work"}));
+    let names: Vec<&str> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    // `gamma` is only a link target (from people/anna): it is listed too
+    assert_eq!(
+        names,
+        [
+            "work/projects",
+            "work/projects/alpha",
+            "work/projects/beta",
+            "work/projects/gamma"
+        ]
+    );
+    assert_eq!(r[0]["is_virtual"], true); // `work/projects` only exists because of its children
+    // a prefix is not a namespace: `workshop` is not below `work`, and a leaf has nothing below it
+    assert!(!names.iter().any(|n| n.starts_with("workshop")));
+    assert_eq!(
+        t.ok("subpages", json!({"page": "work/projects/beta"})),
+        json!([])
+    );
+    assert_eq!(
+        t.ok("subpages", json!({"page": "a"}))
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+}
+
+/// The all-pages list: files and virtual pages, journals flagged, counts and modification time.
+#[test]
+fn all_pages_lists_everything_with_counts() {
+    let t = start("basic");
+    let rows = t.ok("all_pages", json!({}));
+    let rows = rows.as_array().unwrap();
+    assert!(!rows.is_empty());
+    let alpha = rows.iter().find(|r| r["name"] == "work/projects/alpha");
+    let alpha = alpha.expect("alpha is listed");
+    assert_eq!(alpha["is_virtual"], false);
+    assert!(alpha["blocks"].as_u64().unwrap() > 0);
+    assert!(alpha["modified"].as_str().unwrap().len() == 16);
+    // a page that is only referenced is virtual, has no modification time but has backlinks
+    let virt = rows
+        .iter()
+        .find(|r| r["is_virtual"] == true)
+        .expect("a virtual page");
+    assert!(virt["modified"].is_null() && virt["blocks"] == 0);
+    // journals are flagged
+    assert!(rows.iter().any(|r| r["is_journal"] == true));
+    // sorted by name, case-insensitively
+    let names: Vec<String> = rows
+        .iter()
+        .map(|r| r["name"].as_str().unwrap().to_lowercase())
+        .collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    assert_eq!(names, sorted);
+}
+
+/// LN-4: plain-text mentions are listed (whole word, any case), not linked ones, and "link" text is exact.
+#[test]
+fn unlinked_references_list_whole_word_mentions() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(pages.join("Anna.md"), "- Anna is a person\n").unwrap();
+    std::fs::write(
+        pages.join("notes.md"),
+        "- met anna today\n- Anna's idea\n- Annabelle came\n- linked [[Anna]] and Anna again\n- code `Anna` and #Anna\n  - nested mention of Anna here\n",
+    )
+    .unwrap();
+    for p in ["Anna", "notes"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    let r = t.ok("unlinked_refs", json!({"page": "Anna"}));
+    // (the basic graph's own `people/anna` mentions "Anna Kowalska" too; this test looks at `notes`)
+    let r: Vec<Value> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|u| u["source_page"] == "notes")
+        .cloned()
+        .collect();
+    let texts: Vec<&str> = r
+        .iter()
+        .map(|u| u["block"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        texts,
+        [
+            "met anna today",
+            "Anna's idea",
+            "nested mention of Anna here"
+        ],
+        "{r:?}"
+    );
+    assert_eq!(r[0]["link_text"], "met [[Anna|anna]] today");
+    assert_eq!(r[1]["link_text"], "[[Anna]]'s idea");
+    assert_eq!(r[2]["breadcrumbs"][0], "code `Anna` and #Anna");
+    // the page's own blocks are never listed
+    let all = t.ok("unlinked_refs", json!({"page": "Anna"}));
+    assert!(
+        all.as_array()
+            .unwrap()
+            .iter()
+            .all(|u| u["source_page"] != "Anna")
+    );
+    // applying the link text changes only that block, and the mention is then a linked reference
+    let p = t.ok("get_page", json!({"name": "notes"}));
+    let path = r[0]["block_path"].clone();
+    t.ok(
+        "apply_ops",
+        json!({"page": "notes", "base_hash": p["hash"], "ops": [
+            {"op": "update_text", "block": {"path": path, "hash": null}, "text": r[0]["link_text"]}
+        ]}),
+    );
+    let src = std::fs::read_to_string(pages.join("notes.md")).unwrap();
+    assert!(
+        src.starts_with("- met [[Anna|anna]] today\n- Anna's idea\n"),
+        "{src}"
+    );
+    let again = t.ok("unlinked_refs", json!({"page": "Anna"}));
+    let again = again.as_array().unwrap();
+    assert_eq!(
+        again.iter().filter(|u| u["source_page"] == "notes").count(),
+        2
+    );
+    let back = t.ok("backlinks", json!({"page": "Anna"}));
+    assert!(back.as_array().unwrap().len() >= 2);
+}
+
+/// Pages grouped by a page property: values are grouped case-insensitively, lists put a page in several groups,
+/// pages without the property come last, and the keys in use are offered for the picker.
+#[test]
+fn pages_are_grouped_by_a_page_property() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(pages.join("Ann.md"), "---\ntype: person\n---\n- a\n").unwrap();
+    std::fs::write(pages.join("bob.md"), "---\ntype: Person\n---\n- b\n").unwrap();
+    std::fs::write(
+        pages.join("Acme.md"),
+        "---\ntype: client\nteams: [red, blue]\n---\n- c\n",
+    )
+    .unwrap();
+    std::fs::write(pages.join("Zed.md"), "---\nteams: [blue]\n---\n- z\n").unwrap();
+    for p in ["Ann", "bob", "Acme", "Zed"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    let g = t.ok("page_groups", json!({"key": "type"}));
+    let g = g.as_array().unwrap();
+    let find = |v: Option<&str>| {
+        g.iter()
+            .find(|x| x["value"].as_str() == v)
+            .unwrap_or_else(|| panic!("group {v:?} in {g:?}"))["pages"]
+            .clone()
+    };
+    assert_eq!(find(Some("client")), json!(["Acme"]));
+    // `person` and `Person` are one group, named as first written
+    let person = g.iter().find(|x| {
+        x["value"]
+            .as_str()
+            .is_some_and(|v| v.eq_ignore_ascii_case("person"))
+    });
+    assert_eq!(person.unwrap()["pages"], json!(["Ann", "bob"]));
+    // the pages without the property are the last group and don't include the ones that have it
+    let last = g.last().unwrap();
+    assert!(last["value"].is_null());
+    let none: Vec<&str> = last["pages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p.as_str().unwrap())
+        .collect();
+    assert!(none.contains(&"Zed") && none.contains(&"inbox"), "{none:?}");
+    assert!(!none.contains(&"Ann") && !none.contains(&"Acme"));
+    // a list: the page is in each group
+    let teams = t.ok("page_groups", json!({"key": "teams"}));
+    let teams = teams.as_array().unwrap();
+    let blue = teams.iter().find(|x| x["value"] == "blue").unwrap();
+    assert_eq!(blue["pages"], json!(["Acme", "Zed"]));
+    let red = teams.iter().find(|x| x["value"] == "red").unwrap();
+    assert_eq!(red["pages"], json!(["Acme"]));
+    // journals never appear
+    assert!(!none.iter().any(|n| n.starts_with("2026-")));
+    // the keys in use, most used first
+    let keys = t.ok("page_property_keys", json!({}));
+    let keys: Vec<(&str, u64)> = keys
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| (k["key"].as_str().unwrap(), k["pages"].as_u64().unwrap()))
+        .collect();
+    assert!(
+        keys.contains(&("type", 3)) && keys.contains(&("teams", 2)),
+        "{keys:?}"
+    );
+}
+
+/// Page icons: rules in the graph's config (`type: person` → 👤), a page's own `icon:` wins, rules are validated and
+/// stored in the graph's config.toml only.
+#[test]
+fn page_icons_come_from_rules_and_from_the_page() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(pages.join("Ann.md"), "---\ntype: person\n---\n- a\n").unwrap();
+    std::fs::write(
+        pages.join("Bob.md"),
+        "---\ntype: Person\nicon: 🧑‍🔧\n---\n- b\n",
+    )
+    .unwrap();
+    std::fs::write(pages.join("Acme.md"), "---\ntype: client\n---\n- c\n").unwrap();
+    for p in ["Ann", "Bob", "Acme"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    // before any rule only Bob's own `icon:` counts
+    let first = t.ok("page_icons", json!({}));
+    assert_eq!(first.as_array().unwrap().len(), 1);
+    assert_eq!(first[0]["name"], "Bob");
+    let dev_path = t.tmp.path().join("device/config/settings.toml");
+    let dev_before = std::fs::read_to_string(&dev_path).unwrap();
+    let s = t.ok(
+        "set_settings",
+        json!({"page_icons": [
+            {"key": "type", "value": "person", "icon": "👤"},
+            {"key": "type", "value": "client", "icon": "🏢"}
+        ]}),
+    );
+    assert_eq!(s["page_icons"][1]["icon"], "🏢");
+    // graph config only
+    assert_eq!(std::fs::read_to_string(&dev_path).unwrap(), dev_before);
+    let cfg = std::fs::read_to_string(t.graph().join(".notatnik/config.toml")).unwrap();
+    assert!(
+        cfg.contains("[[page_icons]]") && cfg.contains("icon = \"👤\""),
+        "{cfg}"
+    );
+    let icons = t.ok("page_icons", json!({}));
+    let get = |n: &str| {
+        icons
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["name"] == n)
+            .map(|i| i["icon"].as_str().unwrap().to_string())
+    };
+    assert_eq!(get("Ann").as_deref(), Some("👤"));
+    assert_eq!(get("Acme").as_deref(), Some("🏢"));
+    assert_eq!(
+        get("Bob").as_deref(),
+        Some("🧑‍🔧"),
+        "the page's own icon wins over `type: Person`"
+    );
+    assert_eq!(get("inbox"), None);
+    // invalid rules are refused and change nothing
+    for bad in [
+        json!([{"key": "", "value": "x", "icon": "👤"}]),
+        json!([{"key": "type", "value": "x", "icon": ""}]),
+        json!([{"key": "type", "value": "x", "icon": "this is far too long"}]),
+    ] {
+        assert!(t.call("set_settings", json!({"page_icons": bad})).is_err());
+    }
+    assert_eq!(
+        t.ok("get_settings", json!({}))["page_icons"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    // removing every rule leaves only the explicit icons
+    t.ok("set_settings", json!({"page_icons": []}));
+    let icons = t.ok("page_icons", json!({}));
+    assert_eq!(icons.as_array().unwrap().len(), 1);
+}
+
+/// A name used as a path segment: `Renewal` in `P/Capgemini/Renewal/Siemens Energy`, `P/EY/Renewal/APotheke` and
+/// `X/Renewal/Snowflake`. The `path:` query clause and the segment view find every place.
+#[test]
+fn a_path_segment_is_found_in_every_place_it_occurs() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    for (p, body) in [
+        (
+            "P/Capgemini/Renewal/Siemens Energy.md",
+            "- TODO call Siemens\n",
+        ),
+        (
+            "P/EY/Renewal/APotheke.md",
+            "- TODO send offer\n- DONE kickoff\n",
+        ),
+        ("X/Renewal/Snowflake.md", "- TODO renew licence\n"),
+        ("P/EY/Other.md", "- TODO not a renewal\n"),
+        ("Renewals.md", "- TODO a prefix is not a segment\n"),
+        ("renewal.md", "- the top-level page with the same name\n"),
+    ] {
+        std::fs::create_dir_all(pages.join(p).parent().unwrap()).unwrap();
+        std::fs::write(pages.join(p), body).unwrap();
+        t.ok("get_page", json!({"name": p.trim_end_matches(".md")}));
+    }
+    let v = t.ok("segment_view", json!({"segment": "renewal"}));
+    let groups = v["groups"].as_array().unwrap();
+    let occ: Vec<&str> = groups
+        .iter()
+        .map(|g| g["occurrence"].as_str().unwrap())
+        .collect();
+    // every place, in path order; the top-level `renewal` page is one too (case-insensitive); `Renewals` is not
+    assert_eq!(
+        occ,
+        [
+            "P/Capgemini/Renewal",
+            "P/EY/Renewal",
+            "renewal",
+            "X/Renewal"
+        ]
+    );
+    let below = |i: usize| -> Vec<&str> {
+        groups[i]["pages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["name"].as_str().unwrap())
+            .collect()
+    };
+    assert_eq!(below(0), ["P/Capgemini/Renewal/Siemens Energy"]);
+    assert_eq!(below(1), ["P/EY/Renewal/APotheke"]);
+    assert_eq!(below(3), ["X/Renewal/Snowflake"]);
+    // the occurrences exist only as parents of the pages below them
+    assert_eq!(groups[0]["occurrence_is_virtual"], true);
+    assert_eq!(groups[2]["occurrence_is_virtual"], false); // `renewal` has its own file
+    // several segments in a row
+    let v = t.ok("segment_view", json!({"segment": "ey/renewal"}));
+    assert_eq!(v["groups"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        t.ok("segment_view", json!({"segment": "nothing here"}))["groups"],
+        json!([])
+    );
+    // a page inside a path that was only linked, never written, is part of the hierarchy and a place
+    // (`Napis/first/deepest` is italic in the hierarchy, `Napis/second/deeper/deepest` is a file)
+    std::fs::create_dir_all(pages.join("Napis/second/deeper")).unwrap();
+    std::fs::write(
+        pages.join("Napis/second/deeper/deepest.md"),
+        "- the real one\n",
+    )
+    .unwrap();
+    std::fs::write(
+        pages.join("Napis.md"),
+        "- links to [[Napis/first/deepest]]\n",
+    )
+    .unwrap();
+    for p in ["Napis/second/deeper/deepest", "Napis"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    let n = t.ok("segment_places", json!({"segments": ["deepest"]}));
+    assert_eq!(n["places"], json!([2]), "one file and one linked-only page");
+    let v = t.ok("segment_view", json!({"segment": "deepest"}));
+    let occ: Vec<&str> = v["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| g["occurrence"].as_str().unwrap())
+        .collect();
+    assert_eq!(occ, ["Napis/first/deepest", "Napis/second/deeper/deepest"]);
+    assert_eq!(v["groups"][0]["occurrence_is_virtual"], true);
+    // places per segment, for the badge
+    let n = t.ok(
+        "segment_places",
+        json!({"segments": ["Renewal", "Siemens Energy", "P", "nothing"]}),
+    );
+    assert_eq!(n["places"], json!([4, 1, 1, 0]));
+    // the query clause: tasks of every page with the segment in its path
+    let q = t.ok(
+        "run_query",
+        json!({"text": "task: todo\npath: Renewal\nview: list"}),
+    );
+    let rows: Vec<&str> = q["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["page"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            "P/Capgemini/Renewal/Siemens Energy",
+            "P/EY/Renewal/APotheke",
+            "X/Renewal/Snowflake"
+        ],
+        "{q}"
+    );
+    // negation and OR work like every other clause
+    let q = t.ok(
+        "run_query",
+        json!({"text": "task: todo\npath: Renewal\n-path: Capgemini\nview: list"}),
+    );
+    assert_eq!(q["rows"].as_array().unwrap().len(), 2);
+    let q = t.ok(
+        "run_query",
+        json!({"text": "task: todo\npath: Capgemini, Snowflake\nview: list"}),
+    );
+    assert_eq!(q["rows"].as_array().unwrap().len(), 2);
+    // `%` and `_` in a name are plain characters
+    let q = t.ok(
+        "run_query",
+        json!({"text": "task: todo\npath: 100%\nview: list"}),
+    );
+    assert!(q["errors"].as_array().unwrap().is_empty() && q["rows"].as_array().unwrap().is_empty());
+}
+
+/// LN-10: a linked reference carries its whole subtree, and a block below another referencing block of the same
+/// page is part of that one instead of a second reference.
+#[test]
+fn linked_references_carry_their_subtree_and_skip_nested_ones() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(pages.join("Deal.md"), "- the deal\n").unwrap();
+    std::fs::write(
+        pages.join("meeting.md"),
+        "- intro\n- [[Deal]]:\n  - discussion\n  - [[Deal]] again, nested\n    - deep note\n  - TODO call back\n- other [[Deal]] block\n",
+    )
+    .unwrap();
+    t.ok("get_page", json!({"name": "meeting"}));
+    let b = t.ok("backlinks", json!({"page": "Deal"}));
+    let items: Vec<&Value> = b
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|l| l["source_page"] == "meeting")
+        .collect();
+    assert_eq!(
+        items.len(),
+        2,
+        "the nested [[Deal]] is not a reference of its own"
+    );
+    assert_eq!(items[0]["block_path"], json!([1]));
+    let kids = items[0]["block"]["children"].as_array().unwrap();
+    assert_eq!(kids.len(), 3, "discussion, the nested link, the todo");
+    assert_eq!(
+        kids[1]["children"].as_array().unwrap().len(),
+        1,
+        "deep note"
+    );
+    assert_eq!(items[1]["block_path"], json!([2]));
+}
+
+/// LN-11: a link (or tag) on a block applies to everything below it in queries; `direct: yes` turns that off; other
+/// properties and dates are not inherited.
+#[test]
+fn links_and_tags_apply_to_the_subtree() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(pages.join("Client One.md"), "- the client\n").unwrap();
+    std::fs::write(
+        pages.join("notes.md"),
+        "- unrelated\n  - TODO other task\n- [[Client One]]: sync\n  deadline:: 2026-12-01\n  priority:: high\n  - TODO child task\n    - TODO grandchild task\n  - plain note\n- #urgent block\n  - TODO tagged child\n",
+    )
+    .unwrap();
+    t.ok("get_page", json!({"name": "notes"}));
+    let rows = |text: &str| -> Vec<String> {
+        let q = t.ok("run_query", json!({"text": text, "view": null}));
+        assert_eq!(q["errors"], json!([]), "{text}");
+        let mut v: Vec<String> = q["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["page"] == "notes")
+            .map(|r| {
+                r["block"]["text"]
+                    .as_str()
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(
+        rows("task: todo\nlinks: Client One"),
+        ["TODO child task", "TODO grandchild task"]
+    );
+    assert!(rows("task: todo\nlinks: Client One\ndirect: yes").is_empty());
+    assert_eq!(rows("task: todo\ntag: urgent"), ["TODO tagged child"]);
+    // the block itself and every descendant, not its siblings
+    assert_eq!(rows("links: Client One").len(), 4);
+    assert_eq!(rows("links: Client One\ndirect: yes").len(), 1);
+    // a deadline or priority on the parent does not make the children due
+    assert!(rows("task: todo\ndeadline: 2026-12-01").is_empty());
+    assert!(rows("task: todo\nprop.priority: high").is_empty());
+    let bad = t.ok("run_query", json!({"text": "direct: maybe", "view": null}));
+    assert_ne!(bad["errors"], json!([]));
+}
+
+/// PR-5: `inherit: key` lets a property apply to everything below the block that has it; the nearest block wins,
+/// the page's frontmatter is the root, and `direct: yes` turns it off.
+#[test]
+fn inherit_clause_applies_properties_to_the_subtree() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(
+        pages.join("props.md"),
+        "---\ntype: client\n---\n- plain top\n- group\n  client:: [[Acme]]\n  - child\n    - grandchild\n  - other\n    client:: [[Beta]]\n    - below other\n",
+    )
+    .unwrap();
+    t.ok("get_page", json!({"name": "props"}));
+    let rows = |text: &str| -> Vec<String> {
+        let q = t.ok("run_query", json!({"text": text, "view": null}));
+        assert_eq!(q["errors"], json!([]), "{text}");
+        let mut v: Vec<String> = q["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["page"] == "props")
+            .map(|r| {
+                r["block"]["text"]
+                    .as_str()
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    // without `inherit:` only the block itself
+    assert_eq!(rows("prop.client: Acme"), ["group"]);
+    assert_eq!(
+        rows("prop.client: Acme\ninherit: client"),
+        ["child", "grandchild", "group"]
+    );
+    // the nearest block wins
+    assert_eq!(
+        rows("prop.client: Beta\ninherit: client"),
+        ["below other", "other"]
+    );
+    assert_eq!(
+        rows("prop.client: Acme\ninherit: client\ndirect: yes"),
+        ["group"]
+    );
+    // blocks with no value anywhere in their chain
+    assert_eq!(rows("prop.client: none\ninherit: client"), ["plain top"]);
+    // page frontmatter is the root
+    assert_eq!(rows("prop.type: client").len(), 0);
+    assert_eq!(rows("prop.type: client\ninherit: type").len(), 6);
+    let bad = t.ok(
+        "run_query",
+        json!({"text": "inherit: Bad Key", "view": null}),
+    );
+    assert_ne!(bad["errors"], json!([]));
+}
+
+/// A journal day has `type: journal` unless its frontmatter sets a type: icon rules match it, the file is not
+/// touched, and a day's own `type:` wins.
+#[test]
+fn journal_pages_have_a_default_type() {
+    let t = start("basic");
+    let journals = t.graph().join("journals/2026");
+    std::fs::create_dir_all(&journals).unwrap();
+    std::fs::write(journals.join("2026-10-10.md"), "- plain day\n").unwrap();
+    std::fs::write(
+        journals.join("2026-10-11.md"),
+        "---\ntype: trip\n---\n- own type\n",
+    )
+    .unwrap();
+    for p in ["2026-10-10", "2026-10-11"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    t.ok(
+        "set_settings",
+        json!({"page_icons": [
+            {"key": "type", "value": "journal", "icon": "🗓"},
+            {"key": "type", "value": "trip", "icon": "🧳"}
+        ]}),
+    );
+    let icons = t.ok("page_icons", json!({}));
+    let get = |n: &str| {
+        icons
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["name"] == n)
+            .map(|i| i["icon"].as_str().unwrap().to_string())
+    };
+    assert_eq!(get("2026-10-10").as_deref(), Some("🗓"));
+    assert_eq!(get("2026-10-11").as_deref(), Some("🧳"));
+    // derived, never written
+    assert_eq!(
+        std::fs::read_to_string(journals.join("2026-10-10.md")).unwrap(),
+        "- plain day\n"
+    );
+    // page queries see it too
+    let q = t.ok(
+        "run_query",
+        json!({"text": "type: page\nprop.type: journal", "view": null}),
+    );
+    assert_eq!(q["errors"], json!([]));
+    let names: Vec<_> = q["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["page"].as_str().unwrap().to_string())
+        .collect();
+    assert!(names.contains(&"2026-10-10".to_string()), "{names:?}");
+    assert!(!names.contains(&"2026-10-11".to_string()), "{names:?}");
+}
+
+/// Today's journal has no file until something is written, but it gets the journal rule's icon like the days that
+/// exist, so the feed's titles match.
+#[test]
+fn an_unwritten_today_gets_the_journal_icon() {
+    let t = start_with("basic", false, "2026-11-20");
+    t.ok(
+        "set_settings",
+        json!({"page_icons": [{"key": "type", "value": "journal", "icon": "🗓"}]}),
+    );
+    let icons = t.ok("page_icons", json!({}));
+    let has = |n: &str| icons.as_array().unwrap().iter().any(|i| i["name"] == n);
+    assert!(has("2026-11-20"), "{icons}");
+    assert!(has("2026-10-01"), "{icons}");
+}
+
+/// Deleting a page moves it to the trash (outside the graph folder), links stay, and it can be restored; archived
+/// pages are listed and their tasks stay off the agenda.
+#[test]
+fn delete_restore_and_archive_pages() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::create_dir_all(pages.join("proj")).unwrap();
+    std::fs::write(pages.join("proj.md"), "- project home\n").unwrap();
+    std::fs::write(pages.join("proj/a.md"), "- TODO task in a\n").unwrap();
+    std::fs::write(pages.join("user.md"), "- see [[proj/a]]\n").unwrap();
+    for p in ["proj", "proj/a", "user"] {
+        t.ok("get_page", json!({"name": p}));
+    }
+    // delete a single page: file gone, link stays, one page links to it
+    let d = t.ok(
+        "delete_pages",
+        json!({"page": "proj/a", "include_subpages": false}),
+    );
+    assert_eq!(d["deleted"], json!(["proj/a"]));
+    assert_eq!(d["linked_from"], json!(["user"]));
+    assert!(!pages.join("proj/a.md").exists());
+    assert!(pages.join("proj.md").exists());
+    assert!(
+        !t.graph().join(".notatnik").join("trash").exists(),
+        "the trash is not in the graph folder"
+    );
+    // restore brings the same text back
+    let r = t.ok("restore_pages", json!({"trash_id": d["trash_id"]}));
+    assert_eq!(r["items"], json!(["proj/a"]));
+    assert_eq!(
+        std::fs::read_to_string(pages.join("proj/a.md")).unwrap(),
+        "- TODO task in a\n"
+    );
+    // a namespace with its subpages
+    let d = t.ok(
+        "delete_pages",
+        json!({"page": "proj", "include_subpages": true}),
+    );
+    let mut names: Vec<String> = d["deleted"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["proj", "proj/a"]);
+    assert!(!pages.join("proj.md").exists() && !pages.join("proj/a.md").exists());
+    t.ok("restore_pages", json!({"trash_id": d["trash_id"]}));
+    assert!(pages.join("proj.md").exists() && pages.join("proj/a.md").exists());
+    // a page that does not exist
+    let e = t
+        .call(
+            "delete_pages",
+            json!({"page": "nope/nothing", "include_subpages": false}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "not_found");
+    // archive: the property marks it; its tasks leave the agenda, those of pages below it too
+    let before = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+    let count = |v: &Value| -> usize {
+        ["overdue", "today_items", "undated"]
+            .iter()
+            .map(|k| v[k].as_array().unwrap().len())
+            .sum::<usize>()
+            + v["upcoming"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|d| d["items"].as_array().unwrap().len())
+                .sum::<usize>()
+    };
+    assert!(before.to_string().contains("task in a"));
+    std::fs::write(
+        pages.join("proj.md"),
+        "---\narchived: true\n---\n\n- project home\n",
+    )
+    .unwrap();
+    t.ok("get_page", json!({"name": "proj"}));
+    let arch = t.ok("archived_pages", json!({}));
+    assert_eq!(arch["items"], json!(["proj"]));
+    let after = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+    assert!(!after.to_string().contains("task in a"));
+    assert_eq!(count(&after) + 1, count(&before));
+}
+
+/// TK-11: any number of priority labels; changing them re-reads the files, the `priority:` clause and the agenda
+/// filter use the labels.
+#[test]
+fn priority_labels_are_configurable() {
+    let t = start("basic");
+    let pages = t.graph().join("pages");
+    std::fs::write(
+        pages.join("prio.md"),
+        "- TODO first\n  priority:: A\n- TODO second\n  priority:: low\n- TODO third\n  priority:: P2\n- TODO none\n",
+    )
+    .unwrap();
+    let texts = |q: &str| -> Vec<String> {
+        let r = t.ok("run_query", json!({"text": q, "view": null}));
+        assert_eq!(r["errors"], json!([]), "{q}");
+        let mut v: Vec<String> = r["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|x| x["page"] == "prio")
+            .map(|x| {
+                x["block"]["text"]
+                    .as_str()
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    // default labels: A (high) and C (low); `P2` is unknown here
+    t.ok("get_page", json!({"name": "prio"}));
+    assert_eq!(texts("task: todo\npriority: A"), ["TODO first"]);
+    assert_eq!(
+        texts("task: todo\npriority: a, c"),
+        ["TODO first", "TODO second"]
+    );
+    let p = t.ok("get_page", json!({"name": "prio"}));
+    assert_eq!(p["blocks"][1]["task"]["priority"], "C");
+    assert!(
+        p["diagnostics"].to_string().contains("priority"),
+        "P2 is not a label yet"
+    );
+    // four labels: `low` is now the fourth, `P2` the second; A is no label any more
+    let s = t.ok(
+        "set_settings",
+        json!({"theme": null, "date_locale": null, "link_brackets": null, "date_format": null,
+               "date_pattern": null, "week_start": null, "completed_log_limit": null,
+               "priorities": ["P1", "P2", "P3", "P4"], "page_icons": null}),
+    );
+    assert_eq!(s["priorities"], json!(["P1", "P2", "P3", "P4"]));
+    assert_eq!(
+        t.ok("graph_info", json!({}))["priority_labels"],
+        json!(["P1", "P2", "P3", "P4"])
+    );
+    let p = t.ok("get_page", json!({"name": "prio"}));
+    let prio = |i: usize| {
+        (
+            p["blocks"][i]["task"]["priority"].clone(),
+            p["blocks"][i]["task"]["priority_rank"].clone(),
+        )
+    };
+    assert_eq!(
+        prio(1),
+        json!(["P4", 3])
+            .as_array()
+            .map(|a| (a[0].clone(), a[1].clone()))
+            .unwrap()
+    );
+    assert_eq!(prio(2), (json!("P2"), json!(1)));
+    assert_eq!(
+        texts("task: todo\npriority: P2, P4"),
+        ["TODO second", "TODO third"]
+    );
+    // sorted by priority: P2 (third), then P4 (second)
+    let r = t.ok(
+        "run_query",
+        json!({"text": "task: todo\npriority: P2, P4\nsort: priority asc", "view": null}),
+    );
+    let order: Vec<&str> = r["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x["block"]["text"].as_str().unwrap().lines().next().unwrap())
+        .collect();
+    assert_eq!(order[..2], ["TODO third", "TODO second"]);
+    // a label that does not exist is refused by the settings and by the agenda filter
+    assert!(
+        t.call("set_settings", json!({"theme": null, "date_locale": null, "link_brackets": null,
+            "date_format": null, "date_pattern": null, "week_start": null, "completed_log_limit": null,
+            "priorities": ["x", "X"], "page_icons": null})).is_err()
+    );
+    assert!(
+        t.call(
+            "agenda",
+            json!({"ns": null, "tag": null, "priority": "nope"})
+        )
+        .is_err()
+    );
+    assert!(
+        t.call("agenda", json!({"ns": null, "tag": null, "priority": "p2"}))
+            .is_ok()
+    );
 }

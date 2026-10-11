@@ -1,5 +1,5 @@
-import type { Cursor } from '../tree'
-import type { PageDoc } from './pages.svelte'
+import { findById, type Cursor } from '../tree'
+import { getDoc, type PageDoc } from './pages.svelte'
 
 /** What the user is doing right now: editing one block's text, or having blocks selected. */
 export const editing = $state({
@@ -45,4 +45,18 @@ export function stopEditing() {
 
 export function isEditingDoc(doc: PageDoc): boolean {
   return editing.mode === 'edit' && editing.docName === doc.name
+}
+
+let pathCache: { view: unknown; id: number; path: number[] } = { view: null, id: 0, path: [] }
+
+/** Child-index path of the block being edited ([] if none). Memoised on the page view, so each block can
+ * ask for it without a search of its own; reading `doc.view` here makes callers re-run when the page changes. */
+export function editingPath(): number[] {
+  if (editing.mode !== 'edit') return []
+  const view = getDoc(editing.docName).view
+  if (!view) return []
+  if (pathCache.view === view && pathCache.id === editing.blockId) return pathCache.path
+  const found = findById(view.blocks, editing.blockId)
+  pathCache = { view, id: editing.blockId, path: found ? found.path.map(Number) : [] }
+  return pathCache.path
 }

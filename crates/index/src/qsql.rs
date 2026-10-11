@@ -250,6 +250,44 @@ fn prop_cond_sql(
     }
 }
 
+/// A block property that applies to everything below it (`inherit:`). The nearest block with the key decides
+/// (its own value wins over a parent's); a page's frontmatter is the root for blocks without one in their chain.
+fn inherited_prop_sql(key: &str, c: &PropCond, ctx: &QueryContext, b: &mut B) -> String {
+    match (&c.value, c.op) {
+        (PropOperand::None, _) => {
+            let any = PropCond {
+                op: CmpOp::Eq,
+                value: PropOperand::Any,
+            };
+            format!("NOT {}", inherited_prop_sql(key, &any, ctx, b))
+        }
+        (v, CmpOp::Ne) => {
+            let eq = PropCond {
+                op: CmpOp::Eq,
+                value: v.clone(),
+            };
+            format!("NOT {}", inherited_prop_sql(key, &eq, ctx, b))
+        }
+        _ => {
+            // `eff(id, src)`: every block below (or being) a block that has the key, and the block it takes the
+            // value from. A block with its own value starts a new chain instead of continuing its parent's.
+            let eff = |b: &mut B| {
+                format!(
+                    "WITH RECURSIVE eff(id, src) AS (SELECT o.owner_id, o.owner_id FROM props o WHERE o.owner_kind = 'block' AND o.key = {k} UNION SELECT c.id, e.src FROM blocks c JOIN eff e ON c.parent_id = e.id WHERE NOT EXISTS (SELECT 1 FROM props o WHERE o.owner_kind = 'block' AND o.owner_id = c.id AND o.key = {k}))",
+                    k = b.p(key.to_string())
+                )
+            };
+            let with = eff(b);
+            let own = prop_cond_sql("block", "src", key, c, ctx, b);
+            let with2 = eff(b);
+            let page = prop_cond_sql("page", "b.page_id", key, c, ctx, b);
+            format!(
+                "(b.id IN ({with} SELECT id FROM eff WHERE {own}) OR (b.id NOT IN ({with2} SELECT id FROM eff) AND {page}))"
+            )
+        }
+    }
+}
+
 fn task_rank(col: &str) -> String {
     format!(
         "CASE {col} WHEN 'doing' THEN 0 WHEN 'todo' THEN 1 WHEN 'waiting' THEN 2 WHEN 'done' THEN 3 WHEN 'canceled' THEN 4 ELSE 5 END"
@@ -339,14 +377,26 @@ pub fn compile(
                             ""
                         }
                     )
-                } else if is_tag {
-                    format!(
-                        "b.id IN (SELECT r.src_block_id FROM refs r WHERE r.kind = 'tag' AND r.src_block_id IS NOT NULL AND r.target_key IN {list} UNION SELECT bb.id FROM blocks bb WHERE bb.page_id IN (SELECT r.src_page_id FROM refs r WHERE r.kind = 'tag' AND r.src_block_id IS NULL AND r.target_key IN {list}))"
-                    )
                 } else {
-                    format!(
-                        "b.id IN (SELECT r.src_block_id FROM refs r WHERE r.kind IN ({kinds}) AND r.src_block_id IS NOT NULL AND r.target_key IN {list})"
-                    )
+                    // blocks with the link themselves, plus (unless `direct: yes`) everything below them: a link
+                    // applies to the subtree (LN-11)
+                    let reach = if q.direct {
+                        format!(
+                            "SELECT r.src_block_id FROM refs r WHERE r.kind IN ({kinds}) AND r.src_block_id IS NOT NULL AND r.target_key IN {list}"
+                        )
+                    } else {
+                        format!(
+                            "WITH RECURSIVE sub(id) AS (SELECT r.src_block_id FROM refs r WHERE r.kind IN ({kinds}) AND r.src_block_id IS NOT NULL AND r.target_key IN {list} UNION SELECT c.id FROM blocks c JOIN sub s ON c.parent_id = s.id) SELECT id FROM sub"
+                        )
+                    };
+                    let page_tag = if is_tag {
+                        format!(
+                            " UNION SELECT bb.id FROM blocks bb WHERE bb.page_id IN (SELECT r.src_page_id FROM refs r WHERE r.kind = 'tag' AND r.src_block_id IS NULL AND r.target_key IN {list})"
+                        )
+                    } else {
+                        String::new()
+                    };
+                    format!("b.id IN ({reach}{page_tag})")
                 }
             }
             FilterKind::Ns(names) => {
@@ -366,14 +416,37 @@ pub fn compile(
                     .collect();
                 or_join(parts)
             }
+            FilterKind::Path(names) => {
+                // `/a/b/` inside `/<key>/`: whole segments, next to each other (LIKE wildcards in names are escaped)
+                let esc = |s: &str| {
+                    s.replace('\\', "\\\\")
+                        .replace('%', "\\%")
+                        .replace('_', "\\_")
+                };
+                let parts: Vec<String> = names
+                    .iter()
+                    .map(|n| {
+                        let pat = format!("%/{}/%", esc(&key_of(n)));
+                        format!("('/' || p.key || '/') LIKE {} ESCAPE '\\'", b.p(pat))
+                    })
+                    .collect();
+                or_join(parts)
+            }
             FilterKind::Page(names) => {
                 let keys: Vec<String> = names.iter().map(|n| key_of(n)).collect();
                 format!("p.key IN {}", b.list(&keys))
             }
             FilterKind::Prop { key, conds } => {
+                let inherit = !pages && !q.direct && q.inherit.iter().any(|k| k == key);
                 let parts: Vec<String> = conds
                     .iter()
-                    .map(|c| prop_cond_sql(owner_kind, owner, key, c, ctx, &mut b))
+                    .map(|c| {
+                        if inherit {
+                            inherited_prop_sql(key, c, ctx, &mut b)
+                        } else {
+                            prop_cond_sql(owner_kind, owner, key, c, ctx, &mut b)
+                        }
+                    })
                     .collect();
                 or_join(parts)
             }
@@ -391,6 +464,13 @@ pub fn compile(
                     .map(|c| date_cond_sql(col, c, ctx, &mut b))
                     .collect();
                 or_join(parts)
+            }
+            FilterKind::Priority(labels) => {
+                if pages {
+                    return Err(only_blocks("priority"));
+                }
+                let names: Vec<String> = labels.iter().map(|l| l.trim().to_lowercase()).collect();
+                format!("lower(b.priority) IN {}", b.list(&names))
             }
             FilterKind::Text(terms) => {
                 let exprs: Vec<String> = terms

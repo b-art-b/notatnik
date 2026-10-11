@@ -1,13 +1,19 @@
 <script lang="ts">
+  import { backend } from '../api'
   import { getDoc } from '../stores/pages.svelte'
+  import { bus } from '../stores/events.svelte'
   import { startEditing, stopEditing } from '../stores/editing.svelte'
   import { getBlock } from '../tree'
-  import { pageHash } from '../route'
+  import { pageHash, propertyHash, segmentHash } from '../route'
   import BlockList from './BlockList.svelte'
   import Backlinks from './Backlinks.svelte'
+  import PageTasks from './PageTasks.svelte'
+  import Hierarchy from './Hierarchy.svelte'
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
-  import { formatDate } from '../dates'
+  import DeleteDialog from './DeleteDialog.svelte'
+  import { isArchived, isArchivedItself } from '../stores/archived.svelte'
+  import { shownDate } from '../stores/format.svelte'
 
   interface Props {
     name: string
@@ -15,8 +21,20 @@
     zoom?: number[]
     showBacklinks?: boolean
     compact?: boolean
+    /** A journal's date title opens that day as its own page (used in the journals feed). */
+    titleLink?: boolean
+    /** No "properties" line: the journals landing page is for writing, a day's properties are on its own page. */
+    hideProps?: boolean
   }
-  let { name, viewKey, zoom = [], showBacklinks = true, compact = false }: Props = $props()
+  let {
+    name,
+    viewKey,
+    zoom = [],
+    showBacklinks = true,
+    compact = false,
+    titleLink = false,
+    hideProps = false,
+  }: Props = $props()
 
   const doc = $derived(getDoc(name))
   const view = $derived(doc.view)
@@ -36,6 +54,26 @@
     })
   })
   const segments = $derived((view?.name ?? name).split('/'))
+
+  // A segment of this page's name that occurs in several places is a topic (`Renewal` in P/Capgemini/Renewal and
+  // P/Infomotion/Renewal): it links to the view of all its places, in the path above the title and next to the title.
+  let segPlaces = $state<number[]>([])
+  $effect(() => {
+    void bus.version
+    const names = view && !view.is_journal && view.name.includes('/') ? view.name.split('/') : []
+    let cancelled = false
+    if (names.length === 0) {
+      segPlaces = []
+      return
+    }
+    backend.call('segment_places', { segments: names }).then((r) => {
+      if (!cancelled) segPlaces = r.places
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+  const lastPlaces = $derived(segPlaces[segments.length - 1] ?? 0)
   // Progressive rendering (NF-4): the first blocks appear at once, the rest stream in over the next frames.
   const FIRST_BATCH = 120
   const BATCH = 240
@@ -61,7 +99,72 @@
   })
   let draft = $state(false)
   let renaming = $state(false)
+  let deleting = $state(false)
   let showProps = $state(false)
+
+  // --- page properties (frontmatter): edit, remove, add ---
+  let newKey = $state('')
+  let newValue = $state('')
+  let knownKeys = $state<string[]>([])
+  let knownValues = $state<string[]>([])
+  const propCount = $derived(
+    (view?.frontmatter?.props.length ?? 0) +
+      (view?.frontmatter?.tags.length ? 1 : 0) +
+      (view?.frontmatter?.aliases.length ? 1 : 0),
+  )
+  const validKey = $derived(/^[A-Za-z0-9_][A-Za-z0-9_.-]*$/.test(newKey.trim()))
+
+  async function openProps() {
+    showProps = !showProps
+    if (showProps) knownKeys = (await backend.call('page_property_keys', {})).map((k) => k.key)
+  }
+  // values already used for the typed key (the datalist offers them)
+  $effect(() => {
+    const k = newKey.trim()
+    if (!showProps || !knownKeys.includes(k)) {
+      knownValues = []
+      return
+    }
+    let cancelled = false
+    backend.call('page_groups', { key: k }).then((g) => {
+      if (!cancelled) knownValues = g.flatMap((x) => (x.value === null ? [] : [x.value]))
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+
+  /** The separate values of a raw YAML value (`[red, blue]` → red, blue), for the "pages with this value" links. */
+  function valueItems(raw: string): string[] {
+    const t = raw.trim()
+    const inner = /^\[(?!\[).*\]$/.test(t) ? t.slice(1, -1).split(',') : [t]
+    return inner.map((x) => x.trim().replace(/^(["'])(.*)\1$/, '$2')).filter((x) => x && !x.includes('[['))
+  }
+
+  /** A plain word stays as it is; anything YAML could misread (`a: b`, `#x`, ...) is quoted. */
+  function yamlValue(v: string): string {
+    const t = v.trim()
+    if (/^\[.*\]$/.test(t) || /^[\p{L}\p{N}][\p{L}\p{N} ._/@+-]*$/u.test(t)) return t
+    return JSON.stringify(t)
+  }
+  async function setProp(key: string, value: string) {
+    await doc.apply([{ op: 'set_page_property', key, value: value.trim() }])
+  }
+  async function toggleArchive() {
+    if (isArchivedItself(view?.name ?? '')) await removeProp('archived')
+    else await doc.apply([{ op: 'set_page_property', key: 'archived', value: 'true' }])
+  }
+  async function removeProp(key: string) {
+    await doc.apply([{ op: 'remove_page_property', key }])
+  }
+  async function addProp(e: SubmitEvent) {
+    e.preventDefault()
+    if (!validKey || !newValue.trim()) return
+    await doc.apply([{ op: 'set_page_property', key: newKey.trim(), value: yamlValue(newValue) }])
+    newKey = ''
+    newValue = ''
+    knownKeys = (await backend.call('page_property_keys', {})).map((k) => k.key)
+  }
 
   async function commitDraft(text: string) {
     if (text.trim() === '') return
@@ -70,7 +173,8 @@
     const b = v?.blocks[0]
     if (b) startEditing(viewKey, doc.name, b.id, 'end')
   }
-  const isoTitle = $derived(view?.is_journal ? formatDate(view.name) : null)
+  const isoTitle = $derived(view?.is_journal ? shownDate(view.name) : null)
+  import PageIcon from './PageIcon.svelte'
 </script>
 
 {#if doc.loadError}
@@ -84,15 +188,38 @@
         <nav class="breadcrumb" aria-label="Namespace">
           {#each segments as seg, i (i)}
             {#if i < segments.length - 1}
-              <a href={pageHash(segments.slice(0, i + 1).join('/'))}>{seg}</a><span class="sep">/</span>
+              {#if (segPlaces[i] ?? 0) > 1}<a
+                  class="topic"
+                  href={segmentHash(seg)}
+                  data-segment={seg}
+                  title={`“${seg}” occurs in ${segPlaces[i]} places: show them all`}
+                  >{seg}<sup class="badge">{segPlaces[i]}</sup></a
+                >{:else}<a href={pageHash(segments.slice(0, i + 1).join('/'))}>{seg}</a>{/if}<span class="sep"
+                >/</span
+              >
             {/if}
           {/each}
         </nav>
         <h1>
-          <button class="title" title="Rename page" onclick={() => (renaming = !view.is_journal)}
-            >{isoTitle ?? view.frontmatter?.title ?? segments[segments.length - 1]}</button
-          >
-          {#if isoTitle}<span class="muted iso">{view.name}</span>{/if}
+          {#if titleLink && isoTitle}
+            <a class="title" href={pageHash(view.name)} title="Open this day as a page"
+              ><PageIcon name={view.name} journal />{isoTitle}</a
+            >
+          {:else}
+            <button class="title" title="Rename page" onclick={() => (renaming = !view.is_journal)}
+              ><PageIcon name={view.name} />{isoTitle ??
+                view.frontmatter?.title ??
+                segments[segments.length - 1]}</button
+            >
+          {/if}
+          {#if isoTitle && !titleLink}<span class="muted iso">{view.name}</span>{/if}
+          {#if lastPlaces > 1}<a
+              class="topic-chip"
+              href={segmentHash(segments[segments.length - 1])}
+              data-testid="title-topic"
+              title={`“${segments[segments.length - 1]}” occurs in ${lastPlaces} places: show them all`}
+              >in {lastPlaces} places</a
+            >{/if}
         </h1>
         {#if crumbs.length || zoom.length}
           <nav class="breadcrumb zoom" aria-label="Block path">
@@ -102,23 +229,100 @@
               >{/each}
           </nav>
         {/if}
-        {#if view.frontmatter && (view.frontmatter.tags.length || view.frontmatter.aliases.length || view.frontmatter.props.length)}
-          <button class="props-toggle" onclick={() => (showProps = !showProps)} aria-expanded={showProps}
-            >{showProps ? '▾' : '▸'} properties</button
+        {#if !hideProps && !view.is_journal}
+          <span class="page-actions">
+            <button
+              class="act"
+              data-testid="archive-toggle"
+              title={isArchivedItself(view.name)
+                ? 'Show this page in the sidebar and the agenda again'
+                : 'Hide this page (and the pages below it) from the sidebar and the agenda'}
+              onclick={toggleArchive}>{isArchivedItself(view.name) ? 'Unarchive' : 'Archive'}</button
+            >
+            <button class="act danger" data-testid="delete-page" onclick={() => (deleting = !deleting)}
+              >Delete…</button
+            >
+          </span>
+        {/if}
+        {#if !hideProps}
+          <button
+            class="props-toggle"
+            onclick={openProps}
+            aria-expanded={showProps}
+            data-testid="props-toggle"
+            >{showProps ? '▾' : '▸'} properties{propCount ? ` (${propCount})` : ''}</button
           >
-          {#if showProps}
-            <dl class="fm">
-              {#if view.frontmatter.aliases.length}<dt>aliases</dt>
-                <dd>{view.frontmatter.aliases.join(', ')}</dd>{/if}
-              {#if view.frontmatter.tags.length}<dt>tags</dt>
-                <dd>
-                  {#each view.frontmatter.tags as t (t)}<a class="tag" href={pageHash(t)}>#{t}</a>
-                  {/each}
-                </dd>{/if}
-              {#each view.frontmatter.props as p (p.key)}<dt>{p.key}</dt>
-                <dd>{p.raw}</dd>{/each}
-            </dl>
-          {/if}
+        {/if}
+        {#if showProps && !hideProps}
+          <div class="fm" data-testid="page-props">
+            {#if view.frontmatter?.aliases.length}<div class="prop">
+                <span class="k">aliases</span><span>{view.frontmatter.aliases.join(', ')}</span>
+              </div>{/if}
+            {#if view.frontmatter?.tags.length}<div class="prop">
+                <span class="k">tags</span>
+                <span
+                  >{#each view.frontmatter.tags as t (t)}<a class="tag" href={pageHash(t)}>#{t}</a>
+                  {/each}</span
+                >
+              </div>{/if}
+            {#if view.is_journal && !view.frontmatter?.props.some((p) => p.key === 'type')}
+              <div class="prop" data-testid="default-type">
+                <span class="k">type</span><span class="muted"
+                  >journal (default; set a type here to change it)</span
+                >
+              </div>
+            {/if}
+            {#each view.frontmatter?.props ?? [] as p (p.key)}
+              <div class="prop">
+                <a
+                  class="k"
+                  href={propertyHash(p.key)}
+                  title={`All pages with “${p.key}”`}
+                  data-testid="prop-key-link">{p.key}</a
+                >
+                <input
+                  aria-label={p.key}
+                  value={p.raw}
+                  onchange={(e) => setProp(p.key, (e.currentTarget as HTMLInputElement).value)}
+                />
+                {#each valueItems(p.raw) as v (v)}
+                  <a
+                    class="pv"
+                    href={propertyHash(p.key, v)}
+                    title={`All pages with ${p.key}: ${v}`}
+                    data-testid="prop-value-link">↗ {v}</a
+                  >
+                {/each}
+                <button
+                  class="x"
+                  aria-label={`Remove ${p.key}`}
+                  title="Remove property"
+                  onclick={() => removeProp(p.key)}>✕</button
+                >
+              </div>
+            {/each}
+            <form class="prop newprop" onsubmit={addProp}>
+              <input
+                list="page-prop-keys"
+                bind:value={newKey}
+                placeholder="property, e.g. type"
+                aria-label="New property name"
+              />
+              <input
+                list="page-prop-values"
+                bind:value={newValue}
+                placeholder="value, e.g. person"
+                aria-label="New property value"
+              />
+              <button type="submit" disabled={!validKey || !newValue.trim()}>Add</button>
+              <datalist id="page-prop-keys"
+                >{#each knownKeys as k (k)}<option value={k}></option>{/each}</datalist
+              >
+              <datalist id="page-prop-values"
+                >{#each knownValues as v (v)}<option value={v}></option>{/each}</datalist
+              >
+            </form>
+          </div>
         {/if}
         {#if view.diagnostics.length}
           <ul class="diagnostics">
@@ -126,16 +330,19 @@
           </ul>
         {/if}
       </header>
-      {#if view.child_pages.length}
-        <section class="children-pages" aria-label="Child pages">
-          <h2>Pages in this namespace</h2>
-          <ul>
-            {#each view.child_pages as c (c)}<li><a href={pageHash(c)}>{c}</a></li>{/each}
-          </ul>
-        </section>
-      {/if}
     {/if}
     {#if renaming}<RenameDialog old={view.name} onclose={() => (renaming = false)} />{/if}
+    {#if deleting}<DeleteDialog page={view.name} onclose={() => (deleting = false)} />{/if}
+    {#if !compact && isArchived(view.name)}
+      <p class="archived" data-testid="archived-banner" role="status">
+        Archived: hidden from the sidebar and the agenda.
+        {#if isArchivedItself(view.name)}
+          <button class="act" onclick={toggleArchive}>Unarchive</button>
+        {:else}
+          It is below an archived page.
+        {/if}
+      </p>
+    {/if}
     <div class="blocks">
       <div role={view.blocks.length || view.preamble ? 'tree' : undefined} aria-label="Blocks">
         {#if view.preamble}
@@ -180,7 +387,9 @@
         >
       {/if}
     </div>
-    {#if showBacklinks && !compact}<Backlinks page={view.name} />{/if}
+    {#if showBacklinks && !compact}<Hierarchy page={view.name} /><PageTasks page={view.name} /><Backlinks
+        page={view.name}
+      />{/if}
   </article>
 {/if}
 
@@ -189,8 +398,19 @@
     max-width: 880px;
   }
   h1 {
-    margin: 0.1em 0 0.4em;
-    font-size: 1.7em;
+    margin: 0.1em 0 0.5em;
+    font-size: 2.1em;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.2;
+  }
+  a.title {
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+  }
+  a.title:hover {
+    text-decoration: underline;
   }
   .title {
     font: inherit;
@@ -208,11 +428,58 @@
     font-size: 0.85em;
     color: var(--muted);
   }
+  .topic-chip {
+    margin-left: 0.6em;
+    font-size: 0.4em;
+    font-weight: 500;
+    vertical-align: middle;
+    background: var(--chip);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 0.1em 0.6em;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .topic-chip:hover {
+    color: var(--link);
+  }
+  .badge {
+    margin-left: 0.15em;
+    font-size: 0.65em;
+  }
   .breadcrumb a {
     color: var(--muted);
   }
   .sep {
     margin: 0 0.3em;
+  }
+  .page-actions {
+    display: inline-flex;
+    gap: 0.4em;
+    margin-right: 0.8em;
+  }
+  .act {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+  .act:hover {
+    background: var(--chip);
+    color: var(--text);
+  }
+  .act.danger:hover {
+    color: var(--danger);
+  }
+  .archived {
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-radius: 6px;
+    padding: 0.3em 0.7em;
+    font-size: 0.9em;
   }
   .props-toggle {
     border: none;
@@ -223,25 +490,54 @@
     padding: 0;
   }
   .fm {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.1em 1em;
-    font-size: 0.85em;
-    margin: 0.3em 0;
+    margin: 0.3em 0 0.8em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+    font-size: 0.9em;
   }
-  .fm dt {
+  .prop {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+  }
+  .prop .k {
+    min-width: 6em;
     color: var(--muted);
   }
-  .fm dd {
-    margin: 0;
+  .prop input {
+    flex: 1;
+    min-width: 0;
+    max-width: 22em;
   }
+  a.k {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  a.k:hover,
+  a.pv:hover {
+    color: var(--link);
+    text-decoration: underline;
+  }
+  a.pv {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85em;
+    white-space: nowrap;
+  }
+  .prop .x {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .prop.newprop {
+    margin-top: 0.3em;
+  }
+
   .diagnostics {
     font-size: 0.8em;
     color: var(--warn);
-  }
-  .children-pages h2 {
-    font-size: 0.9em;
-    color: var(--muted);
   }
   .empty,
   .add {

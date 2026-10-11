@@ -10,7 +10,16 @@
     "frontendDist": "../ui/dist"
   },
   "app": {
-    "windows": [{ "title": "Notatnik", "width": 1200, "height": 800, "minWidth": 600, "minHeight": 400 }],
+    "windows": [
+      {
+        "title": "Notatnik",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 600,
+        "minHeight": 400,
+        "dragDropEnabled": false
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost"
     }

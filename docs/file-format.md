@@ -81,8 +81,13 @@ started: 2026-09-01
 ### 3.1 Frontmatter (page properties)
 
 - Optional YAML block at the top, delimited by `---`.
-- Reserved keys: `title`, `aliases`, `tags`, `template`, `icon`.
+- Reserved keys: `title`, `aliases`, `tags`, `template`, `icon` (an emoji shown next to the page everywhere; it wins over the
+  `[[page_icons]]` rules of the config).
 - All other keys are user properties (queryable).
+
+> **Page properties from the UI:** the page header's *properties* section edits this frontmatter (`set_page_property`,
+> `remove_page_property`); a page without frontmatter gets one (plus a blank line) on the first property. Values may be YAML flow lists
+> (`teams: [red, blue]`); each item is indexed separately, and the left panel can group pages by any of these keys.
 
 ### 3.2 Blocks
 
@@ -127,6 +132,31 @@ started: 2026-09-01
 - The only automatic timestamps are `done::` (non-repeating tasks) and `completed::` (repeating tasks).
 - File modification times are available in the index for "recently changed" views.
 
+### 3.6 Task logbook
+
+A block can keep dated progress notes in a **drawer**: continuation lines between `:LOGBOOK:` and `:END:`
+(each on its own line, indented like the other continuation lines). Put it after the properties and
+before the children:
+
+```markdown
+- DOING Write the spec
+  deadline:: 2026-10-10
+  :LOGBOOK:
+  2026-10-04 14:30 Outline done
+  2026-10-05 Reviewed with [[Anna]]
+  :END:
+  - child task
+```
+
+- An entry is `YYYY-MM-DD[ HH:MM] text`. A line without a leading date is still listed (without a date).
+  Blank lines are ignored. Entries are single lines.
+- The drawer is ordinary text for the parser: it is not a property, it round-trips byte for byte, and its text is
+  searchable. The renderer hides it from the block text and the app lists it as a collapsible **Logbook (n)**.
+- A `:LOGBOOK:` without a later `:END:` is plain text.
+- Nothing is written automatically: entries are added by the user (`/log` in the editor adds a line with the
+  current date and time, creating the drawer if needed). Logging does not change the task state.
+- Links in entries count as references of the block (they show up in backlinks).
+
 ## 4. Inline syntax
 
 | Syntax | Meaning |
@@ -141,6 +171,8 @@ started: 2026-09-01
 | `==text==` | Highlight |
 | Standard GFM | Bold, italic, `code`, ~~strike~~, links, images, tables, task-less lists inside code |
 | Raw HTML (`<b>`, `<script>`, …) | **Not rendered.** Shown escaped, as literal text |
+
+- **Emojis** are ordinary Unicode characters in the text. `:shortcode:` is only an input aid in the editor (`:rocket` suggests 🚀 and inserts the character); a shortcode is never stored, so any other tool reads the file as it is.
 
 ### Tag rules
 
@@ -163,7 +195,7 @@ started: 2026-09-01
 |---|---|---|
 | `scheduled` | `YYYY-MM-DD` or `YYYY-MM-DD HH:MM` | Start / planned date |
 | `deadline` | same | Due date |
-| `priority` | `high` \| `medium` \| `low` | |
+| `priority` | one of the graph's labels (`[tasks] priorities`, `A`, `B`, `C` by default; one to nine labels); `high`, `medium` and `low` mean the first, middle and last label | Priority; shown after the marker as `[#A]`; none by default |
 | `repeat` | `daily`, `weekly`, `monthly`, `yearly`, `every 2w`, `weekdays`, or a raw `RRULE:...` | Maps to iCalendar RRULE |
 | `done` | `YYYY-MM-DDTHH:MM` | Set automatically on DONE (non-repeating tasks) |
 | `completed` | `YYYY-MM-DD, YYYY-MM-DD, …` | Repeating tasks only: completion log, appended automatically each time the task is completed (hidden) |
@@ -192,6 +224,10 @@ Comma-separated values are ORed. `-key:` negates.
 `ns: work` matches the page `work` **and every page below it** at any depth (`work/projects`,
 `work/projects/alpha`), but never `workshop`. Use `page: work` to match only the single page.
 
+`path: renewal` matches every page that has `renewal` **as a segment anywhere in its name** (`p/ey/renewal/apotheke`,
+`x/renewal`), no matter what comes before or after; `path: ey/renewal` needs the two segments next to each other. Whole
+segments only (`renewals` does not match), case-insensitive. `-path:` negates, commas are alternatives.
+
 ````markdown
 ```query
 task: todo, doing
@@ -205,8 +241,12 @@ group: task
 ```
 ````
 
-Planned clauses (v0): `task`, `tag`, `links`, `ns`, `page`, `prop.<key>`, `scheduled`,
-`deadline`, `text`, `type` (block | page), `sort`, `limit`, `group`, `view`, `columns`.
+Planned clauses (v0): `task`, `tag`, `links`, `ns`, `page`, `path`, `prop.<key>`, `scheduled`,
+`deadline`, `priority` (`priority: A, B`, a label of the graph), `text`, `type` (block | page), `sort`, `limit`, `group`, `view`, `columns`, `direct`, `inherit`.
+
+**Inheritance.** In block queries `links:` and `tag:` also match every descendant of a block that has the link or tag (a link applies to the subtree): `- [[Client One]]: call` followed by an indented `- TODO prepare offer` finds the todo under `links: Client One`. `direct: yes` matches only blocks that carry the link themselves. Link-valued properties (`client:: [[X]]`) count as links. Scheduled/deadline dates, priority and other properties are **not** inherited by default. Page queries are unaffected.
+
+**Property inheritance.** `inherit: client, type` (a list of property keys) makes `prop.client:` and `prop.type:` also match every descendant of a block that has the property. The nearest block with the key decides (a child's own value wins over its parent's); for blocks with no value in their chain the page's frontmatter value counts. `direct: yes` turns it off. Task data (`scheduled`, `deadline`, `priority`, `repeat`) is never inherited this way; nothing is written to the files.
 Relative dates: `today`, `yesterday`, `+3d`, `-2w`, `+1m`, `this-week`. Weeks start on **Monday**
 by default (`[graph] week_start` in config). Adding months clamps to the end of the month
 (`+1m` from 31 January → 28/29 February).
@@ -239,6 +279,16 @@ template = "templates/person.md"
 
 [tasks]
 completed_log_limit = 0       # 0 = keep all completion dates; N = keep the last N
+priorities = ["A", "B", "C"]  # one to nine labels, most important first; shown as [#A] after the marker; a task has none by default
+
+[[page_icons]]               # pages with `type: person` get 👤 (key/value compared without regard to case)
+key = "type"
+value = "person"
+icon = "👤"
+
+[[saved_queries]]            # pinned to the sidebar
+name = "Open renewals"
+query = "task: todo\npath: Renewal"
 
 [calendar]
 tasks_as = "vtodo"           # or "vevent"

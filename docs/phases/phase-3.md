@@ -12,14 +12,16 @@ live query blocks, and list / table / kanban / timeline views, all backed by pla
 |---|---|
 | P3.1 state cycling | Done and tested (Ctrl+Enter, marker click). Cycle: none, TODO, DOING, DONE, none; WAITING goes to DONE, CANCELED clears |
 | P3.2 `done::` | Done (golden tests for add/remove; hidden in the rendered view) |
-| P3.3 task chips | Done and tested for deadline set/clear and overdue style; scheduled and priority use the same code. Slash commands exist; no browser test |
+| P3.3 task chips | Done and tested for deadline set/clear and overdue style; scheduled and priority use the same code. Slash commands `/todo`, `/doing`, `/waiting`, `/done`, `/canceled` set the marker at the start of the block wherever they are typed (replacing an existing marker; unit and browser tested). `/date`, `/scheduled`, `/deadline` and the date chips open one ISO-only date picker (`DatePicker.svelte`; unit and browser tested); `/priority` still inserts `priority:: high` untested in the browser |
 | P3.4 agenda, P3.5 journal section | Done and tested against the `tasks` fixture (7 overdue, 1 today, 4 days, 8 undated); filters saved per device |
 | P3.6-P3.8 query blocks, live updates, errors | Done and tested. Live updates re-run all visible queries (the dependency-signature optimisation is not built; measured ~210 ms end to end) |
 | P3.9, P3.17 autocomplete in queries and properties | Done and tested |
 | P3.10-P3.13 list, table, kanban, timeline | Done and tested (sorting, cell edit, drag to change state/property/date). Keyboard card move is `Alt+←/→` (not browser-tested). 500-row smooth scrolling not measured |
 | P3.14 editable results, saved queries | Done and tested; second-device sync not tested (it is `config.toml`) |
 | P3.15 repeating tasks | Done: 19-row unit table + golden tests + browser test. Raw `RRULE:` values are not shifted (the task is just marked DONE) |
-| P3.16 subtask progress | Done and tested (counts all descendants) |
+| Task logbook (added) | `:LOGBOOK:` drawer, file-format §3.6. `/log` in the editor adds a dated line (creates the drawer); rendered as a collapsible list and hidden from the block text. Tested: core unit tests, `app.rs` (listing, not rendered, round-trip), `slash.spec.ts`. No "add" button in rendered mode and no per-entry delete yet (edit the raw block) |
+| Agenda → note | Each agenda item links to its note; the note opens with the task flashed (`jumpToBlock`, shared with search). Tested in `tasks.spec.ts` |
+| P3.16 subtask progress | Done and tested. Counts all descendants. Shown only on blocks that are tasks themselves (TK-6); plain blocks with task descendants show nothing |
 
 ## Exit criteria
 
@@ -84,10 +86,10 @@ live query blocks, and list / table / kanban / timeline views, all backed by pla
 - [ ] Filter `ns: work` → only tasks from `work` and pages below it
 
 ### P3.5 Journal integration
-- [ ] Today's journal shows a "Scheduled / due today" section above its blocks (read from the agenda queries; not written into the file)
+- [x] ~~Today's journal shows a "Scheduled / due today" section~~ Dropped by decision: the journal shows only its own blocks; due tasks are in the agenda
 
 **Verify**
-- [ ] A task anywhere with `scheduled:: <today>` appears in today's journal section; the journal file does not contain it
+- [x] The journal file does not contain tasks scheduled for today, and the journal view does not list them (tested in `tasks.spec.ts`)
 
 ## 3B: Live query blocks
 
@@ -182,7 +184,7 @@ live query blocks, and list / table / kanban / timeline views, all backed by pla
 - [ ] A query can use it: `prop.completed: contains 2026-10-03` finds the task
 
 ### P3.16 Subtask progress (TK-6)
-- [ ] A parent block with task children shows `2/5` and a small progress bar (computed, not stored)
+- [ ] A parent **task** (a block with a task marker) with task descendants shows `2/5` and a small progress bar (computed, not stored)
 
 **Verify**
 - [ ] Completing a child updates the parent's progress immediately; nested grandchildren count (decide: direct children only or all descendants; document it)

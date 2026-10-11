@@ -216,3 +216,28 @@ proptest! {
         prop_assert_eq!(q, q2);
     }
 }
+
+#[test]
+fn direct_clause_parses_and_round_trips() {
+    let q = notatnik_core::parse_query("links: a\ndirect: yes").unwrap();
+    assert!(q.direct);
+    assert_eq!(notatnik_core::parse_query(&q.to_text()).unwrap(), q);
+    assert!(!notatnik_core::parse_query("links: a").unwrap().direct);
+    assert!(
+        !notatnik_core::parse_query("links: a\ndirect: no")
+            .unwrap()
+            .direct
+    );
+    assert!(notatnik_core::parse_query("direct: maybe").is_err());
+    assert!(notatnik_core::parse_query("direct: yes\ndirect: no").is_err());
+}
+
+#[test]
+fn inherit_clause_parses_and_round_trips() {
+    let q = notatnik_core::parse_query("prop.client: Acme\ninherit: client, type").unwrap();
+    assert_eq!(q.inherit, ["client", "type"]);
+    let again = notatnik_core::parse_query(&q.to_text()).unwrap();
+    assert_eq!(again, q);
+    assert!(notatnik_core::parse_query("inherit: Bad Key").is_err());
+    assert!(notatnik_core::parse_query("inherit: a\ninherit: b").is_err());
+}

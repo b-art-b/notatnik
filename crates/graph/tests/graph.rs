@@ -484,8 +484,18 @@ fn rename_is_refused_in_unsafe_situations() {
     let e = env_with(Some("namespaces"));
     let g = open(&e);
     let before = graph_files_snapshot(&e.graph_dir);
-    let err = g.plan_rename("work", "jobs").unwrap_err().to_string();
-    assert!(err.contains("subpages") && err.contains("NS-8"), "{err}");
+    let err = g
+        .plan_rename("work", "work/projects/x")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("into itself"), "{err}");
+    // a subpage destination that exists blocks the whole move
+    let err = g
+        .plan_rename("work/projects", "workshop")
+        .and_then(|_| g.plan_rename("work", "workshop"))
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("already exists"), "{err}");
     let err = g
         .plan_rename("workshop", "work/projects/alpha")
         .unwrap_err()
@@ -711,4 +721,225 @@ fn edit_page_applies_ops_with_guard() {
         g.edit_page("pages/created/by-edit.md", None, &[]),
         Err(Error::Conflict { .. })
     ));
+}
+
+#[test]
+fn moving_a_namespace_moves_all_pages_and_rewrites_all_links() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    let before = graph_files_snapshot(&e.graph_dir);
+    // work/projects (alpha, beta) -> archive/2026/projects; `gamma` only exists as a link target
+    let plan = g
+        .plan_rename("work/projects", "archive/2026/projects")
+        .unwrap();
+    assert_eq!(
+        plan.file_moves,
+        [
+            (
+                "pages/work/projects/alpha.md".to_string(),
+                "pages/archive/2026/projects/alpha.md".to_string()
+            ),
+            (
+                "pages/work/projects/beta.md".to_string(),
+                "pages/archive/2026/projects/beta.md".to_string()
+            ),
+        ]
+    );
+    let edited: Vec<&str> = plan.edits.iter().map(|e| e.path.as_str()).collect();
+    assert_eq!(edited, ["pages/people/anna.md"]);
+    assert_eq!(graph_files_snapshot(&e.graph_dir), before, "dry run");
+    g.apply_rename(&plan).unwrap();
+    let after = graph_files_snapshot(&e.graph_dir);
+    let anna = String::from_utf8(after["pages/people/anna.md"].clone()).unwrap();
+    assert!(anna.contains("[[archive/2026/projects/gamma]]") && anna.contains("[[x/y/z]]"));
+    for (path, content) in &before {
+        match path.as_str() {
+            "pages/people/anna.md" => {}
+            "pages/work/projects/alpha.md" => assert_eq!(
+                &after["pages/archive/2026/projects/alpha.md"], content,
+                "moved unchanged"
+            ),
+            "pages/work/projects/beta.md" => assert_eq!(
+                &after["pages/archive/2026/projects/beta.md"], content,
+                "moved unchanged"
+            ),
+            _ => assert_eq!(&after[path], content, "{path} must be byte-identical"),
+        }
+    }
+    assert!(!e.graph_dir.join("pages/work/projects").exists());
+    assert!(
+        e.graph_dir.join("pages/work.md").exists(),
+        "the parent stays"
+    );
+    let rep = g.check().unwrap();
+    assert!(!rep.has_problems(), "{rep:?}");
+    assert!(
+        rep.unresolved_links
+            .iter()
+            .all(|(_, t)| !t.contains("work/projects")),
+        "{rep:?}"
+    );
+    assert!(
+        g.with_index(|i| i.page_info("archive/2026/projects/alpha").unwrap())
+            .is_some()
+    );
+    assert!(
+        g.with_index(|i| i.page_info("work/projects/alpha").unwrap())
+            .is_none()
+    );
+}
+
+#[test]
+fn renaming_a_namespace_root_moves_its_own_page_and_children() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    let plan = g.plan_rename("work", "jobs").unwrap();
+    g.apply_rename(&plan).unwrap();
+    for f in [
+        "pages/jobs.md",
+        "pages/jobs/projects/alpha.md",
+        "pages/jobs/projects/beta.md",
+    ] {
+        assert!(e.graph_dir.join(f).exists(), "{f}");
+    }
+    assert!(!e.graph_dir.join("pages/work.md").exists());
+    assert!(!e.graph_dir.join("pages/work").exists());
+    let alpha = std::fs::read_to_string(e.graph_dir.join("pages/jobs/projects/alpha.md")).unwrap();
+    assert!(alpha.contains("[[jobs]]"), "{alpha}");
+    // `workshop` only shares a prefix: untouched
+    assert!(e.graph_dir.join("pages/workshop.md").exists());
+    assert!(e.graph_dir.join("pages/workshop/x.md").exists());
+    assert!(!g.check().unwrap().has_problems());
+}
+
+#[test]
+fn moving_a_virtual_namespace_moves_only_the_files_below_it() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    // `a` and `a/b/...` have no files except the deepest page
+    let plan = g.plan_rename("a", "z").unwrap();
+    assert_eq!(
+        plan.file_moves,
+        [(
+            "pages/a/b/c/d/deep.md".to_string(),
+            "pages/z/b/c/d/deep.md".to_string()
+        )]
+    );
+    g.apply_rename(&plan).unwrap();
+    assert!(e.graph_dir.join("pages/z/b/c/d/deep.md").exists());
+    assert!(!e.graph_dir.join("pages/a").exists());
+}
+
+#[test]
+fn a_namespace_move_that_stops_on_a_conflict_can_be_reverted_byte_for_byte() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    let before = graph_files_snapshot(&e.graph_dir);
+    let plan = g.plan_rename("work", "jobs").unwrap();
+    assert_eq!(plan.edits.len(), 2, "anna.md and alpha.md");
+    // an external edit lands in the second file after planning
+    let second = plan.edits[1].path.clone();
+    std::fs::write(
+        e.graph_dir.join(&second),
+        "- someone else's edit, still links to [[work]]\n",
+    )
+    .unwrap();
+    let err = g.apply_rename(&plan).unwrap_err();
+    assert!(
+        matches!(&err, Error::PartialRename { done, failed }
+            if *done == [plan.edits[0].path.clone()] && *failed == second),
+        "{err}"
+    );
+    let restored = g.revert_rename(&plan).unwrap();
+    assert_eq!(restored, [plan.edits[0].path.clone()]);
+    let mut expected = before.clone();
+    expected.insert(
+        second.clone(),
+        "- someone else's edit, still links to [[work]]\n"
+            .as_bytes()
+            .to_vec(),
+    );
+    assert_eq!(
+        graph_files_snapshot(&e.graph_dir),
+        expected,
+        "everything but the external edit is back"
+    );
+    // "finish": planning again picks up where it stopped and succeeds
+    let plan2 = g.plan_rename("work", "jobs").unwrap();
+    g.apply_rename(&plan2).unwrap();
+    assert!(e.graph_dir.join("pages/jobs.md").exists());
+    let alpha = std::fs::read_to_string(e.graph_dir.join("pages/jobs/projects/alpha.md")).unwrap();
+    assert!(alpha.contains("[[jobs]]"), "{alpha}");
+}
+
+#[test]
+fn reverting_a_complete_namespace_move_puts_everything_back() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    let before = graph_files_snapshot(&e.graph_dir);
+    let plan = g.plan_rename("work", "jobs").unwrap();
+    g.apply_rename(&plan).unwrap();
+    g.revert_rename(&plan).unwrap();
+    assert_eq!(graph_files_snapshot(&e.graph_dir), before);
+    assert!(
+        g.with_index(|i| i.page_info("work/projects/alpha").unwrap())
+            .is_some()
+    );
+}
+
+#[test]
+fn a_page_can_move_alone_to_a_name_below_itself_while_its_subpages_stay() {
+    let e = env_with(Some("namespaces"));
+    let g = open(&e);
+    // with the subpages it is impossible, and the message says what to do
+    let err = g
+        .plan_rename("work", "work/archive/old")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("into itself") && err.contains("move only this page"),
+        "{err}"
+    );
+    // only the page: its file moves, links to it follow, nothing below it is touched
+    let before = graph_files_snapshot(&e.graph_dir);
+    let plan = g
+        .plan_rename_with("work", "work/archive/old", false)
+        .unwrap();
+    assert_eq!(
+        plan.file_moves,
+        [(
+            "pages/work.md".to_string(),
+            "pages/work/archive/old.md".to_string()
+        )]
+    );
+    g.apply_rename(&plan).unwrap();
+    let after = graph_files_snapshot(&e.graph_dir);
+    assert_eq!(after["pages/work/archive/old.md"], before["pages/work.md"]);
+    assert!(!after.contains_key("pages/work.md"));
+    for p in ["pages/work/projects/beta.md", "pages/workshop.md"] {
+        assert_eq!(after[p], before[p], "{p} untouched");
+    }
+    // `alpha` linked to [[work]]: only that link was rewritten
+    let alpha = String::from_utf8(after["pages/work/projects/alpha.md"].clone()).unwrap();
+    assert!(alpha.contains("[[work/archive/old]]"), "{alpha}");
+    // the subpages are still there, still below `work`
+    assert!(
+        g.with_index(|i| i.page_info("work/projects/alpha").unwrap())
+            .is_some()
+    );
+    assert!(
+        g.with_index(|i| i.page_info("work/archive/old").unwrap())
+            .is_some()
+    );
+    assert!(!g.check().unwrap().has_problems());
+    // moving only one page never rewrites links to its subpages
+    let plan = g
+        .plan_rename_with("work/archive/old", "elsewhere", false)
+        .unwrap();
+    assert!(
+        plan.edits
+            .iter()
+            .all(|e| e.patches.iter().all(|p| !p.old_text.contains("projects"))),
+        "{plan:?}"
+    );
 }

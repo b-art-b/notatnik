@@ -72,3 +72,39 @@ test('clicking in the middle of a word puts the cursor there', async ({ backend,
   expect(pos).toBeGreaterThanOrEqual(7)
   expect(pos).toBeLessThanOrEqual(10)
 })
+
+test('starting to edit a block does not move its text', async ({ backend, page }) => {
+  backend.write('pages/t.md', '- plain words in a block with a [[link]] and #tag\n')
+  await backend.open('/page/t')
+  const body = page.getByRole('tree', { name: 'Blocks' }).locator('.body').first()
+  const before = await body.boundingBox()
+  await body.click()
+  await expect(page.locator('.cm-content')).toBeVisible()
+  const line = await page.locator('.cm-line').first().boundingBox()
+  expect(Math.abs(line!.y - before!.y)).toBeLessThan(1.5)
+  expect(Math.abs(line!.height - 1.6 * 15)).toBeLessThan(2) // same line height as the rendered text
+})
+
+test('the bullet dot is centred on the first line of its block', async ({ backend, page }) => {
+  backend.write('pages/t.md', '- first block\n- TODO second block\n')
+  await backend.open('/page/t')
+  for (const row of await page.getByRole('tree', { name: 'Blocks' }).locator('.row').all()) {
+    // the drawn dot itself (the ::before of the button), not the button's box
+    const dot = await row.locator('.bullet').evaluate((b) => {
+      const r = b.getBoundingClientRect()
+      const d = getComputedStyle(b, '::before')
+      // the dot is laid out by flex centering: its middle is the button's middle when its box is centred;
+      // measure it by drawing the position from a Range-free probe: temporarily make it an element
+      const probe = document.createElement('span')
+      probe.style.cssText = `display:block;width:${d.width};height:${d.height}`
+      b.prepend(probe)
+      const p = probe.getBoundingClientRect()
+      probe.remove()
+      return { top: p.top, height: p.height, btnTop: r.top, btnH: r.height }
+    })
+    const text = (await row.locator('.body').boundingBox())!
+    const line = 1.6 * 15 // the first line of the block
+    const dotMiddle = dot.top + dot.height / 2
+    expect(Math.abs(dotMiddle - (text.y + line / 2))).toBeLessThan(1.5)
+  }
+})

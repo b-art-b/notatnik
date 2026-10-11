@@ -114,6 +114,9 @@ pub enum PropType {
 pub struct ParseOptions {
     /// Declared property types by key.
     pub property_types: BTreeMap<String, PropType>,
+    /// The graph's priority labels, most important first (`[tasks] priorities`, `A`, `B`, `C` by default). In a
+    /// file `priority::` may be `high`/`medium`/`low`, `A`/`B`/`C` or one of these labels.
+    pub priority_labels: Vec<String>,
 }
 
 /// A `key:: value` block property, or a frontmatter key.

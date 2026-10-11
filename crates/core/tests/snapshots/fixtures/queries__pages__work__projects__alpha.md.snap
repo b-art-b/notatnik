@@ -216,7 +216,7 @@ expression: page
         },
         "scheduled": null,
         "deadline": "2026-10-01",
-        "priority": "high",
+        "priority": "A",
         "repeat": null,
         "done": null
       },
@@ -402,7 +402,7 @@ expression: page
         },
         "scheduled": null,
         "deadline": "2026-10-04",
-        "priority": "medium",
+        "priority": "B",
         "repeat": null,
         "done": null
       },

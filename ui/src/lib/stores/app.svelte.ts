@@ -1,16 +1,40 @@
 import { backend, CommandError, type GraphInfo } from '../api'
 import { parseRoute, routeHash, type Route } from '../route'
-import { setDateLocale } from '../dates'
+import { setDateFormat, setDateLocale } from '../dates'
+import { loadIcons } from './icons.svelte'
 
 export interface Toast {
   id: number
   kind: 'info' | 'error'
   message: string
+  /** A button on the toast (Undo); a toast with an action stays longer. */
+  action?: { label: string; run: () => void }
 }
 
 export type Theme = 'system' | 'light' | 'dark'
 
 /** App-wide reactive state (Svelte 5 runes in a .svelte.ts module: import `app` anywhere and read/write its fields). */
+const LEFT_MIN = 180
+const LEFT_MAX = 560
+export const LEFT_DEFAULT = 240
+
+function loadLeftWidth(): number {
+  try {
+    const n = Number(localStorage.getItem('notatnik-left-width'))
+    return Number.isFinite(n) && n >= LEFT_MIN && n <= LEFT_MAX ? n : LEFT_DEFAULT
+  } catch {
+    return LEFT_DEFAULT
+  }
+}
+
+function loadLeftOpen(): boolean {
+  try {
+    return localStorage.getItem('notatnik-left-open') !== 'no'
+  } catch {
+    return true
+  }
+}
+
 export const app = $state({
   graph: null as GraphInfo | null,
   needsGraph: false,
@@ -22,21 +46,55 @@ export const app = $state({
   rightPanels: [] as string[],
   paletteOpen: false,
   searchOpen: false,
-  leftOpen: true,
+  /** The left sidebar is shown; remembered on this device. */
+  leftOpen: loadLeftOpen(),
+  /** Width of the left sidebar in px; remembered on this device. */
+  leftWidth: loadLeftWidth(),
   /** Bumped when saved queries change, so the sidebar reloads them. */
   savedVersion: 0,
+  /** Bumped when the date language/format change, so shown dates re-render (see `shownDate`). */
+  dateVersion: 0,
+  /** Device setting: `compact` shows a task's schedule, repeat and logbook as small indicators (details on hover). */
+  taskDetails: 'full' as 'full' | 'compact',
+  /** Device setting: `compact` shows a block's properties as one small indicator (the card opens on hover). */
+  blockProps: 'full' as 'full' | 'compact',
 })
 
+/** Sets the sidebar width in px (clamped); `save` remembers it on this device (done when a drag ends). */
+export function setLeftWidth(px: number, save = true) {
+  app.leftWidth = Math.round(Math.min(LEFT_MAX, Math.max(LEFT_MIN, px)))
+  if (!save) return
+  try {
+    localStorage.setItem('notatnik-left-width', String(app.leftWidth))
+  } catch {
+    /* not remembered */
+  }
+}
+
+/** Shows or hides the left sidebar (Ctrl+\\ and the button beside it). */
+export function toggleLeft() {
+  app.leftOpen = !app.leftOpen
+  try {
+    localStorage.setItem('notatnik-left-open', app.leftOpen ? 'yes' : 'no')
+  } catch {
+    /* not remembered */
+  }
+}
+
 let toastId = 1
-export function toast(message: string, kind: Toast['kind'] = 'info') {
-  const t = { id: toastId++, kind, message }
+export function toast(message: string, kind: Toast['kind'] = 'info', action?: Toast['action']) {
+  const t: Toast = { id: toastId++, kind, message, action }
   app.toasts.push(t)
   setTimeout(
     () => {
       app.toasts = app.toasts.filter((x) => x.id !== t.id)
     },
-    kind === 'error' ? 8000 : 3500,
+    kind === 'error' || action ? 10000 : 3500,
   )
+}
+
+export function dismissToast(id: number) {
+  app.toasts = app.toasts.filter((x) => x.id !== id)
 }
 
 export function errorMessage(e: unknown): string {
@@ -85,10 +143,16 @@ export async function bootstrap() {
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
     await loadDeviceSettings()
+    void loadIcons()
   } catch (e) {
     if (e instanceof CommandError && e.code === 'no_graph') app.needsGraph = true
     else toast(errorMessage(e), 'error')
   }
+}
+
+/** Rendered links show `[[ ]]` only when this device setting is on (the CSS reads the attribute). */
+export function applyLinkBrackets(show: boolean) {
+  document.documentElement.dataset.linkBrackets = show ? 'show' : 'hide'
 }
 
 /** Theme and date format come from the device settings file. */
@@ -96,7 +160,12 @@ export async function loadDeviceSettings() {
   try {
     const s = await backend.call('get_settings', {})
     setDateLocale(s.date_locale)
+    setDateFormat(s.date_format, s.date_pattern)
+    app.dateVersion++
     applyTheme(s.theme as Theme)
+    applyLinkBrackets(s.link_brackets)
+    app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
+    app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'
   } catch {
     /* keep the defaults */
   }
@@ -109,6 +178,7 @@ export async function openGraph(path: string, create: boolean) {
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
     await loadDeviceSettings()
+    void loadIcons()
   } catch (e) {
     toast(errorMessage(e), 'error')
   }

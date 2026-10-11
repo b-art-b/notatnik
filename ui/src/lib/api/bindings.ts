@@ -171,13 +171,30 @@ scheduled: string | null,
  */
 deadline: string | null, 
 /**
- * `high`, `medium` or `low`.
+ * The priority label as written in the file (`A`, `B`, `C` by default).
  */
 priority: string | null, 
+/**
+ * Its rank: 0 is the most important.
+ */
+priority_rank: number | null, 
 /**
  * `repeat::` as text.
  */
 repeat: string | null, };
+export type LogEntryView = { 
+/**
+ * `YYYY-MM-DD` or `YYYY-MM-DD HH:MM`; empty for a line without a date.
+ */
+when: string, 
+/**
+ * The note as written.
+ */
+text: string, 
+/**
+ * The note rendered (links, tags, emphasis ...).
+ */
+content: Array<Node>, };
 export type BlockView = { 
 /**
  * Runtime ID, stable across edits and external changes within the session (P1.26).
@@ -207,6 +224,10 @@ content: Array<Node>,
  * Task data.
  */
 task: TaskView | null, 
+/**
+ * Progress notes from the `:LOGBOOK:` drawer, in file order.
+ */
+logbook: Array<LogEntryView>, 
 /**
  * Properties.
  */
@@ -322,7 +343,11 @@ week_start: string,
 /**
  * `[tasks] completed_log_limit` (0 = keep all dates of repeating tasks).
  */
-completed_log_limit: number, };
+completed_log_limit: number, 
+/**
+ * `[tasks] priorities`: the priority labels, most important first.
+ */
+priority_labels: Array<string>, };
 export type ApplyResult = { 
 /**
  * The page after the edit.
@@ -368,17 +393,42 @@ source_page: string,
  */
 block_path: Array<number> | null, 
 /**
- * The linking block (rendered), without its children.
+ * The linking block (rendered) with its whole subtree.
  */
 block: BlockView | null, 
 /**
- * Parent block texts, outermost first.
+ * Parent block texts, outermost first; entry `i` is the block at `block_path[..=i]`.
  */
 breadcrumbs: Array<string>, 
 /**
  * `page`, `tag` or `page_embed`.
  */
 kind: string, };
+export type UnlinkedView = { 
+/**
+ * Source page.
+ */
+source_page: string, 
+/**
+ * Block path in the source page.
+ */
+block_path: Array<number>, 
+/**
+ * The mentioning block (rendered), without its children.
+ */
+block: BlockView, 
+/**
+ * Parent block texts, outermost first.
+ */
+breadcrumbs: Array<string>, 
+/**
+ * The page name or alias that matched.
+ */
+term: string, 
+/**
+ * The block's text with the first mention turned into a link (what "Link" writes).
+ */
+link_text: string, };
 export type NamespaceEntry = { 
 /**
  * Full page name.
@@ -400,6 +450,113 @@ has_children: boolean,
  * Number of pages below (all depths).
  */
 descendants: number, };
+export type PageListRow = { 
+/**
+ * Full page name.
+ */
+name: string, 
+/**
+ * No file behind it (only referenced).
+ */
+is_virtual: boolean, 
+/**
+ * Journal page.
+ */
+is_journal: boolean, 
+/**
+ * Number of blocks.
+ */
+blocks: number, 
+/**
+ * Number of blocks/pages that link here.
+ */
+backlinks: number, 
+/**
+ * File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
+ */
+modified: string | null, };
+export type SegmentArgs = { 
+/**
+ * A name used as a path segment (`Renewal`), or several in a row (`Renewal/Snowflake`).
+ */
+segment: string, };
+export type SegmentGroupView = { 
+/**
+ * The path up to and including the segment.
+ */
+occurrence: string, 
+/**
+ * That page has no file of its own.
+ */
+occurrence_is_virtual: boolean, 
+/**
+ * The pages below it.
+ */
+pages: Array<TitleHit>, };
+export type SegmentView = { 
+/**
+ * The segment as asked for.
+ */
+segment: string, 
+/**
+ * The places where it occurs.
+ */
+groups: Array<SegmentGroupView>, };
+export type SegmentPlacesArgs = { 
+/**
+ * The segments to count.
+ */
+segments: Array<string>, };
+export type SegmentPlacesView = { 
+/**
+ * One number per asked segment, same order.
+ */
+places: Array<number>, };
+export type PageIconRuleView = { 
+/**
+ * Page property.
+ */
+key: string, 
+/**
+ * The value that selects the pages.
+ */
+value: string, 
+/**
+ * The emoji.
+ */
+icon: string, };
+export type PageIconView = { 
+/**
+ * Full page name.
+ */
+name: string, 
+/**
+ * The emoji.
+ */
+icon: string, };
+export type PageGroupsArgs = { 
+/**
+ * The page-property key to group by.
+ */
+key: string, };
+export type PageKeyView = { 
+/**
+ * Key.
+ */
+key: string, 
+/**
+ * Pages that have it.
+ */
+pages: number, };
+export type PageGroupView = { 
+/**
+ * The value; `None` for the pages without the property.
+ */
+value: string | null, 
+/**
+ * Page names.
+ */
+pages: Array<string>, };
 export type JournalDay = { 
 /**
  * `YYYY-MM-DD`.
@@ -528,7 +685,12 @@ old: string,
 /**
  * New name.
  */
-new: string, };
+new: string, 
+/**
+ * Move the pages below it too (default). `false` renames only this page, which also allows a name below
+ * the old one.
+ */
+include_subpages: boolean | null, };
 export type EnsureBlockIdArgs = { 
 /**
  * Page of the target block.
@@ -731,6 +893,10 @@ today_items: Array<AgendaItem>,
  */
 upcoming: Array<AgendaDay>, 
 /**
+ * Open tasks dated after the next 7 days, earliest first.
+ */
+later: Array<AgendaItem>, 
+/**
  * Open tasks without any date.
  */
 undated: Array<AgendaItem>, };
@@ -748,6 +914,33 @@ export type NameArgs = {
  * Name of the saved query.
  */
 name: string, };
+export type DeletePagesArgs = { 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * Also delete every page below it (a namespace).
+ */
+include_subpages: boolean, };
+export type DeletePagesResult = { 
+/**
+ * Hand this to `restore_pages` to undo; the files wait in the trash for 30 days.
+ */
+trash_id: string, 
+/**
+ * Names of the pages that were deleted.
+ */
+deleted: Array<string>, 
+/**
+ * Pages that still link to the deleted pages (their links stay and point to an empty page).
+ */
+linked_from: Array<string>, };
+export type RestorePagesArgs = { 
+/**
+ * Value of `DeletePagesResult.trash_id`.
+ */
+trash_id: string, };
 export type PropKeyArgs = { 
 /**
  * Property key.
@@ -763,13 +956,41 @@ theme: string,
  */
 date_locale: string, 
 /**
+ * Device: show `[[ ]]` around rendered links.
+ */
+link_brackets: boolean, 
+/**
+ * Device: `full` or `compact` task details on pages.
+ */
+task_details: string, 
+/**
+ * Device: `full` or `compact` block properties on pages.
+ */
+block_properties: string, 
+/**
+ * Device: `full`, `long`, `short`, `iso` or `custom`.
+ */
+date_format: string, 
+/**
+ * Device: pattern used when `date_format` is `custom`.
+ */
+date_pattern: string, 
+/**
  * Graph: `monday` or `sunday`.
  */
 week_start: string, 
 /**
+ * Graph: the page-icon rules (`type: person` → 👤).
+ */
+page_icons: Array<PageIconRuleView>, 
+/**
  * Graph: keep only the last N completion dates of repeating tasks (0 = all).
  */
 completed_log_limit: number, 
+/**
+ * Graph: the priority labels (one to nine), most important first.
+ */
+priorities: Array<string>, 
 /**
  * The open graph's folder.
  */
@@ -784,13 +1005,41 @@ theme: string | null,
  */
 date_locale: string | null, 
 /**
+ * Device: show brackets around rendered links.
+ */
+link_brackets: boolean | null, 
+/**
+ * Device: `full` or `compact` task details.
+ */
+task_details: string | null, 
+/**
+ * Device: `full` or `compact` block properties.
+ */
+block_properties: string | null, 
+/**
+ * Device: date format.
+ */
+date_format: string | null, 
+/**
+ * Device: custom date pattern.
+ */
+date_pattern: string | null, 
+/**
  * Graph: week start.
  */
 week_start: string | null, 
 /**
  * Graph: completed log limit.
  */
-completed_log_limit: number | null, };
+completed_log_limit: number | null, 
+/**
+ * Graph: the priority labels (validated: one to nine).
+ */
+priorities: Array<string> | null, 
+/**
+ * Graph: replaces the page-icon rules.
+ */
+page_icons: Array<PageIconRuleView> | null, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -805,10 +1054,22 @@ export type Commands = {
   search: { args: SearchArgs; result: SearchHitView[] };
   search_titles: { args: SearchArgs; result: TitleHit[] };
   backlinks: { args: PageArgs; result: BacklinkView[] };
+  unlinked_refs: { args: PageArgs; result: UnlinkedView[] };
+  subpages: { args: PageArgs; result: TitleHit[] };
+  page_icons: { args: NoArgs; result: PageIconView[] };
+  segment_view: { args: SegmentArgs; result: SegmentView };
+  segment_places: { args: SegmentPlacesArgs; result: SegmentPlacesView };
+  all_pages: { args: NoArgs; result: PageListRow[] };
+  page_property_keys: { args: NoArgs; result: PageKeyView[] };
+  page_groups: { args: PageGroupsArgs; result: PageGroupView[] };
   list_namespace: { args: ListNamespaceArgs; result: NamespaceEntry[] };
   journals: { args: JournalsArgs; result: JournalDay[] };
   rename_plan: { args: RenameArgs; result: RenamePlanView };
+  rename_revert: { args: NoArgs; result: StringList };
   rename_apply: { args: RenameArgs; result: PageView };
+  delete_pages: { args: DeletePagesArgs; result: DeletePagesResult };
+  restore_pages: { args: RestorePagesArgs; result: StringList };
+  archived_pages: { args: NoArgs; result: StringList };
   ensure_block_id: { args: EnsureBlockIdArgs; result: StringValue };
   get_block: { args: GetBlockArgs; result: BlockLookup | null };
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };

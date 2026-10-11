@@ -1,5 +1,5 @@
 // The command table: one list of (id, title, keys, action) used by the palette, global shortcuts and docs/keymap.md.
-import { app, applyTheme, navigate } from '../stores/app.svelte'
+import { app, applyTheme, navigate, toggleLeft } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
 import { globalUndo } from './exec'
 
@@ -16,7 +16,9 @@ export const commands: Command[] = [
   { id: 'palette', title: 'Command palette', keys: 'Ctrl+K', run: () => (app.paletteOpen = true) },
   { id: 'search', title: 'Search', keys: 'Ctrl+Shift+F', run: () => (app.searchOpen = true) },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
+  { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
   { id: 'settings', title: 'Settings', keys: '', run: () => navigate({ kind: 'settings' }) },
+  { id: 'toggle-sidebar', title: 'Show or hide the sidebar', keys: 'Ctrl+\\', run: toggleLeft },
   { id: 'undo', title: 'Undo', keys: 'Ctrl+Z', run: () => void globalUndo('undo') },
   { id: 'redo', title: 'Redo', keys: 'Ctrl+Shift+Z', run: () => void globalUndo('redo') },
   { id: 'theme-light', title: 'Theme: light', keys: '', run: () => applyTheme('light') },

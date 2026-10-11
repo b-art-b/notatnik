@@ -1,3 +1,4 @@
+import './assets/fonts/inter.css'
 import { mount } from 'svelte'
 import App from './App.svelte'
 

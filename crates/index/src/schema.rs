@@ -1,7 +1,7 @@
 //! Database schema. Bump [`SCHEMA_VERSION`] on any change: old databases are deleted and rebuilt.
 
 /// Current schema version (`PRAGMA user_version`).
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 5;
 
 pub(crate) const SCHEMA: &str = r#"
 CREATE TABLE files(
@@ -44,6 +44,7 @@ CREATE TABLE blocks(
     is_preamble INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX blocks_page ON blocks(page_id, id);
+CREATE INDEX blocks_parent ON blocks(parent_id);
 CREATE INDEX blocks_uid ON blocks(uid) WHERE uid IS NOT NULL;
 CREATE INDEX blocks_task ON blocks(task_state) WHERE task_state IS NOT NULL;
 CREATE INDEX blocks_scheduled ON blocks(scheduled) WHERE scheduled IS NOT NULL;

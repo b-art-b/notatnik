@@ -204,13 +204,16 @@ fn build_block(src: &str, raw: Raw, opts: &ParseOptions, diags: &mut Vec<Diagnos
             let scheduled = moment("scheduled", diags);
             let deadline = moment("deadline", diags);
             let priority = get("priority").and_then(|p| {
-                let v = Priority::parse(&p.raw);
+                let v = Priority::parse_with(&p.raw, &opts.priority_labels);
                 if v.is_none() {
                     diags.push(Diagnostic::new(
                         p.value_span,
                         Severity::Warning,
                         "invalid-priority",
-                        format!("priority must be high, medium or low, not `{}`", p.raw),
+                        format!(
+                            "priority must be high, medium, low (or A, B, C), not `{}`",
+                            p.raw
+                        ),
                     ));
                 }
                 v

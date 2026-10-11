@@ -33,21 +33,25 @@ impl fmt::Display for QueryError {
 
 impl std::error::Error for QueryError {}
 
-const KEYS: [&str; 14] = [
+const KEYS: [&str; 18] = [
     "task",
     "tag",
     "links",
     "ns",
     "page",
+    "path",
     "scheduled",
     "deadline",
     "text",
+    "priority",
     "type",
     "sort",
     "limit",
     "group",
     "view",
     "columns",
+    "direct",
+    "inherit",
 ];
 
 struct Problem {
@@ -389,7 +393,11 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
         let value = value_raw.trim();
 
         let single: Option<&'static str> = KEYS.iter().copied().find(|k| {
-            *k == key && ["type", "sort", "limit", "group", "view", "columns"].contains(k)
+            *k == key
+                && [
+                    "type", "sort", "limit", "group", "view", "columns", "direct", "inherit",
+                ]
+                .contains(k)
         });
         if let Some(k) = single {
             if negated {
@@ -439,7 +447,12 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
             }};
         }
 
-        if negated || !["type", "sort", "limit", "group", "view", "columns"].contains(&key) {
+        if negated
+            || ![
+                "type", "sort", "limit", "group", "view", "columns", "direct", "inherit",
+            ]
+            .contains(&key)
+        {
             let neg = negated;
             let kind = match key {
                 "task" => {
@@ -462,9 +475,13 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                 "links" => FilterKind::Links(each!(|p: &str, o: usize| parse_name(p, o))),
                 "ns" => FilterKind::Ns(each!(|p: &str, o: usize| parse_name(p, o))),
                 "page" => FilterKind::Page(each!(|p: &str, o: usize| parse_name(p, o))),
+                "path" => FilterKind::Path(each!(|p: &str, o: usize| parse_name(p, o))),
                 "text" => FilterKind::Text(each!(|p: &str, _o: usize| Ok::<String, Problem>(
                     p.to_string()
                 ))),
+                "priority" => FilterKind::Priority(each!(
+                    |p: &str, _o: usize| Ok::<String, Problem>(p.to_string())
+                )),
                 "scheduled" => FilterKind::Scheduled(each!(|p: &str, o: usize| date_cond(p, o))),
                 "deadline" => FilterKind::Deadline(each!(|p: &str, o: usize| date_cond(p, o))),
                 k if k.starts_with("prop.") => {
@@ -517,6 +534,18 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                     },
                 ),
             },
+            "direct" => match value {
+                "yes" | "true" => q.direct = true,
+                "no" | "false" => q.direct = false,
+                _ => err(
+                    voff,
+                    Problem {
+                        offset: 0,
+                        message: format!("unknown value `{value}` for `direct`"),
+                        suggestion: Some("use yes or no".into()),
+                    },
+                ),
+            },
             "limit" => match value.parse::<usize>() {
                 Ok(n) if n > 0 => q.limit = Some(n),
                 _ => err(
@@ -535,6 +564,19 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                 } else {
                     err(voff, problem(0, format!("invalid view name `{value}`")));
                 }
+            }
+            "inherit" => {
+                let mut keys = Vec::new();
+                for (o, p) in &parts {
+                    if valid_key(p) {
+                        if !keys.contains(&(*p).to_string()) {
+                            keys.push((*p).to_string());
+                        }
+                    } else {
+                        err(voff, problem(*o, format!("invalid property key `{p}`")));
+                    }
+                }
+                q.inherit = keys;
             }
             "columns" => {
                 let mut cols = Vec::new();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, parseNaturalDate } from './dates'
+import { formatDate, formatPattern, parseNaturalDate } from './dates'
 
 const TODAY = '2026-10-03' // a Saturday
 
@@ -38,5 +38,29 @@ describe('parseNaturalDate', () => {
   })
   it('formats dates', () => {
     expect(formatDate('2026-10-03')).toBe('Sat, 3 Oct 2026')
+  })
+
+  it('formats by format and language', () => {
+    expect(formatDate('2026-10-03', 'en-GB', 'long')).toBe('3 October 2026')
+    expect(formatDate('2026-10-03', 'en-GB', 'short')).toBe('03/10/2026')
+    expect(formatDate('2026-10-03', 'en-US', 'short')).toBe('10/03/2026')
+    expect(formatDate('2026-10-03', 'de-DE', 'short')).toBe('03.10.2026')
+    expect(formatDate('2026-10-03', 'pl-PL', 'long')).toBe('3 października 2026')
+    expect(formatDate('2026-10-03', 'pl-PL', 'iso')).toBe('2026-10-03')
+  })
+
+  it('formats with a custom pattern', () => {
+    const d = '2026-03-07'
+    expect(formatPattern(d, 'YYYY-MM-DD', 'en-GB')).toBe('2026-03-07')
+    expect(formatPattern(d, 'D.M.YY', 'en-GB')).toBe('7.3.26')
+    expect(formatPattern(d, 'dddd, D MMMM YYYY', 'en-GB')).toBe('Saturday, 7 March 2026')
+    expect(formatPattern(d, 'ddd DD MMM', 'en-GB')).toBe('Sat 07 Mar')
+    expect(formatPattern(d, 'dddd, D MMMM YYYY', 'pl-PL')).toBe('sobota, 7 marca 2026')
+    expect(formatPattern(d, '[Week of] D/M', 'en-GB')).toBe('Week of 7/3')
+    expect(formatPattern(d, 'no tokens: !', 'en-GB')).toBe('no tokens: !')
+  })
+  it('custom falls back to the full format when the pattern is empty', () => {
+    expect(formatDate('2026-10-03', 'en-GB', 'custom', '  ')).toBe('Sat, 3 Oct 2026')
+    expect(formatDate('2026-10-03', 'en-GB', 'custom', 'D/M/YYYY')).toBe('3/10/2026')
   })
 })

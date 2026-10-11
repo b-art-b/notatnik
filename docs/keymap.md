@@ -40,3 +40,159 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 | Ctrl+Shift+F or `/` | Search |
 | Ctrl+Z / Ctrl+Shift+Z | Global undo / redo (when not typing) |
 | Shift+click a link | Open the page in the right sidebar |
+
+## View
+
+| Key | Action |
+| --- | --- |
+| Ctrl + `+` / Ctrl + `=` | Zoom in (Firefox steps: 30 % … 500 %) |
+| Ctrl + `-` | Zoom out |
+| Ctrl + `0` | Reset zoom to 100 % |
+| Ctrl + mouse wheel | Zoom in/out |
+
+The zoom level is remembered per device (browser/webview storage), not in the graph.
+
+## Sidebar
+
+The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" in the palette) hides and shows the left sidebar; drag its right edge to resize it
+(180 to 560 px; with the edge focused, ←/→ move it by 10 px, Shift by 40 px, Home or a double click resets to 240 px). Both are remembered on this device. The width can also be set in Settings → Appearance → *Sidebar width* (slider, Reset).
+
+## Slash commands
+
+Type `/` after a space, at the start of a line, or after punctuation (`(/todo`). With nothing typed the menu is grouped (Tasks, Dates, Task details, Blocks); as soon as you type it is
+one list ranked by relevance (name, then keywords such as `/task` → To do, then descriptions). Each row shows an icon, the label, a one-line
+description and the `/name`. Use ↑/↓ to move, Enter to choose, Esc to close.
+
+**In the middle of a word** (`some wor/d`) the menu opens too, but offers only the commands that change the block's metadata (task marker, `/log`, `/scheduled`, `/deadline`, priorities), and only those whose name starts with what you typed: the command is removed from the word and its result goes where it belongs (marker at the start of the line, a log line in the logbook, a property line under the first line), never into the word. Commands that insert text (`/today`, `/date`, `/emoji`, `/code`, ...) need a space or punctuation before the slash. URLs, paths and fractions (`https://x.y/z`, `a/b`, `1/2`) and code fences are left alone.
+
+`/todo`, `/doing`, `/waiting`, `/done` and `/canceled` can be typed anywhere in a block: the command is removed and the task marker is put at the start of the first line (replacing an existing marker).
+
+The priority of a task shows right after its marker as `[#A]` (click it to change; none by default). The priorities are a graph setting: any number from one to nine, any labels (`A B C` by default, `1 2 3 4`, `!! !` ...): Settings → Tasks → *Priorities* (edit, + Add, − Remove last), or `[tasks] priorities = ["A", "B", "C"]` in `config.toml`. Changing them re-reads the files; a file that uses a label that no longer exists gets a warning and shows no priority. There is a `/` command for each: `/priority` (the most important), `/priority-b`, `/priority-c`, ... (the name follows the label: `/priority-p4`), and `/priority-none` to remove it. Each sets the `priority::` property line of the block (replacing an existing value). Like `/scheduled` and `/deadline` they can be typed anywhere in the block, also on a later line: the command is removed and the property goes directly under the first line, after the block's other properties. Task markers go to the start of the first line, `/log` into the `:LOGBOOK:` drawer, so a command always puts its result in its own place whatever the cursor position.
+
+`/log` adds a dated line (`YYYY-MM-DD HH:MM `) to the block's logbook and leaves the cursor after it, ready for the note; the logbook is a `:LOGBOOK:` ... `:END:` drawer (file-format §3.6), shown in the rendered block as one more labelled row under `SCHEDULED:` / `DEADLINE:`: `LOGBOOK: <date> <latest note> +2 earlier`. Click the label (or "+n earlier") to open the whole history as a timeline, newest first; open logbooks are remembered on this device.
+
+`/date`, `/scheduled` and `/deadline` open a date picker under the cursor: type a date (`tomorrow`, `next friday`, `+3d`, `2026-12-24`), click a quick choice, or click a day in the calendar (month arrows; week starts on the graph's `week_start`). Dates are always shown as `YYYY-MM-DD`: the calendar is our own, because the native date input follows the OS locale. Enter or a click applies, Escape cancels. The task chips (`⏳`, `📅`) open the same picker, prefilled, with a Clear button. `/date` inserts `[[YYYY-MM-DD]]` at the cursor (a link only; it does not make a due date). `/scheduled` and `/deadline` set the `scheduled::` / `deadline::` property line of the block, replacing an existing value; a new line goes directly under the first line, after the block's other properties and above a `:LOGBOOK:` drawer or body text (properties are only read there). `/today`, `/tomorrow` and `/yesterday` still insert a link directly.
+
+## Path to the focused block
+
+While a block is being edited, the path to it is drawn as in Logseq: a dark line leaves the bullet of each ancestor, runs down its guide line and turns
+into an elbow that ends at the bullet of the next block on the path, down to the focused block. The guide line runs under the parent's bullet.
+
+## Agenda
+
+The buttons above the filters switch the view: **sections** (the classic agenda below), or the same open tasks as **list**, **table**, **kanban** or **timeline**, the views of query blocks. The filters (namespace, tag, priority), *Group* (page, state, deadline, scheduled) and *Sort* (date, deadline, scheduled, priority, page, state) apply to all of them; in the sections view they work inside each section (and each day): *Sort* orders the tasks ("date" keeps the agenda's own order), *Group* adds a heading with a count per page, state or date. The other views add *Show done*. *show query* displays the query that is run, and *save* puts it in the sidebar as a saved query. The choice is remembered on this device. In the sections view every task shows the note it comes from as a small chip at the right end of the task's own first row (the full path of parent blocks is in its tooltip); a click opens the note with the task flashed. In a narrow window the chip drops under the task. In the kanban view the board always includes done and canceled tasks (a card moved there stays on the board); drag a card to another column with the pointer, or use the ‹ › buttons on the card or Alt+← / Alt+→; a plain click opens the note with the task flashed. In the timeline, drag a task to another day (or Alt+← / Alt+→ for one day), a click opens the note.
+
+Sections: Overdue, Today, Next 7 days, **Later** (every open task dated further ahead, earliest first), No date.
+
+Each task shows the note it lives in (`↗ page › parent`). Click it to open that note with the task flashed.
+
+## Settings
+
+Settings are grouped into **Appearance**, **Dates & language**, **Tasks** and **Graph** (arrow keys move between the groups). Each group says where its values live: *This device* (`settings.toml`, never synced) or *This graph* (`.notatnik/config.toml`, synced). Changes apply immediately and show "✓ Saved" at the top. Graph settings can also be edited by hand in `.notatnik/config.toml` (or arrive by sync): the open app notices within a second and applies them, no restart; a file that does not parse as TOML is ignored until it is fixed. Theme, week start and the date format are choice buttons, link brackets is a switch, zoom has − / + / Reset.
+
+- **Language** and **Format** control how dates are shown in journal headings, the agenda and `[[date]]` links: `Sat, 3 Oct 2026`, `3 October 2026`, `03/10/2026`, `2026-10-03`, or a custom pattern such as `dddd, D MMMM YYYY` (see [date-formats.md](date-formats.md)). Date pickers, query clauses and files always use `YYYY-MM-DD`.
+- **Show brackets around links** is off by default, so rendered links look like plain links; the raw `[[...]]` always appears while a block is edited.
+
+## Mouse and history (like Firefox)
+
+| Input | Action |
+| --- | --- |
+| Mouse back / forward button, Alt+← / Alt+→ | Back / forward in the page history. Alt+arrows only when no text field has the focus (in the editor they move the cursor) |
+| Middle click, Ctrl+click on a page link | Open the page in the right sidebar (Shift+click does too) |
+| Click a day's title in the journals feed (also today's) | Open that day as a page |
+| Ctrl+wheel, Ctrl +/-/0 | Zoom |
+
+## Compact task details
+
+Settings → Appearance → *Task details* (this device): **Always shown** is the default. **Compact** replaces the lines under a task on pages and journals with small indicators at the end of its row: one date (📅 the deadline, else ⏳ the scheduled date; `3d overdue` in red, `today`, `tomorrow`, otherwise the date), `↻` for a repeating task and `✎ 3` for the logbook entries. Hover or focus them (Tab), or click one to keep the details open: the usual SCHEDULED / DEADLINE / REPEAT lines and the logbook appear under the row, and the date chips still open the date picker. Escape closes them. A finished task shows no date indicator. The agenda, a page's task list, query results and linked references always show everything. Custom properties are not part of this setting; see *Block properties*.
+
+### Compact block properties
+
+Settings → Appearance → *Block properties* (this device, independent of *Task details*): **Always shown** is the default; **Compact** replaces the property card under a block with a small `⋯ 2` at the end of its row (the number of visible properties; a task's scheduled, deadline, priority and repeat are not counted, and the tooltip lists `key: value`). Hover or focus it, or click to keep it open: the card appears under the row, and ✎ edit, × remove and + add work there. Escape closes it. The popover is as wide as its content (an open logbook is not squeezed into a column) and stays open while you type in one of its inputs. A block without properties has no indicator (add the first one with `::` or `/property`). The agenda, query results and linked references always show the card.
+
+## Journal days as pages
+
+A journal day is a page like any other: open it as its own page (click the date in the feed) and its `▸ properties` section works as on every page. A day has the default `type: journal` (shown muted; set a `type` there to replace it). Because of it, a page icon rule `type = journal` gives every day an icon: Settings → Page icons → *Add an icon for journal days*. Until an icon applies, the calendar glyph is shown. Today's day, which has no file until you write in it, gets the rule's icon too; emoji in titles are drawn a little smaller than the heading so they sit on the text line. A day's own `icon:` property wins, as everywhere.
+
+## Block properties
+
+A block's `key:: value` lines (right after its first line) show as a compact card under the block: bold key, then the value. Link values (`[[Acme]]`) open the page (no glyph, they are coloured as links; date, number and boolean values get a small one); another value opens the view of all blocks with that key and value. Click the key to see all blocks with the property, grouped by value; the view has "Include blocks below them" (the `inherit:` clause, PR-5).
+
+- **Typing:** on a line after the first, type `::` (Logseq's flow: Shift+Enter, `::`): the menu lists the known keys, most used first; keep typing to filter. A key nobody uses yet gets "Create property: name" (also after typing `name::`). Enter writes `key:: ` and opens the value menu: values already used for the key, then pages (written as `[[Page]]`). `/property` does the same from anywhere in the block: a new `::` line goes under the block's other properties.
+- **Mouse:** hover a row of the card for ✎ (edit the value in place, Enter saves, Escape cancels), × (remove the line) and, on the last row, + (add a property: name with suggestions, value with suggestions). Only that one line of the file changes. A block with no property yet gets its first one by typing (`::` or `/property`).
+- **Inheritance:** properties belong to their block. Queries can apply them to the subtree: `inherit: client` (see file-format §Queries).
+
+## Grouping pages by a property
+
+The **Pages** part of the left panel has a picker: *by namespace* (the tree) or *by `<property>`* for every page property in use. With
+`type: person` / `type: client` in the pages' frontmatter you get a **person** and a **client** group with their pages. A page with a list
+(`teams: [red, blue]`) is in each of its groups; values that differ only in case are one group; pages without the property are in a folded
+group at the end. Open a page's properties section (the `▸ properties` line under the page title; it is available on journal pages too, but
+not on the journals landing page, neither in today's entry nor in the compact day entries: click a day's title to open it as a page first) to add, change or remove properties; a value that YAML could
+misread (`a: b`) is quoted automatically.
+
+**Click a property** to see the pages that have it: the property name opens `#/property/<key>` (all pages, grouped by value), and the `↗ value` link after each value opens `#/property/<key>?value=<value>` (only those pages, with the other values as links; matching ignores case). Lists such as `[red, blue]` get one link per item.
+
+## Moving blocks with the mouse
+
+Drag a block's **bullet**. The block moves together with all its sub-bullets. The drop line shows where it lands: upper half of a block = before it; lower half = after it, or as its first child when that block shows children, or as a child when you drop clearly to the right of its bullet. A block can't be dropped into itself. Undo (Ctrl+Z) brings it back. Dragging works within a page (moving between pages is not built yet).
+
+## Emojis
+
+- Type `:` and a word (`:rocket`, `:check`, `:fire`) for suggestions; Enter inserts the emoji itself. Times like `12:30` and `key::` properties are not affected.
+- `/emoji` opens a picker under the cursor: type to search, Enter takes the first match, Esc closes it.
+- **Page icons:** Settings → Page icons has rules such as `type = person → 👤` (synced with the graph). A page can set its own icon with `icon: 🏢` in its properties. Icons show next to the page in titles, lists, the sidebar, the hierarchy and links.
+
+## Recent pages
+
+The sidebar's **Recent** list shows the last pages you opened (newest first, up to 10; remembered on this device). *clear* empties it; renaming a page keeps its place.
+
+## Pages
+
+`All pages` (sidebar, or the palette entry "Go to all pages") lists every page: **List** (filter, sort by name, blocks, linked-from count or
+modification time; journals and pages without a file can be hidden) or **Namespaces** (the tree).
+
+## Query blocks
+
+A ```` ```query ```` block shows its results live. To change the query, click anywhere on the block except the results: the header (it says "✎ click here to edit the query"), the frame around it or the text shown by *show query* opens the block for editing. A click on a result keeps its own meaning (editing that block, opening a card, ...).
+
+## Tasks of a page
+
+In *In subpages* and *Mentioning this page* every task shows its source as a chip at the right end of its first row (the same as in the agenda): the name below this page in subpages (`Example` for `Conference/Example`), the date in your date format for a journal day, the full name otherwise; the tooltip has the full path of parent blocks and a click opens the note with the task flashed. In *On this page* the chip is the parent blocks (when there are any) and shows the task in the page.
+
+A page that has tasks shows a **Tasks** section between its content and its references: *On this page* (its open tasks in one list, also those under collapsed blocks), *In subpages* (for a namespace page) and *Mentioning this page* (tasks elsewhere that link to it, e.g. everything open about a client). Tick **Show done** to include finished ones. A task can be changed right there; `↗` opens the note and flashes the task. The section is hidden when there is nothing to show.
+
+## Hierarchy
+
+A page with subpages ends with a **Hierarchy** list: every page below it at any depth as its path (`Z / Partner Beta / Renewal`), every segment a link to that page.
+
+## Topics: a name that occurs in several paths
+
+Every segment of a page name is an automatic, indirect tag. With `P/Capgemini/Renewal/Siemens Energy`, `P/EY/Renewal/APotheke` and `X/Renewal/Snowflake`, the Hierarchy of `P` shows **Renewal³**: the count means it occurs in three places. Click it for the **Renewal** view:
+
+- the places, grouped (`P/Capgemini/Renewal`, `P/EY/Renewal`, `X/Renewal`), each with the pages below it; the group headers link to the pages themselves;
+- the **open tasks** of all those pages (tick *Show done* for the rest);
+- the **linked references** to a tag or page of the same name (`#renewal`, `[[Renewal]]`), so explicit tags and path segments end up in one place.
+
+The same count and link appear everywhere a name of a path is shown, also for the page you are on: in its **Hierarchy**, in the path above its title (`P / Capgemini /`) and as a small **in 2 places** link next to the title of `P/Capgemini/Renewal`. So from `P/Capgemini/Renewal` one click on `Renewal` lists all renewals. Unique segments (no number) open their page; the group headers in the Renewal view link to each specific page. In queries use `path: Renewal` (also `-path:`, `path: a, b`, `path: ey/renewal` for two segments in a row), e.g. `task: todo` + `path: Renewal`.
+
+## Archiving and deleting pages
+
+Under a page's title: **Archive** and **Delete…** (not on journal days: those are deleted by their file).
+
+- **Archive** sets `archived: true` in the page's frontmatter. The page and every page below it leave the sidebar tree, the property groups and Recent, and their tasks leave the agenda. The page stays reachable by link, search and the **Archived** checkbox of All pages, and shows an "Archived" banner with **Unarchive**. Nothing is moved, so links keep working and the file syncs like any other. Queries are not filtered; add `-prop.archived: true` to leave archived pages out of one.
+- **Delete…** moves the page file to the trash and offers **Undo** for a while (the trash is in the device data folder, not in the graph, and is emptied after 30 days). Links to the page stay and then point to an empty page; a dialog says how many pages link to it. A namespace page can take its subpages with it (tick the box); one **Undo** restores them all. The page's undo history is dropped.
+
+## Renaming and moving pages
+
+Change one segment of a page's path (`P/CapGemini/sth` → `P/Capgemini12/sth`; the last segment unchanged) and the dialog offers **Rename `P/CapGemini` to `P/Capgemini12` for all pages below it**, ticked by default: the namespace is renamed, so the pages beside it, their subpages and every link and tag follow, and you stay on the page you opened. Untick it to move only that page. If a page of the new name already exists the rename is refused. If you also change the last segment, or several segments, it is a plain move of one page. Config text is not rewritten (a `path: CapGemini` clause in a saved query, a page-icon rule).
+
+Rename (title → Rename) moves a page; if it has subpages they move with it and all links and tags follow (preview first). Untick **Move the subpages too** to rename only this page; that also lets you give it a name below its own (`a` → `a/b/c`). If a file changes while the move runs, **Revert** restores what was already rewritten.
+
+## References
+
+A reference shows the linking block **with all its sub-bullets**, editable in place, and the path of its ancestors above it (each a link that opens that page at the block). If a bullet and one below it both link the page, only the outer one is listed. Because a link applies to everything below it, a `TODO` under a bullet `[[Client One]]:` also shows in Client One's **Tasks** section ("Mentioning this page"), in `links: Client One` queries and in `tag:` filters of the agenda; add `direct: yes` to a query to match only bullets that hold the link themselves. Dates and other properties are not inherited.
+
+A page ends with **Linked references** (blocks and pages that link to it) and **Unlinked references** (plain-text mentions of its name or
+aliases outside links, code and tags). Open the unlinked panel to search; **Link** turns the first mention in that block into `[[Page]]` (or
+`[[Page|mention]]` when written differently) and can be undone.

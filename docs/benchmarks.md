@@ -23,7 +23,7 @@ Reproduce: `cargo bench -p notatnik-graph` (criterion) or
 | 2026-10-04 | Search, common word (`project`) | 19 ms | < 100 ms (NF-5) ✅ |
 | 2026-10-04 | Search, prefix (`proj*`) | 44 ms | < 100 ms ✅ |
 | 2026-10-04 | Query: open tasks due within 7 days, sorted | 36 ms | < 100 ms ✅ |
-| 2026-10-04 | Query: `tag: urgent` + any task | 9 ms | < 100 ms ✅ |
+| 2026-10-04 | Query: `tag: urgent` + any task (subtree inheritance, D31) | 19 ms | < 100 ms ✅ |
 | 2026-10-04 | Query: `ns: work`, todo, grouped by page | 16 ms | < 100 ms ✅ |
 | 2026-10-04 | Query: property filter, sorted by property, limit 50 | 15 ms | < 100 ms ✅ |
 | 2026-10-04 | Query: full-text `text: budget` | 24 ms | < 100 ms ✅ |
@@ -57,3 +57,13 @@ These are Chrome numbers on the machine above. The real target is WebKitGTK, so 
 | 2026-10-04 | `get_page` of the 2,000-block page in the dev server (debug build), 977 KB of JSON | 40 ms | n/a |
 
 Rendering all 2,000 blocks at once took 567 ms in Svelte; progressive rendering (`PageContent.svelte`) fixed that.
+
+## Phase 2/3 additions (2026-10-05)
+
+Same graph and machine as above (10,000 pages, 14,092 including virtual ones), release build, `notatnik-dev-server`, `curl` on localhost
+(includes JSON serialisation of the answer).
+
+| What | Result | Notes |
+|---|---|---|
+| `unlinked_refs` for a common word (`project`) | 23 ms | FTS candidates (up to 1,000 per term), then word-boundary and markup check |
+| `all_pages` (14,092 rows, 1.7 MB JSON) | 350 ms | The first version used a subquery per page and took 4.3 s (a missing index on `files.page_id`); grouped CTEs and a join on `files.path` fixed it. The view renders 300 rows at first |
