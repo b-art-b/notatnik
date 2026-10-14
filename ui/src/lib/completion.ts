@@ -146,6 +146,21 @@ const menuTheme = EditorView.theme({
   },
 })
 
+/** Variables of a query (QV-12): replaced when the query runs. Offered after `{{` and among the values. */
+export const QUERY_VARS: { label: string; info: string }[] = [
+  { label: '{{page}}', info: 'the page this query is on' },
+  { label: '{{title}}', info: 'last part of its name' },
+  { label: '{{namespace}}', info: 'the part before it' },
+  { label: '{{date}}', info: 'today' },
+]
+const queryVarOptions = (q = ''): Completion[] =>
+  QUERY_VARS.filter((v) => !q || v.label.slice(2).startsWith(q.toLowerCase())).map((v) => ({
+    label: v.label,
+    type: 'variable',
+    detail: v.info,
+    boost: 5,
+  }))
+
 export const QUERY_KEYS = [
   'task',
   'tag',
@@ -364,6 +379,15 @@ export function wikiCompletions(
           const cx = cursorContext(ctx.state.doc.toString(), ctx.pos)
           // clause keys inside a query block
           if (cx.inQuery) {
+            // `{{` anywhere in a query: the variables
+            const tv = /\{\{?([a-z]*)$/.exec(cx.before)
+            if (tv) {
+              return {
+                from: ctx.pos - tv[0].length,
+                filter: false,
+                options: queryVarOptions(tv[1]),
+              }
+            }
             const k = /^\s*-?([a-z.]*)$/.exec(cx.before)
             if (k) {
               const keys = await backend.call('property_keys', {})
@@ -391,6 +415,7 @@ export function wikiCompletions(
                 from: ctx.pos - pv.typed.length,
                 filter: false,
                 options: [
+                  ...queryVarOptions(q),
                   ...vals.items
                     .filter((x) => !q || x.toLowerCase().includes(q))
                     .map((x): Completion => ({ label: x, type: 'text', detail: 'value' })),
@@ -411,7 +436,7 @@ export function wikiCompletions(
               return {
                 from: ctx.pos - v[1].length,
                 filter: false,
-                options: options.filter((o) => !o.displayLabel),
+                options: [...queryVarOptions(v[1]), ...options.filter((o) => !o.displayLabel)],
               }
             }
             return null

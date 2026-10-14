@@ -52,3 +52,32 @@ test('/template inserts the blocks of a template after the block', async ({ back
     .poll(() => backend.read('pages/Meeting.md'))
     .toBe('---\ntype: person\nimportance: 1\n---\n\n- note\n- Contact Meeting\n  - Phone\n')
 })
+
+// QV-12: the query variables are offered in a query block, and listed in the settings.
+test('`{{` in a query offers the variables; the settings list the placeholders', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/q.md', '- ```query\n  task: todo\n  ```\n')
+  await backend.open('/page/q')
+  await page
+    .getByTestId('query-block')
+    .locator('xpath=ancestor::div[contains(@class,"body")]')
+    .click({ position: { x: 3, y: 3 } })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('page: {{')
+  const tip = page.locator('.cm-tooltip-autocomplete')
+  await expect(tip).toContainText('{{page}}', { timeout: 5000 })
+  await expect(tip).toContainText('the page this query is on')
+  await expect(tip).toContainText('{{namespace}}')
+
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Templates/ }).click()
+  const table = page.getByTestId('placeholders')
+  await expect(table).toContainText('{{page}}')
+  await expect(table).toContainText('{{cursor}}')
+})

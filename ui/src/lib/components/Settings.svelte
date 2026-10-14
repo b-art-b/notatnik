@@ -706,8 +706,8 @@
           <p class="intro">
             A template belongs to a page type: <code>templates/person.md</code> is used by every page with
             <code>type: person</code>. Its properties are the fields a page of that type should have (an empty
-            value shows the field empty), its blocks are the starting content. Variables:
-            <code>{'{{title}}'}</code>, <code>{'{{namespace}}'}</code>, <code>{'{{date}}'}</code>.
+            value shows the field empty), its blocks are the starting content. The placeholders below are
+            filled in when a template is used.
           </p>
           <p class="intro">
             <code>/template</code> in a block inserts the blocks of a template there.
@@ -723,6 +723,40 @@
             blocks) and click <em>Save as template…</em> in its properties. Saving again replaces the template after
             asking.
           </p>
+          <h3>Placeholders</h3>
+          <table class="tokens" data-testid="placeholders">
+            <thead>
+              <tr><th>Placeholder</th><th>Where</th><th>Becomes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>{'{{title}}'}</code></td><td>templates, queries</td><td
+                  >the last part of the page name (<code>Jan</code> for <code>people/Jan</code>)</td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{namespace}}'}</code></td><td>templates, queries</td><td
+                  >the part before it (<code>people</code>)</td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{date}}'}</code></td><td>templates, queries</td><td
+                  >today; for a new journal day, that day (<code>2026-10-11</code>)</td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{cursor}}'}</code></td><td>templates</td><td
+                  >removed (reserved for the cursor position)</td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{page}}'}</code></td><td>queries</td><td
+                  >a link to the page the query block is on: <code>prop.partner: {'{{page}}'}</code>. Not
+                  available in the agenda or a saved query.</td
+                >
+              </tr>
+            </tbody>
+          </table>
           <h3>Your templates</h3>
           {#if templates.length === 0}
             <p class="intro" data-testid="no-templates">None yet.</p>

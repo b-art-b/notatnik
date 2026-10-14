@@ -9,6 +9,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/architecture.md`: stack, crate boundaries, data flow, decisions log
 - `docs/file-format.md`: on-disk format spec (draft); update it together with parser changes
 - `docs/keymap.md`: what the user can do (keys, mouse, menus, settings), kept in step with the UI
+- `docs/placeholders.md`: `{{page}}`, `{{title}}`, `{{date}}` ... in templates and queries, and where the app offers them
 - `docs/date-formats.md`: display date formats and the custom pattern tokens (device setting)
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)
 - `docs/TODO.md`: phase overview and status

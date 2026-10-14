@@ -176,6 +176,7 @@ A **graph** is a folder of notes.
 | QV-10 | Query errors are shown inline with position info; never crash the page. | MVP |
 | QV-11 | A query block in a note is edited by clicking anywhere on it except its results: the header (with a visible hint), the frame or the shown query text open the block for editing; a click on a result keeps its own meaning. | V1 |
 | QV-12 | `{{page}}` in a query means the page the query block sits on, so one query (`type: page`, `prop.partner: {{page}}`) works unchanged on every partner page; `{{title}}`, `{{namespace}}` and `{{date}}` are filled in too. Outside a page (agenda, sidebar) `{{page}}`, `{{title}}` and `{{namespace}}` are an error. The empty link `[[]]` still means the page. | V1 |
+| QV-13 | The placeholders of templates and queries are documented (`docs/placeholders.md`), listed in Settings → Templates, and offered by completion after `{{` in a query block. | V1 |
 
 ## 9. Properties
 

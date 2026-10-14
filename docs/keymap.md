@@ -134,6 +134,10 @@ Settings → Backup (this device). A snapshot is a zip of the whole graph folder
 - The settings page explains the ways to restore in *How to restore*.
 - Not in a snapshot: the search index (rebuilt from the files), the trash, history copies and passwords of calendar accounts.
 
+## Placeholders
+
+`{{title}}`, `{{namespace}}`, `{{date}}` and `{{cursor}}` in templates, and `{{page}}`, `{{title}}`, `{{namespace}}` and `{{date}}` in queries, are replaced when a template is applied or a query runs. The full list and rules are in `placeholders.md`. In the app: **Settings → Templates → Placeholders** has the table, and typing `{{` in a query block offers the query placeholders.
+
 ## Templates for page types
 
 A page type has a template: the file `templates/<type>.md` in the graph folder (`templates/person.md` for `type: person`). Its properties are the fields a page of that type should have (`partner:` with no value shows an empty field), its blocks are the starting content, and `{{title}}`, `{{namespace}}`, `{{date}}` are filled in.
