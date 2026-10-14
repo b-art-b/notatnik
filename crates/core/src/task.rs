@@ -137,32 +137,77 @@ impl Priority {
 pub struct Moment {
     /// The day.
     pub date: NaiveDate,
-    /// Local time of day, if given.
+    /// Local time of day, if given (the start of a range).
     pub time: Option<NaiveTime>,
+    /// End of the time range on the same day, if given (`2026-10-14 09:00-10:30`); always after `time`.
+    pub end: Option<NaiveTime>,
 }
 
 impl Moment {
-    /// Parses `YYYY-MM-DD` or `YYYY-MM-DD HH:MM` (also with `T`, optional seconds).
+    /// Parses `YYYY-MM-DD`, `YYYY-MM-DD HH:MM` (also with `T`, optional seconds) or a range on one day,
+    /// `YYYY-MM-DD HH:MM-HH:MM` (a hyphen or an en dash, spaces around it allowed). An end that is not after the
+    /// start makes the value invalid.
     pub fn parse(s: &str) -> Option<Moment> {
         let s = s.trim();
         if let Some(d) = parse_date(s) {
             return Some(Moment {
                 date: d,
                 time: None,
+                end: None,
             });
         }
-        parse_datetime(s).map(|dt| Moment {
-            date: dt.date(),
-            time: Some(dt.time()),
+        if let Some(dt) = parse_datetime(s) {
+            return Some(Moment {
+                date: dt.date(),
+                time: Some(dt.time()),
+                end: None,
+            });
+        }
+        // `<date> <start>-<end>`: the date is the first ten characters, so the hyphens in it do not count
+        let head = s.get(..10)?;
+        let rest = s.get(10..)?;
+        let (start, end) = rest.split_once(['-', '–'])?;
+        let start = parse_datetime(&format!("{head} {}", start.trim().trim_start_matches('T')))?;
+        let end = parse_clock(end.trim())?;
+        (end > start.time()).then_some(Moment {
+            date: start.date(),
+            time: Some(start.time()),
+            end: Some(end),
         })
     }
 }
 
+/// Strict `HH:MM[:SS]`.
+fn parse_clock(t: &str) -> Option<NaiveTime> {
+    let tb = t.as_bytes();
+    let ok = match tb.len() {
+        5 => tb.get(2) == Some(&b':'),
+        8 => tb.get(2) == Some(&b':') && tb.get(5) == Some(&b':'),
+        _ => false,
+    };
+    if !ok
+        || !t
+            .bytes()
+            .enumerate()
+            .all(|(i, c)| i == 2 || i == 5 || c.is_ascii_digit())
+    {
+        return None;
+    }
+    NaiveTime::parse_from_str(t, if tb.len() == 5 { "%H:%M" } else { "%H:%M:%S" }).ok()
+}
+
 impl fmt::Display for Moment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.time {
-            Some(t) => write!(f, "{} {}", self.date.format("%Y-%m-%d"), t.format("%H:%M")),
-            None => write!(f, "{}", self.date.format("%Y-%m-%d")),
+        match (self.time, self.end) {
+            (Some(t), Some(e)) => write!(
+                f,
+                "{} {}-{}",
+                self.date.format("%Y-%m-%d"),
+                t.format("%H:%M"),
+                e.format("%H:%M")
+            ),
+            (Some(t), None) => write!(f, "{} {}", self.date.format("%Y-%m-%d"), t.format("%H:%M")),
+            _ => write!(f, "{}", self.date.format("%Y-%m-%d")),
         }
     }
 }
@@ -334,6 +379,43 @@ pub struct Task {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_moment_has_an_optional_start_and_end_time() {
+        let m = Moment::parse("2026-10-14").unwrap();
+        assert_eq!((m.time, m.end), (None, None));
+        assert_eq!(m.to_string(), "2026-10-14");
+        let m = Moment::parse("2026-10-14 09:00").unwrap();
+        assert_eq!(m.end, None);
+        assert_eq!(m.to_string(), "2026-10-14 09:00");
+        let m = Moment::parse("2026-10-14 09:00-10:30").unwrap();
+        assert_eq!(m.to_string(), "2026-10-14 09:00-10:30");
+        // an en dash, spaces and a `T` are read, and written the canonical way
+        for s in [
+            "2026-10-14 09:00 – 10:30",
+            "2026-10-14 09:00 - 10:30",
+            "2026-10-14T09:00-10:30",
+            "2026-10-14 09:00:00-10:30:00",
+        ] {
+            assert_eq!(
+                Moment::parse(s).unwrap().to_string(),
+                "2026-10-14 09:00-10:30",
+                "{s}"
+            );
+        }
+        // the end must be after the start
+        for s in [
+            "2026-10-14 10:30-09:00",
+            "2026-10-14 09:00-09:00",
+            "2026-10-14 09:00-",
+            "2026-10-14 -10:30",
+            "2026-10-14 9:00-10:30",
+        ] {
+            assert_eq!(Moment::parse(s), None, "{s}");
+        }
+        // ordering: the date first, then the start
+        assert!(Moment::parse("2026-10-14 09:00-10:00") < Moment::parse("2026-10-14 10:00"));
+    }
+
     use super::*;
     use rstest::rstest;
 

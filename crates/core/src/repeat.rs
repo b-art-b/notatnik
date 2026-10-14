@@ -84,7 +84,7 @@ pub fn advance(
 ) -> Option<(Option<Moment>, Option<Moment>)> {
     let base = scheduled.or(deadline)?;
     let new_base = next_date(repeat, base.date, completed)?;
-    let shifted = |m: Moment, date: NaiveDate| Moment { date, time: m.time };
+    let shifted = |m: Moment, date: NaiveDate| Moment { date, ..m };
     Some(match (scheduled, deadline) {
         (Some(s), Some(d)) => {
             let delta = d.date.signed_duration_since(s.date).num_days();
@@ -154,10 +154,10 @@ mod tests {
     #[test]
     fn scheduled_and_deadline_keep_their_distance_and_times() {
         let r = Repeat::parse("weekly").unwrap();
-        let s = Moment::parse("2026-09-28 09:30");
+        let s = Moment::parse("2026-09-28 09:30-10:15");
         let dl = Moment::parse("2026-10-01 17:00");
         let (ns, nd) = advance(&r, s, dl, d("2026-10-03")).unwrap();
-        assert_eq!(ns.unwrap().to_string(), "2026-10-05 09:30");
+        assert_eq!(ns.unwrap().to_string(), "2026-10-05 09:30-10:15");
         assert_eq!(nd.unwrap().to_string(), "2026-10-08 17:00");
         // only a deadline
         let (ns, nd) = advance(&r, None, Moment::parse("2026-09-30"), d("2026-10-03")).unwrap();

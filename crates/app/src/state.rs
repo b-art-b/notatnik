@@ -1829,11 +1829,16 @@ impl AppState {
                 {
                     continue;
                 }
-                let date = match (&r.scheduled, &r.deadline) {
-                    (Some(s), Some(d)) => Some(s.min(d).clone()),
-                    (Some(x), None) | (None, Some(x)) => Some(x.clone()),
-                    (None, None) => None,
-                };
+                // the earlier of scheduled and deadline, with its start time (a task without one sorts last in
+                // its day)
+                let (date, time) = [
+                    (&r.scheduled, &r.scheduled_time),
+                    (&r.deadline, &r.deadline_time),
+                ]
+                .into_iter()
+                .filter_map(|(d, t)| Some((d.clone()?, t.clone())))
+                .min_by(|a, b| (&a.0, a.1.is_none(), &a.1).cmp(&(&b.0, b.1.is_none(), &b.1)))
+                .map_or((None, None), |(d, t)| (Some(d), t));
                 let (block, crumbs) = Self::row_block(o, &mut cache, &r)?;
                 let Some(block) = block else { continue };
                 let item = AgendaItem {
@@ -1841,6 +1846,7 @@ impl AppState {
                     block,
                     breadcrumbs: crumbs,
                     date: date.clone(),
+                    time,
                 };
                 match date {
                     None => view.undated.push(item),
@@ -1849,6 +1855,12 @@ impl AppState {
                     Some(d) if d <= horizon => days.entry(d).or_default().push(item),
                     Some(_) => view.later.push(item),
                 }
+            }
+            // within a day: by start time, tasks without one last (stable: the query's order otherwise)
+            let by_time = |x: &AgendaItem| (x.time.is_none(), x.time.clone());
+            view.today_items.sort_by_key(by_time);
+            for items in days.values_mut() {
+                items.sort_by_key(by_time);
             }
             view.overdue.sort_by(|x, y| x.date.cmp(&y.date));
             view.later.sort_by(|x, y| x.date.cmp(&y.date));

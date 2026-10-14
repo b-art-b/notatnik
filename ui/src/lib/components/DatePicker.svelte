@@ -6,22 +6,47 @@
   import { app } from '../stores/app.svelte'
   import { parseNaturalDate } from '../dates'
   import { addMonths, monthGrid } from '../views'
+  import { addMinutes, joinValue, parseClock, splitValue, timeProblem } from '../clock'
 
   interface Props {
     title: string
-    /** Prefilled date (YYYY-MM-DD) when editing an existing one. */
+    /** Prefilled value when editing an existing one: `YYYY-MM-DD`, with `HH:MM` or `HH:MM-HH:MM` after it. */
     initial?: string
-    onpick: (iso: string) => void
+    /** Offer a time (and an optional end time) with the date: for `scheduled` and `deadline`, not for a link. */
+    withTime?: boolean
+    /** Called with the value to write: the date, and ` HH:MM` or ` HH:MM-HH:MM` when a time is on. */
+    onpick: (value: string) => void
     oncancel: () => void
     /** When given, a "Clear" button removes the date. */
     onclear?: () => void
   }
-  let { title, initial = '', onpick, oncancel, onclear }: Props = $props()
+  let { title, initial = '', withTime = false, onpick, oncancel, onclear }: Props = $props()
 
   const today = $derived(app.today || new Date().toISOString().slice(0, 10))
   // `initial` is only the starting value; reading it once is intended
   // svelte-ignore state_referenced_locally
-  let typed = $state(initial)
+  const first = splitValue(initial)
+  let typed = $state(first.date)
+  // the time is off unless the value has one (a plain date is the default)
+  let timed = $state(first.start !== '')
+  let start = $state(first.start)
+  let end = $state(first.end)
+  const problem = $derived(withTime && timed ? timeProblem(start, end) : null)
+  /** The value for a picked date: with the time when it is on. */
+  // typed `9:30` is written `09:30`, which is the only form the file format reads
+  const valueFor = (date: string) =>
+    withTime && timed ? joinValue(date, parseClock(start) ?? '', parseClock(end) ?? '') : date
+  function pick(date: string) {
+    if (!problem) onpick(valueFor(date))
+  }
+  function toggleTime() {
+    if (timed && !start) start = '09:00'
+  }
+  function lasting(minutes: number) {
+    const e = addMinutes(start, minutes)
+    if (e) end = e
+    else end = '' // it would pass midnight: a range stays on one day, so there is no end
+  }
   // `$derived`: recomputed from `typed`, never written to
   const parsed = $derived(typed.trim() ? parseNaturalDate(typed, today) : null)
   let textInput: HTMLInputElement
@@ -50,7 +75,7 @@
       oncancel()
     } else if (e.key === 'Enter' && parsed) {
       e.preventDefault()
-      onpick(parsed)
+      pick(parsed)
     }
   }
 
@@ -81,8 +106,41 @@
     placeholder="YYYY-MM-DD, tomorrow, +3d"
   />
   <div class="preview" aria-live="polite">
-    {#if parsed}{parsed}{:else if typed.trim()}not a date{:else}&nbsp;{/if}
+    {#if parsed}{valueFor(parsed)}{:else if typed.trim()}not a date{:else}&nbsp;{/if}
   </div>
+  {#if withTime}
+    <label class="time-toggle"
+      ><input type="checkbox" bind:checked={timed} onchange={toggleTime} /> Time of day</label
+    >
+    {#if timed}
+      <div class="time-row" data-testid="time-row">
+        <input
+          class="clock"
+          bind:value={start}
+          aria-label="Start time (24 h, HH:MM)"
+          placeholder="HH:MM"
+          size="5"
+          aria-invalid={!!problem}
+        />
+        <span aria-hidden="true">to</span>
+        <input
+          class="clock"
+          bind:value={end}
+          aria-label="End time (optional, HH:MM)"
+          placeholder="HH:MM"
+          size="5"
+          aria-invalid={!!problem}
+        />
+      </div>
+      <div class="quick">
+        {#each [30, 60, 120] as m (m)}
+          <button type="button" onclick={() => lasting(m)}>{m < 60 ? `${m} min` : `${m / 60} h`}</button>
+        {/each}
+        <button type="button" onclick={() => (end = '')}>No end</button>
+      </div>
+      {#if problem}<div class="problem" role="alert">{problem}</div>{/if}
+    {/if}
+  {/if}
   <div class="cal-bar">
     <button type="button" aria-label="Previous month" onclick={() => (moved = addMonths(shown, -1))}>‹</button
     >
@@ -108,7 +166,7 @@
                 class:picked={d.date === parsed}
                 title={d.date}
                 aria-label={d.date}
-                onclick={() => onpick(d.date)}>{Number(d.date.slice(8))}</button
+                onclick={() => pick(d.date)}>{Number(d.date.slice(8))}</button
               >
             </td>
           {/each}
@@ -118,7 +176,7 @@
   </table>
   <div class="quick">
     {#each quick as q (q.label)}
-      <button type="button" title={q.iso} onclick={() => onpick(q.iso)}>{q.label}</button>
+      <button type="button" title={q.iso} onclick={() => pick(q.iso)}>{q.label}</button>
     {/each}
     {#if onclear}<button type="button" onclick={onclear}>Clear</button>{/if}
   </div>
@@ -181,6 +239,24 @@
   .day.picked {
     background: var(--accent);
     color: white;
+  }
+  .time-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .time-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .clock {
+    width: 4.5em;
+    font-variant-numeric: tabular-nums;
+  }
+  .problem {
+    color: var(--danger);
+    font-size: 0.85em;
   }
   .quick {
     display: flex;

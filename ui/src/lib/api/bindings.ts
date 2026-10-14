@@ -979,7 +979,11 @@ breadcrumbs: Array<string>,
 /**
  * The date it is listed under (the earlier of scheduled and deadline).
  */
-date: string | null, };
+date: string | null, 
+/**
+ * Its start time `HH:MM` (of that date), if it has one.
+ */
+time: string | null, };
 export type AgendaDay = { 
 /**
  * `YYYY-MM-DD`.

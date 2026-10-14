@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { timeLabel } from '../clock'
   import type { BlockView } from '../api'
   import { editing, editingPath, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
@@ -201,8 +202,8 @@
         <div class="chip-picker">
           <DatePicker
             title={chipEdit === 'scheduled' ? 'Scheduled date' : 'Deadline'}
-            initial={(chipEdit === 'scheduled' ? block.task.scheduled : block.task.deadline)?.slice(0, 10) ??
-              ''}
+            initial={(chipEdit === 'scheduled' ? block.task.scheduled : block.task.deadline) ?? ''}
+            withTime
             onpick={(iso) => applyChip(chipEdit as string, iso)}
             oncancel={() => (chipEdit = null)}
             onclear={() => applyChip(chipEdit as string, null)}
@@ -420,7 +421,8 @@
                     detailsOpen = pinned || detailsOpen
                   }}
                   ><span aria-hidden="true">{due.kind === 'deadline' ? '📅' : '⏳'}</span>
-                  {due.text ?? shownDate(due.date)}</button
+                  {due.text ?? shownDate(due.date.slice(0, 10))}{#if timeLabel(due.date)}
+                    <span class="at">{timeLabel(due.date)}</span>{/if}</button
                 >
               {/if}
               {#if block.task?.repeat && taskCompact}
@@ -930,5 +932,9 @@
     margin-left: 8px;
     padding-left: 20px;
     border-left: 1px solid var(--border);
+  }
+  .ind .at {
+    margin-left: 0.25em;
+    font-variant-numeric: tabular-nums;
   }
 </style>

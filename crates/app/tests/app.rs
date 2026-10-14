@@ -2190,3 +2190,55 @@ fn a_broken_template_inserts_nothing_and_reports_it() {
         .unwrap_err();
     assert_eq!(err.code, "invalid");
 }
+
+/// TK-2: a scheduled or deadline value can carry a start and an end time; the agenda orders a day by start time.
+#[test]
+fn time_ranges_on_scheduled_and_deadline() {
+    let t = start("basic");
+    t.ok(
+        "apply_ops",
+        json!({"page": "ranges", "base_hash": null, "ops": [
+            {"op": "insert", "parent": [], "index": 0,
+             "text": "TODO late\nscheduled:: 2026-10-03 14:00-15:00"},
+            {"op": "insert", "parent": [], "index": 1,
+             "text": "TODO early\nscheduled:: 2026-10-03 09:00 – 10:30\ndeadline:: 2026-10-03 17:00-18:00"},
+            {"op": "insert", "parent": [], "index": 2, "text": "TODO untimed\nscheduled:: 2026-10-03"},
+            {"op": "insert", "parent": [], "index": 3,
+             "text": "TODO broken\nscheduled:: 2026-10-03 11:00-10:00"}]}),
+    );
+    let p = t.ok("get_page", json!({"name": "ranges"}));
+    let task = |i: usize| p["blocks"][i]["task"].clone();
+    assert_eq!(task(0)["scheduled"], "2026-10-03 14:00-15:00");
+    // read leniently, shown the canonical way; the file keeps what was written
+    assert_eq!(task(1)["scheduled"], "2026-10-03 09:00-10:30");
+    assert_eq!(task(1)["deadline"], "2026-10-03 17:00-18:00");
+    assert!(t.read("pages/ranges.md").contains("09:00 – 10:30"));
+    assert_eq!(task(2)["scheduled"], "2026-10-03");
+    // an end that is not after the start is not a date: no time on the task
+    assert_eq!(task(3)["scheduled"], Value::Null);
+    let a = t.ok("agenda", json!({}));
+    let titles: Vec<String> = a["today_items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["page"] == "ranges")
+        .map(|i| {
+            format!(
+                "{}@{}",
+                i["block"]["task"]["state"],
+                i["time"].as_str().unwrap_or("-")
+            )
+        })
+        .collect();
+    assert_eq!(
+        titles,
+        vec!["\"TODO\"@09:00", "\"TODO\"@14:00", "\"TODO\"@-"],
+        "early, late, untimed"
+    );
+    // a query by date still finds them, whatever the time
+    let q = t.ok(
+        "run_query",
+        json!({"text": "page: ranges\nscheduled: today", "view": null}),
+    );
+    assert_eq!(q["rows"].as_array().unwrap().len(), 3);
+}

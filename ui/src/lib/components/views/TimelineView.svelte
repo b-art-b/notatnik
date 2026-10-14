@@ -6,6 +6,7 @@
   import { app } from '../../stores/app.svelte'
   import { getDoc } from '../../stores/pages.svelte'
   import { addMonths, monthGrid, moveDateValue, weekOf } from '../../views'
+  import { timeLabel } from '../../clock'
   import Nodes from '../Nodes.svelte'
 
   let { rows }: { rows: ResultRow[] } = $props()
@@ -122,6 +123,9 @@
                   onclick={() => !justDragged && open(r)}
                   onkeydown={(e) => key(e, r)}
                 >
+                  {#if timeLabel(valueOf(r))}<span class="at" data-testid="ev-time"
+                      >{timeLabel(valueOf(r))}</span
+                    >{/if}
                   {#if r.block}<Nodes nodes={r.block.content} />{:else}{r.page}{/if}
                 </div>
               {/each}
@@ -184,5 +188,11 @@
     padding: 0 3px;
     margin: 1px 0;
     cursor: grab;
+  }
+  .at {
+    color: var(--muted);
+    font-size: 0.85em;
+    margin-right: 0.3em;
+    font-variant-numeric: tabular-nums;
   }
 </style>

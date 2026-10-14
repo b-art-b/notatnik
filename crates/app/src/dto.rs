@@ -770,6 +770,8 @@ pub struct AgendaItem {
     pub breadcrumbs: Vec<String>,
     /// The date it is listed under (the earlier of scheduled and deadline).
     pub date: Option<String>,
+    /// Its start time `HH:MM` (of that date), if it has one.
+    pub time: Option<String>,
 }
 
 /// Tasks of one day.

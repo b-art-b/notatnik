@@ -348,7 +348,12 @@
       {#if picker.kind === 'emoji'}
         <EmojiPicker onpick={pickEmoji} oncancel={cancelEmoji} />
       {:else}
-        <DatePicker title={DATE_TITLES[picker.kind]} onpick={pickDate} oncancel={closePicker} />
+        <DatePicker
+          title={DATE_TITLES[picker.kind]}
+          withTime={picker.kind !== 'link'}
+          onpick={pickDate}
+          oncancel={closePicker}
+        />
       {/if}
     </div>
   {/if}
