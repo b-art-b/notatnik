@@ -32,6 +32,8 @@ export interface SlashCommand {
   log?: boolean
   /** `/emoji` opens the emoji picker under the cursor. */
   emoji?: boolean
+  /** `/followup`: marks the task done and creates the next one, linked with `follows::`. */
+  followup?: boolean
   /** `/template-<name>` inserts the blocks of this template (a page type) after the block. */
   template?: string
 }
@@ -321,6 +323,16 @@ function baseCommands(): SlashCommand[] {
       keywords: ['complete', 'finished'],
       title: 'Mark as done',
       marker: 'DONE',
+      insert: none,
+    },
+    {
+      name: 'followup',
+      label: 'Done + follow-up',
+      icon: '⤷',
+      group: 'Tasks',
+      keywords: ['done-next', 'next', 'follow', 'follow-up', 'chain', 'finish'],
+      title: 'Mark this task done and create the next one, linked to it',
+      followup: true,
       insert: none,
     },
     {

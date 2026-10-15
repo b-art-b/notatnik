@@ -102,6 +102,12 @@ Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Pag
 | Click a day's title in the journals feed (also today's) | Open that day as a page |
 | Ctrl+wheel, Ctrl +/-/0 | Zoom |
 
+## Follow-up tasks and chains
+
+`/followup` (also found by `/next`, `/done-next`, `/follow-up`) works on the task you are editing, from anywhere in the block: it marks the task **done** (completion time written, a repeating task advances, exactly as Ctrl+Enter) and puts a new **TODO** right after it, as the next sibling. The new task carries the tags, page links and priority of the old one (not dates, not the repeat), links back with `follows:: ((id))`, and the editor goes into it at the end of its first line, so you type what comes next. The finished task gets a block ID (`^abc123`) if it had none; nothing else of it changes. On a task that is already done only the follow-up is added; on a block that is not a task it becomes done and gets the follow-up.
+
+A task that follows another, or has a follow-up, shows a **⛓ chain** button (a small ⛓ in the compact view). Click it for the whole chain from the first task to the last: state, text, the page and the date; the task you opened it from is bold; a click on a task opens it in its note. A task with several follow-ups is a branch (indented). A task whose predecessor was deleted shows "a task that was followed is gone". In queries `chain: ((abc123))` lists the whole chain of a task by its ID (combine with `task: todo` for what is still open). `follows::` can also be written by hand on any task.
+
 ## Times of tasks
 
 `scheduled::` and `deadline::` may have a start and an end time on the day: `scheduled:: 2026-10-14 09:00-10:30`, `deadline:: 2026-10-14 17:00`. Set them in the date picker (*Time of day*). The chips show them (`⏳ 2026-10-14 09:00-10:30`), the compact indicator shows `today 09:00–10:30`. In the agenda a day's tasks are ordered by start time, those without a time last. In the timeline view the time is shown in front of the task (a marker; no length is drawn), and dragging a task to another day keeps its times. Overdue is still decided by the date, and queries (`scheduled: today`) match on the date. Repeating tasks keep the time and the length when they move to the next date.

@@ -107,6 +107,49 @@ pub struct TaskView {
     pub priority_rank: Option<u32>,
     /// `repeat::` as text.
     pub repeat: Option<String>,
+    /// The task is part of a chain of follow-ups (`follows::`), see `task_chain`.
+    pub chain: bool,
+}
+
+/// `task_chain`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ChainArgs {
+    /// Page name.
+    pub page: String,
+    /// Block path.
+    pub path: Vec<u32>,
+}
+
+/// One task of a chain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ChainItem {
+    /// The block ID, if it has one.
+    pub uid: Option<String>,
+    /// The task it followed is gone (a `follows::` target that does not exist).
+    pub missing: bool,
+    /// Page name.
+    pub page: String,
+    /// Block path.
+    pub path: Vec<u32>,
+    /// First line of the block.
+    pub text: String,
+    /// `TODO`, `DONE`, ...
+    pub state: Option<String>,
+    /// Scheduled date.
+    pub scheduled: Option<String>,
+    /// Deadline.
+    pub deadline: Option<String>,
+    /// Nesting: 0 for the first task, 1 for the follow-up, ...; branches are deeper.
+    pub depth: u32,
+}
+
+/// The chain a task is in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct ChainView {
+    /// Every task of the chain, in order.
+    pub items: Vec<ChainItem>,
+    /// Index of the asked-for task in `items`.
+    pub position: u32,
 }
 
 /// One block of a page.

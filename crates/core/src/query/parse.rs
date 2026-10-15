@@ -33,10 +33,11 @@ impl fmt::Display for QueryError {
 
 impl std::error::Error for QueryError {}
 
-const KEYS: [&str; 18] = [
+const KEYS: [&str; 19] = [
     "task",
     "tag",
     "links",
+    "chain",
     "ns",
     "page",
     "path",
@@ -473,6 +474,23 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                 }
                 "tag" => FilterKind::Tag(each!(|p: &str, o: usize| parse_name(p, o))),
                 "links" => FilterKind::Links(each!(|p: &str, o: usize| parse_name(p, o))),
+                "chain" => FilterKind::Chain(each!(|p: &str, o: usize| {
+                    let id = p
+                        .strip_prefix("((")
+                        .and_then(|x| x.strip_suffix("))"))
+                        .unwrap_or(p);
+                    if !id.is_empty() && id.bytes().all(|c| c.is_ascii_alphanumeric()) {
+                        Ok(id.to_string())
+                    } else {
+                        Err(Problem {
+                            offset: o,
+                            message: format!("`{p}` is not a block ID"),
+                            suggestion: Some(
+                                "write the ID of a task: `chain: ((abc123))`".to_string(),
+                            ),
+                        })
+                    }
+                })),
                 "ns" => FilterKind::Ns(each!(|p: &str, o: usize| parse_name(p, o))),
                 "page" => FilterKind::Page(each!(|p: &str, o: usize| parse_name(p, o))),
                 "path" => FilterKind::Path(each!(|p: &str, o: usize| parse_name(p, o))),

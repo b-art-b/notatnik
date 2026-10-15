@@ -316,6 +316,10 @@ impl AppState {
         let cfg = o.graph.config();
         let parsed = parse_page_with(&text, &cfg.parse_options());
         let hidden: HashSet<String> = cfg.properties.hidden.iter().cloned().collect();
+        let followed = o
+            .graph
+            .with_index(|i| i.followed_uids())
+            .unwrap_or_default();
         let collapsed: HashSet<String> =
             o.ui.collapsed
                 .get(canonical.as_str())
@@ -340,6 +344,7 @@ impl AppState {
             &ViewOptions {
                 hidden: &hidden,
                 collapsed: &collapsed,
+                followed: &followed,
             },
         );
         Ok((view, rel))
@@ -1448,6 +1453,60 @@ impl AppState {
                 json!({ "pages": [plan.old.clone(), plan.new.clone()], "paths": [], "own": false }),
             );
             Ok(StringList { items: restored })
+        })
+    }
+
+    /// `new_block_id`: an unused block ID, for a block that is about to be referenced (`/followup`).
+    pub fn new_block_id(&self, _a: NoArgs) -> ApiResult<StringValue> {
+        self.with_open(|o| {
+            let used = o.graph.with_index(|i| i.all_block_uids())?;
+            let mut state = now_seed();
+            let mut rng = move || {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state
+            };
+            Ok(StringValue {
+                value: notatnik_core::ids::generate_block_id(&used, &mut rng),
+            })
+        })
+    }
+
+    /// `task_chain`: the follow-up chain of a task (TK-15).
+    pub fn task_chain(&self, a: ChainArgs) -> ApiResult<ChainView> {
+        let path = a
+            .path
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(".");
+        self.with_open(|o| {
+            let found = o
+                .graph
+                .with_index(|i| i.task_chain(&a.page, &path))?
+                .ok_or_else(|| ApiError::new("not_found", "no such task"))?;
+            let to_path =
+                |p: &str| -> Vec<u32> { p.split('.').filter_map(|x| x.parse().ok()).collect() };
+            let items = found
+                .0
+                .into_iter()
+                .map(|t| ChainItem {
+                    uid: t.uid,
+                    missing: t.missing,
+                    path: to_path(&t.path),
+                    text: t.text.lines().next().unwrap_or("").to_string(),
+                    page: t.page,
+                    state: t.task_state,
+                    scheduled: t.scheduled,
+                    deadline: t.deadline,
+                    depth: u32::try_from(t.depth).unwrap_or(0),
+                })
+                .collect();
+            Ok(ChainView {
+                items,
+                position: u32::try_from(found.1).unwrap_or(0),
+            })
         })
     }
 

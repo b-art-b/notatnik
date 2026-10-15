@@ -181,7 +181,11 @@ priority_rank: number | null,
 /**
  * `repeat::` as text.
  */
-repeat: string | null, };
+repeat: string | null, 
+/**
+ * The task is part of a chain of follow-ups (`follows::`), see `task_chain`.
+ */
+chain: boolean, };
 export type LogEntryView = { 
 /**
  * `YYYY-MM-DD` or `YYYY-MM-DD HH:MM`; empty for a line without a date.
@@ -861,6 +865,61 @@ template: string | null,
  * Properties of the template that the page lacks.
  */
 missing: Array<string>, };
+export type ChainArgs = { 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * Block path.
+ */
+path: Array<number>, };
+export type ChainItem = { 
+/**
+ * The block ID, if it has one.
+ */
+uid: string | null, 
+/**
+ * The task it followed is gone (a `follows::` target that does not exist).
+ */
+missing: boolean, 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * Block path.
+ */
+path: Array<number>, 
+/**
+ * First line of the block.
+ */
+text: string, 
+/**
+ * `TODO`, `DONE`, ...
+ */
+state: string | null, 
+/**
+ * Scheduled date.
+ */
+scheduled: string | null, 
+/**
+ * Deadline.
+ */
+deadline: string | null, 
+/**
+ * Nesting: 0 for the first task, 1 for the follow-up, ...; branches are deeper.
+ */
+depth: number, };
+export type ChainView = { 
+/**
+ * Every task of the chain, in order.
+ */
+items: Array<ChainItem>, 
+/**
+ * Index of the asked-for task in `items`.
+ */
+position: number, };
 export type DeletedTemplate = { 
 /**
  * Trash entry.
@@ -1307,6 +1366,8 @@ export type Commands = {
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
   list_conflicts: { args: NoArgs; result: StringList };
   read_conflict: { args: ReadConflictArgs; result: ConflictView };
+  task_chain: { args: ChainArgs; result: ChainView };
+  new_block_id: { args: NoArgs; result: StringValue };
   template_info: { args: PageArgs; result: TemplateInfo };
   apply_template: { args: PageArgs; result: ApplyResult };
   save_template: { args: SaveTemplateArgs; result: TemplateEntry };

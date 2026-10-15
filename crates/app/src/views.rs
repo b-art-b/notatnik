@@ -13,6 +13,8 @@ pub struct ViewOptions<'a> {
     pub hidden: &'a HashSet<String>,
     /// Content hashes of collapsed blocks.
     pub collapsed: &'a HashSet<String>,
+    /// Block IDs that some task's `follows::` points to.
+    pub followed: &'a HashSet<String>,
 }
 
 fn prop_view(key: &str, raw: &str, value: &PropertyValue, hidden: &HashSet<String>) -> PropView {
@@ -173,6 +175,11 @@ fn block_view(
             .iter()
             .find(|p| p.key == "repeat")
             .map(|p| p.raw.clone()),
+        // part of a chain of follow-up tasks (TK-15): it follows one, or one follows it
+        chain: b.properties.iter().any(|p| p.key == "follows")
+            || b.block_id
+                .as_ref()
+                .is_some_and(|id| o.followed.contains(id.id.as_str())),
     });
     let hash = b.content_hash(source);
     let logbook = {

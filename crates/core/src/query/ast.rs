@@ -63,6 +63,8 @@ pub enum FilterKind {
     Tag(Vec<String>),
     /// `links: page`
     Links(Vec<String>),
+    /// `chain: ((abc123))`: every task of the follow-up chain (`follows::`) that the block with this ID is in.
+    Chain(Vec<String>),
     /// `ns: work`: the page and everything below it.
     Ns(Vec<String>),
     /// `page: work`: only that page.
@@ -387,6 +389,10 @@ impl Query {
                 ),
                 FilterKind::Tag(v) => ("tag".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Links(v) => ("links".into(), v.iter().map(|s| name_text(s)).collect()),
+                FilterKind::Chain(v) => (
+                    "chain".into(),
+                    v.iter().map(|u| format!("(({u}))")).collect(),
+                ),
                 FilterKind::Ns(v) => ("ns".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Page(v) => ("page".into(), v.iter().map(|s| name_text(s)).collect()),
                 FilterKind::Path(v) => ("path".into(), v.iter().map(|s| name_text(s)).collect()),

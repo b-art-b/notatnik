@@ -2242,3 +2242,70 @@ fn time_ranges_on_scheduled_and_deadline() {
     );
     assert_eq!(q["rows"].as_array().unwrap().len(), 3);
 }
+
+/// TK-15: tasks that follow each other (`follows:: ((id))`) form a chain that can be read from any member.
+#[test]
+fn follow_up_tasks_form_a_chain() {
+    let t = start("basic");
+    t.ok(
+        "apply_ops",
+        json!({"page": "chain", "base_hash": null, "ops": [
+            {"op": "insert", "parent": [], "index": 0, "text": "DONE first ^aaa111"},
+            {"op": "insert", "parent": [], "index": 1, "text": "DONE second ^bbb222\nfollows:: ((aaa111))"},
+            {"op": "insert", "parent": [], "index": 2, "text": "TODO third\nfollows:: ((bbb222))"},
+            {"op": "insert", "parent": [], "index": 3, "text": "TODO side branch\nfollows:: ((aaa111))"},
+            {"op": "insert", "parent": [], "index": 4, "text": "TODO alone"},
+            {"op": "insert", "parent": [], "index": 5, "text": "TODO orphan\nfollows:: ((zzz999))"}]}),
+    );
+    let p = t.ok("get_page", json!({"name": "chain"}));
+    let flags: Vec<bool> = (0..6)
+        .map(|i| p["blocks"][i]["task"]["chain"].as_bool().unwrap())
+        .collect();
+    assert_eq!(flags, vec![true, true, true, true, false, true]);
+    // from the middle: the whole chain in order, the branch after the main line
+    let c = t.ok("task_chain", json!({"page": "chain", "path": [1]}));
+    let rows: Vec<String> = c["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| {
+            format!(
+                "{}{}",
+                "-".repeat(i["depth"].as_u64().unwrap() as usize),
+                i["text"].as_str().unwrap().split(" ^").next().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            "DONE first",
+            "-DONE second",
+            "--TODO third",
+            "-TODO side branch"
+        ]
+    );
+    assert_eq!(c["position"], 1);
+    // a task whose predecessor is gone: the chain starts with a marker for it
+    let c = t.ok("task_chain", json!({"page": "chain", "path": [5]}));
+    assert_eq!(c["items"][0]["missing"], true);
+    assert_eq!(c["items"][0]["uid"], "zzz999");
+    assert_eq!(c["position"], 1);
+    // the query clause finds the whole chain from any member's ID
+    let q = t.ok(
+        "run_query",
+        json!({"text": "chain: ((bbb222))\nview: table", "view": null}),
+    );
+    assert_eq!(q["errors"], json!([]));
+    assert_eq!(q["rows"].as_array().unwrap().len(), 4);
+    let q = t.ok(
+        "run_query",
+        json!({"text": "chain: ((bbb222))\ntask: todo", "view": null}),
+    );
+    assert_eq!(q["rows"].as_array().unwrap().len(), 2);
+    let bad = t.ok("run_query", json!({"text": "chain: nope!", "view": null}));
+    assert!(!bad["errors"].as_array().unwrap().is_empty());
+    // a fresh ID for `/followup`
+    let id = t.ok("new_block_id", json!({}));
+    assert_eq!(id["value"].as_str().unwrap().len(), 6);
+}

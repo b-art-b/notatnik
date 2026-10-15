@@ -135,6 +135,78 @@ export function templateOps(
   return ops
 }
 
+/** Tags and page links of a task's first line (not dates): what a follow-up is about as well. */
+export function carriedTokens(firstLine: string): string[] {
+  const found = firstLine.match(/#\[\[[^\]\n]+\]\]|(?<=^|\s)#[\p{L}\p{N}_/-]+|\[\[[^\]\n]+\]\]/gu) ?? []
+  const out: string[] = []
+  for (const t of found) {
+    if (/^\[\[\d{4}-\d{2}-\d{2}\]\]$/.test(t)) continue
+    if (!out.includes(t)) out.push(t)
+  }
+  return out
+}
+
+/** The text of a follow-up: an open task with the tags, links and priority of the finished one, linked back with
+ * `follows::`. Returns the text and where the cursor goes (the end of the first line). */
+export function followUpText(
+  firstLine: string,
+  priority: string | null,
+  id: string,
+): { text: string; cursor: number } {
+  const head = ['TODO', ...carriedTokens(firstLine)].join(' ') + ' '
+  const lines = [head]
+  if (priority) lines.push(`priority:: ${priority}`)
+  lines.push(`follows:: ((${id}))`)
+  return { text: lines.join('\n'), cursor: head.length }
+}
+
+/** `/followup`: marks the task done (as Ctrl+Enter does: completion time, repeat) and adds the next task right after
+ * it, as a sibling, linked with `follows::` (TK-15). The editor goes to the new task. */
+async function followUp(ctx: Ctx, blockId: number, typed: string): Promise<void> {
+  await ctx.doc.loaded
+  const first = ctx.doc.view ? findById(ctx.doc.view.blocks, blockId) : undefined
+  if (!first) return
+  // the task needs an ID to be referenced; one is made here when it has none
+  let id = first.block.uid
+  if (!id) {
+    try {
+      id = (await backend.call('new_block_id', {})).value
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+      return
+    }
+  }
+  const needsId = !first.block.uid
+  let newPath: number[] | null = null
+  const after = await ctx.doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    if (!hit) return null
+    const block = { path: hit.path, hash: null }
+    const ops: BlockOp[] = []
+    if (typed !== hit.block.text) ops.push({ op: 'update_text', block, text: typed })
+    if (needsId && !hit.block.uid) ops.push({ op: 'ensure_block_id', block, id })
+    if (hit.block.task?.state !== 'DONE')
+      ops.push({
+        op: 'set_task_state',
+        block,
+        state: 'DONE',
+        done_at: doneAt(app.today),
+        completed_limit: app.graph?.completed_log_limit ?? 0,
+      })
+    const next = followUpText(typed.split('\n')[0], hit.block.task?.priority ?? null, hit.block.uid ?? id)
+    const parent = hit.path.slice(0, -1)
+    const index = hit.path[hit.path.length - 1] + 1
+    newPath = [...parent, index]
+    ops.push({ op: 'insert', parent, index, text: next.text })
+    return ops
+  })
+  const created = after && newPath ? getBlock(after.blocks, newPath) : undefined
+  if (created) {
+    const cursor = created.text.split('\n')[0].length
+    startEditing(ctx.viewKey, ctx.doc.name, created.id, cursor)
+  } else stopEditing()
+}
+
 export type EditorAction =
   | { kind: 'enter'; text: string; cursor: number; prev: string }
   | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string; prev: string }
@@ -143,6 +215,7 @@ export type EditorAction =
   | { kind: 'escape'; text: string; prev: string }
   | { kind: 'cycle-task'; text: string; prev: string }
   | { kind: 'template'; name: string; text: string; prev: string }
+  | { kind: 'followup'; text: string; prev: string }
 
 /** Handles an action raised by the editor. Returns true when the key press was consumed. */
 export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): Promise<boolean> {
@@ -205,6 +278,10 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       const hit = findById(view.blocks, blockId)
       if (!hit) return false
       await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state), a.text)
+      return true
+    }
+    case 'followup': {
+      await followUp(ctx, blockId, a.text)
       return true
     }
     case 'template': {

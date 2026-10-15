@@ -42,6 +42,36 @@ pub struct PageInfo {
     pub aliases: Vec<String>,
 }
 
+/// One task of a chain (TK-15).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ChainTask {
+    /// The block's `^id`, if it has one.
+    pub uid: Option<String>,
+    /// A `follows::` target that is not in the graph (deleted).
+    pub missing: bool,
+    /// Page name.
+    pub page: String,
+    /// Block path, `0.2`.
+    pub path: String,
+    /// Block text.
+    pub text: String,
+    /// `TODO`, `DONE`, ... (as indexed).
+    pub task_state: Option<String>,
+    /// Scheduled date.
+    pub scheduled: Option<String>,
+    /// Deadline.
+    pub deadline: Option<String>,
+    /// Nesting below the first task of the chain.
+    pub depth: usize,
+}
+
+/// `((abc123))` → `abc123`.
+fn block_ref_uid(v: &str) -> Option<String> {
+    let inner = v.trim().strip_prefix("((")?.strip_suffix("))")?;
+    (!inner.is_empty() && inner.bytes().all(|b| b.is_ascii_alphanumeric()))
+        .then(|| inner.to_string())
+}
+
 /// A place that links to a page.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Backlink {
@@ -566,6 +596,136 @@ impl Index {
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .optional()?)
+    }
+
+    /// Uids that some block's `follows::` points to (the tasks that have a follow-up).
+    pub fn followed_uids(&self) -> Result<std::collections::HashSet<String>> {
+        let mut st = self.conn.prepare(
+            "SELECT DISTINCT value_text FROM props WHERE owner_kind = 'block' AND key = 'follows'",
+        )?;
+        let rows: Vec<String> = st
+            .query_map([], |r| r.get::<_, Option<String>>(0))?
+            .filter_map(|v| v.ok().flatten())
+            .collect();
+        Ok(rows.iter().filter_map(|v| block_ref_uid(v)).collect())
+    }
+
+    /// The chain of tasks a block is in (TK-15): everything it follows, back to the first task, and everything that
+    /// follows it, in order (a task with several follow-ups is a branch; `depth` is the nesting). `at` is the
+    /// block's page name and path (`0.2`). `None` when the block is not in the index.
+    pub fn task_chain(&self, page: &str, path: &str) -> Result<Option<(Vec<ChainTask>, usize)>> {
+        let Some(start) = self
+            .conn
+            .query_row(
+                "SELECT b.id FROM blocks b JOIN pages p ON p.id = b.page_id WHERE p.name = ?1 AND b.path = ?2",
+                [page, path],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()?
+        else {
+            return Ok(None);
+        };
+        // back to the first task (a cycle or a missing target ends the walk)
+        let mut seen = std::collections::HashSet::from([start]);
+        let mut root = start;
+        let mut missing: Option<String> = None;
+        for _ in 0..500 {
+            let Some(prev) = self.follows_of(root)? else {
+                break;
+            };
+            match self.block_with_uid(&prev)? {
+                Some(id) if seen.insert(id) => root = id,
+                Some(_) => break,
+                None => {
+                    missing = Some(prev);
+                    break;
+                }
+            }
+        }
+        let mut out = Vec::new();
+        if let Some(uid) = missing {
+            out.push(ChainTask {
+                uid: Some(uid),
+                missing: true,
+                ..ChainTask::default()
+            });
+        }
+        let depth0 = usize::from(!out.is_empty());
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![(root, depth0)];
+        let mut position = 0;
+        while let Some((id, depth)) = stack.pop() {
+            if !visited.insert(id) || out.len() > 500 {
+                continue;
+            }
+            if id == start {
+                position = out.len();
+            }
+            let mut t = self.chain_task(id)?;
+            t.depth = depth;
+            let uid = t.uid.clone();
+            out.push(t);
+            if let Some(uid) = uid {
+                // later followers are pushed first so that they come out in file order
+                let mut next = self.followers_of(&uid)?;
+                next.reverse();
+                stack.extend(next.into_iter().map(|n| (n, depth + 1)));
+            }
+        }
+        Ok(Some((out, position)))
+    }
+
+    fn follows_of(&self, block_id: i64) -> Result<Option<String>> {
+        let v: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT value_text FROM props WHERE owner_kind = 'block' AND owner_id = ?1 AND key = 'follows' ORDER BY ord LIMIT 1",
+                [block_id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(v.and_then(|v| block_ref_uid(&v)))
+    }
+
+    fn block_with_uid(&self, uid: &str) -> Result<Option<i64>> {
+        Ok(self
+            .conn
+            .query_row("SELECT id FROM blocks WHERE uid = ?1", [uid], |r| r.get(0))
+            .optional()?)
+    }
+
+    fn followers_of(&self, uid: &str) -> Result<Vec<i64>> {
+        let mut st = self.conn.prepare(
+            "SELECT b.id FROM props pr JOIN blocks b ON b.id = pr.owner_id JOIN pages p ON p.id = b.page_id
+             WHERE pr.owner_kind = 'block' AND pr.key = 'follows' AND pr.value_text = ?1
+             ORDER BY p.name, b.id",
+        )?;
+        let rows = st
+            .query_map([format!("(({uid}))")], |r| r.get::<_, i64>(0))?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
+    fn chain_task(&self, id: i64) -> Result<ChainTask> {
+        Ok(self.conn.query_row(
+            "SELECT b.uid, p.name, b.path, b.text, b.task_state, b.scheduled, b.deadline
+             FROM blocks b JOIN pages p ON p.id = b.page_id WHERE b.id = ?1",
+            [id],
+            |r| {
+                Ok(ChainTask {
+                    uid: r.get(0)?,
+                    page: r.get(1)?,
+                    path: r.get(2)?,
+                    text: r.get(3)?,
+                    task_state: r.get(4)?,
+                    scheduled: r.get(5)?,
+                    deadline: r.get(6)?,
+                    depth: 0,
+                    missing: false,
+                })
+            },
+        )?)
     }
 
     /// All block IDs in the index (for generating collision-free IDs).

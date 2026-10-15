@@ -1,5 +1,6 @@
 <script lang="ts">
   import { timeLabel } from '../clock'
+  import TaskChain from './TaskChain.svelte'
   import type { BlockView } from '../api'
   import { editing, editingPath, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
@@ -185,6 +186,7 @@
           ><span class="lab">Deadline:</span> {block.task.deadline}</button
         >{/if}
 
+      {#if block.task.chain}<TaskChain page={docName} path={block.path} />{/if}
       {#if block.task.repeat}<span class="chip"><span class="lab">Repeat:</span> {block.task.repeat}</span
         >{/if}
       {#if chipEdit === 'priority'}
@@ -425,6 +427,11 @@
                     <span class="at">{timeLabel(due.date)}</span>{/if}</button
                 >
               {/if}
+              {#if block.task?.chain && taskCompact}<TaskChain
+                  page={docName}
+                  path={block.path}
+                  compact
+                />{/if}
               {#if block.task?.repeat && taskCompact}
                 <button
                   class="ind"

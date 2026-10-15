@@ -73,6 +73,8 @@ commands! {
     set_collapsed(SetCollapsedArgs) -> NoArgs => set_collapsed,
     list_conflicts(NoArgs) -> StringList => list_conflicts,
     read_conflict(ReadConflictArgs) -> ConflictView => read_conflict,
+    task_chain(ChainArgs) -> ChainView => task_chain,
+    new_block_id(NoArgs) -> StringValue => new_block_id,
     template_info(PageArgs) -> TemplateInfo => template_info,
     apply_template(PageArgs) -> ApplyResult => apply_template,
     save_template(SaveTemplateArgs) -> TemplateEntry => save_template,

@@ -399,6 +399,22 @@ pub fn compile(
                     format!("b.id IN ({reach}{page_tag})")
                 }
             }
+            FilterKind::Chain(uids) => {
+                if pages {
+                    return Err(only_blocks("chain"));
+                }
+                let list = b.list(uids);
+                // up to the first task of the chain, then down to everything that follows (UNION ends cycles)
+                format!(
+                    "b.id IN (WITH RECURSIVE up(id) AS (SELECT id FROM blocks WHERE uid IN {list} \
+                     UNION SELECT t.id FROM up JOIN props pr ON pr.owner_kind = 'block' AND pr.owner_id = up.id AND pr.key = 'follows' \
+                     JOIN blocks t ON '((' || t.uid || '))' = pr.value_text), \
+                     down(id) AS (SELECT id FROM up \
+                     UNION SELECT pr.owner_id FROM down JOIN blocks s ON s.id = down.id \
+                     JOIN props pr ON pr.owner_kind = 'block' AND pr.key = 'follows' AND pr.value_text = '((' || s.uid || '))') \
+                     SELECT id FROM down)"
+                )
+            }
             FilterKind::Ns(names) => {
                 let parts: Vec<String> = names
                     .iter()

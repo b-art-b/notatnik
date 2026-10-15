@@ -288,6 +288,11 @@
               clearTimeout(idle)
               void onaction({ kind: 'template', name, text: view.state.doc.toString(), prev: lastSent })
             },
+            () => {
+              if (!view) return
+              clearTimeout(idle)
+              void onaction({ kind: 'followup', text: view.state.doc.toString(), prev: lastSent })
+            },
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),

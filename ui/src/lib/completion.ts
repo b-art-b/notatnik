@@ -165,6 +165,7 @@ export const QUERY_KEYS = [
   'task',
   'tag',
   'links',
+  'chain',
   'ns',
   'page',
   'path',
@@ -289,6 +290,7 @@ export function wikiCompletions(
   onpickdate: (kind: DateKind, at: number) => void,
   onemoji: (at: number) => void,
   ontemplate: (name: string) => void = () => {},
+  onfollowup: () => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -541,6 +543,13 @@ export function wikiCompletions(
                 apply: (view, _comp, f, t) => {
                   if (c.marker) {
                     view.dispatch({ changes: markerChanges(view.state.doc.toString(), f, t, c.marker) })
+                    return
+                  }
+                  if (c.followup) {
+                    // the command goes away (with the space before it); the host marks the task done and adds the next
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    onfollowup()
                     return
                   }
                   if (c.template) {

@@ -203,6 +203,7 @@ before the children:
 | `scheduled` | `YYYY-MM-DD`, `YYYY-MM-DD HH:MM` or `YYYY-MM-DD HH:MM-HH:MM` | Start / planned date, with an optional start time and an optional end time on the same day (24 h; a hyphen or an en dash, spaces allowed when reading; the app writes `09:00-10:30`). The end must be after the start, otherwise the value is not a date. No time by default. |
 | `deadline` | same | Due date; the same time forms (a point `17:00`, or a range for "between") |
 | `priority` | one of the graph's labels (`[tasks] priorities`, `A`, `B`, `C` by default; one to nine labels); `high`, `medium` and `low` mean the first, middle and last label | Priority; shown after the marker as `[#A]`; none by default |
+| `follows` | `((abc123))`: a block reference | The task this one is a follow-up of (written by `/followup`, or by hand). Tasks linked this way form a chain; a task may have several follow-ups (a branch). The referenced block needs an ID (`^abc123`); a reference to a block that does not exist is shown as a missing task in the chain. Query: `chain: ((abc123))` (whole chain), `prop.follows: ((abc123))` (direct follow-ups). |
 | `repeat` | `daily`, `weekly`, `monthly`, `yearly`, `every 2w`, `weekdays`, or a raw `RRULE:...` | Maps to iCalendar RRULE |
 | `done` | `YYYY-MM-DDTHH:MM` | Set automatically on DONE (non-repeating tasks) |
 | `completed` | `YYYY-MM-DD, YYYY-MM-DD, …` | Repeating tasks only: completion log, appended automatically each time the task is completed (hidden) |
