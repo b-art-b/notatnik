@@ -102,6 +102,17 @@ Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Pag
 | Click a day's title in the journals feed (also today's) | Open that day as a page |
 | Ctrl+wheel, Ctrl +/-/0 | Zoom |
 
+## Block menu: copy a reference
+
+**Right-click a block's bullet** (or **Alt+click** it) for the block menu:
+
+- **Copy block reference** puts `((abc123))` on the clipboard. Paste it into any block, on any page: it becomes a link to this block (shown with the block's text; the block lists the place in its references). The block gets its `^abc123` ID when it had none.
+- **Copy as embed** puts `!((abc123))`: pasted, it shows the block (with its children) in place, editable.
+- **Copy block text** and **Copy with children** (as Markdown, with indentation) copy the text.
+- **Zoom in** is the same as clicking the bullet.
+
+↑/↓ move in the menu, Enter chooses, Esc or a click elsewhere closes it. It also opens on bullets in linked references and query results, where Zoom in is left out. The `((` autocomplete (type `((` and some words of the block) still inserts a reference without leaving the keyboard.
+
 ## Follow-up tasks and chains
 
 `/followup` (also found by `/next`, `/done-next`, `/follow-up`) works on the task you are editing, from anywhere in the block: it marks the task **done** (completion time written, a repeating task advances, exactly as Ctrl+Enter) and puts a new **TODO** right after it, as the next sibling. The new task carries the tags, page links and priority of the old one (not dates, not the repeat), links back with `follows:: ((id))`, and the editor goes into it at the end of its first line, so you type what comes next. The finished task gets a block ID (`^abc123`) if it had none; nothing else of it changes. On a task that is already done only the follow-up is added; on a block that is not a task it becomes done and gets the follow-up.

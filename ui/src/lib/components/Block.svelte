@@ -1,12 +1,13 @@
 <script lang="ts">
   import { timeLabel } from '../clock'
   import TaskChain from './TaskChain.svelte'
+  import BlockMenu from './BlockMenu.svelte'
   import type { BlockView } from '../api'
   import { editing, editingPath, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { dnd, endDrag } from '../stores/dnd.svelte'
-  import { dropMove, samePath, type DropZone } from '../tree'
-  import { navigate } from '../stores/app.svelte'
+  import { dropMove, samePath, toMarkdown, type DropZone } from '../tree'
+  import { navigate, toast } from '../stores/app.svelte'
   import {
     commitText,
     editorAction,
@@ -17,6 +18,8 @@
     setTaskState,
     takeTheirs,
     type Ctx,
+    copyText,
+    ensureBlockUid,
   } from '../commands/exec'
   import { app } from '../stores/app.svelte'
   import { dueIndicator, isOverdue, nextTaskState, progress } from '../tasks'
@@ -140,6 +143,48 @@
   const hasChildren = $derived(block.children.length > 0)
   const prog = $derived(progress(block))
   let chipEdit = $state<'scheduled' | 'deadline' | 'priority' | null>(null)
+
+  // The menu of the bullet: copy a reference to the block (`((id))`), an embed (`!((id))`) or its text.
+  let menu = $state<{ x: number; y: number } | null>(null)
+  function openMenu(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menu = { x: e.clientX, y: e.clientY }
+  }
+  async function copyRef(embed: boolean) {
+    const uid = await ensureBlockUid(getDoc(docName), block.id)
+    if (!uid) return toast('That block is gone', 'error')
+    const text = embed ? `!((${uid}))` : `((${uid}))`
+    const ok = await copyText(text)
+    toast(ok ? `Copied ${text}` : 'Could not copy', ok ? 'info' : 'error')
+  }
+  function menuItems() {
+    const items: { label: string; hint?: string; run: () => void }[] = [
+      { label: 'Copy block reference', hint: '((id))', run: () => void copyRef(false) },
+      { label: 'Copy as embed', hint: '!((id))', run: () => void copyRef(true) },
+      {
+        label: 'Copy block text',
+        run: () =>
+          void copyText(block.text).then((ok) =>
+            toast(ok ? 'Copied the text' : 'Could not copy', ok ? 'info' : 'error'),
+          ),
+      },
+      {
+        label: 'Copy with children',
+        hint: 'Markdown',
+        run: () =>
+          void copyText(toMarkdown([block])).then((ok) =>
+            toast(ok ? 'Copied the block' : 'Could not copy', ok ? 'info' : 'error'),
+          ),
+      },
+    ]
+    if (!readonly)
+      items.push({
+        label: 'Zoom in',
+        run: () => navigate({ kind: 'page', name: docName, zoom: block.path }),
+      })
+    return items
+  }
 
   async function applyChip(key: string, value: string | null) {
     chipEdit = null
@@ -288,10 +333,19 @@
       draggable={!readonly}
       ondragstart={startDrag}
       ondragend={endDrag}
-      title={readonly ? undefined : 'Click to zoom in, drag to move'}
+      title={readonly
+        ? 'Right-click for the block menu'
+        : 'Click to zoom in, drag to move, right-click for more'}
       aria-label="Zoom into block"
-      onclick={() => !readonly && navigate({ kind: 'page', name: docName, zoom: block.path })}>●</button
+      oncontextmenu={openMenu}
+      onclick={(e) => {
+        if (e.altKey) openMenu(e)
+        else if (!readonly) navigate({ kind: 'page', name: docName, zoom: block.path })
+      }}>●</button
     >
+    {#if menu}
+      <BlockMenu x={menu.x} y={menu.y} items={menuItems()} onclose={() => (menu = null)} />
+    {/if}
     <div class="body" role="presentation" onclick={edit}>
       {#if isEditing && ctx && editing.conflict && editing.conflict.blockId === block.id}
         <div class="conflict" role="alert" data-testid="block-conflict">

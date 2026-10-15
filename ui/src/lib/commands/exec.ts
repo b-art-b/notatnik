@@ -135,6 +135,42 @@ export function templateOps(
   return ops
 }
 
+/** The `^id` of a block, made when it has none (the page is edited through the queue like any other change).
+ * `null` when the block is gone. */
+export async function ensureBlockUid(doc: PageDoc, blockId: number): Promise<string | null> {
+  await doc.loaded
+  const found = doc.view ? findById(doc.view.blocks, blockId) : undefined
+  if (!found) return null
+  if (found.block.uid) return found.block.uid
+  const id = (await backend.call('new_block_id', {})).value
+  const after = await doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    if (!hit || hit.block.uid) return null
+    return [{ op: 'ensure_block_id', block: { path: hit.path, hash: null }, id }]
+  })
+  const now = after ? findById(after.blocks, blockId) : undefined
+  return now?.block.uid ?? null
+}
+
+/** Puts text on the clipboard. The async API needs a secure context and a user gesture; a hidden textarea is the
+ * fallback (older webviews). */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
+  }
+}
+
 /** Tags and page links of a task's first line (not dates): what a follow-up is about as well. */
 export function carriedTokens(firstLine: string): string[] {
   const found = firstLine.match(/#\[\[[^\]\n]+\]\]|(?<=^|\s)#[\p{L}\p{N}_/-]+|\[\[[^\]\n]+\]\]/gu) ?? []
