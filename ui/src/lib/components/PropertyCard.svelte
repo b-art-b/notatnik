@@ -8,6 +8,10 @@
   import { blockPropertyHash, pageHash } from '../route'
   import { shownProps } from '../props'
   import ValueInput from './ValueInput.svelte'
+  import BlockRefView from './BlockRefView.svelte'
+
+  /** `((abc123))` → `abc123`: a property whose value is a reference to a block (`follows::`). */
+  const refUid = (raw: string) => /^\(\(([a-z0-9]{6})\)\)$/.exec(raw.trim())?.[1] ?? null
 
   interface Props {
     block: BlockView
@@ -149,6 +153,11 @@
               {#each p.links as l, i (i)}<a class="page-ref" href={pageHash(l)} data-page={l}>{l}</a
                 >{#if i < p.links.length - 1},
                 {/if}{/each}
+            {:else if refUid(p.raw)}
+              <!-- the task or block that is meant, not its ID (the ID is in the tooltip) -->
+              <span class="ref" data-testid="prop-block-ref"
+                ><span aria-hidden="true">↳</span> <BlockRefView uid={refUid(p.raw) ?? ''} chain={[]} /></span
+              >
             {:else if valueQueryable(p.raw)}
               <a class="plain" href={blockPropertyHash(p.key, p.raw)} title="All blocks with {p.key}: {p.raw}"
                 >{p.raw}</a

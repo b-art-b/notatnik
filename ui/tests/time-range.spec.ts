@@ -48,6 +48,7 @@ test('an end before the start is refused; a start alone and a plain date are fin
   await picker.getByLabel('2026-10-10').click()
   await expect.poll(() => backend.read('pages/plan.md')).toContain('deadline:: 2026-10-10 17:00\n')
   // opened again it shows the time; switching it off writes a plain date
+  await expect(chip(page, 'deadline')).toContainText('2026-10-10 17:00')
   await chip(page, 'deadline').click()
   await expect(picker.getByRole('checkbox', { name: 'Time of day' })).toBeChecked()
   await expect(picker.getByLabel('Start time (24 h, HH:MM)')).toHaveValue('17:00')

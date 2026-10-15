@@ -33,8 +33,12 @@
 {:else if result === null}
   <span class="chip error" title="No block with this id">broken ref</span>
 {:else}
-  <a class="block-ref" href={pageHash(result.page)} data-uid={uid} onclick={(e) => e.stopPropagation()}
-    ><Inlines items={inlines} chain={[...chain, uid]} /></a
+  <a
+    class="block-ref"
+    href={pageHash(result.page)}
+    data-uid={uid}
+    title={`^${uid} on ${result.page}`}
+    onclick={(e) => e.stopPropagation()}><Inlines items={inlines} chain={[...chain, uid]} /></a
   >
 {/if}
 

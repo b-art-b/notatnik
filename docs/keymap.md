@@ -111,6 +111,10 @@ Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Pag
 - **Copy block text** and **Copy with children** (as Markdown, with indentation) copy the text.
 - **Zoom in** is the same as clicking the bullet.
 
+The top of the menu shows the block's ID (`^abc123`, or "no ID yet"), and the references in the menu show it too. A block that has an ID also shows it in its bullet's tooltip. IDs are otherwise hidden: they are in the file at the end of the block's first line, not in the editor.
+
+A property whose value is a block reference (`follows:: ((abc123))`) is shown as `↳` and the text of that block, a link to it; its tooltip has the ID and the page. A reference to a block that no longer exists shows "broken ref".
+
 ↑/↓ move in the menu, Enter chooses, Esc or a click elsewhere closes it. It also opens on bullets in linked references and query results, where Zoom in is left out. The `((` autocomplete (type `((` and some words of the block) still inserts a reference without leaving the keyboard.
 
 ## Follow-up tasks and chains

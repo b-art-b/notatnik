@@ -8,7 +8,13 @@
     hint?: string
     run: () => void
   }
-  let { x, y, items, onclose }: { x: number; y: number; items: Item[]; onclose: () => void } = $props()
+  let {
+    x,
+    y,
+    title = '',
+    items,
+    onclose,
+  }: { x: number; y: number; title?: string; items: Item[]; onclose: () => void } = $props()
   let menu: HTMLDivElement
   let at = $state({ x: 0, y: 0 })
 
@@ -60,6 +66,7 @@
   onkeydown={key}
   onclick={(e) => e.stopPropagation()}
 >
+  {#if title}<div class="title" role="none" data-testid="block-menu-id">{title}</div>{/if}
   {#each items as it (it.label)}
     <button
       type="button"
@@ -104,6 +111,14 @@
   button:focus-visible {
     background: var(--chip);
     outline: none;
+  }
+  .title {
+    padding: 0.2em 0.6em 0.3em;
+    color: var(--muted);
+    font-size: 0.8em;
+    font-family: var(--font-mono);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.2em;
   }
   .hint {
     color: var(--muted);

@@ -26,9 +26,11 @@ test('/followup finishes the task, creates a linked follow-up and the chain can 
   await page.keyboard.type('send the invoice')
   await page.keyboard.press('Escape')
 
+  // the typed text is written last (the editor commits on Escape): wait for it before reading the file
   await expect
     .poll(() => backend.read('pages/proj.md'))
-    .toMatch(/^- DONE write report #work \[\[Acme\]\] \^([a-z0-9]{6})$/m)
+    .toMatch(/^- TODO #work \[\[Acme\]\] send the invoice$/m)
+  expect(backend.read('pages/proj.md')).toMatch(/^- DONE write report #work \[\[Acme\]\] \^([a-z0-9]{6})$/m)
   const text = backend.read('pages/proj.md')
   const id = /\^([a-z0-9]{6})$/m.exec(text)![1]
   // the follow-up: tags and links and priority carried, no dates, linked back
@@ -38,6 +40,18 @@ test('/followup finishes the task, creates a linked follow-up and the chain can 
     ),
   )
   expect(text.match(/scheduled::/g)).toHaveLength(1)
+
+  // the follow-up shows which task it follows (its text, a link; the ID is in the tooltip), not the bare ID
+  const ref = blocks.getByTestId('prop-block-ref')
+  await expect(ref).toContainText('write report')
+  await expect(ref).not.toContainText(id)
+  await expect(ref.locator('a.block-ref')).toHaveAttribute('title', new RegExp(`^\\^${id} on proj`))
+  // and the ID of the finished task is in its bullet's tooltip and in its menu
+  const bullet = blocks.getByRole('button', { name: 'Zoom into block' }).first()
+  await expect(bullet).toHaveAttribute('title', new RegExp(`\\^${id}$`))
+  await bullet.click({ button: 'right' })
+  await expect(page.getByTestId('block-menu-id')).toHaveText(`^${id}`)
+  await page.keyboard.press('Escape')
 
   // the chain is one click away, from either task
   await page.getByTestId('task-chain').first().getByRole('button').click()

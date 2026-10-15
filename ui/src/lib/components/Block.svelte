@@ -160,8 +160,16 @@
   }
   function menuItems() {
     const items: { label: string; hint?: string; run: () => void }[] = [
-      { label: 'Copy block reference', hint: '((id))', run: () => void copyRef(false) },
-      { label: 'Copy as embed', hint: '!((id))', run: () => void copyRef(true) },
+      {
+        label: 'Copy block reference',
+        hint: block.uid ? `((${block.uid}))` : '((id))',
+        run: () => void copyRef(false),
+      },
+      {
+        label: 'Copy as embed',
+        hint: block.uid ? `!((${block.uid}))` : '!((id))',
+        run: () => void copyRef(true),
+      },
       {
         label: 'Copy block text',
         run: () =>
@@ -333,9 +341,9 @@
       draggable={!readonly}
       ondragstart={startDrag}
       ondragend={endDrag}
-      title={readonly
+      title={(readonly
         ? 'Right-click for the block menu'
-        : 'Click to zoom in, drag to move, right-click for more'}
+        : 'Click to zoom in, drag to move, right-click for more') + (block.uid ? ` · ^${block.uid}` : '')}
       aria-label="Zoom into block"
       oncontextmenu={openMenu}
       onclick={(e) => {
@@ -344,7 +352,13 @@
       }}>●</button
     >
     {#if menu}
-      <BlockMenu x={menu.x} y={menu.y} items={menuItems()} onclose={() => (menu = null)} />
+      <BlockMenu
+        x={menu.x}
+        y={menu.y}
+        title={block.uid ? `^${block.uid}` : 'no ID yet'}
+        items={menuItems()}
+        onclose={() => (menu = null)}
+      />
     {/if}
     <div class="body" role="presentation" onclick={edit}>
       {#if isEditing && ctx && editing.conflict && editing.conflict.blockId === block.id}
