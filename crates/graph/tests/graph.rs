@@ -72,9 +72,18 @@ fn create_then_open() {
     assert_eq!(g2.id(), id, "the id is stable across opens");
     // the cache lives outside the graph, per device
     assert!(e.dirs.graph_data(&id).join("index.sqlite").exists());
-    let settings = notatnik_graph::DeviceSettings::load(&e.dirs).unwrap();
+    // opening a graph does not put it in the history of the app's graphs (the CLI opens graphs too): the app does
+    let mut settings = notatnik_graph::DeviceSettings::load(&e.dirs).unwrap();
+    assert!(settings.graphs.is_empty() && settings.last_graph.is_none());
+    settings.register(&id, &e.graph_dir);
+    settings.register("gother1", std::path::Path::new("/nowhere"));
+    settings.register(&id, &e.graph_dir); // opened again: moves to the end, becomes the last
+    assert_eq!(settings.graphs.len(), 2);
+    assert_eq!(settings.last_graph.as_deref(), Some(id.as_str()));
+    assert_eq!(settings.last_path(), Some(e.graph_dir.to_str().unwrap()));
+    settings.forget(&id);
+    assert_eq!(settings.last_path(), None);
     assert_eq!(settings.graphs.len(), 1);
-    assert_eq!(settings.graphs[0].id, id);
 }
 
 #[test]

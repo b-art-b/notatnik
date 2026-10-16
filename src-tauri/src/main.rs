@@ -38,14 +38,17 @@ fn main() {
                 let _ = handle.emit(name, payload);
             });
             let state = Arc::new(AppState::new(AppOptions::standard(emit)));
-            // reopen the last graph if the device settings know one
+            // reopen the last graph without asking only when the device setting says so; otherwise the start
+            // screen lists the graphs, the last one selected
             if let Ok(s) = notatnik_graph::DeviceSettings::load(&notatnik_graph::Dirs::from_env()) {
-                if let Some(g) = s.graphs.last() {
-                    let _ = dispatch(
-                        &state,
-                        "open_graph",
-                        serde_json::json!({"path": g.path, "create": false}),
-                    );
+                if let (true, Some(path)) = (s.ui.open_last_graph, s.last_path()) {
+                    if std::path::Path::new(path).is_dir() {
+                        let _ = dispatch(
+                            &state,
+                            "open_graph",
+                            serde_json::json!({"path": path, "create": false}),
+                        );
+                    }
                 }
             }
             app.manage(state);

@@ -605,6 +605,28 @@ pub struct OpenGraphArgs {
     pub create: bool,
 }
 
+/// A graph in the history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct GraphHistoryEntry {
+    /// Graph ID.
+    pub id: String,
+    /// The folder name.
+    pub name: String,
+    /// The folder.
+    pub path: String,
+    /// The folder is still there.
+    pub exists: bool,
+    /// The graph that was open last.
+    pub last: bool,
+}
+
+/// `forget_graph`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ForgetGraphArgs {
+    /// Graph ID.
+    pub id: String,
+}
+
 /// `get_page`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct GetPageArgs {
@@ -916,6 +938,8 @@ pub struct SettingsView {
     pub backup_auto: bool,
     /// Device: apply the template of a page's type when `type` is set (PR-10).
     pub templates_auto: bool,
+    /// Device: open the last graph at start without the start screen.
+    pub open_last_graph: bool,
     /// Graph: template for new journal days (a template name, empty = none).
     pub journal_template: String,
     /// Graph: templates for new pages below a namespace.
@@ -955,6 +979,8 @@ pub struct SetSettingsArgs {
     pub backup_auto: Option<bool>,
     /// Device: a page template is applied when `type` is set.
     pub templates_auto: Option<bool>,
+    /// Device: open the last graph at start.
+    pub open_last_graph: Option<bool>,
     /// Graph: journal template (empty = none).
     pub journal_template: Option<String>,
     /// Graph: namespace templates (replaces the list).

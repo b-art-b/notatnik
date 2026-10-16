@@ -242,6 +242,10 @@ impl AppState {
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
         let info = Self::info(&graph, report.warnings.clone());
+        // the history of graphs: this one is now the last opened (opened by the app only, not by the CLI)
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        dev.register(&graph.id(), graph.root());
+        let _ = dev.save(&self.dirs);
         // snapshots run on a thread of their own, only where the file watcher runs too (not in unit tests)
         let backup = self.watch.then(|| self.start_backups(&graph));
         *self.lock() = Some(Open {
@@ -256,6 +260,41 @@ impl AppState {
             warnings: report.warnings,
         });
         Ok(info)
+    }
+
+    fn history(&self) -> Vec<GraphHistoryEntry> {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let last = dev.last_graph.clone();
+        // the most recently opened first
+        dev.graphs
+            .iter()
+            .rev()
+            .map(|g| {
+                let p = Path::new(&g.path);
+                GraphHistoryEntry {
+                    id: g.id.clone(),
+                    name: p
+                        .file_name()
+                        .map_or_else(|| g.path.clone(), |n| n.to_string_lossy().into_owned()),
+                    path: g.path.clone(),
+                    exists: p.is_dir(),
+                    last: last.as_deref() == Some(g.id.as_str()),
+                }
+            })
+            .collect()
+    }
+
+    /// `list_graphs`: the graphs opened on this device, the most recent first (works without an open graph).
+    pub fn list_graphs(&self, _a: NoArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
+        Ok(self.history())
+    }
+
+    /// `forget_graph`: removes a graph from the history. Its folder, its cache and its backups are not touched.
+    pub fn forget_graph(&self, a: ForgetGraphArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        dev.forget(&a.id);
+        dev.save(&self.dirs)?;
+        Ok(self.history())
     }
 
     fn info(graph: &Graph, warnings: Vec<String>) -> GraphInfo {
@@ -2012,6 +2051,7 @@ impl AppState {
             backup_dir: dev.ui.backup_dir,
             backup_auto: dev.ui.backup_auto,
             templates_auto: dev.ui.templates_auto,
+            open_last_graph: dev.ui.open_last_graph,
             journal_template: cfg
                 .graph
                 .journal_template
@@ -2151,6 +2191,7 @@ impl AppState {
                 || a.backup_dir.is_some()
                 || a.backup_auto.is_some()
                 || a.templates_auto.is_some()
+                || a.open_last_graph.is_some()
             {
                 if let Some(d) = a.backup_dir.as_deref().map(str::trim) {
                     if !d.is_empty() && Path::new(d).starts_with(o.graph.root()) {
@@ -2190,6 +2231,9 @@ impl AppState {
                 }
                 if let Some(b) = a.templates_auto {
                     dev.ui.templates_auto = b;
+                }
+                if let Some(b) = a.open_last_graph {
+                    dev.ui.open_last_graph = b;
                 }
                 dev.save(&self.dirs)?;
             }

@@ -40,7 +40,7 @@ Outside the graph (per device, never synced):
 ├── index.sqlite                 # blocks, links, properties, FTS5, sqlite-vec
 ├── history/                     # last-synced copies for 3-way merge
 └── state.json                   # collapsed blocks, open tabs, window layout
-~/.config/notatnik/settings.toml # device settings, list of graphs
+~/.config/notatnik/settings.toml # device settings; the history of graphs opened in the app (`[[graphs]]` id + path, the most recent last), `last_graph` (its id) and `[ui] open_last_graph`; written by the app only, the CLI does not add graphs
 ~/.local/share/notatnik/backups/ # snapshots (default folder; the device setting `backup_dir` can change it)
 ~/.local/share/notatnik/graphs/<graph-id>/journal/pending.json   # operation in progress (D38); exists only after a crash
 ~/.local/share/notatnik/graphs/<graph-id>/versions/<hash>/<ms>.md # page history (D39); `<ms>-w.md` = written by the app

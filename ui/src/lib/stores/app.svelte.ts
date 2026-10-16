@@ -175,8 +175,15 @@ export async function loadDeviceSettings() {
 
 export async function openGraph(path: string, create: boolean) {
   try {
+    const switching = !!app.graph
     app.graph = await backend.call('open_graph', { path, create })
     app.needsGraph = false
+    if (switching) {
+      // another graph: nothing of the pages loaded so far applies, so start the page over
+      window.location.hash = '#/journals'
+      window.location.reload()
+      return
+    }
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
     await loadDeviceSettings()

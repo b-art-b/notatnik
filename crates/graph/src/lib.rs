@@ -272,10 +272,6 @@ impl Graph {
             report.reconcile = stats;
             d
         };
-        let mut settings = DeviceSettings::load(dirs).unwrap_or_default();
-        settings.register(&config.graph.id, &root);
-        let _ = settings.save(dirs);
-
         let graph = Graph {
             inner: Arc::new(Mutex::new(Inner {
                 root: root.clone(),

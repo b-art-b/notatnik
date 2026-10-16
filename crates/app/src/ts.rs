@@ -92,6 +92,8 @@ pub fn typescript_bindings() -> String {
         QueryView,
         RunQueryArgs,
         TemplateInfo,
+        GraphHistoryEntry,
+        ForgetGraphArgs,
         ChainArgs,
         ChainItem,
         ChainView,

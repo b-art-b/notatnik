@@ -244,6 +244,7 @@
     backup_dir: string
     backup_auto: boolean
     templates_auto: boolean
+    open_last_graph: boolean
     journal_template: string
     namespace_templates: { namespace: string; template: string }[]
     week_start: string
@@ -273,6 +274,7 @@
         backup_dir: null,
         backup_auto: null,
         templates_auto: null,
+        open_last_graph: null,
         journal_template: null,
         namespace_templates: null,
         week_start: null,
@@ -979,6 +981,28 @@
               ><code data-testid="graph-folder">{s.graph_root}</code>
               <button class="plain" onclick={() => s && copy(s.graph_root)}>Copy</button></span
             >
+          </SettingRow>
+          <SettingRow
+            title="Your graphs"
+            description="The graphs you opened on this device, with a way to remove one from the list. Removing only changes the list: the folder, its notes and its backups stay."
+          >
+            <button class="plain" data-testid="switch-graph" onclick={() => (app.needsGraph = true)}
+              >Switch graph…</button
+            >
+          </SettingRow>
+          <SettingRow
+            title="Open the last graph at start"
+            description="This device. Off: the start screen lists your graphs with the last one selected (Enter opens it). On: the last graph opens without asking."
+            labelFor="open-last-graph"
+          >
+            <input
+              id="open-last-graph"
+              class="switch"
+              type="checkbox"
+              role="switch"
+              checked={s.open_last_graph}
+              onchange={(e) => save({ open_last_graph: (e.currentTarget as HTMLInputElement).checked })}
+            />
           </SettingRow>
           <SettingRow
             title="Open or create another graph"

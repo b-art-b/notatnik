@@ -43,6 +43,8 @@ macro_rules! commands {
 
 commands! {
     open_graph(OpenGraphArgs) -> GraphInfo => open_graph,
+    list_graphs(NoArgs) -> Vec<GraphHistoryEntry> => list_graphs,
+    forget_graph(ForgetGraphArgs) -> Vec<GraphHistoryEntry> => forget_graph,
     graph_info(NoArgs) -> GraphInfo => graph_info,
     today(NoArgs) -> StringValue => today_cmd,
     get_page(GetPageArgs) -> PageView => get_page,

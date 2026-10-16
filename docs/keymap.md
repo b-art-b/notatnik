@@ -88,6 +88,12 @@ Sections: Overdue, Today, Next 7 days, **Later** (every open task dated further 
 
 Each task shows the note it lives in (`↗ page › parent`). Click it to open that note with the task flashed.
 
+## Graphs: start screen and history
+
+At start the app shows the **start screen**: the graphs you opened on this device, the most recent first. The last one is marked *last opened* and its **Open** button has the focus, so **Enter** opens it. A graph whose folder is gone is marked *folder not found* (it can only be removed). **✕** removes a graph from the list: only the list changes, the folder, its notes, its cache and its backups stay, and opening the folder again puts it back. Below is a field to open another folder or create a new graph there.
+
+**Switch graph…** (command palette, or Settings → Graph → *Your graphs*) shows the same screen while a graph is open (*← Back to …* returns); opening another graph restarts the window on it. *Settings → Graph → Open the last graph at start* (this device, off by default) opens the last graph without showing the start screen. Only graphs opened in the app are listed: the command line tool does not add to the history.
+
 ## Settings
 
 Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Page icons**, **Backup** and **Graph** (arrow keys move between the groups). Each group says where its values live: *This device* (`settings.toml`, never synced) or *This graph* (`.notatnik/config.toml`, synced). Changes apply immediately and show "✓ Saved" at the top. Graph settings can also be edited by hand in `.notatnik/config.toml` (or arrive by sync): the open app notices within a second and applies them, no restart; a file that does not parse as TOML is ignored until it is fixed. Theme, week start and the date format are choice buttons, link brackets is a switch, zoom has − / + / Reset.

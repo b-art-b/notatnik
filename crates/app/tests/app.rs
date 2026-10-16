@@ -2309,3 +2309,47 @@ fn follow_up_tasks_form_a_chain() {
     let id = t.ok("new_block_id", json!({}));
     assert_eq!(id["value"].as_str().unwrap().len(), 6);
 }
+
+/// The graphs opened in the app form a history: the last one is remembered, a graph can be removed from it, and the
+/// CLI (which opens graphs without the app) leaves no trace.
+#[test]
+fn opened_graphs_are_remembered_and_can_be_forgotten() {
+    let t = start("basic");
+    let list = t.ok("list_graphs", json!({}));
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["last"], true);
+    assert_eq!(list[0]["exists"], true);
+    assert_eq!(list[0]["name"], "graph");
+    let first = list[0]["id"].as_str().unwrap().to_string();
+    // a second graph becomes the last one and comes first in the list
+    let other = t.tmp.path().join("second");
+    t.ok(
+        "open_graph",
+        json!({"path": other.to_str().unwrap(), "create": true}),
+    );
+    let list = t.ok("list_graphs", json!({}));
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    assert_eq!(list[0]["name"], "second");
+    assert_eq!(list[0]["last"], true);
+    assert_eq!(list[1]["id"], first.as_str());
+    assert_eq!(list[1]["last"], false);
+    // opening the first one again moves it to the top
+    t.ok(
+        "open_graph",
+        json!({"path": t.graph().to_str().unwrap(), "create": false}),
+    );
+    assert_eq!(t.ok("list_graphs", json!({}))[0]["id"], first.as_str());
+    // a folder that is gone is still listed (so it can be removed), marked as missing
+    std::fs::remove_dir_all(&other).unwrap();
+    let list = t.ok("list_graphs", json!({}));
+    assert_eq!(list[1]["exists"], false);
+    // forgetting removes it from the list; the open graph's files are untouched
+    let second = list[1]["id"].as_str().unwrap().to_string();
+    let list = t.ok("forget_graph", json!({"id": second}));
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert!(t.graph().join("pages").exists());
+    // the start-up setting
+    assert_eq!(t.ok("get_settings", json!({}))["open_last_graph"], false);
+    let s = t.ok("set_settings", json!({"open_last_graph": true}));
+    assert_eq!(s["open_last_graph"], true);
+}

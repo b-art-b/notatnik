@@ -865,6 +865,32 @@ template: string | null,
  * Properties of the template that the page lacks.
  */
 missing: Array<string>, };
+export type GraphHistoryEntry = { 
+/**
+ * Graph ID.
+ */
+id: string, 
+/**
+ * The folder name.
+ */
+name: string, 
+/**
+ * The folder.
+ */
+path: string, 
+/**
+ * The folder is still there.
+ */
+exists: boolean, 
+/**
+ * The graph that was open last.
+ */
+last: boolean, };
+export type ForgetGraphArgs = { 
+/**
+ * Graph ID.
+ */
+id: string, };
 export type ChainArgs = { 
 /**
  * Page name.
@@ -1165,6 +1191,10 @@ backup_auto: boolean,
  */
 templates_auto: boolean, 
 /**
+ * Device: open the last graph at start without the start screen.
+ */
+open_last_graph: boolean, 
+/**
  * Graph: template for new journal days (a template name, empty = none).
  */
 journal_template: string, 
@@ -1233,6 +1263,10 @@ backup_auto: boolean | null,
  * Device: a page template is applied when `type` is set.
  */
 templates_auto: boolean | null, 
+/**
+ * Device: open the last graph at start.
+ */
+open_last_graph: boolean | null, 
 /**
  * Graph: journal template (empty = none).
  */
@@ -1336,6 +1370,8 @@ export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolea
 
 export type Commands = {
   open_graph: { args: OpenGraphArgs; result: GraphInfo };
+  list_graphs: { args: NoArgs; result: GraphHistoryEntry[] };
+  forget_graph: { args: ForgetGraphArgs; result: GraphHistoryEntry[] };
   graph_info: { args: NoArgs; result: GraphInfo };
   today: { args: NoArgs; result: StringValue };
   get_page: { args: GetPageArgs; result: PageView };

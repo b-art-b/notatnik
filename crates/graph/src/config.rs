@@ -417,6 +417,10 @@ pub struct UiSettings {
     /// Setting `type` on a page adds the properties of `templates/<type>.md` it lacks (PR-10).
     #[serde(default = "default_true")]
     pub templates_auto: bool,
+    /// Open the last graph at start without showing the start screen (false: the start screen lists the graphs with
+    /// the last one selected).
+    #[serde(default)]
+    pub open_last_graph: bool,
 }
 
 /// The accepted values of `UiSettings::date_format`.
@@ -454,6 +458,7 @@ impl Default for UiSettings {
             backup_dir: String::new(),
             backup_auto: true,
             templates_auto: true,
+            open_last_graph: false,
         }
     }
 }
@@ -461,9 +466,12 @@ impl Default for UiSettings {
 /// `~/.config/notatnik/settings.toml`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DeviceSettings {
-    /// Known graphs.
+    /// Known graphs: the history of the graphs opened in the app, most recently opened last.
     #[serde(default)]
     pub graphs: Vec<GraphEntry>,
+    /// The ID of the graph that was open last (the app starts with it selected).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_graph: Option<String>,
     /// Appearance.
     #[serde(default)]
     pub ui: UiSettings,
@@ -492,16 +500,32 @@ impl DeviceSettings {
         Ok(())
     }
 
-    /// Adds or updates a graph entry.
+    /// Adds or updates a graph entry and makes it the last opened: it moves to the end of the history.
     pub fn register(&mut self, id: &str, path: &Path) {
         let path = path.to_string_lossy().into_owned();
-        match self.graphs.iter_mut().find(|g| g.id == id) {
-            Some(g) => g.path = path,
-            None => self.graphs.push(GraphEntry {
-                id: id.to_string(),
-                path,
-            }),
+        self.graphs.retain(|g| g.id != id);
+        self.graphs.push(GraphEntry {
+            id: id.to_string(),
+            path,
+        });
+        self.last_graph = Some(id.to_string());
+    }
+
+    /// Removes a graph from the history (its files are not touched).
+    pub fn forget(&mut self, id: &str) {
+        self.graphs.retain(|g| g.id != id);
+        if self.last_graph.as_deref() == Some(id) {
+            self.last_graph = None;
         }
+    }
+
+    /// The folder of the last opened graph, if it is still in the history.
+    pub fn last_path(&self) -> Option<&str> {
+        let id = self.last_graph.as_deref()?;
+        self.graphs
+            .iter()
+            .find(|g| g.id == id)
+            .map(|g| g.path.as_str())
     }
 }
 

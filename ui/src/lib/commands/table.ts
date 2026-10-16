@@ -15,6 +15,12 @@ export interface Command {
 export const commands: Command[] = [
   { id: 'palette', title: 'Command palette', keys: 'Ctrl+K', run: () => (app.paletteOpen = true) },
   { id: 'search', title: 'Search', keys: 'Ctrl+Shift+F', run: () => (app.searchOpen = true) },
+  {
+    id: 'switch-graph',
+    title: 'Switch graph…',
+    keys: '',
+    run: () => (app.needsGraph = true),
+  },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
   { id: 'settings', title: 'Settings', keys: '', run: () => navigate({ kind: 'settings' }) },
