@@ -9,8 +9,8 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 |---|---|
 | Enter | Split the block at the cursor (new sibling; first child if the block has expanded children). Newline inside a code fence or below the first line |
 | Shift+Enter | Newline inside the block |
-| Tab / Shift+Tab | Indent / outdent the block with its children |
-| Alt+↑ / Alt+↓ | Move the block among its siblings |
+| Tab / Shift+Tab, or Alt+→ / Alt+← | Indent / outdent (demote / promote) the block with its children |
+| Alt+↑ / Alt+↓ | Move the block (with its children) up / down among its siblings, as org-mode's M-↑ / M-↓ |
 | ↑ on the first line / ↓ on the last line | Move the editor to the previous / next visible block |
 | Backspace at the start | Merge into the previous block (an empty block is deleted; a block with children is not merged) |
 | Delete at the end | Pull the next block into this one |
@@ -31,7 +31,7 @@ and everything below them. Every command is one undo step.
 | Shift+↑ / Shift+↓ | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along) |
 | Ctrl+A | Select all blocks of the page (in a block: first the text of the block, a second Ctrl+A all blocks) |
 | Enter | Edit the selected block |
-| Tab / Shift+Tab | Indent / outdent the selection (blocks at one level) |
+| Tab / Shift+Tab, or Alt+→ / Alt+← | Indent / outdent the selection (blocks at one level) |
 | Alt+↑ / Alt+↓ | Move the selected blocks together (blocks at one level) |
 | Delete / Backspace | Delete |
 | Ctrl+C | Copy as Markdown (indented outline), without block IDs |
@@ -119,7 +119,7 @@ Settings are grouped into **Appearance**, **Dates & language**, **Tasks**, **Pag
 
 | Input | Action |
 | --- | --- |
-| Mouse back / forward button, Alt+← / Alt+→ | Back / forward in the page history. Alt+arrows only when no text field has the focus (in the editor they move the cursor) |
+| Mouse back / forward button, Alt+← / Alt+→ | Back / forward in the page history. Alt+arrows only when no text field has the focus and no block is selected (in a block, and on selected blocks, they move blocks as above) |
 | Middle click, Ctrl+click on a page link | Open the page in the right sidebar (Shift+click does too) |
 | Click a day's title in the journals feed (also today's) | Open that day as a page |
 | Ctrl+wheel, Ctrl +/-/0 | Zoom |

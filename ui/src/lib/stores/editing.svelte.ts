@@ -16,6 +16,10 @@ export const editing = $state({
    * the click itself ended the editing (the editor loses focus before the click arrives). */
   lastDoc: '',
   lastBlockId: 0,
+  /** The block a command (move, indent, split...) has just put the cursor in, and when: a move re-parents the DOM of
+   * the editor, which takes its focus away; that blur must not end the editing (see `Block.svelte`). */
+  planBlock: 0,
+  planAt: 0,
   /** Bumped to force the editor to remount (after the block's text changed behind it). */
   nonce: 0,
   /** Set when a block changed on disk while it was being edited (P2.27). */

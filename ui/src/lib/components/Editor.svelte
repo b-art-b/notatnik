@@ -190,6 +190,9 @@
         { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
         { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
         { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+        // like org-mode's M-<right> / M-<left>: demote / promote the block (with its children)
+        { key: 'Alt-ArrowRight', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
+        { key: 'Alt-ArrowLeft', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
         { key: 'Alt-ArrowUp', run: (v) => act(v, (t) => ({ kind: 'move-up', text: t, prev: lastSent })) },
         { key: 'Alt-ArrowDown', run: (v) => act(v, (t) => ({ kind: 'move-down', text: t, prev: lastSent })) },
         {

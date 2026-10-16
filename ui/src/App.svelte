@@ -181,6 +181,8 @@
       else if (k === 'ArrowUp') selectionStep(ctx, 'up', e.shiftKey)
       else if (k === 'ArrowDown') selectionStep(ctx, 'down', e.shiftKey)
       else if (k === 'Tab') void (e.shiftKey ? selectionOutdent(ctx) : selectionIndent(ctx))
+      else if (k === 'ArrowRight' && e.altKey) void selectionIndent(ctx)
+      else if (k === 'ArrowLeft' && e.altKey) void selectionOutdent(ctx)
       else if (k === 'Delete' || k === 'Backspace') void selectionDelete(ctx)
       else if (k === 'Enter' && !mod) selectionEdit(ctx)
       else if (k === 'Escape') stopEditing()

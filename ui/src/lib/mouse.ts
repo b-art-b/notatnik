@@ -1,4 +1,5 @@
 // Firefox-style navigation with the mouse and the keyboard, installed once for the whole window.
+import { editing } from './stores/editing.svelte'
 import { app } from './stores/app.svelte'
 import { parseRoute } from './route'
 
@@ -55,6 +56,8 @@ export function installNavigation(): () => void {
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
     if ((e.target as HTMLElement)?.closest?.('input, textarea, select, .cm-editor')) return
+    // with blocks selected Alt+← / Alt+→ outdent / indent them (App.svelte)
+    if (editing.mode === 'select') return
     e.preventDefault()
     if (e.key === 'ArrowLeft') history.back()
     else history.forward()

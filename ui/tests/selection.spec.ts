@@ -213,3 +213,37 @@ test('the right-click menu of a selection copies, duplicates and deletes it', as
   await menu.getByRole('menuitem', { name: /Delete/ }).click()
   await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n  - a1\n  - a2\n')
 })
+
+// org-mode style: Alt+arrows move the block (with its children) in every direction
+test('Alt+arrows move a block like org-mode: up/down among siblings, left/right between levels', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/t.md', '- a\n- b\n  - b1\n- c\n')
+  await backend.open('/page/t')
+  await settle(page)
+  await text(page, 'b').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Alt+ArrowRight') // demote: b (with b1) goes under a
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n  - b\n    - b1\n- c\n')
+  await settle(page)
+  await page.keyboard.press('Alt+ArrowLeft') // promote again
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- b\n  - b1\n- c\n')
+  await settle(page) // the editor comes back on the moved block
+  await page.keyboard.press('Alt+ArrowDown')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- c\n- b\n  - b1\n')
+  await settle(page)
+  await page.keyboard.press('Alt+ArrowUp')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- b\n  - b1\n- c\n')
+  await settle(page)
+  // the same on selected blocks, where Alt+← / Alt+→ do not go back / forward in the page history
+  await page.keyboard.press('Escape')
+  await expect(selected(page)).toHaveCount(1)
+  await page.keyboard.press('Alt+ArrowRight')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n  - b\n    - b1\n- c\n')
+  await expect(selected(page)).toHaveCount(1)
+  await settle(page)
+  await page.keyboard.press('Alt+ArrowLeft')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- b\n  - b1\n- c\n')
+  await expect(page).toHaveURL(/#\/page\/t/)
+})

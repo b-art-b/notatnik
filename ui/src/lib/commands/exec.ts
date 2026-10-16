@@ -55,10 +55,20 @@ function withText(doc: PageDoc, blockId: number, text: string | undefined, plan:
 
 export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
   await ctx.doc.loaded
+  // a move re-parents the editor's DOM while the request is answered, which takes its focus away: the block being
+  // edited is marked first, so that blur does not end the editing
+  if (editing.mode === 'edit') {
+    editing.planBlock = editing.blockId
+    editing.planAt = Date.now()
+  }
   const view = await ctx.doc.apply(plan.ops)
   if (view && plan.focus) {
     const b = getBlock(view.blocks, plan.focus.path)
-    if (b) startEditing(ctx.viewKey, ctx.doc.name, b.id, plan.focus.cursor)
+    if (b) {
+      startEditing(ctx.viewKey, ctx.doc.name, b.id, plan.focus.cursor)
+      editing.planBlock = b.id
+      editing.planAt = Date.now()
+    }
   }
 }
 

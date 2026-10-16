@@ -419,6 +419,11 @@
               // replaced (indent, split, ...) must not write through a stale block id
               if (editing.mode !== 'edit' || editing.blockId !== block.id || editing.viewKey !== viewKey)
                 return
+              // the editor lost its focus because a move re-parented it a moment ago: bring it back
+              if (editing.planBlock === block.id && Date.now() - editing.planAt < 400) {
+                editing.nonce++
+                return
+              }
               await commitText(ctx, block.id, t, prev, { onlyIfActive: true })
               if (editing.mode === 'edit' && editing.blockId === block.id && !editing.conflict) stopEditing()
             }}
