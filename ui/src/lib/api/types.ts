@@ -11,6 +11,9 @@ export interface Backend {
   assetUrl(path: string): string
   /** Opens a URL in the system browser. */
   openExternal(url: string): void
+  /** The system's folder chooser (the desktop app only): the folder picked, `null` when cancelled. Absent in the
+   * browser, where the path has to be typed. */
+  pickFolder?: () => Promise<string | null>
 }
 
 /** The error every failed command rejects with. */

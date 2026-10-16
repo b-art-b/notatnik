@@ -29,6 +29,16 @@
     list?.querySelector<HTMLButtonElement>('button.open:not(:disabled)')?.focus()
   })
 
+  /** The system's folder chooser (desktop app): the folder picked is opened, or made a graph when it has none. */
+  async function browse() {
+    try {
+      const picked = await backend.pickFolder?.()
+      if (picked) await openGraph(picked, true)
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+
   async function forget(g: GraphHistoryEntry) {
     try {
       graphs = await backend.call('forget_graph', { id: g.id })
@@ -78,6 +88,10 @@
     onkeydown={(e) => e.key === 'Enter' && path.trim() && openGraph(path, true)}
   />
   <button onclick={() => openGraph(path, true)} disabled={!path.trim()}>Open / create</button>
+  {#if backend.pickFolder}
+    <button type="button" class="browse" data-testid="browse-folder" onclick={browse}>Choose a folder…</button
+    >
+  {/if}
   {#if app.graph}
     <p>
       <button type="button" class="back" onclick={() => (app.needsGraph = false)}

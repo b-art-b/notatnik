@@ -1011,7 +1011,17 @@
           >
             <span class="open"
               ><input id="graph-path" bind:value={path} placeholder="/path/to/folder" />
-              <button disabled={!path.trim()} onclick={() => openGraph(path.trim(), true)}>Open</button></span
+              <button disabled={!path.trim()} onclick={() => openGraph(path.trim(), true)}>Open</button>
+              {#if backend.pickFolder}
+                <button
+                  type="button"
+                  data-testid="browse-folder"
+                  onclick={async () => {
+                    const picked = await backend.pickFolder?.()
+                    if (picked) await openGraph(picked, true)
+                  }}>Choose a folder…</button
+                >
+              {/if}</span
             >
           </SettingRow>
         {/if}

@@ -108,7 +108,7 @@ Each task shows the note it lives in (`↗ page › parent`). Click it to open t
 
 ## Graphs: start screen and history
 
-At start the app shows the **start screen**: the graphs you opened on this device, the most recent first. The last one is marked *last opened* and its **Open** button has the focus, so **Enter** opens it. A graph whose folder is gone is marked *folder not found* (it can only be removed). **✕** removes a graph from the list: only the list changes, the folder, its notes, its cache and its backups stay, and opening the folder again puts it back. Below is a field to open another folder or create a new graph there.
+At start the app shows the **start screen**: the graphs you opened on this device, the most recent first. The last one is marked *last opened* and its **Open** button has the focus, so **Enter** opens it. A graph whose folder is gone is marked *folder not found* (it can only be removed). **✕** removes a graph from the list: only the list changes, the folder, its notes, its cache and its backups stay, and opening the folder again puts it back. Below is a field to open another folder (type or paste its path) or **Choose a folder…**, the system's own folder chooser (desktop app only), which opens the folder you pick, or makes it a graph when it has none. The same button is in Settings → Graph.
 
 **Switch graph…** (command palette, or Settings → Graph → *Your graphs*) shows the same screen while a graph is open (*← Back to …* returns); opening another graph restarts the window on it. *Settings → Graph → Open the last graph at start* (this device, off by default) opens the last graph without showing the start screen. Only graphs opened in the app are listed: the command line tool does not add to the history.
 

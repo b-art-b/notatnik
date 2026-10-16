@@ -29,9 +29,23 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Shows the system's folder chooser and returns the folder, or `None` when the user cancels. Called from the start
+/// screen and the settings to pick the folder of a graph instead of typing its path.
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    // an async command runs off the main thread, where waiting for the dialog is allowed
+    app.dialog()
+        .file()
+        .set_title("Choose the folder of your notes")
+        .blocking_pick_folder()
+        .map(|p| p.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let emit: notatnik_app::Emitter = Arc::new(move |name, payload| {
@@ -54,7 +68,11 @@ fn main() {
             app.manage(state);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![invoke_api, open_external])
+        .invoke_handler(tauri::generate_handler![
+            invoke_api,
+            open_external,
+            pick_folder
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Notatnik");
 }

@@ -37,3 +37,13 @@ test('the start screen lists the graphs, selects the last one, and a graph can b
   await page.getByRole('button', { name: /Back to/ }).click()
   await expect(page.getByTestId('journals')).toBeVisible()
 })
+
+// The folder chooser is the system's own dialog (desktop app only); the browser build keeps the path field alone
+test('the browser build has no folder chooser button, only the path field', async ({ backend, page }) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await expect(page.getByLabel('Graph folder')).toBeVisible()
+  await expect(page.getByTestId('browse-folder')).toHaveCount(0)
+})
