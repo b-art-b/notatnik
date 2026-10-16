@@ -1,11 +1,12 @@
 <script lang="ts">
   import { backend, type SearchHitView } from '../api'
-  import { app } from '../stores/app.svelte'
+  import { app, errorMessage } from '../stores/app.svelte'
   import { jumpToBlock } from '../jump'
 
   let q = $state('')
   let hits = $state<SearchHitView[]>([])
   let sel = $state(0)
+  let problem = $state('') // a mistake in the search syntax, in words
   let input: HTMLInputElement | undefined = $state()
   let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -15,7 +16,13 @@
   function run() {
     clearTimeout(timer)
     timer = setTimeout(async () => {
-      hits = q.trim() ? await backend.call('search', { text: q, limit: 30 }) : []
+      try {
+        hits = q.trim() ? await backend.call('search', { text: q, limit: 30 }) : []
+        problem = ''
+      } catch (e) {
+        // half-typed syntax (`(budget`) is normal while typing: say what is wrong, keep the last results
+        problem = errorMessage(e)
+      }
       sel = 0
     }, 30)
   }
@@ -62,6 +69,15 @@
       placeholder="Search pages and blocks…"
       aria-label="Search text"
     />
+    {#if problem}
+      <p class="problem" role="alert">{problem}</p>
+    {:else}
+      <p class="syntax" data-testid="search-syntax">
+        <code>a b</code> both · <code>a OR b</code> either · <code>-a</code> without · <code>"a b"</code>
+        phrase ·
+        <code>a*</code> prefix · <code>( )</code> group
+      </p>
+    {/if}
     <ul role="listbox" aria-label="Results">
       {#each hits as h, i (i)}
         <li role="option" aria-selected={i === sel} class:sel={i === sel}>
@@ -78,6 +94,22 @@
 </div>
 
 <style>
+  .syntax,
+  .problem {
+    margin: 0.4em 0 0;
+    font-size: 0.8em;
+  }
+  .syntax {
+    color: var(--muted);
+  }
+  .syntax code {
+    background: var(--chip);
+    padding: 0 0.3em;
+    border-radius: 3px;
+  }
+  .problem {
+    color: var(--danger);
+  }
   .overlay {
     position: fixed;
     inset: 0;

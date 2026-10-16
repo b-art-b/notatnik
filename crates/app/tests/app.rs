@@ -2353,3 +2353,23 @@ fn opened_graphs_are_remembered_and_can_be_forgotten() {
     let s = t.ok("set_settings", json!({"open_last_graph": true}));
     assert_eq!(s["open_last_graph"], true);
 }
+
+/// SR-4: boolean search through the API; a syntax mistake comes back as an explained `invalid` error.
+#[test]
+fn search_syntax_errors_are_explained() {
+    let t = start("basic");
+    let all = t.ok("search", json!({"text": "project", "limit": 20}));
+    assert!(!all.as_array().unwrap().is_empty());
+    let without = t.ok("search", json!({"text": "project -alpha", "limit": 20}));
+    assert!(without.as_array().unwrap().len() < all.as_array().unwrap().len());
+    let either = t.ok(
+        "search",
+        json!({"text": "(project OR nonexistentword) -alpha", "limit": 20}),
+    );
+    assert_eq!(either, without);
+    let e = t
+        .call("search", json!({"text": "(project", "limit": 20}))
+        .unwrap_err();
+    assert_eq!(e.code, "invalid");
+    assert!(e.message.contains("not closed"), "{}", e.message);
+}

@@ -204,6 +204,7 @@ A **graph** is a folder of notes.
 | ID | Requirement | Priority |
 |---|---|---|
 | SR-1 | Full-text search over pages and blocks (SQLite FTS5) with highlights; diacritic-insensitive (Polish characters!). | MVP |
+| SR-4 | The search box takes boolean syntax: words (a space is AND, or `AND`, `&`), `OR` / `\|`, `-word` / `NOT` / `!word`, parentheses, "phrases" and `prefix*`. NOT binds tightest, then AND, then OR; `AND`, `OR`, `NOT` are operators only in capitals. Only the words that must match are highlighted. A mistake (unclosed parenthesis, only negative words, a negation inside an OR) is explained in the dialog while the last results stay. | MVP |
 | SR-2 | Fuzzy page-title search in the command palette and autocomplete. | MVP |
 | SR-3 | Semantic search (embeddings), merged with full-text results (hybrid ranking). | V1 |
 | SR-4 | Search filters reuse the query language (`ns:`, `tag:`, `task:`). | V1 |

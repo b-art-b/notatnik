@@ -522,3 +522,79 @@ fn removing_a_deep_page_collects_all_its_virtual_ancestors() {
         }
     }
 }
+
+/// SR-4: AND, OR, NOT / `-word`, parentheses, phrases and prefixes in the search box.
+#[test]
+fn search_understands_boolean_syntax() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("pages")).unwrap();
+    std::fs::write(
+        dir.path().join("pages/notes.md"),
+        "- budget report draft\n- budget forecast final\n- annual plan report\n- budget and plan for the year\n- unrelated words\n",
+    )
+    .unwrap();
+    let mut idx = Index::open_in_memory(IndexOptions::default()).unwrap();
+    idx.index_all(dir.path()).unwrap();
+    let texts = |q: &str| -> Vec<String> {
+        let mut v: Vec<String> = idx
+            .search(q, 20)
+            .unwrap()
+            .into_iter()
+            .filter(|h| h.kind == SearchKind::Block)
+            .map(|h| h.text)
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(texts("budget report"), ["budget report draft"]);
+    assert_eq!(texts("budget AND report"), ["budget report draft"]);
+    assert_eq!(
+        texts("forecast OR report"),
+        [
+            "annual plan report",
+            "budget forecast final",
+            "budget report draft"
+        ]
+    );
+    assert_eq!(
+        texts("forecast | draft"),
+        ["budget forecast final", "budget report draft"]
+    );
+    assert_eq!(
+        texts("budget -report"),
+        ["budget and plan for the year", "budget forecast final"]
+    );
+    assert_eq!(
+        texts("budget NOT (report OR forecast)"),
+        ["budget and plan for the year"]
+    );
+    assert_eq!(
+        texts("(budget OR annual) report"),
+        ["annual plan report", "budget report draft"]
+    );
+    assert_eq!(texts("\"annual plan\""), ["annual plan report"]);
+    assert_eq!(texts("\"annual report\""), Vec::<String>::new()); // a phrase is words next to each other
+    assert_eq!(texts("repor* -draft"), ["annual plan report"]);
+    // lowercase and/or are ordinary words
+    assert_eq!(texts("budget and plan"), ["budget and plan for the year"]);
+    // highlights cover the words that matched, not the excluded ones
+    let hit = idx
+        .search("budget -report", 5)
+        .unwrap()
+        .into_iter()
+        .find(|h| h.text == "budget forecast final")
+        .unwrap();
+    assert_eq!(
+        &hit.text[hit.highlights[0].0..hit.highlights[0].1],
+        "budget"
+    );
+    // a mistake is explained
+    let err = idx.search("(budget", 5).unwrap_err().to_string();
+    assert!(err.contains("not closed"), "{err}");
+    assert!(
+        idx.search("-report", 5)
+            .unwrap_err()
+            .to_string()
+            .contains("takes results away")
+    );
+}

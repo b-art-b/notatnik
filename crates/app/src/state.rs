@@ -999,9 +999,14 @@ impl AppState {
     /// `search`
     pub fn search(&self, a: SearchArgs) -> ApiResult<Vec<SearchHitView>> {
         self.with_open(|o| {
-            let hits = o
-                .graph
-                .with_index(|i| i.search(&a.text, a.limit as usize))?;
+            // a mistake in the syntax (`(a b`, `-a`) is explained to the user, not an internal error
+            let hits = match o.graph.with_index(|i| i.search(&a.text, a.limit as usize)) {
+                Ok(h) => h,
+                Err(notatnik_index::Error::Query(m)) => {
+                    return Err(ApiError::new("invalid", m));
+                }
+                Err(e) => return Err(e.into()),
+            };
             Ok(hits
                 .into_iter()
                 .map(|h| SearchHitView {

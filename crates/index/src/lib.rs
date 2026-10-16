@@ -9,6 +9,7 @@ mod ingest;
 mod qsql;
 mod read;
 mod schema;
+mod searchq;
 pub mod walk;
 
 pub use error::{Error, Result};

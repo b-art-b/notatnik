@@ -171,11 +171,11 @@ pub(crate) fn fts_match(q: &str) -> Option<String> {
     )
 }
 
-fn highlights(text: &str, q: &str) -> Vec<(usize, usize)> {
+fn highlights(text: &str, words: &[(String, bool)]) -> Vec<(usize, usize)> {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let folded: Vec<char> = chars.iter().map(|(_, c)| fold_char(*c)).collect();
     let mut out: Vec<(usize, usize)> = Vec::new();
-    for (tok, prefix) in match_tokens(q) {
+    for (tok, prefix) in words.iter().map(|(t, p)| (t.as_str(), *p)) {
         let t: Vec<char> = tok.chars().collect();
         if t.is_empty() {
             continue;
@@ -481,9 +481,12 @@ impl Index {
     /// Full-text search (case- and diacritic-insensitive; trailing `*` = prefix). Page-name hits come
     /// first, then block hits, each ordered by bm25 relevance.
     pub fn search(&self, q: &str, limit: usize) -> Result<Vec<SearchHit>> {
-        let Some(m) = fts_match(q) else {
-            return Ok(Vec::new());
+        let parsed = match crate::searchq::parse(q) {
+            Ok(Some(p)) => p,
+            Ok(None) => return Ok(Vec::new()),
+            Err(m) => return Err(crate::Error::Query(m)),
         };
+        let m = parsed.fts.clone();
         let mut st = self.conn.prepare_cached("SELECT rowid, bm25(fts, 10.0, 1.0) FROM fts WHERE fts MATCH ?1 ORDER BY bm25(fts, 10.0, 1.0) LIMIT ?2")?;
         let rows: Vec<(i64, f64)> = st
             .query_map(params![m, (limit * 3).max(30) as i64], |r| {
@@ -500,7 +503,7 @@ impl Index {
                         })?;
                 hits.push(SearchHit {
                     kind: SearchKind::Page,
-                    highlights: highlights(&name, q),
+                    highlights: highlights(&name, &parsed.positive),
                     page: name.clone(),
                     path: None,
                     text: name,
@@ -514,7 +517,7 @@ impl Index {
                 )?;
                 hits.push(SearchHit {
                     kind: SearchKind::Block,
-                    highlights: highlights(&text, q),
+                    highlights: highlights(&text, &parsed.positive),
                     page,
                     path: Some(path),
                     text,

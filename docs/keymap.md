@@ -57,6 +57,8 @@ Pasting several lines while editing a block (not selecting) still makes several 
 
 **New page** is part of the command palette (**Ctrl+K**, which also closes it): type a name (`people/Anna` makes a page in the namespace `people`). A name that matches no page shows **Create page “name”** as the last row (when a page or command matches, that one wins Enter; choose the create row with ↓ and Enter) or press **Ctrl+Enter** at any time to create the page named as typed. The page opens with its first block ready for typing; nothing is written to disk until you type something, so Esc or leaving it empty creates no file. An existing page with that name is listed and opened instead (there is no create row for it). A name the app cannot use (`../x`) is explained in the palette, which stays open.
 
+**Search syntax** (Ctrl+Shift+F, `/`): words are combined with AND (`budget report`, or `budget AND report`, `budget & report`); `OR` or `|` means either (`forecast OR plan`); `-word`, `!word` or `NOT word` leaves out what has the word (`budget -draft`; `-(a OR b)` leaves out a group); `( )` groups (`(budget OR plan) report`); `"annual plan"` is a phrase (the words next to each other); `rep*` is a prefix. NOT binds tightest, then AND, then OR. `AND`, `OR` and `NOT` are operators only in capitals: `this or that` searches for all four words. Diacritics and case are ignored (`zolw` finds `Żółw`). Every search needs a word that must match: `-draft` alone or `a OR -b` is explained in the dialog (try `a -b`). The matching words are marked in the results; excluded words are not. A short reminder of the syntax is shown under the search field.
+
 ## View
 
 | Key | Action |
