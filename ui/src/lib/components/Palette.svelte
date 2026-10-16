@@ -11,7 +11,11 @@
   $effect(() => input?.focus())
 
   const cmds = $derived(commands.filter((c) => c.run && c.title.toLowerCase().includes(q.toLowerCase())))
-  type Item = { label: string; detail: string; run: () => void }
+  type Item = { label: string; detail: string; run: () => void; create?: boolean }
+  // a name that matches no page can be created right here (Logseq's "Create page"); it is the last row, so a page or command that matches wins Enter (Ctrl+Enter always creates)
+  const creatable = $derived(
+    !!q.trim() && !pages.some((p) => p.name.toLowerCase() === q.trim().toLowerCase()),
+  )
   const items = $derived<Item[]>([
     ...pages.map((p) => ({
       label: p.name,
@@ -19,23 +23,25 @@
       run: () => navigate({ kind: 'page', name: p.name, zoom: [] }),
     })),
     ...cmds.map((c) => ({ label: c.title, detail: c.keys, run: () => c.run?.() })),
-    // a name that is no page yet can be created from here (Logseq's "Create page")
-    ...(q.trim() && !pages.some((p) => p.name.toLowerCase() === q.trim().toLowerCase())
-      ? [
-          {
-            label: `Create page “${q.trim()}”`,
-            detail: 'new page',
-            run: () => void openPage(q.trim()),
-          },
-        ]
+    ...(creatable
+      ? [{ label: `Create page “${q.trim()}”`, detail: 'Ctrl+Enter', run: () => {}, create: true }]
       : []),
   ])
   async function type() {
+    problem = ''
     pages = q.trim() ? await backend.call('search_titles', { text: q, limit: 8 }) : []
     sel = 0
   }
+  let problem = $state('')
+  /** Makes the page named as typed (a file only once something is written); the server's reason if it refuses. */
+  async function create() {
+    const err = await openPage(q)
+    if (err) problem = err
+    else app.paletteOpen = false
+  }
   function go(i: Item | undefined) {
     if (!i) return
+    if (i.create) return void create()
     app.paletteOpen = false
     i.run()
   }
@@ -47,6 +53,10 @@
     } else if (e.key === 'ArrowUp') {
       sel = Math.max(sel - 1, 0)
       e.preventDefault()
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      // Ctrl+Enter: a page named as typed, whatever else matches
+      e.preventDefault()
+      if (q.trim()) void create()
     } else if (e.key === 'Enter') go(items[sel])
   }
 </script>
@@ -65,9 +75,10 @@
       bind:this={input}
       bind:value={q}
       oninput={type}
-      placeholder="Type a page or command…"
+      placeholder="Type a page or command… (Ctrl+Enter creates a page)"
       aria-label="Command or page"
     />
+    {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
     <ul role="listbox" aria-label="Matches">
       {#each items as it, i (it.label + i)}
         <li role="option" aria-selected={i === sel}>
@@ -123,6 +134,10 @@
   }
   button.sel {
     background: var(--selection);
+  }
+  .problem {
+    color: var(--danger);
+    margin: 0.4em 0 0;
   }
   .detail {
     color: var(--muted);

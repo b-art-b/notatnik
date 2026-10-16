@@ -46,8 +46,6 @@ export const app = $state({
   rightPanels: [] as string[],
   paletteOpen: false,
   searchOpen: false,
-  /** The "New page" dialog is open. */
-  newPageOpen: false,
   /** A page that was just created from the dialog: its first block opens for typing. */
   draftFor: '',
   /** The left sidebar is shown; remembered on this device. */

@@ -36,7 +36,6 @@
   import RecentPages from './lib/components/RecentPages.svelte'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
-  import NewPageDialog from './lib/components/NewPageDialog.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
   import Settings from './lib/components/Settings.svelte'
@@ -163,13 +162,7 @@
       app.searchOpen = true
       return
     }
-    // Ctrl+Alt+N (by key code: Alt changes the character on some layouts)
-    if (mod && e.altKey && e.code === 'KeyN') {
-      e.preventDefault()
-      app.newPageOpen = !app.newPageOpen
-      return
-    }
-    if (app.paletteOpen || app.searchOpen || app.newPageOpen) return
+    if (app.paletteOpen || app.searchOpen) return
     const inField = (e.target as HTMLElement)?.closest('input, textarea, select, .cm-editor')
     if (editing.mode === 'select' && !inField) {
       const doc = getDoc(editing.docName)
@@ -260,9 +253,6 @@
         <a href="#/pages" class:active={route.kind === 'pages'}
           ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
         >
-        <button class="link" data-testid="new-page" onclick={() => (app.newPageOpen = true)}
-          ><span class="ico ico-new" aria-hidden="true"></span>New page</button
-        >
         <button class="link" onclick={() => (app.searchOpen = true)}
           ><span class="ico ico-search" aria-hidden="true"></span>Search</button
         >
@@ -350,7 +340,6 @@
   </div>
 {/if}
 {#if app.searchOpen}<SearchDialog />{/if}
-{#if app.newPageOpen}<NewPageDialog />{/if}
 {#if app.paletteOpen}<Palette />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
