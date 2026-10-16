@@ -21,16 +21,30 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 
 ## Selected blocks
 
+Select blocks with **Esc** in a block (it selects that block), with the mouse (below) or with **Ctrl+A**. A selected
+block takes its children along: copy, cut, duplicate, delete and the other commands work on the *top* selected blocks
+and everything below them. Every command is one undo step.
+
 | Keys | Action |
 |---|---|
 | ↑ / ↓ | Move the selection |
-| Shift+↑ / Shift+↓ | Extend the selection (siblings only) |
+| Shift+↑ / Shift+↓ | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along) |
+| Ctrl+A | Select all blocks of the page (in a block: first the text of the block, a second Ctrl+A all blocks) |
 | Enter | Edit the selected block |
-| Tab / Shift+Tab | Indent / outdent the selection |
-| Alt+↑ / Alt+↓ | Move the block |
-| Delete / Backspace | Delete (one undo step) |
-| Ctrl+C / Ctrl+X | Copy / cut as Markdown |
+| Tab / Shift+Tab | Indent / outdent the selection (blocks at one level) |
+| Alt+↑ / Alt+↓ | Move the selected blocks together (blocks at one level) |
+| Delete / Backspace | Delete |
+| Ctrl+C | Copy as Markdown (indented outline), without block IDs |
+| Ctrl+X | Cut: copy with the block IDs, then delete. Pasted again the blocks keep their IDs, so references to them survive |
+| Ctrl+V | Paste the copied blocks right below the last selected block, at its level, with their structure; the pasted blocks are then selected |
+| Ctrl+D | Duplicate: a copy of the selected blocks (with children, without IDs) right below the last one; the copies are selected |
+| Ctrl+Shift+C | Copy a `((id))` reference per block, one per line (blocks without an ID get one) |
+| Ctrl+Enter | Cycle the task state of every selected block: all get the state that follows the first one's |
 | Esc | Clear the selection |
+
+**Mouse.** **Shift+click** a block selects everything from the block being edited or selected to the one clicked, as on screen. **Ctrl+click** adds a block (with its children) to the selection or removes it again. **Dragging** from the text of one block over other blocks selects them all; a drag inside one block stays an ordinary text selection. **Right-click** a selected block (with several selected) for a menu: Copy, Cut, Duplicate, Copy block references, Delete.
+
+Pasting several lines while editing a block (not selecting) still makes several blocks, as before.
 
 ## Anywhere
 

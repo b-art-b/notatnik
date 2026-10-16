@@ -175,6 +175,18 @@
           },
         },
         { key: 'Shift-Enter', run: insertNewline },
+        {
+          // Ctrl+A selects the text of the block; pressed again (all of it is selected, or the block is empty) it
+          // selects every block of the page
+          key: 'Mod-a',
+          run: (v) => {
+            const s = v.state.selection.main
+            if (s.from !== 0 || s.to !== v.state.doc.length) return false
+            clearTimeout(idle)
+            void onaction({ kind: 'select-all', text: v.state.doc.toString(), prev: lastSent })
+            return true
+          },
+        },
         { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
         { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
         { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },

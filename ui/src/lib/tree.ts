@@ -204,11 +204,54 @@ export function mergeWithNext(blocks: BlockView[], path: Path, text: string): Pl
   }
 }
 
-/** Deletes sibling blocks (a selection); the cursor goes to the previous visible block. */
+/** Document order of two paths: a block before its children, an earlier sibling before a later one. */
+export function comparePaths(a: Path, b: Path): number {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i]
+  return a.length - b.length
+}
+
+/** The selected blocks that count: those with no selected ancestor (a selected block takes its children along), in
+ * document order. `ids` are runtime ids; ids that are not in the page are ignored. */
+export function selectionRoots(blocks: BlockView[], ids: number[]): VisibleBlock[] {
+  const want = new Set(ids)
+  const out: VisibleBlock[] = []
+  const walk = (list: BlockView[], prefix: Path, inside: boolean) => {
+    list.forEach((b, i) => {
+      const path = [...prefix, i]
+      const here = want.has(b.id)
+      if (here && !inside) out.push({ path, block: b })
+      walk(b.children, path, inside || here)
+    })
+  }
+  walk(blocks, [], false)
+  return out
+}
+
+/** The ids of the blocks from `a` to `b` in the order they appear on screen (either may come first): what Shift+click
+ * and Shift+↑/↓ select. Empty when one of them is not visible. */
+export function rangeIds(blocks: BlockView[], a: number, b: number): number[] {
+  const all = visibleBlocks(blocks)
+  const i = all.findIndex((v) => v.block.id === a)
+  const j = all.findIndex((v) => v.block.id === b)
+  if (i < 0 || j < 0) return []
+  return all.slice(Math.min(i, j), Math.max(i, j) + 1).map((v) => v.block.id)
+}
+
+/** A block and everything below it (what Ctrl+click toggles). */
+export function subtreeIds(block: BlockView): number[] {
+  return [block.id, ...block.children.flatMap(subtreeIds)]
+}
+
+/** True when all of the paths have the same parent (Tab, Shift+Tab and Alt+↑/↓ work on those). */
+export const areSiblings = (paths: Path[]) =>
+  paths.length > 0 && paths.every((p) => samePath(parentOf(p), parentOf(paths[0])))
+
+/** Deletes blocks (a selection, as roots: none below another); the cursor goes to the visible block before them. */
 export function deleteBlocks(blocks: BlockView[], paths: Path[]): Plan | null {
   if (paths.length === 0) return null
-  const sorted = [...paths].sort((a, b) => b[b.length - 1] - a[a.length - 1])
-  const first = [...paths].sort((a, b) => a[a.length - 1] - b[b.length - 1])[0]
+  // the last one in the document first, so the paths of the others stay valid
+  const sorted = [...paths].sort((a, b) => comparePaths(b, a))
+  const first = [...paths].sort(comparePaths)[0]
   const prev = previousVisible(blocks, first)
   return {
     ops: sorted.map((p) => ({ op: 'delete' as const, block: ref(p) })),
@@ -237,18 +280,57 @@ export function outdentMany(blocks: BlockView[], paths: Path[]): Plan | null {
   return { ops: sorted.map((p) => ({ op: 'outdent' as const, block: ref(p) })) }
 }
 
-/** Markdown of blocks with their children (what copy puts on the clipboard). */
-export function toMarkdown(blocks: BlockView[], indentUnit = '  ', depth = 0): string {
+/** Markdown of blocks with their children (what copy puts on the clipboard). `withIds` keeps the `^id` of each
+ * block: a cut keeps them (so references survive the move), a copy leaves them out (the pasted blocks get their
+ * own). */
+export function toMarkdown(blocks: BlockView[], indentUnit = '  ', depth = 0, withIds = true): string {
   const out: string[] = []
   for (const b of blocks) {
     const pad = indentUnit.repeat(depth)
     const lines = b.text.split('\n')
-    const id = b.uid ? ` ^${b.uid}` : ''
+    const id = withIds && b.uid ? ` ^${b.uid}` : ''
     out.push(`${pad}- ${lines[0]}${id}`)
     for (const l of lines.slice(1)) out.push(l === '' ? '' : `${pad}  ${l}`)
-    if (b.children.length) out.push(toMarkdown(b.children, indentUnit, depth + 1))
+    if (b.children.length) out.push(toMarkdown(b.children, indentUnit, depth + 1, withIds))
   }
   return out.join('\n')
+}
+
+/** The blocks as a pasted outline (their text and children, no IDs): what a duplicate inserts. */
+export function toPasted(blocks: BlockView[]): PastedBlock[] {
+  return blocks.map((b) => ({ text: b.text, children: toPasted(b.children) }))
+}
+
+/** The inserts for an outline: `list` goes into `parent` from `start` on, each block followed by its children. */
+export function insertOps(list: PastedBlock[], parent: Path, start: number): BlockOp[] {
+  const ops: BlockOp[] = []
+  list.forEach((p, i) => {
+    ops.push({ op: 'insert', parent, index: start + i, text: p.text })
+    ops.push(...insertOps(p.children, [...parent, start + i], 0))
+  })
+  return ops
+}
+
+/** Where blocks pasted or duplicated "after the selection" go: right below the last selected block, at its level. */
+export function afterRoots(roots: Path[]): { parent: Path; index: number } | null {
+  if (roots.length === 0) return null
+  const last = [...roots].sort(comparePaths)[roots.length - 1]
+  return { parent: parentOf(last), index: last[last.length - 1] + 1 }
+}
+
+/** Alt+↑/↓ for a selection of siblings: each moves one place, together. Null when the first (up) or last (down)
+ * is already at the edge, or the blocks are not siblings. */
+export function moveMany(blocks: BlockView[], paths: Path[], dir: 'up' | 'down'): Plan | null {
+  if (!areSiblings(paths)) return null
+  const sorted = [...paths].sort(comparePaths)
+  const order = dir === 'up' ? sorted : sorted.reverse()
+  const ops: BlockOp[] = []
+  for (const p of order) {
+    const plan = (dir === 'up' ? moveUp : moveDown)(blocks, p)
+    if (!plan) return null
+    ops.push(...plan.ops)
+  }
+  return { ops }
 }
 
 /** Parses pasted Markdown/plain text into a nested outline of block texts. */

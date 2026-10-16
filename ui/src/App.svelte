@@ -24,7 +24,13 @@
     selectionDelete,
     selectionEdit,
     selectionIndent,
-    selectionMarkdown,
+    selectionCopy,
+    selectionCopyRefs,
+    selectionCut,
+    selectionCycleTask,
+    selectionDuplicate,
+    selectionPaste,
+    selectAllBlocks,
     selectionMove,
     selectionOutdent,
     selectionStep,
@@ -34,6 +40,7 @@
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
+  import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
@@ -175,13 +182,15 @@
       else if (k === 'ArrowDown') selectionStep(ctx, 'down', e.shiftKey)
       else if (k === 'Tab') void (e.shiftKey ? selectionOutdent(ctx) : selectionIndent(ctx))
       else if (k === 'Delete' || k === 'Backspace') void selectionDelete(ctx)
-      else if (k === 'Enter') selectionEdit(ctx)
+      else if (k === 'Enter' && !mod) selectionEdit(ctx)
       else if (k === 'Escape') stopEditing()
-      else if (mod && (k === 'c' || k === 'x')) {
-        const md = selectionMarkdown(ctx)
-        void navigator.clipboard.writeText(md)
-        if (k === 'x') void selectionDelete(ctx)
-      } else handled = false
+      else if (mod && e.shiftKey && k.toLowerCase() === 'c') void selectionCopyRefs(ctx)
+      else if (mod && k.toLowerCase() === 'c') void selectionCopy(ctx)
+      else if (mod && k.toLowerCase() === 'x') void selectionCut(ctx)
+      else if (mod && k.toLowerCase() === 'd') void selectionDuplicate(ctx)
+      else if (mod && k.toLowerCase() === 'a') selectAllBlocks(ctx)
+      else if (mod && k === 'Enter') void selectionCycleTask(ctx)
+      else handled = false
       if (handled) e.preventDefault()
       if (handled) return
     }
@@ -211,9 +220,28 @@
     el?.classList.add('flash')
     setTimeout(() => el?.classList.remove('flash'), 1500)
   }
+  // Ctrl+V with blocks selected (not while typing in a field): the copied blocks go below the selection
+  function pasteOnSelection(e: ClipboardEvent) {
+    const t = e.target
+    if (
+      editing.mode !== 'select' ||
+      (t instanceof Element && t.closest('input, textarea, select, .cm-editor'))
+    )
+      return
+    const text = e.clipboardData?.getData('text/plain') ?? ''
+    if (!text.trim()) return
+    e.preventDefault()
+    void selectionPaste({ doc: getDoc(editing.docName), viewKey: editing.viewKey }, text)
+  }
   onMount(() => {
     window.addEventListener('notatnik-flash', flash)
-    return () => window.removeEventListener('notatnik-flash', flash)
+    window.addEventListener('paste', pasteOnSelection)
+    const removeDrag = installDragSelect()
+    return () => {
+      window.removeEventListener('notatnik-flash', flash)
+      window.removeEventListener('paste', pasteOnSelection)
+      removeDrag()
+    }
   })
 </script>
 

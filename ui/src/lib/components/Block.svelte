@@ -3,7 +3,7 @@
   import TaskChain from './TaskChain.svelte'
   import BlockMenu from './BlockMenu.svelte'
   import type { BlockView } from '../api'
-  import { editing, editingPath, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
+  import { editing, editingPath, startEditing, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { dnd, endDrag } from '../stores/dnd.svelte'
   import { dropMove, samePath, toMarkdown, type DropZone } from '../tree'
@@ -20,6 +20,13 @@
     type Ctx,
     copyText,
     ensureBlockUid,
+    selectRangeTo,
+    toggleInSelection,
+    selectionCopy,
+    selectionCut,
+    selectionDelete,
+    selectionDuplicate,
+    selectionCopyRefs,
   } from '../commands/exec'
   import { app } from '../stores/app.svelte'
   import { dueIndicator, isOverdue, nextTaskState, progress } from '../tasks'
@@ -158,7 +165,21 @@
     const ok = await copyText(text)
     toast(ok ? `Copied ${text}` : 'Could not copy', ok ? 'info' : 'error')
   }
+  // with several blocks selected, the menu is for the selection
+  const multi = $derived(isSelected && editing.selection.length > 1)
+  function selectionItems() {
+    if (!ctx) return []
+    const c = ctx
+    return [
+      { label: 'Copy', hint: 'Ctrl+C', run: () => void selectionCopy(c) },
+      { label: 'Cut', hint: 'Ctrl+X', run: () => void selectionCut(c) },
+      { label: 'Duplicate', hint: 'Ctrl+D', run: () => void selectionDuplicate(c) },
+      { label: 'Copy block references', hint: 'Ctrl+Shift+C', run: () => void selectionCopyRefs(c) },
+      { label: 'Delete', hint: 'Del', run: () => void selectionDelete(c) },
+    ]
+  }
   function menuItems() {
+    if (multi) return selectionItems()
     const items: { label: string; hint?: string; run: () => void }[] = [
       {
         label: 'Copy block reference',
@@ -203,10 +224,9 @@
     if (readonly) return
     if ((e.target as HTMLElement).closest('a, button, input, .logbook')) return
     e.stopPropagation()
-    if (e.shiftKey) {
-      startSelecting(viewKey, docName, [block.id])
-      return
-    }
+    // Shift+click selects from the block being edited or selected to this one; Ctrl+click adds or removes this one
+    if (e.shiftKey && ctx) return selectRangeTo(ctx, block.id)
+    if ((e.ctrlKey || e.metaKey) && ctx) return toggleInSelection(ctx, block.id)
     startEditing(viewKey, docName, block.id, cursorFromClick(e))
   }
 
@@ -315,6 +335,8 @@
   class:on-path={onPath}
   class:dragging
   data-block-id={block.id}
+  data-doc={readonly ? undefined : docName}
+  data-view={viewKey}
   role="treeitem"
   aria-selected={isSelected}
   aria-expanded={hasChildren ? !block.collapsed : undefined}
@@ -355,12 +377,16 @@
       <BlockMenu
         x={menu.x}
         y={menu.y}
-        title={block.uid ? `^${block.uid}` : 'no ID yet'}
+        title={multi
+          ? `${editing.selection.length} blocks selected`
+          : block.uid
+            ? `^${block.uid}`
+            : 'no ID yet'}
         items={menuItems()}
         onclose={() => (menu = null)}
       />
     {/if}
-    <div class="body" role="presentation" onclick={edit}>
+    <div class="body" role="presentation" onclick={edit} oncontextmenu={(e) => multi && openMenu(e)}>
       {#if isEditing && ctx && editing.conflict && editing.conflict.blockId === block.id}
         <div class="conflict" role="alert" data-testid="block-conflict">
           <strong>This block changed on disk while you were editing it.</strong>

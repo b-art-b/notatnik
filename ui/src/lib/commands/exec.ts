@@ -5,22 +5,30 @@ import { undoRedo, type PageDoc } from '../stores/pages.svelte'
 import { app, navigate, toast, errorMessage } from '../stores/app.svelte'
 import { doneAt, nextTaskState } from '../tasks'
 import {
+  afterRoots,
+  areSiblings,
   deleteBlocks,
   findById,
   getBlock,
   indent,
   indentMany,
+  insertOps,
   mergeWithNext,
   mergeWithPrevious,
   moveDown,
+  moveMany,
   moveUp,
   nextVisible,
   outdent,
   outdentMany,
   parsePasted,
   previousVisible,
+  rangeIds,
+  selectionRoots,
   split,
+  subtreeIds,
   toMarkdown,
+  toPasted,
   visibleBlocks,
   type PastedBlock,
   type Path,
@@ -252,6 +260,7 @@ export type EditorAction =
   | { kind: 'cycle-task'; text: string; prev: string }
   | { kind: 'template'; name: string; text: string; prev: string }
   | { kind: 'followup'; text: string; prev: string }
+  | { kind: 'select-all'; text: string; prev: string }
 
 /** Handles an action raised by the editor. Returns true when the key press was consumed. */
 export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): Promise<boolean> {
@@ -316,6 +325,12 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
       await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state), a.text)
       return true
     }
+    case 'select-all': {
+      // the second Ctrl+A in a block: leave the editor (its text is saved) and select every block of the page
+      await commitText(ctx, blockId, a.text, a.prev)
+      selectAllBlocks(ctx)
+      return true
+    }
     case 'followup': {
       await followUp(ctx, blockId, a.text)
       return true
@@ -347,31 +362,64 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
 }
 
 // ---- selection commands (blocks selected, not edited) --------------------------------------
+//
+// A selection is a set of blocks of one page (ids). The blocks that count are its *roots*: those with no selected
+// ancestor, because a selected block takes its children along. Every command builds its ops when the request reaches
+// the front of the page's queue (`applyWith`), from the page as it is then.
 
-export function selectionMarkdown(ctx: Ctx): string {
+type View = NonNullable<PageDoc['view']>
+
+/** The roots of the selection in `view`, in document order. */
+const rootsIn = (view: View, ids: number[]) => selectionRoots(view.blocks, ids)
+
+export function selectionMarkdown(ctx: Ctx, withIds = false): string {
   const view = ctx.doc.view
   if (!view) return ''
-  const blocks = editing.selection.map((id) => findById(view.blocks, id)?.block).filter((b) => !!b)
-  return toMarkdown(blocks)
+  return toMarkdown(
+    rootsIn(view, editing.selection).map((r) => r.block),
+    '  ',
+    0,
+    withIds,
+  )
 }
 
-/** Paths of the blocks with these runtime ids in `view`. */
-function pathsOf(view: NonNullable<PageDoc['view']>, ids: number[]): Path[] {
-  return ids.map((id) => findById(view.blocks, id)?.path).filter((p): p is Path => !!p)
+const plural = (n: number) => `${n} block${n === 1 ? '' : 's'}`
+
+/** Ctrl+C: the selected blocks and their children as Markdown, without block IDs (the pasted copies get their own). */
+export async function selectionCopy(ctx: Ctx): Promise<void> {
+  const n = ctx.doc.view ? rootsIn(ctx.doc.view, editing.selection).length : 0
+  if (n === 0) return
+  const ok = await copyText(selectionMarkdown(ctx, false))
+  toast(ok ? `Copied ${plural(n)}` : 'Could not copy', ok ? 'info' : 'error')
 }
 
-/** Runs a command on the selected blocks. The ops are built when the request reaches the front of the page's queue,
- * from the page as it is then: a key pressed right after another command (Tab, then Delete) must not use a page
- * that the first command has not finished changing yet. Returns whether anything was sent. */
+/** Ctrl+X: copy with the block IDs, then delete. Pasted back, the blocks keep their IDs, so references to them
+ * survive the move. */
+export async function selectionCut(ctx: Ctx): Promise<void> {
+  const view = ctx.doc.view
+  const n = view ? rootsIn(view, editing.selection).length : 0
+  if (n === 0) return
+  const ok = await copyText(selectionMarkdown(ctx, true))
+  if (!ok) return void toast('Could not copy: nothing was cut', 'error')
+  await selectionDelete(ctx)
+  toast(`Cut ${plural(n)}`)
+}
+
+/** Paths of the roots of `ids` in `view`. */
+const rootPaths = (view: View, ids: number[]): Path[] => rootsIn(view, ids).map((r) => r.path)
+
+/** Runs a command on the selected blocks (their roots). The ops are built when the request reaches the front of the
+ * page's queue: a key pressed right after another command (Tab, then Delete) must not use a page that the first
+ * command has not finished changing yet. Returns whether anything was sent. */
 async function runOnSelection(
   ctx: Ctx,
-  f: (blocks: NonNullable<PageDoc['view']>['blocks'], paths: Path[]) => Plan | null,
+  f: (blocks: View['blocks'], paths: Path[]) => Plan | null,
 ): Promise<boolean> {
   const ids = [...editing.selection]
   let sent = false
   const after = await ctx.doc.applyWith((view) => {
     if (!view) return null
-    const plan = f(view.blocks, pathsOf(view, ids))
+    const plan = f(view.blocks, rootPaths(view, ids))
     sent = !!plan && plan.ops.length > 0
     return plan ? plan.ops : null
   })
@@ -387,66 +435,191 @@ async function runOnSelection(
   return sent
 }
 
-export const selectionIndent = (ctx: Ctx) => runOnSelection(ctx, indentMany)
-export const selectionOutdent = (ctx: Ctx) => runOnSelection(ctx, outdentMany)
+// Tab and Shift+Tab work on blocks at one level (siblings); a mixed selection is left alone
+export const selectionIndent = (ctx: Ctx) =>
+  runOnSelection(ctx, (b, paths) => (areSiblings(paths) ? indentMany(b, paths) : null))
+export const selectionOutdent = (ctx: Ctx) =>
+  runOnSelection(ctx, (b, paths) => (areSiblings(paths) ? outdentMany(b, paths) : null))
 
 export async function selectionDelete(ctx: Ctx) {
   const ids = [...editing.selection]
   let sent = false
   const after = await ctx.doc.applyWith((view) => {
     if (!view) return null
-    const plan = deleteBlocks(view.blocks, pathsOf(view, ids))
+    const plan = deleteBlocks(view.blocks, rootPaths(view, ids))
     sent = !!plan
     return plan ? plan.ops : null
   })
   if (sent && after) stopEditing()
 }
 
+/** Alt+↑/↓: the selected siblings move one place together. */
 export async function selectionMove(ctx: Ctx, dir: 'up' | 'down') {
-  if (editing.selection.length !== 1) return
-  await runOnSelection(ctx, (blocks, paths) =>
-    paths.length === 1 ? (dir === 'up' ? moveUp : moveDown)(blocks, paths[0]) : null,
-  )
+  await runOnSelection(ctx, (blocks, paths) => moveMany(blocks, paths, dir))
 }
 
-/** Shift+↑/↓: extend the selection among visible siblings; plain ↑/↓: move it. */
+/** Selects `ids` (blocks of this page) and puts the cursor of the selection on `focus`. */
+function select(ctx: Ctx, ids: number[], anchor: number, focus: number) {
+  startSelecting(ctx.viewKey, ctx.doc.name, ids, anchor)
+  editing.blockId = focus
+}
+
+/** ↑/↓ move the selection to the neighbouring block; Shift+↑/↓ extend it from where it started, over every block in
+ * between as they appear on screen (children included). */
 export function selectionStep(ctx: Ctx, dir: 'up' | 'down', extend: boolean) {
   const view = ctx.doc.view
   if (!view || editing.selection.length === 0) return
   const all = visibleBlocks(view.blocks)
   const cur = all.findIndex((v) => v.block.id === editing.blockId)
   if (cur < 0) return
+  if (extend) {
+    const j = cur + (dir === 'down' ? 1 : -1)
+    if (j < 0 || j >= all.length) return
+    const target = all[j].block.id
+    select(ctx, rangeIds(view.blocks, editing.anchorId, target), editing.anchorId, target)
+    return
+  }
   let j = cur + (dir === 'down' ? 1 : -1)
   const curPath = all[cur].path
   // stay among siblings: skip descendants of other blocks, stop at a different parent
   while (j >= 0 && j < all.length) {
     const p = all[j].path
     if (p.length === curPath.length && p.slice(0, -1).join('.') === curPath.slice(0, -1).join('.')) break
-    if (!extend && p.length < curPath.length) break
+    if (p.length < curPath.length) break
     j += dir === 'down' ? 1 : -1
   }
   if (j < 0 || j >= all.length) return
-  const target = all[j].block.id
-  if (!extend) {
-    startSelecting(ctx.viewKey, ctx.doc.name, [target])
-    return
+  startSelecting(ctx.viewKey, ctx.doc.name, [all[j].block.id])
+}
+
+/** The block a selection with the mouse (or Shift+click) starts from: the selection's anchor, or the block being edited. */
+function anchorOf(ctx: Ctx): number {
+  if (editing.docName === ctx.doc.name) {
+    if (editing.mode === 'select' && editing.anchorId) return editing.anchorId
+    if (editing.mode === 'edit') return editing.blockId
   }
-  const anchor = all.findIndex((v) => v.block.id === editing.anchorId)
-  const lo = Math.min(anchor, j)
-  const hi = Math.max(anchor, j)
-  const sibs = all
-    .slice(lo, hi + 1)
-    .filter(
-      (v) =>
-        v.path.length === curPath.length && v.path.slice(0, -1).join('.') === curPath.slice(0, -1).join('.'),
-    )
-  startSelecting(
-    ctx.viewKey,
-    ctx.doc.name,
-    sibs.map((v) => v.block.id),
-    editing.anchorId,
+  return editing.lastDoc === ctx.doc.name ? editing.lastBlockId : 0
+}
+
+/** Shift+click: select from the anchor to the clicked block (all blocks between, as on screen). */
+export function selectRangeTo(ctx: Ctx, blockId: number) {
+  const view = ctx.doc.view
+  if (!view) return
+  const anchor = anchorOf(ctx) || blockId
+  select(ctx, rangeIds(view.blocks, anchor, blockId), anchor, blockId)
+}
+
+/** Ctrl+click: adds the block (with its children) to the selection, or takes it out again. */
+export function toggleInSelection(ctx: Ctx, blockId: number) {
+  const view = ctx.doc.view
+  const hit = view ? findById(view.blocks, blockId) : undefined
+  if (!view || !hit) return
+  const mine = new Set(subtreeIds(hit.block))
+  let ids: number[] = []
+  if (editing.docName === ctx.doc.name && editing.mode === 'select') ids = [...editing.selection]
+  else if (editing.docName === ctx.doc.name && editing.mode === 'edit') {
+    const open = findById(view.blocks, editing.blockId)
+    if (open) ids = subtreeIds(open.block)
+  }
+  const had = ids.includes(blockId)
+  ids = had ? ids.filter((id) => !mine.has(id)) : [...new Set([...ids, ...mine])]
+  if (ids.length === 0) return stopEditing()
+  select(ctx, ids, blockId, blockId)
+}
+
+/** Ctrl+A on a selection, or Ctrl+A a second time in a block: every block of the page. */
+export function selectAllBlocks(ctx: Ctx) {
+  const view = ctx.doc.view
+  if (!view) return
+  const all = visibleBlocks(view.blocks)
+  if (all.length === 0) return
+  select(
+    ctx,
+    all.map((v) => v.block.id),
+    all[0].block.id,
+    all[all.length - 1].block.id,
   )
-  editing.blockId = target
+}
+
+/** Selects the blocks at `parent`/`from`.. (`count` of them) once they exist: the copies a duplicate or a paste made. */
+function selectNew(ctx: Ctx, view: View | null, parent: Path, from: number, count: number) {
+  const ids: number[] = []
+  for (let i = 0; i < count; i++) {
+    const b = view ? getBlock(view.blocks, [...parent, from + i]) : undefined
+    if (b) ids.push(b.id)
+  }
+  if (ids.length) select(ctx, ids, ids[0], ids[ids.length - 1])
+}
+
+/** Ctrl+D: a copy of the selected blocks (with their children) right below the last one. */
+export async function selectionDuplicate(ctx: Ctx): Promise<void> {
+  const ids = [...editing.selection]
+  let where: { parent: Path; index: number } | null = null
+  let count = 0
+  const after = await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    const roots = rootsIn(view, ids)
+    where = afterRoots(roots.map((r) => r.path))
+    if (!where) return null
+    count = roots.length
+    return insertOps(
+      toPasted(roots.map((r) => r.block)),
+      (where as { parent: Path; index: number }).parent,
+      (where as { parent: Path; index: number }).index,
+    )
+  })
+  const w = where as { parent: Path; index: number } | null
+  if (w && after) selectNew(ctx, after, w.parent, w.index, count)
+}
+
+/** Ctrl+V on a selection: the copied blocks go right below the last selected block, at its level, with their
+ * structure. Returns whether anything was pasted. */
+export async function selectionPaste(ctx: Ctx, text: string): Promise<boolean> {
+  const pasted = parsePasted(text)
+  if (pasted.length === 0) return false
+  const ids = [...editing.selection]
+  let where: { parent: Path; index: number } | null = null
+  const after = await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    where = afterRoots(rootPaths(view, ids))
+    if (!where) return null
+    const w = where as { parent: Path; index: number }
+    return insertOps(pasted, w.parent, w.index)
+  })
+  const w = where as { parent: Path; index: number } | null
+  if (w && after) selectNew(ctx, after, w.parent, w.index, pasted.length)
+  return !!w
+}
+
+/** Ctrl+Enter on a selection: every selected block gets the state that follows the first one's (so a mixed
+ * selection ends up the same). */
+export async function selectionCycleTask(ctx: Ctx): Promise<void> {
+  const ids = [...editing.selection]
+  await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    const hits = ids.map((id) => findById(view.blocks, id)).filter((h) => !!h)
+    if (hits.length === 0) return null
+    const state = nextTaskState(hits[0].block.task?.state)
+    return hits.map((h) => taskStateOp(h.path, state))
+  })
+}
+
+/** Ctrl+Shift+C: a `((id))` reference per selected block (a block without an ID gets one), one per line. */
+export async function selectionCopyRefs(ctx: Ctx): Promise<void> {
+  const view = ctx.doc.view
+  if (!view) return
+  const roots = rootsIn(view, editing.selection).map((r) => r.block.id)
+  const refs: string[] = []
+  for (const id of roots) {
+    const uid = await ensureBlockUid(ctx.doc, id)
+    if (uid) refs.push(`((${uid}))`)
+  }
+  if (refs.length === 0) return
+  const ok = await copyText(refs.join('\n'))
+  toast(
+    ok ? `Copied ${refs.length} reference${refs.length === 1 ? '' : 's'}` : 'Could not copy',
+    ok ? 'info' : 'error',
+  )
 }
 
 export function selectionEdit(ctx: Ctx) {
