@@ -36,6 +36,7 @@ cargo check -p notatnik-core --target wasm32-unknown-unknown   # core must stay 
 cargo run -p notatnik-cli -- <args>
 scripts/check.sh            # everything, including UI lint/check/unit/browser tests
 scripts/check.sh --full     # plus perf targets, benchmarks, UI performance
+scripts/check-webkit.sh     # the browser tests listed in ui/tests/webkit.list in WebKit, the engine of the desktop app
 scripts/gen-bindings.sh     # after changing Rust API types
 cargo tauri build --bundles deb
 ```

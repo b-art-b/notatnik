@@ -1,0 +1,4 @@
+# test files that must pass in WebKit too (scripts/check-webkit.sh)
+moves
+editing
+selection

@@ -20,6 +20,9 @@ export const editing = $state({
    * the editor, which takes its focus away; that blur must not end the editing (see `Block.svelte`). */
   planBlock: 0,
   planAt: 0,
+  /** Bumped to make the open editor take the focus (and scroll into view): after a move the browser may have taken
+   * the focus away without any event (WebKit does), so nothing could notice it. */
+  focusNonce: 0,
   /** Bumped to force the editor to remount (after the block's text changed behind it). */
   nonce: 0,
   /** Set when a block changed on disk while it was being edited (P2.27). */

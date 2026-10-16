@@ -130,3 +130,12 @@ must never regress:
    (`crates/graph/tests/graph.rs`: `a_rename_that_died_half_way...`, `a_delete_that_died_half_way...`).
 8. **Page history never loses a replaced text:** restoring a version, or a write from outside, leaves the text it replaced
    as a version (`a_restore_right_after_an_edit_keeps_the_text_it_replaces`, `ui/tests/history.spec.ts`).
+
+## WebKit (the desktop app's engine)
+
+The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details
+that matter for editing: it takes the focus away from a moved row without raising an event, so Alt+↑/↓ used to stop
+after one move there while Chrome was fine. `scripts/check-webkit.sh` runs the files in `ui/tests/webkit.list` (editing,
+selection, moves) in Playwright's WebKit build (`ui/playwright.webkit.config.ts`; the first run downloads it, about
+100 MB). Run it after changes to the editor, focus handling or keys. The whole suite also runs there
+(`npx playwright test -c playwright.webkit.config.ts`): all but one test in `navigation.spec.ts` (clipboard) pass.

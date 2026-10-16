@@ -2,6 +2,7 @@
   // One CodeMirror 6 instance, mounted on the focused block only (ED-2). It edits the block's raw
   // Markdown. Svelte idiom: `onMount` creates the view, and the returned function destroys it.
   import { onMount, untrack } from 'svelte'
+  import { editing } from '../stores/editing.svelte'
   import { EditorState, Prec, type Extension } from '@codemirror/state'
   import {
     Decoration,
@@ -388,10 +389,18 @@
   })
 
   /** Used by the parent to read the live text (e.g. on route changes). */
-  /** Gives the editor the focus back (a move re-parents its DOM, which takes the focus away). */
+  /** Gives the editor the focus back (a move re-parents its DOM, which takes the focus away) and keeps the cursor in
+   * view. */
   export function focus(): void {
-    view?.focus()
+    if (!view) return
+    view.focus()
+    view.dispatch({ effects: EditorView.scrollIntoView(view.state.selection.main.head, { y: 'nearest' }) })
   }
+  // a command asks for the focus (see `editing.focusNonce`)
+  $effect(() => {
+    void editing.focusNonce
+    untrack(() => focus())
+  })
   export function getText(): string {
     return currentText()
   }

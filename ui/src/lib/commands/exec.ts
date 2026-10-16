@@ -1,4 +1,5 @@
 // Runs block commands: turns a Plan from tree.ts into a request and moves the cursor afterwards.
+import { tick } from 'svelte'
 import { backend, type BlockOp } from '../api'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
 import { undoRedo, type PageDoc } from '../stores/pages.svelte'
@@ -68,6 +69,8 @@ export async function runPlan(ctx: Ctx, plan: Plan): Promise<void> {
       startEditing(ctx.viewKey, ctx.doc.name, b.id, plan.focus.cursor)
       editing.planBlock = b.id
       editing.planAt = Date.now()
+      await tick()
+      editing.focusNonce++
     }
   }
 }
@@ -293,9 +296,13 @@ async function restructure(
   if (!moved) await commitText(ctx, blockId, typed, prev)
   editing.planAt = Date.now()
   const now = after ? findById(after.blocks, blockId) : undefined
-  // the editor goes on in the same block, at the end of its text as after any command
-  if (moved && now && editing.mode === 'edit' && editing.blockId === blockId)
+  // the editor goes on in the same block, at the end of its text as after any command; once the moved row is on
+  // screen it takes the focus, whatever the browser did with it while the row was moved (no event tells)
+  if (moved && now && editing.mode === 'edit' && editing.blockId === blockId) {
     startEditing(ctx.viewKey, ctx.doc.name, blockId, 'end')
+    await tick()
+    editing.focusNonce++
+  }
 }
 
 export type EditorAction =
