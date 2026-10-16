@@ -37,9 +37,12 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 | Keys | Action |
 |---|---|
 | Ctrl+K | Command palette |
+| Ctrl+Alt+N | New page: type a name, Enter opens it ready for writing |
 | Ctrl+Shift+F or `/` | Search |
 | Ctrl+Z / Ctrl+Shift+Z | Global undo / redo (when not typing) |
 | Shift+click a link | Open the page in the right sidebar |
+
+**New page** (Ctrl+Alt+N, *New page* in the sidebar, or the command palette): type a name (`people/Anna` makes a page in the namespace `people`) and press Enter. The page opens with its first block ready for typing; nothing is written to disk until you type something, so Esc or leaving it empty creates no file. An existing page with that name is shown below the field and opened instead of made again (↑/↓ choose a suggestion). A name the app cannot use (`../x`, empty) is explained in the dialog. In the command palette (Ctrl+K) a name that matches no page also offers **Create page “name”**.
 
 ## View
 

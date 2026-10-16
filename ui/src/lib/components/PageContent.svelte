@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { setContext } from 'svelte'
+  import { setContext, untrack } from 'svelte'
   import { backend, CommandError } from '../api'
-  import { toast, errorMessage } from '../stores/app.svelte'
+  import { app, toast, errorMessage } from '../stores/app.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
   import { startEditing, stopEditing } from '../stores/editing.svelte'
@@ -145,6 +145,19 @@
     }
   })
   let draft = $state(false)
+  // a page just made from "New page": its first block opens for typing (only once the page is loaded and empty)
+  $effect(() => {
+    const want = app.draftFor
+    const v = view
+    if (!want || !v || v.name.toLowerCase() !== want.toLowerCase()) return
+    untrack(() => {
+      app.draftFor = ''
+      if (v.blocks.length === 0 && !v.preamble) {
+        draft = true
+        stopEditing()
+      }
+    })
+  })
   let renaming = $state(false)
   let deleting = $state(false)
   let history = $state(false)

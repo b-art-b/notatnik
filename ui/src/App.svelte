@@ -36,6 +36,7 @@
   import RecentPages from './lib/components/RecentPages.svelte'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
+  import NewPageDialog from './lib/components/NewPageDialog.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
   import Settings from './lib/components/Settings.svelte'
@@ -117,6 +118,9 @@
   // Dragging the sidebar's edge. Pointer capture keeps the events coming while the pointer is over other elements.
   let resizing = $state(false)
   function startResize(e: PointerEvent) {
+    // no text selection and no native drag from under the pointer: either one cancels the pointer (`pointercancel`)
+    // and the resize stops after its first move
+    e.preventDefault()
     const handle = e.currentTarget as HTMLElement
     handle.setPointerCapture(e.pointerId)
     resizing = true
@@ -159,7 +163,13 @@
       app.searchOpen = true
       return
     }
-    if (app.paletteOpen || app.searchOpen) return
+    // Ctrl+Alt+N (by key code: Alt changes the character on some layouts)
+    if (mod && e.altKey && e.code === 'KeyN') {
+      e.preventDefault()
+      app.newPageOpen = !app.newPageOpen
+      return
+    }
+    if (app.paletteOpen || app.searchOpen || app.newPageOpen) return
     const inField = (e.target as HTMLElement)?.closest('input, textarea, select, .cm-editor')
     if (editing.mode === 'select' && !inField) {
       const doc = getDoc(editing.docName)
@@ -250,6 +260,9 @@
         <a href="#/pages" class:active={route.kind === 'pages'}
           ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
         >
+        <button class="link" data-testid="new-page" onclick={() => (app.newPageOpen = true)}
+          ><span class="ico ico-new" aria-hidden="true"></span>New page</button
+        >
         <button class="link" onclick={() => (app.searchOpen = true)}
           ><span class="ico ico-search" aria-hidden="true"></span>Search</button
         >
@@ -337,6 +350,7 @@
   </div>
 {/if}
 {#if app.searchOpen}<SearchDialog />{/if}
+{#if app.newPageOpen}<NewPageDialog />{/if}
 {#if app.paletteOpen}<Palette />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>

@@ -2,6 +2,7 @@
   import { backend, type TitleHit } from '../api'
   import { app, navigate } from '../stores/app.svelte'
   import { commands } from '../commands/table'
+  import { openPage } from '../newPage'
 
   let q = $state('')
   let pages = $state<TitleHit[]>([])
@@ -18,6 +19,16 @@
       run: () => navigate({ kind: 'page', name: p.name, zoom: [] }),
     })),
     ...cmds.map((c) => ({ label: c.title, detail: c.keys, run: () => c.run?.() })),
+    // a name that is no page yet can be created from here (Logseq's "Create page")
+    ...(q.trim() && !pages.some((p) => p.name.toLowerCase() === q.trim().toLowerCase())
+      ? [
+          {
+            label: `Create page “${q.trim()}”`,
+            detail: 'new page',
+            run: () => void openPage(q.trim()),
+          },
+        ]
+      : []),
   ])
   async function type() {
     pages = q.trim() ? await backend.call('search_titles', { text: q, limit: 8 }) : []
