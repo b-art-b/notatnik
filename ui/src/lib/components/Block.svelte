@@ -215,6 +215,8 @@
     return items
   }
 
+  let editor = $state<Editor>() // the open editor of this block, to give it its focus back after a move
+
   async function applyChip(key: string, value: string | null) {
     chipEdit = null
     if (doc) await setProperty(doc, block.path, key, value)
@@ -224,6 +226,16 @@
     if (readonly) return
     if ((e.target as HTMLElement).closest('a, button, input, .logbook')) return
     e.stopPropagation()
+    // text marked with the mouse (to copy it) stays marked: the click that ends the drag must not open the editor,
+    // which would replace the text and lose the selection
+    const marked = window.getSelection()
+    if (
+      marked &&
+      !marked.isCollapsed &&
+      marked.toString().trim() !== '' &&
+      (e.currentTarget as Node).contains(marked.anchorNode)
+    )
+      return
     // Shift+click selects from the block being edited or selected to this one; Ctrl+click adds or removes this one
     if (e.shiftKey && ctx) return selectRangeTo(ctx, block.id)
     if ((e.ctrlKey || e.metaKey) && ctx) return toggleInSelection(ctx, block.id)
@@ -407,6 +419,7 @@
       {#if isEditing && ctx}
         {#key editing.nonce}
           <Editor
+            bind:this={editor}
             text={block.text}
             cursor={editing.cursor}
             pageName={docName}
@@ -421,7 +434,7 @@
                 return
               // the editor lost its focus because a move re-parented it a moment ago: bring it back
               if (editing.planBlock === block.id && Date.now() - editing.planAt < 400) {
-                editing.nonce++
+                editor?.focus()
                 return
               }
               await commitText(ctx, block.id, t, prev, { onlyIfActive: true })

@@ -10,7 +10,7 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 | Enter | Split the block at the cursor (new sibling; first child if the block has expanded children). Newline inside a code fence or below the first line |
 | Shift+Enter | Newline inside the block |
 | Tab / Shift+Tab, or Alt+→ / Alt+← | Indent / outdent (demote / promote) the block with its children |
-| Alt+↑ / Alt+↓ | Move the block (with its children) up / down among its siblings, as org-mode's M-↑ / M-↓ |
+| Alt+↑ / Alt+↓ | Move the block (with its children) up / down among its siblings, as org-mode's M-↑ / M-↓. Every press counts, also with the key held down; the cursor stays in the block |
 | ↑ on the first line / ↓ on the last line | Move the editor to the previous / next visible block |
 | Backspace at the start | Merge into the previous block (an empty block is deleted; a block with children is not merged) |
 | Delete at the end | Pull the next block into this one |
@@ -42,7 +42,7 @@ and everything below them. Every command is one undo step.
 | Ctrl+Enter | Cycle the task state of every selected block: all get the state that follows the first one's |
 | Esc | Clear the selection |
 
-**Mouse.** **Shift+click** a block selects everything from the block being edited or selected to the one clicked, as on screen. **Ctrl+click** adds a block (with its children) to the selection or removes it again. **Dragging** from the text of one block over other blocks selects them all; a drag inside one block stays an ordinary text selection. **Right-click** a selected block (with several selected) for a menu: Copy, Cut, Duplicate, Copy block references, Delete.
+**Mouse.** Marking text inside one block with the mouse (to copy it with Ctrl+C) keeps it marked: releasing the button does not open the editor; a plain click edits. **Shift+click** a block selects everything from the block being edited or selected to the one clicked, as on screen. **Ctrl+click** adds a block (with its children) to the selection or removes it again. **Dragging** from the text of one block over other blocks selects them all; a drag inside one block stays an ordinary text selection. **Right-click** a selected block (with several selected) for a menu: Copy, Cut, Duplicate, Copy block references, Delete.
 
 Pasting several lines while editing a block (not selecting) still makes several blocks, as before.
 

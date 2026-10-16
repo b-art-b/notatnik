@@ -131,3 +131,22 @@ test('typing in a new row and pressing Enter at once does not duplicate the row'
     .poll(() => backend.read('pages/t.md'))
     .toBe('- first\n' + words.map((w) => `- ${w}\n`).join(''))
 })
+
+// Alt+↓ / Alt+↑ held down (key repeat): every press moves the block one row, the editor stays on it
+test('a block keeps moving while Alt+arrow is pressed again and again', async ({ backend, page }) => {
+  backend.write('pages/t.md', '- a\n- DONE b\n  done:: 2026-10-03T10:00\n- c\n- d\n- e\n- f\n')
+  await backend.open('/page/t')
+  await page.waitForTimeout(600)
+  await page.getByRole('tree', { name: 'Blocks' }).getByText('b', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Alt+ArrowDown') // no pause between the presses
+  await expect
+    .poll(() => backend.read('pages/t.md'))
+    .toBe('- a\n- c\n- d\n- e\n- f\n- DONE b\n  done:: 2026-10-03T10:00\n')
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Alt+ArrowUp')
+  await expect
+    .poll(() => backend.read('pages/t.md'))
+    .toBe('- DONE b\n  done:: 2026-10-03T10:00\n- a\n- c\n- d\n- e\n- f\n')
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+})

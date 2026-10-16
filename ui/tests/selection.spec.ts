@@ -247,3 +247,25 @@ test('Alt+arrows move a block like org-mode: up/down among siblings, left/right 
   await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- b\n  - b1\n- c\n')
   await expect(page).toHaveURL(/#\/page\/t/)
 })
+
+test('text marked with the mouse stays marked (to copy it); a plain click still edits', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/t.md', '- hello wonderful world\n- other\n')
+  await backend.open('/page/t')
+  await settle(page)
+  const box = (await text(page, 'hello wonderful world').boundingBox())!
+  // drag from the start of the text to the end of the word "wonderful"
+  await page.mouse.move(box.x + 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect(page.getByTestId('block-editor')).toHaveCount(0) // still the rendered block
+  const marked = await page.evaluate(() => window.getSelection()?.toString() ?? '')
+  expect(marked.length).toBeGreaterThan(5)
+  expect('hello wonderful world').toContain(marked.trim())
+  // a click elsewhere in the text clears the marking and edits
+  await text(page, 'other').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+})

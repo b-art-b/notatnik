@@ -261,6 +261,43 @@ async function followUp(ctx: Ctx, blockId: number, typed: string): Promise<void>
   } else stopEditing()
 }
 
+/** Indent, outdent or move the block being edited. Built when the request reaches the front of the page's queue, from
+ * the page as it is then: with the key held down the next press arrives while the last move is still being saved, and
+ * it must move the block from where it is by then (a path taken at the key press would be a row off, or the press
+ * would be lost). The editor stays on the block (a move takes its DOM along and its focus with it, see `Block`). */
+async function restructure(
+  ctx: Ctx,
+  blockId: number,
+  kind: 'indent' | 'outdent' | 'move-up' | 'move-down',
+  typed: string,
+  prev: string,
+) {
+  const f = { indent, outdent, 'move-up': moveUp, 'move-down': moveDown }[kind]
+  editing.planBlock = blockId
+  editing.planAt = Date.now()
+  let moved = false
+  const after = await ctx.doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    if (!view || !hit) return null
+    const plan = f(view.blocks, hit.path)
+    moved = !!plan
+    if (!plan) return null
+    // text typed in the last half second goes in the same request: one undo step for typing and moving
+    const text: BlockOp[] =
+      typed !== hit.block.text
+        ? [{ op: 'update_text', block: { path: hit.path, hash: null }, text: typed }]
+        : []
+    return [...text, ...plan.ops]
+  })
+  // nothing to do (the first block cannot move up): the text typed so far is still saved
+  if (!moved) await commitText(ctx, blockId, typed, prev)
+  editing.planAt = Date.now()
+  const now = after ? findById(after.blocks, blockId) : undefined
+  // the editor goes on in the same block, at the end of its text as after any command
+  if (moved && now && editing.mode === 'edit' && editing.blockId === blockId)
+    startEditing(ctx.viewKey, ctx.doc.name, blockId, 'end')
+}
+
 export type EditorAction =
   | { kind: 'enter'; text: string; cursor: number; prev: string }
   | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string; prev: string }
@@ -298,13 +335,7 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
     case 'outdent':
     case 'move-up':
     case 'move-down': {
-      const f = { indent, outdent, 'move-up': moveUp, 'move-down': moveDown }[a.kind]
-      const plan = f(blocks, path)
-      if (!plan) {
-        await commitText(ctx, blockId, a.text, a.prev)
-        return true
-      }
-      await runPlan(ctx, withText(ctx.doc, blockId, a.text, plan))
+      await restructure(ctx, blockId, a.kind, a.text, a.prev)
       return true
     }
     case 'merge-prev': {

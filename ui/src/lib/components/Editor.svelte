@@ -357,6 +357,10 @@
   })
 
   /** Used by the parent to read the live text (e.g. on route changes). */
+  /** Gives the editor the focus back (a move re-parents its DOM, which takes the focus away). */
+  export function focus(): void {
+    view?.focus()
+  }
   export function getText(): string {
     return currentText()
   }
