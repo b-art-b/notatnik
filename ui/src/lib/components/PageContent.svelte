@@ -325,20 +325,21 @@
         {#if showProps && !hideProps}
           <div class="fm" data-testid="page-props">
             {#if view.frontmatter?.aliases.length}<div class="prop">
-                <span class="k">aliases</span><span>{view.frontmatter.aliases.join(', ')}</span>
+                <span class="k">aliases</span><span class="v">{view.frontmatter.aliases.join(', ')}</span
+                ><span></span>
               </div>{/if}
             {#if view.frontmatter?.tags.length}<div class="prop">
                 <span class="k">tags</span>
-                <span
+                <span class="v"
                   >{#each view.frontmatter.tags as t (t)}<a class="tag" href={pageHash(t)}>#{t}</a>
                   {/each}</span
-                >
+                ><span></span>
               </div>{/if}
             {#if view.is_journal && !view.frontmatter?.props.some((p) => p.key === 'type')}
               <div class="prop" data-testid="default-type">
-                <span class="k">type</span><span class="muted"
+                <span class="k">type</span><span class="v muted"
                   >journal (default; set a type here to change it)</span
-                >
+                ><span></span>
               </div>
             {/if}
             {#each view.frontmatter?.props ?? [] as p (p.key)}
@@ -349,29 +350,36 @@
                   title={`All pages with “${p.key}”`}
                   data-testid="prop-key-link">{p.key}</a
                 >
-                <ValueInput
-                  label={p.key}
-                  value={displayValue(p.raw)}
-                  loadValues={() => valuesOfKey(p.key)}
-                  oncommit={(v) => setProp(p.key, v)}
-                />
-                {#each linkedPages(displayValue(p.raw)) as n (n)}
-                  <a
-                    class="pv"
-                    href={pageHash(n)}
-                    title={`Open ${n}`}
-                    data-page={n}
-                    data-testid="prop-page-link">→ {n}</a
-                  >
-                {/each}
-                {#each valueItems(p.raw) as v (v)}
-                  <a
-                    class="pv"
-                    href={propertyHash(p.key, v)}
-                    title={`All pages with ${p.key}: ${v}`}
-                    data-testid="prop-value-link">↗ {v}</a
-                  >
-                {/each}
+                <div class="v">
+                  <ValueInput
+                    block
+                    label={p.key}
+                    value={displayValue(p.raw)}
+                    loadValues={() => valuesOfKey(p.key)}
+                    oncommit={(v) => setProp(p.key, v)}
+                  />
+                  {#if linkedPages(displayValue(p.raw)).length || valueItems(p.raw).length}
+                    <div class="chips">
+                      {#each linkedPages(displayValue(p.raw)) as n (n)}
+                        <a
+                          class="pv"
+                          href={pageHash(n)}
+                          title={`Open ${n}`}
+                          data-page={n}
+                          data-testid="prop-page-link">→ {n}</a
+                        >
+                      {/each}
+                      {#each valueItems(p.raw) as v (v)}
+                        <a
+                          class="pv"
+                          href={propertyHash(p.key, v)}
+                          title={`All pages with ${p.key}: ${v}`}
+                          data-testid="prop-value-link">↗ {v}</a
+                        >
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
                 <button
                   class="x"
                   aria-label={`Remove ${p.key}`}
@@ -382,53 +390,61 @@
             {/each}
             <form class="prop newprop" onsubmit={addProp}>
               <input
+                class="keyfield"
                 list="page-prop-keys"
                 bind:value={newKey}
-                placeholder="property, e.g. type"
+                placeholder="property"
                 aria-label="New property name"
               />
-              <ValueInput
-                bind:value={newValue}
-                values={knownValues}
-                placeholder="value, or a page"
-                label="New property value"
-              />
-              <button type="submit" disabled={!validKey || !newValue.trim()}>Add</button>
+              <div class="v">
+                <ValueInput
+                  block
+                  bind:value={newValue}
+                  values={knownValues}
+                  placeholder="value, or a page"
+                  label="New property value"
+                />
+              </div>
+              <button type="submit" class="add-prop" disabled={!validKey || !newValue.trim()}>Add</button>
               <datalist id="page-prop-keys"
                 >{#each knownKeys as k (k)}<option value={k}></option>{/each}</datalist
               >
             </form>
-            {#if hasType}
-              {#if savingTpl}
-                <div class="save-tpl" data-testid="save-template">
-                  <label><input type="radio" bind:group={keepValues} value={false} /> Fields empty</label>
-                  <label
-                    ><input type="radio" bind:group={keepValues} value={true} /> Keep these values as defaults</label
-                  >
-                  {#if tplExists}
-                    <span role="alert">A template for this type exists.</span>
-                    <button class="act" onclick={() => saveTemplate(true)}>Replace it</button>
+            {#if hasType || (tpl?.template && tpl.missing.length)}
+              <div class="fm-actions">
+                {#if hasType}
+                  {#if savingTpl}
+                    <div class="save-tpl" data-testid="save-template">
+                      <label><input type="radio" bind:group={keepValues} value={false} /> Fields empty</label>
+                      <label
+                        ><input type="radio" bind:group={keepValues} value={true} /> Keep these values as defaults</label
+                      >
+                      {#if tplExists}
+                        <span role="alert">A template for this type exists.</span>
+                        <button class="act" onclick={() => saveTemplate(true)}>Replace it</button>
+                      {:else}
+                        <button class="act" onclick={() => saveTemplate(false)}>Save</button>
+                      {/if}
+                      <button
+                        class="act"
+                        onclick={() => {
+                          savingTpl = false
+                          tplExists = false
+                        }}>Cancel</button
+                      >
+                    </div>
                   {:else}
-                    <button class="act" onclick={() => saveTemplate(false)}>Save</button>
+                    <button class="act" data-testid="save-as-template" onclick={() => (savingTpl = true)}
+                      >Save as template…</button
+                    >
                   {/if}
-                  <button
-                    class="act"
-                    onclick={() => {
-                      savingTpl = false
-                      tplExists = false
-                    }}>Cancel</button
+                {/if}
+                {#if tpl?.template && tpl.missing.length}
+                  <button class="act" data-testid="apply-template" onclick={applyTemplate}
+                    >Add missing from template “{tpl.template}” ({tpl.missing.join(', ')})</button
                   >
-                </div>
-              {:else}
-                <button class="act" data-testid="save-as-template" onclick={() => (savingTpl = true)}
-                  >Save as template…</button
-                >
-              {/if}
-            {/if}
-            {#if tpl?.template && tpl.missing.length}
-              <button class="act" data-testid="apply-template" onclick={applyTemplate}
-                >Add missing from template “{tpl.template}” ({tpl.missing.join(', ')})</button
-              >
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}
@@ -606,29 +622,56 @@
     font-size: 0.8em;
     padding: 0;
   }
+  /* the properties of a page: a card, key | value | remove in three aligned columns (each row is `display: contents`) */
   .fm {
-    margin: 0.3em 0 0.8em;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25em;
-    font-size: 0.9em;
+    margin: 0.4em 0 0.9em;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) 1.8em;
+    align-items: start;
+    gap: 0.45em 0.8em;
+    max-width: 38em;
+    padding: 0.7em 0.9em;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.92em;
   }
   .prop {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
+    display: contents;
   }
   .prop .k {
-    min-width: 6em;
+    color: var(--muted);
+    font-weight: 500;
+    padding-top: 0.35em; /* the text lines up with the field's text */
+  }
+  .prop .v {
+    min-width: 0;
+    padding-top: 0.2em;
+  }
+  .prop .v.muted {
     color: var(--muted);
   }
-  .prop input {
-    flex: 1;
-    min-width: 0;
-    max-width: 22em;
+  .prop input,
+  .prop .v :global(input) {
+    padding: 0.3em 0.5em;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+  }
+  .keyfield {
+    width: 8.5em; /* also sets the width of the key column when the keys are short */
+    box-sizing: border-box;
+    margin-top: 0.2em;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1em 0.8em;
+    margin-top: 0.15em;
   }
   a.k {
-    color: var(--muted);
     text-decoration: none;
   }
   a.k:hover,
@@ -639,7 +682,7 @@
   a.pv {
     color: var(--muted);
     text-decoration: none;
-    font-size: 0.85em;
+    font-size: 0.82em;
     white-space: nowrap;
   }
   .prop .x {
@@ -647,9 +690,33 @@
     background: none;
     color: var(--muted);
     cursor: pointer;
+    border-radius: 4px;
+    padding: 0.3em 0;
+    opacity: 0.7;
+  }
+  .prop .x:hover,
+  .prop .x:focus-visible {
+    opacity: 1;
+    color: var(--danger);
+    background: var(--chip);
   }
   .prop.newprop {
-    margin-top: 0.3em;
+    padding-top: 0.5em;
+  }
+  .add-prop {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+  .fm-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 0.8em;
+    padding-top: 0.5em;
+    border-top: 1px solid var(--border);
+  }
+  .fm-actions .act {
+    padding: 0.2em 0.5em;
   }
 
   .diagnostics {

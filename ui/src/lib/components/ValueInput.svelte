@@ -24,6 +24,8 @@
     focusOnMount?: boolean
     /** How a picked page is written: `[[Page]]` (a property value) or the plain name (a filter field). */
     pageFormat?: 'link' | 'name'
+    /** Fill the width of the container (a grid cell) instead of sizing to the text. */
+    block?: boolean
   }
   let {
     value = $bindable(''),
@@ -35,6 +37,7 @@
     onescape,
     focusOnMount = false,
     pageFormat = 'link',
+    block = false,
   }: Props = $props()
 
   let input: HTMLInputElement
@@ -134,7 +137,7 @@
   }
 </script>
 
-<span class="vi">
+<span class="vi" class:block>
   <input
     bind:this={input}
     bind:value
@@ -181,6 +184,14 @@
   .vi {
     position: relative;
     display: inline-block;
+  }
+  .vi.block {
+    display: block;
+    width: 100%;
+  }
+  .vi.block input {
+    width: 100%;
+    box-sizing: border-box;
   }
   .list {
     position: absolute;
