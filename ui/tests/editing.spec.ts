@@ -108,3 +108,26 @@ test('the bullet dot is centred on the first line of its block', async ({ backen
     expect(Math.abs(dotMiddle - (text.y + line / 2))).toBeLessThan(1.5)
   }
 })
+
+// Enter right after typing, before the half-second save: no row with the text of the row above
+test('typing in a new row and pressing Enter at once does not duplicate the row', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/t.md', '- first\n')
+  await backend.open('/page/t')
+  await page.waitForTimeout(600)
+  await page.getByRole('tree', { name: 'Blocks' }).getByText('first', { exact: true }).click()
+  await page.keyboard.press('End')
+  const words = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta']
+  for (const [i, w] of words.entries()) {
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('block-editor')).toHaveText('')
+    await page.keyboard.type(w, { delay: 20 })
+    // the next Enter comes at once (i even) or after most of the save delay (i odd), but before the save
+    await page.waitForTimeout(i % 2 === 0 ? 0 : 300)
+  }
+  await expect
+    .poll(() => backend.read('pages/t.md'))
+    .toBe('- first\n' + words.map((w) => `- ${w}\n`).join(''))
+})

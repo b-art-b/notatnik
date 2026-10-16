@@ -280,7 +280,16 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
   const blocks = view.blocks
   switch (a.kind) {
     case 'enter': {
-      const plan = split(blocks, path, a.text, a.cursor)
+      // Text typed in the last half second is not saved yet. It is saved first, as an edit of its own: in one
+      // request with the insert, the page's block identity (which matches blocks by their text) would give the
+      // old block's identity to the new empty block when the saved text was empty too, and the editor, which
+      // keeps the identity, would go on typing in the old text (a duplicated row).
+      const stored = findById(blocks, blockId)?.block.text
+      if (stored !== undefined && stored !== a.text) await commitText(ctx, blockId, a.text, a.prev)
+      const fresh = ctx.doc.view
+      const at = fresh ? findById(fresh.blocks, blockId) : undefined
+      if (!fresh || !at) return false
+      const plan = split(fresh.blocks, at.path, a.text, a.cursor)
       if (!plan) return false
       await runPlan(ctx, withText(ctx.doc, blockId, undefined, plan))
       return true
