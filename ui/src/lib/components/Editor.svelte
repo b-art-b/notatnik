@@ -16,6 +16,10 @@
     defaultKeymap,
     history,
     historyKeymap,
+    cursorLineEnd,
+    cursorLineStart,
+    selectLineEnd,
+    selectLineStart,
     insertNewline,
     redoDepth,
     undoDepth,
@@ -175,6 +179,33 @@
           },
         },
         { key: 'Shift-Enter', run: insertNewline },
+        // Home / End go to the start / end of the whole line, also in text that wraps over several rows on screen
+        // (CodeMirror's own keys stop at the row)
+        { key: 'End', run: cursorLineEnd, shift: selectLineEnd },
+        { key: 'Home', run: cursorLineStart, shift: selectLineStart },
+        {
+          // ← at the very start of a block goes to the end of the block before it, → at the very end to the start
+          // of the next one (a collapsed block's children are skipped)
+          key: 'ArrowLeft',
+          run: (v) => {
+            const s = v.state.selection.main
+            if (completionStatus(v.state) === 'active' || !s.empty || s.head !== 0) return false
+            clearTimeout(idle)
+            void onaction({ kind: 'nav-left', text: v.state.doc.toString(), prev: lastSent })
+            return true
+          },
+        },
+        {
+          key: 'ArrowRight',
+          run: (v) => {
+            const s = v.state.selection.main
+            if (completionStatus(v.state) === 'active' || !s.empty || s.head !== v.state.doc.length)
+              return false
+            clearTimeout(idle)
+            void onaction({ kind: 'nav-right', text: v.state.doc.toString(), prev: lastSent })
+            return true
+          },
+        },
         {
           // Ctrl+A selects the text of the block; pressed again (all of it is selected, or the block is empty) it
           // selects every block of the page

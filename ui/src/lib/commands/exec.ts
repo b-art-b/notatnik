@@ -303,6 +303,7 @@ export type EditorAction =
   | { kind: 'indent' | 'outdent' | 'move-up' | 'move-down'; text: string; prev: string }
   | { kind: 'merge-prev' | 'merge-next'; text: string; prev: string }
   | { kind: 'nav-up' | 'nav-down'; text: string; column: number; prev: string }
+  | { kind: 'nav-left' | 'nav-right'; text: string; prev: string }
   | { kind: 'escape'; text: string; prev: string }
   | { kind: 'cycle-task'; text: string; prev: string }
   | { kind: 'template'; name: string; text: string; prev: string }
@@ -367,6 +368,17 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
             hit.text.split('\n')[a.kind === 'nav-up' ? hit.text.split('\n').length - 1 : 0].length,
           ),
         )
+      return true
+    }
+    case 'nav-left':
+    case 'nav-right': {
+      // ← at the start: the end of the previous visible block; → at the end: the start of the next one
+      const target = a.kind === 'nav-left' ? previousVisible(blocks, path) : nextVisible(blocks, path)
+      if (!target) return false
+      await commitText(ctx, blockId, a.text, a.prev)
+      const fresh = ctx.doc.view
+      const hit = fresh ? getBlock(fresh.blocks, target.path) : undefined
+      if (hit) startEditing(ctx.viewKey, ctx.doc.name, hit.id, a.kind === 'nav-left' ? 'end' : 'start')
       return true
     }
     case 'cycle-task': {

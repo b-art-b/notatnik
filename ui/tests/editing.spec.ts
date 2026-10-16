@@ -150,3 +150,62 @@ test('a block keeps moving while Alt+arrow is pressed again and again', async ({
     .toBe('- DONE b\n  done:: 2026-10-03T10:00\n- a\n- c\n- d\n- e\n- f\n')
   await expect(page.getByTestId('block-editor')).toBeFocused()
 })
+
+// ← at the start of a block and → at its end go to the neighbouring block; End/Home cover the whole wrapped line
+test('← at the start goes to the end of the block before, → at the end to the start of the next', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/t.md', '- alpha\n- beta\n  - gamma\n- delta\n')
+  await backend.open('/page/t')
+  await page.waitForTimeout(600)
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  await blocks.getByText('beta', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowLeft') // the end of "alpha"
+  await expect(page.getByTestId('block-editor')).toHaveText('alpha')
+  await page.keyboard.type('X')
+  await page.keyboard.press('ArrowRight') // the end of the text: the start of "beta"
+  await expect(page.getByTestId('block-editor')).toHaveText('beta')
+  await page.keyboard.type('Y')
+  await page.keyboard.press('End')
+  await page.keyboard.press('ArrowRight') // into the child "gamma", at its start
+  await expect(page.getByTestId('block-editor')).toHaveText('gamma')
+  await page.keyboard.type('Z')
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- alphaX\n- Ybeta\n  - Zgamma\n- delta\n')
+  // inside the text the arrows only move the cursor
+  await page.waitForTimeout(400)
+  await blocks.getByText('Zgamma', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.type('-')
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/t.md')).toContain('  - Z-gamma\n')
+})
+
+test('End goes to the end of the whole line when the text wraps over several rows', async ({
+  backend,
+  page,
+}) => {
+  const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ')
+  backend.write('pages/t.md', `- ${long}\n- next\n`)
+  await page.setViewportSize({ width: 560, height: 700 })
+  await backend.open('/page/t')
+  await page.waitForTimeout(600)
+  await page
+    .getByRole('tree', { name: 'Blocks' })
+    .getByText('word0', { exact: false })
+    .first()
+    .click({ position: { x: 5, y: 5 } })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Home')
+  await page.keyboard.press('End') // the end of the whole text, not of the first row
+  await page.keyboard.type('END')
+  await page.keyboard.press('Home') // and back to the very start
+  await page.keyboard.type('START ')
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/t.md')).toBe(`- START ${long}END\n- next\n`)
+})

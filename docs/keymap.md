@@ -12,6 +12,8 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 | Tab / Shift+Tab, or Alt+→ / Alt+← | Indent / outdent (demote / promote) the block with its children |
 | Alt+↑ / Alt+↓ | Move the block (with its children) up / down among its siblings, as org-mode's M-↑ / M-↓. Every press counts, also with the key held down; the cursor stays in the block |
 | ↑ on the first line / ↓ on the last line | Move the editor to the previous / next visible block |
+| ← at the very start / → at the very end | Move to the end of the previous / the start of the next visible block |
+| Home / End | Start / end of the whole line, also when the text wraps over several rows on screen (Shift selects) |
 | Backspace at the start | Merge into the previous block (an empty block is deleted; a block with children is not merged) |
 | Delete at the end | Pull the next block into this one |
 | Esc | Leave editing: the block becomes selected |
