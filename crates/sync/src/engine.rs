@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::NaiveDateTime;
 
+use crate::Bases;
 use crate::local::{self, hash, ignored, mtime_ms, to_trash, write_atomic};
 use crate::plan::{Action, plan};
 use crate::remote::{Cond, Remote};
@@ -22,6 +23,11 @@ pub struct Options {
     /// half of the known ones stops with [`Error::MassDelete`]: an emptied folder or a wiped server must not
     /// spread.
     pub allow_mass_delete: bool,
+    /// Where the copies of the synced pages are kept (see [`Bases`]); `None`: no merging.
+    pub bases: Bases,
+    /// Merge a page that changed on both sides when the merge is clean (needs `bases`); otherwise, and always when
+    /// the merge has conflicts, the local version is kept as a "conflicted copy".
+    pub merge: bool,
     /// The clock, for the names of conflict copies.
     pub now: Box<dyn Fn() -> NaiveDateTime + Send + Sync>,
 }
@@ -33,6 +39,8 @@ impl Options {
             state_path,
             trust_folder_etags: false,
             allow_mass_delete: false,
+            bases: Bases::default(),
+            merge: true,
             now: Box::new(|| chrono::Local::now().naive_local()),
         }
     }
@@ -49,6 +57,8 @@ pub struct Report {
     pub deleted_remote: Vec<String>,
     /// Moved to the local trash.
     pub deleted_local: Vec<String>,
+    /// Pages changed on both sides that were merged without a conflict (the result is on both sides).
+    pub merged: Vec<String>,
     /// Files changed on both sides: the server's version is at the path, the local one next to it as a
     /// "conflicted copy".
     pub conflicts: Vec<String>,
@@ -67,6 +77,7 @@ impl Report {
             && self.pulled.is_empty()
             && self.deleted_remote.is_empty()
             && self.deleted_local.is_empty()
+            && self.merged.is_empty()
             && self.conflicts.is_empty())
     }
 }
@@ -187,6 +198,20 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
     let mut made_dirs: HashSet<String> = HashSet::new();
     for _pass in 0..5 {
         let local = local::scan(root, &state)?;
+        // pages that are as they were at the last sync are the base of a later merge (also for files that were
+        // synced before bases were kept)
+        if opts.merge {
+            for (path, l) in &local {
+                if path.ends_with(".md")
+                    && state.files.get(path).is_some_and(|f| f.hash == l.hash)
+                    && !opts.bases.has_synced(path)
+                    && let Ok(bytes) = std::fs::read(root.join(path))
+                    && hash(&bytes) == l.hash
+                {
+                    opts.bases.save_synced(path, &bytes);
+                }
+            }
+        }
         let (rfiles, rdirs) = scan_remote(remote, &state, opts.trust_folder_etags)?;
         let actions = plan(&local, &rfiles, &state.files);
         if actions.is_empty() {
@@ -269,6 +294,7 @@ fn run(
             };
             match remote.put(path, &bytes, cond) {
                 Ok(new_etag) => {
+                    opts.bases.save_synced(path, &bytes);
                     state.files.insert(
                         path.clone(),
                         FileState {
@@ -296,6 +322,7 @@ fn run(
             // the server gave a file a new ETag without changing it (Nextcloud sometimes does after an upload):
             // remember the new ETag, leave the file alone
             if let Some(l) = local.get(path).filter(|l| l.hash == hash(&bytes)) {
+                opts.bases.save_synced(path, &bytes);
                 state.files.insert(
                     path.clone(),
                     FileState {
@@ -308,6 +335,7 @@ fn run(
                 return Ok(true);
             }
             let mtime = write_atomic(root, path, &bytes)?;
+            opts.bases.save_synced(path, &bytes);
             state.files.insert(
                 path.clone(),
                 FileState {
@@ -328,6 +356,7 @@ fn run(
                 Err(e) => return Err(e),
             }
             state.files.remove(path);
+            opts.bases.remove_synced(path);
             report.deleted_remote.push(path.clone());
             Ok(true)
         }
@@ -341,6 +370,7 @@ fn run(
                 to_trash(root, path)?;
             }
             state.files.remove(path);
+            opts.bases.remove_synced(path);
             report.deleted_local.push(path.clone());
             Ok(true)
         }
@@ -352,6 +382,35 @@ fn run(
             let mut copy = None;
             if let Some(mine) = &mine {
                 if hash(mine) != remote_hash {
+                    // the page as both sides last had it, if it is known and is what the state says
+                    let base = opts
+                        .bases
+                        .synced(path)
+                        .filter(|b| state.files.get(path).is_some_and(|f| f.hash == hash(b)));
+                    if opts.merge
+                        && let Some(base) = &base
+                        && let Some(merged) = merged_page(base, mine, &bytes)
+                    {
+                        let md = match remote.put(path, &merged, Cond::Match(etag)) {
+                            Ok(new_etag) => new_etag,
+                            // the server changed again: the next pass starts over from the newer version
+                            Err(Error::Changed(_)) => return Ok(false),
+                            Err(e) => return Err(e),
+                        };
+                        let mtime = write_atomic(root, path, &merged)?;
+                        opts.bases.save_synced(path, &merged);
+                        state.files.insert(
+                            path.clone(),
+                            FileState {
+                                hash: hash(&merged),
+                                etag: md,
+                                size: merged.len() as u64,
+                                mtime_ms: mtime,
+                            },
+                        );
+                        report.merged.push(path.clone());
+                        return Ok(true);
+                    }
                     // both changed: the server's version stays at the path, mine is kept beside it
                     let now = (opts.now)();
                     let mut n = 0;
@@ -363,6 +422,9 @@ fn run(
                         n += 1;
                     };
                     write_atomic(root, &name, mine)?;
+                    if let Some(base) = &base {
+                        opts.bases.save_ancestor(&name, base);
+                    }
                     copy = Some(name);
                 }
             }
@@ -371,6 +433,7 @@ fn run(
             } else {
                 write_atomic(root, path, &bytes)?
             };
+            opts.bases.save_synced(path, &bytes);
             state.files.insert(
                 path.clone(),
                 FileState {
@@ -387,6 +450,19 @@ fn run(
             Ok(true)
         }
     }
+}
+
+/// The merge of two versions of a page, when it is clean and parses as well as the inputs did.
+fn merged_page(base: &[u8], ours: &[u8], theirs: &[u8]) -> Option<Vec<u8>> {
+    let (b, o, t) = (
+        std::str::from_utf8(base).ok()?,
+        std::str::from_utf8(ours).ok()?,
+        std::str::from_utf8(theirs).ok()?,
+    );
+    let r = notatnik_core::merge(b, o, t).ok()?;
+    let diags = |s: &str| notatnik_core::parse_page(s).diagnostics.len();
+    (r.is_clean() && diags(&r.merged_text) <= diags(o).max(diags(t)).max(diags(b)))
+        .then(|| r.merged_text.into_bytes())
 }
 
 /// The local file still has the content that was scanned.

@@ -3,6 +3,7 @@
 //! The app keeps working on ordinary files in the replica; this crate only moves files between that folder and
 //! the remote. [`Remote`] is what the engine needs from a server, [`WebDavRemote`] speaks WebDAV, [`plan`] decides
 //! what to do for each path and [`sync`] does it.
+mod bases;
 mod engine;
 mod error;
 mod local;
@@ -14,6 +15,7 @@ mod webdav;
 #[cfg(feature = "fakedav")]
 pub mod fakedav;
 
+pub use bases::Bases;
 pub use engine::{Options, Report, sync};
 pub use error::{Error, Result};
 pub use plan::{Action, plan};

@@ -3,7 +3,9 @@
 use std::path::{Path, PathBuf};
 
 use notatnik_sync::fakedav::FakeDav;
-use notatnik_sync::{Error, Options, Remote, WebDavRemote, check_url, folder_url, probe, sync};
+use notatnik_sync::{
+    Bases, Error, Options, Remote, WebDavRemote, check_url, folder_url, probe, sync,
+};
 
 struct Env {
     dav: FakeDav,
@@ -39,6 +41,12 @@ impl Env {
                 .and_hms_opt(12, 30, 0)
                 .unwrap()
         });
+        o
+    }
+    /// Options that keep the pages as last synced, so changes on both sides can be merged.
+    fn merging(&self) -> Options {
+        let mut o = self.options(false);
+        o.bases = Bases::new(Some(self.state.path().join("bases")));
         o
     }
     fn sync(&self) -> notatnik_sync::Report {
@@ -175,6 +183,64 @@ fn different_edits_keep_the_servers_version_and_save_mine_beside_it() {
     );
     assert_eq!(e.remote_text("pages/a.md").unwrap(), "- a, their edit\n");
     assert!(!e.sync().changed());
+}
+
+/// ST-6, P5.2: edits to different blocks of one page, on two devices, are merged and nothing is left over.
+#[test]
+fn edits_to_different_blocks_on_two_devices_are_merged() {
+    let e = Env::new();
+    e.write("pages/a.md", "- one\n- two\n- three\n");
+    let go = |e: &Env| sync(e.root(), &e.remote(), &e.merging()).unwrap();
+    assert!(go(&e).complete);
+    e.write("pages/a.md", "- one mine\n- two\n- three\n");
+    e.dav
+        .put_file("Notes/g/pages/a.md", b"- one\n- two\n- three theirs\n");
+    let r = go(&e);
+    assert!(r.complete && r.conflicts.is_empty(), "{r:?}");
+    assert_eq!(r.merged, ["pages/a.md"]);
+    let want = "- one mine\n- two\n- three theirs\n";
+    assert_eq!(e.read("pages/a.md"), want);
+    assert_eq!(e.remote_text("pages/a.md").unwrap(), want);
+    assert_eq!(e.dav.files("Notes/g/pages"), ["Notes/g/pages/a.md"]);
+    // and the next sync has nothing to do
+    assert!(!go(&e).changed());
+}
+
+/// ST-6: the same block edited on both sides cannot be merged: the old behaviour, plus the common ancestor for
+/// the conflict view.
+#[test]
+fn the_same_block_edited_on_two_devices_keeps_a_copy_and_the_ancestor() {
+    let e = Env::new();
+    e.write("pages/a.md", "- one\n- two\n");
+    let go = |e: &Env| sync(e.root(), &e.remote(), &e.merging()).unwrap();
+    go(&e);
+    e.write("pages/a.md", "- one mine\n- two\n");
+    e.dav
+        .put_file("Notes/g/pages/a.md", b"- one theirs\n- two\n");
+    let r = go(&e);
+    assert!(r.merged.is_empty());
+    let copy = "pages/a (conflicted copy 2026-10-17 123000).md";
+    assert_eq!(r.conflict_files, [copy]);
+    assert_eq!(e.read("pages/a.md"), "- one theirs\n- two\n");
+    assert_eq!(e.read(copy), "- one mine\n- two\n");
+    let bases = e.merging().bases;
+    assert_eq!(bases.ancestor(copy).unwrap(), b"- one\n- two\n");
+}
+
+/// A page that was synced before bases were kept gets one at the next sync, so it can be merged later.
+#[test]
+fn a_page_without_a_kept_base_is_given_one_while_it_is_unchanged() {
+    let e = Env::new();
+    e.write("pages/a.md", "- one\n- two\n");
+    e.sync(); // no bases kept
+    let go = |e: &Env| sync(e.root(), &e.remote(), &e.merging()).unwrap();
+    go(&e);
+    assert!(e.merging().bases.has_synced("pages/a.md"));
+    e.write("pages/a.md", "- one mine\n- two\n");
+    e.dav
+        .put_file("Notes/g/pages/a.md", b"- one\n- two theirs\n");
+    assert_eq!(go(&e).merged, ["pages/a.md"]);
+    assert_eq!(e.read("pages/a.md"), "- one mine\n- two theirs\n");
 }
 
 #[test]

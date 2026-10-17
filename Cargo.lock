@@ -2988,6 +2988,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "chrono",
+ "notatnik-core",
  "notatnik-sync",
  "quick-xml 0.38.4",
  "serde",

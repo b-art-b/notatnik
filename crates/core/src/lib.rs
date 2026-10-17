@@ -15,6 +15,7 @@ pub mod ids;
 pub mod inline;
 pub mod logbook;
 pub mod mentions;
+pub mod merge;
 pub mod model;
 pub mod names;
 pub mod outline;
@@ -29,6 +30,7 @@ pub use edit::{
     replace_block_id,
 };
 pub use identity::{BlockIdentity, Tracked};
+pub use merge::{BlockConflict, Choice, ConflictKind, MergeError, MergeResult, merge, merge_with};
 pub use model::*;
 pub use names::{
     LinkError, PageName, fold_char, normalize_link, page_to_path, path_to_page, search_fold,
