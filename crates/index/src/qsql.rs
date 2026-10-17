@@ -290,7 +290,7 @@ fn inherited_prop_sql(key: &str, c: &PropCond, ctx: &QueryContext, b: &mut B) ->
 
 fn task_rank(col: &str) -> String {
     format!(
-        "CASE {col} WHEN 'doing' THEN 0 WHEN 'todo' THEN 1 WHEN 'waiting' THEN 2 WHEN 'done' THEN 3 WHEN 'canceled' THEN 4 ELSE 5 END"
+        "CASE {col} WHEN 'doing' THEN 0 WHEN 'now' THEN 0 WHEN 'todo' THEN 1 WHEN 'later' THEN 1 WHEN 'waiting' THEN 2 WHEN 'done' THEN 3 WHEN 'canceled' THEN 4 ELSE 5 END"
     )
 }
 

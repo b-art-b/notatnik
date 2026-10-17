@@ -2139,7 +2139,7 @@ impl AppState {
 
     /// `agenda`
     pub fn agenda(&self, a: AgendaArgs) -> ApiResult<AgendaView> {
-        let mut text = String::from("task: todo, doing, waiting\n");
+        let mut text = String::from("task: todo, later, doing, now, waiting\n");
         let name = |n: &str| format!("[[{}]]", n.trim_start_matches('#'));
         if let Some(ns) = &a.ns {
             text.push_str(&format!("ns: {}\n", name(ns)));

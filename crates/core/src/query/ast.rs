@@ -57,7 +57,7 @@ pub struct Filter {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "values", rename_all = "snake_case")]
 pub enum FilterKind {
-    /// `task: todo, doing`
+    /// `task: todo, doing` (`later` and `now` are their own states)
     Task(Vec<TaskMatch>),
     /// `tag: a, b` (normalised page names)
     Tag(Vec<String>),

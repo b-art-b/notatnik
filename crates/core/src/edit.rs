@@ -933,6 +933,10 @@ fn set_task_state_full(
         Some((w, rest)) if TaskState::from_marker(w).is_some() => rest.to_string(),
         _ => first.clone(),
     };
+    let before = first
+        .split_once(' ')
+        .map_or(first.as_str(), |(w, _)| w)
+        .to_string();
     let set_marker = |lines: &mut Vec<String>, s: Option<TaskState>| {
         let new_first = match (s, body.is_empty()) {
             (Some(s), true) => s.marker().to_string(),
@@ -949,7 +953,12 @@ fn set_task_state_full(
             let sched = prop_value(&lines, "scheduled").and_then(crate::task::Moment::parse);
             let dead = prop_value(&lines, "deadline").and_then(crate::task::Moment::parse);
             if let Some((ns, nd)) = crate::repeat::advance(&rep, sched, dead, completed_on) {
-                set_marker(&mut lines, Some(TaskState::Todo));
+                // a repeating task starts over in the words it was written with
+                let again = match TaskState::from_marker(&before) {
+                    Some(TaskState::Later | TaskState::Now) => TaskState::Later,
+                    _ => TaskState::Todo,
+                };
+                set_marker(&mut lines, Some(again));
                 if let Some(ns) = ns {
                     set_prop_line(&mut lines, "scheduled", Some(&ns.to_string()));
                 }

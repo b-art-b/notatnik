@@ -24,6 +24,8 @@ describe('tasks', () => {
     expect(nextTaskState(null)).toBe('TODO')
     expect(nextTaskState('TODO')).toBe('DOING')
     expect(nextTaskState('DOING')).toBe('DONE')
+    expect(nextTaskState('LATER')).toBe('NOW')
+    expect(nextTaskState('NOW')).toBe('DONE')
     expect(nextTaskState('DONE')).toBeNull()
     expect(nextTaskState('WAITING')).toBe('DONE')
     expect(nextTaskState('CANCELED')).toBeNull()

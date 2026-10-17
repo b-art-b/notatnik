@@ -167,7 +167,7 @@ export function propertyEnd(doc: string): number {
   }
 }
 
-const MARKER = /^(?:TODO|DOING|WAITING|DONE|CANCELED)[ \t]+/
+const MARKER = /^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)[ \t]+/
 
 /** Changes that remove the typed `/command` (`from`..`to`) and put `marker` at the start of the block,
  * replacing an existing one. The command may be typed anywhere in the block. */
@@ -300,9 +300,29 @@ function baseCommands(): SlashCommand[] {
       label: 'Doing',
       icon: '◐',
       group: 'Tasks',
-      keywords: ['progress', 'started', 'now'],
+      keywords: ['progress', 'started'],
       title: 'Mark as doing',
       marker: 'DOING',
+      insert: none,
+    },
+    {
+      name: 'later',
+      label: 'Later',
+      icon: '☐',
+      group: 'Tasks',
+      keywords: ['task', 'someday'],
+      title: 'Make this a task to do later (LATER, the same step as TODO)',
+      marker: 'LATER',
+      insert: none,
+    },
+    {
+      name: 'now',
+      label: 'Now',
+      icon: '◐',
+      group: 'Tasks',
+      keywords: ['progress', 'started'],
+      title: 'Mark as in progress (NOW, the same step as DOING)',
+      marker: 'NOW',
       insert: none,
     },
     {
@@ -310,7 +330,7 @@ function baseCommands(): SlashCommand[] {
       label: 'Waiting',
       icon: '◔',
       group: 'Tasks',
-      keywords: ['blocked', 'later'],
+      keywords: ['blocked'],
       title: 'Mark as waiting',
       marker: 'WAITING',
       insert: none,

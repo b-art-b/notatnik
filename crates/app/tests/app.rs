@@ -808,6 +808,47 @@ fn completing_a_repeating_task_through_the_api_is_one_undo_step() {
     assert_eq!(t.read("pages/repeats.md"), before);
 }
 
+/// A repeating task written with LATER or NOW starts over as LATER, not TODO.
+#[test]
+fn a_repeating_later_task_starts_over_as_later() {
+    let t = start("tasks");
+    let p = t.ok("get_page", json!({"name": "repeats"}));
+    let ops = |state: &str| json!([{"op": "set_task_state", "block": {"path": [1]}, "state": state, "done_at": "2026-10-03T08:00"}]);
+    t.ok(
+        "apply_ops",
+        json!({"page": "repeats", "base_hash": p["hash"], "ops": ops("NOW")}),
+    );
+    assert!(t.read("pages/repeats.md").contains("- NOW Weekly\n"));
+    let p = t.ok("get_page", json!({"name": "repeats"}));
+    t.ok(
+        "apply_ops",
+        json!({"page": "repeats", "base_hash": p["hash"], "ops": ops("DONE")}),
+    );
+    let after = t.read("pages/repeats.md");
+    assert!(
+        after.contains("- LATER Weekly\n  scheduled:: 2026-10-05\n"),
+        "{after}"
+    );
+}
+
+/// The agenda and `task: later, now` find them; `task: todo` does not.
+#[test]
+fn later_and_now_tasks_are_in_the_agenda_and_in_queries() {
+    let t = start("tasks");
+    let p = t.ok("get_page", json!({"name": "repeats"}));
+    // block [1] is "Weekly" (scheduled 2026-09-28, so overdue and in the agenda)
+    t.ok("apply_ops", json!({"page": "repeats", "base_hash": p["hash"], "ops": [{"op": "set_task_state", "block": {"path": [1]}, "state": "LATER", "done_at": "2026-10-03T08:00"}]}));
+    let q = |text: &str| {
+        let r = t.ok("run_query", json!({"text": text, "view": null}));
+        serde_json::to_string(&r["rows"]).unwrap()
+    };
+    assert!(q("task: later").contains("Weekly"));
+    assert!(q("task: later, now").contains("Weekly"));
+    assert!(!q("task: todo, doing").contains("Weekly"));
+    let a = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+    assert!(serde_json::to_string(&a).unwrap().contains("Weekly"));
+}
+
 #[test]
 fn own_writes_emit_graph_changed_with_the_own_flag() {
     let t = start("basic");

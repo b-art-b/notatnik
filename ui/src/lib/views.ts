@@ -28,6 +28,11 @@ export function sortRows(list: ResultRow[], col: string | null, descending: bool
 }
 
 export const TASK_COLUMNS = ['todo', 'doing', 'waiting', 'done', 'canceled']
+// LATER and NOW are the same steps as TODO and DOING in other words: they get a column of their own when used
+const EXTRA_COLUMNS: [string, string][] = [
+  ['later', 'todo'],
+  ['now', 'doing'],
+]
 
 /** The kanban column of a row: task state when grouping by task (or not at all), else the group label. */
 export function kanbanKey(r: ResultRow, groupBy: string | null): string {
@@ -37,7 +42,13 @@ export function kanbanKey(r: ResultRow, groupBy: string | null): string {
 
 /** Column order: fixed task states, or the group values in the order they were returned. */
 export function kanbanColumns(rows: ResultRow[], groupBy: string | null): string[] {
-  if (!groupBy || groupBy === 'task') return TASK_COLUMNS
+  if (!groupBy || groupBy === 'task') {
+    const cols = [...TASK_COLUMNS]
+    for (const [extra, after] of EXTRA_COLUMNS) {
+      if (rows.some((r) => r.task_state === extra)) cols.splice(cols.indexOf(after) + 1, 0, extra)
+    }
+    return cols
+  }
   const seen: string[] = []
   for (const r of rows) {
     const k = kanbanKey(r, groupBy)

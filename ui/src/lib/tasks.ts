@@ -1,7 +1,7 @@
 // Task state cycling and display helpers (TK-1, TK-6).
 import type { BlockView, TaskState } from './api'
 
-/** (none) → TODO → DOING → DONE → (none); WAITING goes to DONE, CANCELED clears. */
+/** (none) → TODO → DOING → DONE → (none); LATER → NOW → DONE; WAITING goes to DONE, CANCELED clears. */
 export function nextTaskState(s: TaskState | null | undefined): TaskState | null {
   switch (s) {
     case undefined:
@@ -9,7 +9,10 @@ export function nextTaskState(s: TaskState | null | undefined): TaskState | null
       return 'TODO'
     case 'TODO':
       return 'DOING'
+    case 'LATER':
+      return 'NOW'
     case 'DOING':
+    case 'NOW':
     case 'WAITING':
       return 'DONE'
     default:

@@ -33,11 +33,12 @@
     }
   })
 
-  const glyph = (s: string | null) => ({ DONE: '✓', CANCELED: '✕', DOING: '◐', WAITING: '◔' })[s ?? ''] ?? '☐'
+  const glyph = (s: string | null) =>
+    ({ DONE: '✓', CANCELED: '✕', DOING: '◐', NOW: '◐', WAITING: '◔' })[s ?? ''] ?? '☐'
   /** The block text without its task marker, priority and properties: what the task is about. */
   const label = (text: string) =>
     text
-      .replace(/^(?:TODO|DOING|WAITING|DONE|CANCELED)\s+/, '')
+      .replace(/^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)\s+/, '')
       .replace(/\s\^[a-z0-9]{6}$/, '')
       .trim() || '(empty)'
 </script>

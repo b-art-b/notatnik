@@ -840,8 +840,15 @@
     border-radius: 50%;
     background: var(--c);
   }
+  .marker-later {
+    --c: var(--task-later);
+  }
   .marker-doing {
     --c: var(--task-doing);
+    background: color-mix(in srgb, var(--c) 26%, var(--chip));
+  }
+  .marker-now {
+    --c: var(--task-now);
     background: color-mix(in srgb, var(--c) 26%, var(--chip));
   }
   .marker-waiting {

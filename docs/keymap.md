@@ -104,7 +104,9 @@ description and the `/name`. Use ↑/↓ to move, Enter to choose, Esc to close.
 
 `/todo`, `/doing`, `/waiting`, `/done` and `/canceled` can be typed anywhere in a block: the command is removed and the task marker is put at the start of the first line (replacing an existing marker).
 
-Each task state has its own color on the marker pill: blue `TODO`, orange `DOING`, purple (ring) `WAITING`, green with a tick `DONE`, grey `CANCELED` (`--task-*` in `app.css`, light and dark).
+`/later` and `/now` set the Logseq-style markers `LATER` (to do) and `NOW` (in progress); Ctrl+Enter cycles `LATER` → `NOW` → `DONE`. The agenda, page tasks and the board treat them like `TODO` and `DOING` (a board gets a *later* / *now* column when a task uses it); in queries write `task: todo, later` and `task: doing, now`.
+
+Each task state has its own color on the marker pill: blue `TODO`, teal `LATER`, orange `DOING`, red-orange `NOW`, purple (ring) `WAITING`, green with a tick `DONE`, grey `CANCELED` (`--task-*` in `app.css`, light and dark).
 
 The priority of a task shows right after its marker as `[#A]` (click it to change; none by default). The priorities are a graph setting: any number from one to nine, any labels (`A B C` by default, `1 2 3 4`, `!! !` ...): Settings → Tasks → *Priorities* (edit, + Add, − Remove last), or `[tasks] priorities = ["A", "B", "C"]` in `config.toml`. Changing them re-reads the files; a file that uses a label that no longer exists gets a warning and shows no priority. There is a `/` command for each: `/priority` (the most important), `/priority-b`, `/priority-c`, ... (the name follows the label: `/priority-p4`), and `/priority-none` to remove it. Each sets the `priority::` property line of the block (replacing an existing value). Like `/scheduled` and `/deadline` they can be typed anywhere in the block, also on a later line: the command is removed and the property goes directly under the first line, after the block's other properties. Task markers go to the start of the first line, `/log` into the `:LOGBOOK:` drawer, so a command always puts its result in its own place whatever the cursor position.
 

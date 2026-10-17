@@ -13,8 +13,8 @@
   // `page`: the tasks of a page. `segment`: the tasks of every page that has this name somewhere in its path.
   let { page = '', segment = '' }: { page?: string; segment?: string } = $props()
 
-  const OPEN = 'todo, doing, waiting'
-  const ALL = 'todo, doing, waiting, done, canceled'
+  const OPEN = 'todo, later, doing, now, waiting'
+  const ALL = 'todo, later, doing, now, waiting, done, canceled'
   let found = $state<{ id: string; title: string; rows: ResultRow[] }[]>([])
   let open = $state(true)
   let showDone = $state(false)

@@ -1,7 +1,15 @@
 // Sorting and grouping of agenda items inside a section (the same keys the query views offer).
 import type { AgendaItem } from './api'
 
-const STATE_RANK: Record<string, number> = { DOING: 0, TODO: 1, WAITING: 2, DONE: 3, CANCELED: 4 }
+const STATE_RANK: Record<string, number> = {
+  DOING: 0,
+  NOW: 0,
+  TODO: 1,
+  LATER: 1,
+  WAITING: 2,
+  DONE: 3,
+  CANCELED: 4,
+}
 
 /** The `<field> <asc|desc>` values the Sort select offers; `''` keeps the agenda's own order (by date). */
 export const SORTS = [
@@ -98,7 +106,7 @@ export function groupItems(items: AgendaItem[], group: string): ItemGroup[] {
 function plainCrumb(text: string): string {
   return text
     .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/^(TODO|DOING|WAITING|DONE|CANCELED)\s+/, '')
+    .replace(/^(TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)\s+/, '')
     .replace(/(^|\s)#(?=[\w[])/g, '$1')
     .replace(/[*_~`]+/g, '')
     .trim()

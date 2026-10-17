@@ -10,7 +10,7 @@ start: number,
  * One past the last byte (exclusive).
  */
 end: number, };
-export type TaskState = "TODO" | "DOING" | "WAITING" | "DONE" | "CANCELED";
+export type TaskState = "TODO" | "LATER" | "DOING" | "NOW" | "WAITING" | "DONE" | "CANCELED";
 export type BlockRef = { 
 /**
  * Child indices from the page root, e.g. `[2, 0]` = first child of the third top-level block.

@@ -172,7 +172,7 @@ A **graph** is a folder of notes.
 
 | ID | Requirement | Priority |
 |---|---|---|
-| TK-1 | A block starting with `TODO`, `DOING`, `WAITING`, `DONE` or `CANCELED` is a task. Ctrl+Enter cycles TODO → DOING → DONE. | MVP |
+| TK-1 | A block starting with `TODO`, `LATER`, `DOING`, `NOW`, `WAITING`, `DONE` or `CANCELED` is a task (`LATER` = to do, `NOW` = in progress, as in Logseq). Ctrl+Enter cycles TODO → DOING → DONE and LATER → NOW → DONE. | MVP |
 | TK-2 | Tasks have optional `scheduled`, `deadline` (date or date+time), `priority` (high/medium/low) and `repeat` (recurrence). | MVP |
 | TK-3 | Completing a repeating task appends the date to a hidden `completed::` property, resets it to TODO and moves `scheduled`/`deadline` to the next occurrence. | V1 |
 | TK-4 | Agenda view: overdue, today, upcoming 7 days, later (dated beyond 7 days), no date. Filters by namespace, tag and priority. | MVP |

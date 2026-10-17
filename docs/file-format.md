@@ -197,7 +197,10 @@ before the children:
 ## 5. Tasks
 
 - A block whose first line starts with a marker is a task:
-  `TODO`, `DOING`, `WAITING`, `DONE`, `CANCELED`.
+  `TODO`, `LATER`, `DOING`, `NOW`, `WAITING`, `DONE`, `CANCELED`. `LATER` and `NOW` are Logseq's words for to do and in
+  progress; they are states of their own (kept as written), and the app treats them like `TODO` and `DOING`: open
+  tasks (agenda, page tasks), sort order, the cycle, repeating tasks (a repeating `LATER`/`NOW` task starts over as `LATER`).
+  `task: todo` matches only `TODO`; use `task: todo, later`.
 - Task properties:
 
 | Property | Format | Notes |

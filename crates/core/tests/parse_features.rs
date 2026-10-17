@@ -86,6 +86,25 @@ fn tasks() {
     );
 }
 
+/// LATER and NOW are markers of their own (Logseq's words for to do and in progress) and round-trip as written.
+#[test]
+fn later_and_now_are_task_markers() {
+    let src = "- LATER buy milk\n- NOW write it\n- later x\n- NOWHERE\n";
+    let p = parse_page(src);
+    let states: Vec<Option<TaskState>> = p
+        .blocks
+        .iter()
+        .map(|b| b.task.as_ref().map(|t| t.state))
+        .collect();
+    assert_eq!(
+        states,
+        [Some(TaskState::Later), Some(TaskState::Now), None, None]
+    );
+    assert_eq!(p.rebuild(src), src);
+    assert_eq!(TaskState::from_name("later"), Some(TaskState::Later));
+    assert_eq!(TaskState::Now.marker(), "NOW");
+}
+
 #[test]
 fn task_properties_and_diagnostics() {
     let src = "- TODO t\n  scheduled:: 2026-10-05 09:30\n  deadline:: 2026-13-45\n  priority:: urgent\n  repeat:: sometimes\n- TODO ok\n  repeat:: every 2w\n  priority:: low\n  done:: 2026-10-02T18:20\n";

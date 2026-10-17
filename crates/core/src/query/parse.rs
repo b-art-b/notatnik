@@ -457,7 +457,8 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
             let neg = negated;
             let kind = match key {
                 "task" => {
-                    FilterKind::Task(each!(|p: &str, o: usize| match p.to_lowercase().as_str() {
+                    FilterKind::Task(each!(|p: &str, o: usize| {
+                        match p.to_lowercase().as_str() {
                         "any" => Ok(TaskMatch::Any),
                         "none" => Ok(TaskMatch::None),
                         s => TaskState::from_name(s)
@@ -466,10 +467,11 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                                 offset: o,
                                 message: format!("unknown task state `{p}`"),
                                 suggestion: Some(
-                                    "use todo, doing, waiting, done, canceled, any or none"
+                                    "use todo, later, doing, now, waiting, done, canceled, any or none"
                                         .to_string()
                                 ),
                             }),
+                    }
                     }))
                 }
                 "tag" => FilterKind::Tag(each!(|p: &str, o: usize| parse_name(p, o))),

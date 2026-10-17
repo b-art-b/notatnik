@@ -5,6 +5,8 @@
   --task: #35b7d0;
   /* one color per task state: to do, doing, waiting, done */
   --task-todo: #3b7dd8;
+  --task-later: #1f9fb4;
+  --task-now: #d9480f;
   --task-doing: #e07b00;
   --task-waiting: #8a5cd6;
   --task-done: #2e9d4f;
@@ -31,6 +33,8 @@
   --card: #23272d;
   --task: #3fbfd8;
   --task-todo: #6aa5ff;
+  --task-later: #4cc3d6;
+  --task-now: #ff7a45;
   --task-doing: #f0a040;
   --task-waiting: #b39dfa;
   --task-done: #4cc272;

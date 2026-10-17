@@ -27,6 +27,8 @@ describe('markerChanges', () => {
   it('replaces an existing marker', () => {
     expect(run('TODO buy milk /done', 'DONE')).toBe('DONE buy milk')
     expect(run('DOING /waiting x', 'WAITING')).toBe('WAITING x')
+    expect(run('LATER /now x', 'NOW')).toBe('NOW x')
+    expect(run('NOW /later x', 'LATER')).toBe('LATER x')
   })
   it('only touches the first line', () => {
     expect(run('first\nsecond /todo', 'TODO')).toBe('TODO first\nsecond')

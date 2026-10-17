@@ -14,8 +14,12 @@ use serde::{Serialize, Serializer};
 pub enum TaskState {
     /// `TODO`
     Todo,
+    /// `LATER`: to do, like `TODO` (Logseq's words for the same step)
+    Later,
     /// `DOING`
     Doing,
+    /// `NOW`: in progress, like `DOING`
+    Now,
     /// `WAITING`
     Waiting,
     /// `DONE`
@@ -26,9 +30,11 @@ pub enum TaskState {
 
 impl TaskState {
     /// All markers with their states, in canonical order.
-    pub const ALL: [TaskState; 5] = [
+    pub const ALL: [TaskState; 7] = [
         TaskState::Todo,
+        TaskState::Later,
         TaskState::Doing,
+        TaskState::Now,
         TaskState::Waiting,
         TaskState::Done,
         TaskState::Canceled,
@@ -38,7 +44,9 @@ impl TaskState {
     pub const fn marker(self) -> &'static str {
         match self {
             TaskState::Todo => "TODO",
+            TaskState::Later => "LATER",
             TaskState::Doing => "DOING",
+            TaskState::Now => "NOW",
             TaskState::Waiting => "WAITING",
             TaskState::Done => "DONE",
             TaskState::Canceled => "CANCELED",
@@ -54,7 +62,9 @@ impl TaskState {
     pub const fn name(self) -> &'static str {
         match self {
             TaskState::Todo => "todo",
+            TaskState::Later => "later",
             TaskState::Doing => "doing",
+            TaskState::Now => "now",
             TaskState::Waiting => "waiting",
             TaskState::Done => "done",
             TaskState::Canceled => "canceled",

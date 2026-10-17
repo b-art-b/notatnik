@@ -36,7 +36,7 @@
   const queryText = $derived.by(() => {
     const name = (n: string) => (/^[\w./-]+$/.test(n) ? n : `[[${n}]]`)
     // a board needs the done and canceled columns filled: a card moved there must stay on the board
-    const lines = [`task: ${showDone || mode === 'kanban' ? 'any' : 'todo, doing, waiting'}`]
+    const lines = [`task: ${showDone || mode === 'kanban' ? 'any' : 'todo, later, doing, now, waiting'}`]
     if (ns.trim()) lines.push(`ns: ${name(ns.trim().replace(/^#/, ''))}`)
     if (tag.trim()) lines.push(`tag: ${name(tag.trim().replace(/^#/, ''))}`)
     if (priority) lines.push(`priority: ${priority}`)
