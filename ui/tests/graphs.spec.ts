@@ -47,3 +47,33 @@ test('the browser build has no folder chooser button, only the path field', asyn
   await expect(page.getByLabel('Graph folder')).toBeVisible()
   await expect(page.getByTestId('browse-folder')).toHaveCount(0)
 })
+
+// The graph name at the top of the sidebar opens a menu: the other graphs to switch to, the start screen.
+test('the sidebar menu switches to another graph and leads to the start screen', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/journals')
+  const switcher = page.getByTestId('graph-switcher')
+  await expect(switcher).toContainText('graph')
+  // no other graph yet: only the two entries that lead to the start screen
+  await switcher.click()
+  const menu = page.getByRole('menu', { name: 'Graphs' })
+  await expect(menu.getByRole('menuitem')).toHaveText(['Add new graph…', 'All graphs…'])
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  // a second graph is opened from the start screen, then the menu offers the first one
+  await switcher.click()
+  await menu.getByRole('menuitem', { name: 'Add new graph…' }).click()
+  await page.getByLabel('Graph folder').fill(`${backend.dir}-second`)
+  await page.getByRole('button', { name: 'Open / create' }).click()
+  await expect(switcher).toContainText('-second', { timeout: 10000 })
+  await switcher.click()
+  await expect(menu).toContainText('Switch to:')
+  await menu.getByRole('menuitem', { name: 'graph', exact: true }).click()
+  await expect(switcher).not.toContainText('-second', { timeout: 10000 })
+  // a click elsewhere closes the menu
+  await switcher.click()
+  await page.getByTestId('journals').click({ position: { x: 5, y: 5 } })
+  await expect(menu).toBeHidden()
+})

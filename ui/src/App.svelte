@@ -39,6 +39,7 @@
   import PageContent from './lib/components/PageContent.svelte'
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
+  import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
   import SyncIndicator from './lib/components/SyncIndicator.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
@@ -274,6 +275,7 @@
       ></button
     >
     <aside class="left" aria-label="Sidebar">
+      <GraphSwitcher />
       <nav>
         <a href="#/journals" class:active={route.kind === 'journals'}
           ><span class="ico ico-journals" aria-hidden="true"></span>Journals</a
