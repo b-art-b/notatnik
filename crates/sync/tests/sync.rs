@@ -243,6 +243,24 @@ fn a_page_without_a_kept_base_is_given_one_while_it_is_unchanged() {
     assert_eq!(e.read("pages/a.md"), "- one mine\n- two theirs\n");
 }
 
+/// A folder chosen in the folder browser can be several new levels deep: the missing ones are made.
+#[test]
+fn a_synced_folder_below_missing_folders_is_made_with_them() {
+    let e = Env::new();
+    let remote = WebDavRemote::new(
+        &e.dav.folder_url("Notes/Work/Clients/graph"),
+        &e.dav.user,
+        &e.dav.password,
+    )
+    .unwrap();
+    remote.mkdir("").unwrap();
+    assert!(remote.list("").unwrap().is_some());
+    // and a folder that is there already is fine
+    remote.mkdir("").unwrap();
+    remote.mkdir("pages/2026").unwrap();
+    assert!(remote.list("pages").unwrap().is_some());
+}
+
 #[test]
 fn deletes_travel_but_an_edit_beats_a_delete() {
     let e = Env::new();

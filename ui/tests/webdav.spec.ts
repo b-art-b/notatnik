@@ -115,3 +115,58 @@ test('a folder that holds a graph is downloaded; other folders are refused', asy
   await expect(form.getByRole('alert')).toContainText('refused the login')
   expect(fs.existsSync(first.root)).toBe(true)
 })
+
+test('the folder browser clicks through the server and fills in the folder', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/journals')
+  // something to browse: a graph in Notes/Work/graph1
+  await backend.call('create_remote_graph', {
+    server: dav.server,
+    user: dav.user,
+    password: dav.password,
+    folder: 'Notes/Work/graph1',
+    attach: false,
+  })
+  const login = { server: dav.server, user: dav.user, password: dav.password, attach: false }
+  await expect
+    .poll(
+      async () =>
+        (await backend.call<{ folders: string[] }>('webdav_browse', { ...login, folder: '' })).folders,
+    )
+    .toContain('Notes')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await page.getByTestId('new-server-graph').click()
+  const form = page.getByTestId('webdav-form')
+  // not before the login is filled in
+  await expect(form.getByTestId('webdav-browse')).toBeDisabled()
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  await form.getByLabel('Folder on the server').fill('')
+  await form.getByTestId('webdav-browse').click()
+  const browser = page.getByTestId('webdav-browser')
+  await expect(browser.getByRole('button', { name: /Notes/ })).toBeVisible()
+  await browser.getByRole('button', { name: /Notes/ }).click()
+  await browser.getByRole('button', { name: /Work/ }).click()
+  await expect(browser.getByRole('button', { name: /graph1/ })).toBeVisible()
+  // the crumbs go back up
+  await browser
+    .getByRole('navigation', { name: 'Where you are' })
+    .getByRole('button', { name: 'Notes' })
+    .click()
+  await expect(browser.getByRole('button', { name: /Work/ })).toBeVisible()
+  await browser.getByRole('button', { name: /Work/ }).click()
+  // a folder that is not there yet
+  await browser.getByLabel('New folder here').fill('mine')
+  await browser.getByRole('button', { name: 'Add' }).click()
+  await expect(browser).toContainText('does not exist yet')
+  await browser.getByTestId('browser-pick').click()
+  await expect(form.getByLabel('Folder on the server')).toHaveValue('Notes/Work/mine')
+  await expect(page.getByTestId('webdav-seen')).toContainText('does not exist yet')
+  await expect(browser).toHaveCount(0)
+})

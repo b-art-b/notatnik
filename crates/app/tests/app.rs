@@ -3123,6 +3123,41 @@ fn unused_images_are_listed_and_trashed_but_linked_ones_stay() {
     assert!(graph.join("pics.md").exists());
 }
 
+/// The folder browser of the start screen lists the folders of a server folder, without changing anything.
+#[test]
+fn the_server_folder_browser_lists_folders_and_leaves_the_server_alone() {
+    use notatnik_sync::fakedav::FakeDav;
+    let dav = FakeDav::start();
+    let t = start("basic");
+    for f in [
+        "Notes/Zed/x.txt",
+        "Notes/alpha/y.txt",
+        "Notes/.hidden/z",
+        "Notes/readme.md",
+        "Photos/p.jpg",
+    ] {
+        dav.put_file(f, b"x");
+    }
+    let browse = |folder: &str| {
+        t.ok("webdav_browse", json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": folder, "attach": false}))
+    };
+    assert_eq!(browse("")["folders"], json!(["Notes", "Photos"]));
+    let notes = browse("/Notes/");
+    assert_eq!(notes["folder"], "Notes");
+    assert_eq!(notes["folders"], json!(["alpha", "Zed"])); // sorted without regard to case, hidden left out
+    assert_eq!(notes["items"], 4);
+    assert_eq!(notes["has_graph"], false);
+    let missing = browse("Notes/new");
+    assert_eq!(missing["exists"], false);
+    assert_eq!(missing["folders"], json!([]));
+    assert!(dav.files("Notes/new").is_empty());
+    // a wrong password is told as such
+    let e = t
+        .call("webdav_browse", json!({"server": dav.server, "user": dav.user, "password": "nope", "folder": "", "attach": false}))
+        .unwrap_err();
+    assert_eq!(e.code, "auth");
+}
+
 /// SY-1..SY-6: a graph kept in a server folder; two devices through the in-memory WebDAV server.
 #[test]
 fn a_graph_kept_in_a_server_folder_syncs_both_ways() {

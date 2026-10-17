@@ -4,6 +4,7 @@
   // already holds a graph can be downloaded to this device.
   import { backend, CommandError, type WebdavTest } from '../api'
   import { adoptGraph, errorMessage } from '../stores/app.svelte'
+  import WebdavFolderBrowser from './WebdavFolderBrowser.svelte'
 
   let server = $state('')
   let user = $state('')
@@ -12,6 +13,7 @@
   let seen = $state<WebdavTest | null>(null)
   let error = $state('')
   let busy = $state(false)
+  let browsing = $state(false)
 
   const args = (attach: boolean) => ({ server, user, password, folder, attach })
   const filled = $derived(!!server.trim() && !!user.trim() && !!password && !!folder.trim())
@@ -60,7 +62,32 @@
   <label for="wd-pass">Password (on Nextcloud: an app password from Settings → Security)</label>
   <input id="wd-pass" type="password" bind:value={password} autocomplete="current-password" />
   <label for="wd-folder">Folder on the server</label>
-  <input id="wd-folder" bind:value={folder} oninput={() => (seen = null)} />
+  <div class="row">
+    <input id="wd-folder" bind:value={folder} oninput={() => (seen = null)} />
+    <button
+      type="button"
+      class="plain"
+      data-testid="webdav-browse"
+      disabled={!server.trim() || !user.trim() || !password || busy}
+      title={!server.trim() || !user.trim() || !password
+        ? 'Fill in the server, user name and password first'
+        : ''}
+      onclick={() => (browsing = !browsing)}>Browse…</button
+    >
+  </div>
+  {#if browsing}
+    <WebdavFolderBrowser
+      login={{ server, user, password }}
+      start={folder}
+      onpick={(f) => {
+        folder = f
+        seen = null
+        browsing = false
+        void check()
+      }}
+      onclose={() => (browsing = false)}
+    />
+  {/if}
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if seen}
@@ -106,6 +133,14 @@
     padding: 0.5em;
     box-sizing: border-box;
     width: 100%;
+  }
+  .row {
+    display: flex;
+    gap: 0.4em;
+  }
+  .row input {
+    flex: 1;
+    min-width: 0;
   }
   .error {
     color: var(--danger);

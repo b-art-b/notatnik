@@ -456,9 +456,8 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
         {
             let neg = negated;
             let kind = match key {
-                "task" => {
-                    FilterKind::Task(each!(|p: &str, o: usize| {
-                        match p.to_lowercase().as_str() {
+                "task" => FilterKind::Task(each!(|p: &str, o: usize| {
+                    match p.to_lowercase().as_str() {
                         "any" => Ok(TaskMatch::Any),
                         "none" => Ok(TaskMatch::None),
                         s => TaskState::from_name(s)
@@ -472,8 +471,7 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                                 ),
                             }),
                     }
-                    }))
-                }
+                })),
                 "tag" => FilterKind::Tag(each!(|p: &str, o: usize| parse_name(p, o))),
                 "links" => FilterKind::Links(each!(|p: &str, o: usize| parse_name(p, o))),
                 "chain" => FilterKind::Chain(each!(|p: &str, o: usize| {

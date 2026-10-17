@@ -1778,6 +1778,27 @@ items: number,
  * It holds a Notatnik graph (a `.notatnik`, `pages` or `journals` folder).
  */
 has_graph: boolean, };
+export type WebdavFolders = { 
+/**
+ * The folder that was listed, written the way `folder` is (`Notes/graph`; empty for the account's files).
+ */
+folder: string, 
+/**
+ * It exists (a folder that does not is a new one: the list is empty).
+ */
+exists: boolean, 
+/**
+ * Names of the folders inside, sorted, without the hidden ones.
+ */
+folders: Array<string>, 
+/**
+ * How many items (files and folders) are inside.
+ */
+items: number, 
+/**
+ * It holds a Notatnik graph.
+ */
+has_graph: boolean, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1852,6 +1873,7 @@ export type Commands = {
   sync_set_merge: { args: SyncMergeArgs; result: SyncStatus };
   sync_now: { args: SyncNowArgs; result: SyncStatus };
   sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };
+  webdav_browse: { args: WebdavArgs; result: WebdavFolders };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };
   disconnect_remote: { args: NoArgs; result: GraphInfo };

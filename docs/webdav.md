@@ -107,7 +107,7 @@ memory.
 
 - The server and everything with access to it sees the notes in plain text. Encryption on the server (EN-7 to
   EN-10) is planned and not built.
-- One server folder per graph, one graph open at a time; no browsing of the server's folders (type the folder).
+- One server folder per graph, one graph open at a time; the folder is typed or picked in the folder browser (Browse… next to the field: click through the server's folders, *New folder here*, *Use …*). The browser only looks; folders that do not exist yet, also several levels of them, are made when the graph is created.
 - Files are sent one after another, whole; a broken upload starts again. A Nextcloud with a slow disk needs about
   half a second per file.
 - Links *to* a moved page written as relative Markdown paths in other pages are not rewritten (page links

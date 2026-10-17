@@ -125,6 +125,33 @@ fn decode(s: &str) -> String {
 }
 
 impl WebDavRemote {
+    /// Makes the folder at `url`; when the folder above it is missing, makes that first (at most a few levels, and
+    /// never the account's root).
+    fn make_with_parents(&self, url: &str, depth: u8) -> Result<()> {
+        let resp = self.request("MKCOL", url, &[], &[])?;
+        match resp.status() {
+            200..=299 | 405 => Ok(()),
+            409 => {
+                let parent = url.trim_end_matches('/').rsplit_once('/').map(|(p, _)| p);
+                let at_root = |p: &str| {
+                    // `…/files/<user>` is the account's files; `scheme://host` has no folders to make
+                    p.rsplit_once("/files/")
+                        .is_some_and(|(_, rest)| !rest.contains('/'))
+                        || p.matches('/').count() <= 2
+                };
+                match parent {
+                    Some(p) if depth < 6 && !at_root(p) => {
+                        self.make_with_parents(p, depth + 1)?;
+                        self.make_with_parents(url, depth + 1)
+                    }
+                    _ => Err(Error::NotFound(format!(
+                        "the folder above `{url}` does not exist on the server"
+                    ))),
+                }
+            }
+            s => Err(self.fail(s, url)),
+        }
+    }
     /// A client for the folder at `url`, logging in as `user` (an app password is best on Nextcloud).
     pub fn new(url: &str, user: &str, password: &str) -> Result<WebDavRemote> {
         check_url(url)?;
@@ -273,7 +300,8 @@ impl Remote for WebDavRemote {
         if dir.is_empty() {
             parts.clear();
         }
-        // the synced folder itself may be missing (its parents are the user's own folders: Notes/…)
+        // the synced folder itself may be missing, and so may the folders above it that were chosen with it
+        // (`Notes/Work/graph`); the account's own root is never made
         let create = |p: &str| -> Result<()> {
             let resp = self.request("MKCOL", &self.url(p, true), &[], &[])?;
             match resp.status() {
@@ -285,7 +313,7 @@ impl Remote for WebDavRemote {
             }
         };
         if self.list("")?.is_none() {
-            create("")?;
+            self.make_with_parents(&self.url("", true), 0)?;
         }
         for part in parts {
             if !sofar.is_empty() {

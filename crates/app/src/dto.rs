@@ -1438,6 +1438,21 @@ pub struct WebdavArgs {
     pub attach: bool,
 }
 
+/// `webdav_browse` result: the folders directly inside a folder of the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct WebdavFolders {
+    /// The folder that was listed, written the way `folder` is (`Notes/graph`; empty for the account's files).
+    pub folder: String,
+    /// It exists (a folder that does not is a new one: the list is empty).
+    pub exists: bool,
+    /// Names of the folders inside, sorted, without the hidden ones.
+    pub folders: Vec<String>,
+    /// How many items (files and folders) are inside.
+    pub items: u32,
+    /// It holds a Notatnik graph.
+    pub has_graph: bool,
+}
+
 /// `webdav_test` result.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct WebdavTest {

@@ -382,6 +382,37 @@ impl AppState {
         })
     }
 
+    /// `webdav_browse`: the folders inside `folder` on the server (read-only), for the folder browser of the start
+    /// screen. `folder` empty is the account's files.
+    pub fn webdav_browse(&self, a: WebdavArgs) -> ApiResult<WebdavFolders> {
+        use notatnik_sync::Remote;
+        let url =
+            notatnik_sync::folder_url(&a.server, &a.user, &a.folder).map_err(|e| api_err(&e))?;
+        let remote = WebDavRemote::new(&url, &a.user, &a.password).map_err(|e| api_err(&e))?;
+        let entries = remote.list("").map_err(|e| api_err(&e))?.map(|l| l.entries);
+        let mut folders: Vec<String> = entries
+            .iter()
+            .flatten()
+            .filter(|e| e.dir && !e.name.starts_with('.'))
+            .map(|e| e.name.clone())
+            .collect();
+        folders.sort_by_key(|n| n.to_lowercase());
+        let folder = a
+            .folder
+            .split('/')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("/");
+        Ok(WebdavFolders {
+            folder,
+            exists: entries.is_some(),
+            folders,
+            items: entries.as_ref().map_or(0, |e| e.len() as u32),
+            has_graph: entries.as_ref().is_some_and(|e| looks_like_graph(e)),
+        })
+    }
+
     /// `create_remote_graph`: a new graph kept in a server folder (an empty or missing folder), or an existing one
     /// attached (`attach`), downloaded into a local copy first.
     pub fn create_remote_graph(&self, a: WebdavArgs) -> ApiResult<GraphInfo> {

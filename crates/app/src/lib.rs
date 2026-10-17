@@ -114,6 +114,7 @@ commands! {
     sync_set_merge(SyncMergeArgs) -> SyncStatus => sync_set_merge,
     sync_now(SyncNowArgs) -> SyncStatus => sync_now,
     sync_set_password(SyncPasswordArgs) -> SyncStatus => sync_set_password,
+    webdav_browse(WebdavArgs) -> WebdavFolders => webdav_browse,
     webdav_test(WebdavArgs) -> WebdavTest => webdav_test,
     create_remote_graph(WebdavArgs) -> GraphInfo => create_remote_graph,
     disconnect_remote(NoArgs) -> GraphInfo => disconnect_remote,
