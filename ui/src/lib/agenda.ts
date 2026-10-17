@@ -106,7 +106,7 @@ export function groupItems(items: AgendaItem[], group: string): ItemGroup[] {
 function plainCrumb(text: string): string {
   return text
     .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/^(TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)\s+/, '')
+    .replace(/^(TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED|\[[ xX]\])\s+/, '')
     .replace(/(^|\s)#(?=[\w[])/g, '$1')
     .replace(/[*_~`]+/g, '')
     .trim()

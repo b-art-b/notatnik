@@ -369,22 +369,27 @@
         onclick={() => doc?.toggleCollapsed(block.id)}>{block.collapsed ? '▸' : '▾'}</button
       >
     {/if}
-    <button
-      class="bullet"
-      class:collapsed={block.collapsed && hasChildren}
-      draggable={!readonly}
-      ondragstart={startDrag}
-      ondragend={endDrag}
-      title={(readonly
-        ? 'Right-click for the block menu'
-        : 'Click to zoom in, drag to move, right-click for more') + (block.uid ? ` · ^${block.uid}` : '')}
-      aria-label="Zoom into block"
-      oncontextmenu={openMenu}
-      onclick={(e) => {
-        if (e.altKey) openMenu(e)
-        else if (!readonly) navigate({ kind: 'page', name: docName, zoom: block.path })
-      }}>●</button
-    >
+    {#if block.plain}
+      <!-- text between bullets (a heading, a table, a code block ...): no bullet, but the same column -->
+      <span class="bullet ghost" aria-hidden="true">●</span>
+    {:else}
+      <button
+        class="bullet"
+        class:collapsed={block.collapsed && hasChildren}
+        draggable={!readonly}
+        ondragstart={startDrag}
+        ondragend={endDrag}
+        title={(readonly
+          ? 'Right-click for the block menu'
+          : 'Click to zoom in, drag to move, right-click for more') + (block.uid ? ` · ^${block.uid}` : '')}
+        aria-label="Zoom into block"
+        oncontextmenu={openMenu}
+        onclick={(e) => {
+          if (e.altKey) openMenu(e)
+          else if (!readonly) navigate({ kind: 'page', name: docName, zoom: block.path })
+        }}>●</button
+      >
+    {/if}
     {#if menu}
       <BlockMenu
         x={menu.x}
@@ -423,6 +428,7 @@
             text={block.text}
             cursor={editing.cursor}
             pageName={docName}
+            plain={block.plain}
             onchange={(t, prev) => commitText(ctx, block.id, t, prev, { onlyIfActive: true })}
             onaction={(a) => editorAction(ctx, block.id, a)}
             onundo={(k) => globalUndo(k)}
@@ -454,8 +460,9 @@
               title="Click to change the task state"
               onclick={(e) => {
                 e.stopPropagation()
-                if (ctx) void setTaskState(ctx, block.id, nextTaskState(block.task?.state))
-              }}>{block.task.state}</button
+                if (ctx)
+                  void setTaskState(ctx, block.id, nextTaskState(block.task?.state, block.task?.checkbox))
+              }}>{block.task.checkbox ? (block.task.state === 'DONE' ? '☑' : '☐') : block.task.state}</button
             >{/if}
           {#if block.task?.priority}
             <button
@@ -728,6 +735,9 @@
     transition:
       transform 0.12s,
       opacity 0.12s;
+  }
+  .bullet.ghost::before {
+    display: none;
   }
   .bullet:hover::before {
     opacity: 1;

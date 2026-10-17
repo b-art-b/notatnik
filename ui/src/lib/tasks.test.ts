@@ -15,9 +15,22 @@ const blk = (state: TaskState | null, children: BlockView[] = []): BlockView =>
     task: state ? { state, scheduled: null, deadline: null, priority: null, repeat: null } : null,
     props: [],
     logbook: [],
+    plain: false,
     collapsed: false,
     children,
   }) as BlockView
+
+describe('checkbox tasks', () => {
+  it('only toggle between open and done, so the file keeps its checkboxes', () => {
+    expect(nextTaskState('TODO', true)).toBe('DONE')
+    expect(nextTaskState('DONE', true)).toBe('TODO')
+    // a task written with words cycles as before
+    expect(nextTaskState('TODO', false)).toBe('DOING')
+    expect(nextTaskState('DONE', false)).toBe(null)
+    // a checkbox task that was set to DOING by hand is a word task now
+    expect(nextTaskState('DOING', true)).toBe('DONE')
+  })
+})
 
 describe('tasks', () => {
   it('cycles none → TODO → DOING → DONE → none', () => {

@@ -1,8 +1,10 @@
 // Task state cycling and display helpers (TK-1, TK-6).
 import type { BlockView, TaskState } from './api'
 
-/** (none) → TODO → DOING → DONE → (none); LATER → NOW → DONE; WAITING goes to DONE, CANCELED clears. */
-export function nextTaskState(s: TaskState | null | undefined): TaskState | null {
+/** (none) → TODO → DOING → DONE → (none); LATER → NOW → DONE; WAITING goes to DONE, CANCELED clears. A task
+ * written as a Markdown checkbox (`[ ]`, `[x]`) only toggles between open and done, so it stays a checkbox. */
+export function nextTaskState(s: TaskState | null | undefined, checkbox = false): TaskState | null {
+  if (checkbox && (s === 'TODO' || s === 'DONE')) return s === 'TODO' ? 'DONE' : 'TODO'
   switch (s) {
     case undefined:
     case null:

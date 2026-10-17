@@ -33,6 +33,7 @@ function b(text: string, children: BlockView[] = [], extra: Partial<BlockView> =
     task: null,
     props: [],
     logbook: [],
+    plain: false,
     collapsed: false,
     children,
     ...extra,

@@ -30,6 +30,10 @@ describe('markerChanges', () => {
     expect(run('LATER /now x', 'NOW')).toBe('NOW x')
     expect(run('NOW /later x', 'LATER')).toBe('LATER x')
   })
+  it('replaces a checkbox, which is a marker too', () => {
+    expect(run('[ ] buy milk /doing', 'DOING')).toBe('DOING buy milk')
+    expect(run('[x] buy milk /todo', 'TODO')).toBe('TODO buy milk')
+  })
   it('only touches the first line', () => {
     expect(run('first\nsecond /todo', 'TODO')).toBe('TODO first\nsecond')
   })

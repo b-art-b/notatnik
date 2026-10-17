@@ -169,7 +169,7 @@ export function propertyEnd(doc: string): number {
   }
 }
 
-const MARKER = /^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)[ \t]+/
+const MARKER = /^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED|\[[ xX]\])[ \t]+/
 
 /** Changes that remove the typed `/command` (`from`..`to`) and put `marker` at the start of the block,
  * replacing an existing one. The command may be typed anywhere in the block. */

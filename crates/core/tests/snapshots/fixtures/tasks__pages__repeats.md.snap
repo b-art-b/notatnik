@@ -92,6 +92,7 @@ expression: page
           "start": 2,
           "end": 6
         },
+        "checkbox": false,
         "scheduled": "2026-10-01",
         "deadline": null,
         "priority": null,
@@ -183,6 +184,7 @@ expression: page
           "start": 57,
           "end": 61
         },
+        "checkbox": false,
         "scheduled": "2026-09-28",
         "deadline": null,
         "priority": null,
@@ -274,6 +276,7 @@ expression: page
           "start": 114,
           "end": 118
         },
+        "checkbox": false,
         "scheduled": "2026-01-31",
         "deadline": null,
         "priority": null,
@@ -365,6 +368,7 @@ expression: page
           "start": 173,
           "end": 177
         },
+        "checkbox": false,
         "scheduled": "2026-09-21",
         "deadline": null,
         "priority": null,
@@ -458,6 +462,7 @@ expression: page
           "start": 241,
           "end": 245
         },
+        "checkbox": false,
         "scheduled": "2026-10-02",
         "deadline": null,
         "priority": null,
@@ -549,6 +554,7 @@ expression: page
           "start": 302,
           "end": 306
         },
+        "checkbox": false,
         "scheduled": "2026-09-28",
         "deadline": null,
         "priority": null,
@@ -620,6 +626,7 @@ expression: page
           "start": 384,
           "end": 388
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,

@@ -38,7 +38,7 @@
   /** The block text without its task marker, priority and properties: what the task is about. */
   const label = (text: string) =>
     text
-      .replace(/^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED)\s+/, '')
+      .replace(/^(?:TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED|\[[ xX]\])\s+/, '')
       .replace(/\s\^[a-z0-9]{6}$/, '')
       .trim() || '(empty)'
 </script>

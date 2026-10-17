@@ -391,7 +391,7 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
     case 'cycle-task': {
       const hit = findById(view.blocks, blockId)
       if (!hit) return false
-      await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state), a.text)
+      await setTaskState(ctx, blockId, nextTaskState(hit.block.task?.state, hit.block.task?.checkbox), a.text)
       return true
     }
     case 'select-all': {
@@ -667,7 +667,7 @@ export async function selectionCycleTask(ctx: Ctx): Promise<void> {
     if (!view) return null
     const hits = ids.map((id) => findById(view.blocks, id)).filter((h) => !!h)
     if (hits.length === 0) return null
-    const state = nextTaskState(hits[0].block.task?.state)
+    const state = nextTaskState(hits[0].block.task?.state, hits[0].block.task?.checkbox)
     return hits.map((h) => taskStateOp(h.path, state))
   })
 }

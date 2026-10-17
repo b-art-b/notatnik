@@ -170,6 +170,12 @@ A property whose value is a block reference (`follows:: ((abc123))`) is shown as
 
 ↑/↓ move in the menu, Enter chooses, Esc or a click elsewhere closes it. It also opens on bullets in linked references and query results, where Zoom in is left out. The `((` autocomplete (type `((` and some words of the block) still inserts a reference without leaving the keyboard.
 
+## Pages written by other editors (Nextcloud Text, Obsidian)
+
+- Text between bullets (headings, tables, code blocks, footnotes after a blank line) is shown without a bullet, as it is in the file. Click it to edit it as raw Markdown: Enter adds a line, Tab and Backspace at the start do not nest or merge it, a paste stays as typed. It cannot have a task marker, properties or a block ID, and cannot be indented; use `+` at the end of the page or the bullets around it for outline blocks. Moving a bullet next to such text adds a blank line between them.
+- A checkbox bullet (`* [ ] call`, `- [x] done`) is a task: shown as ☐ / ☑, clicking it toggles open and done and writes `[x]` / `[ ]` back, with no `done::` line. Marking it DOING (or another state with no checkbox) writes the word.
+- Images and files from `.attachments.N` folders next to a page are shown: a picture is displayed, any other file is a link that opens it with the system's program.
+
 ## Follow-up tasks and chains
 
 `/followup` (also found by `/next`, `/done-next`, `/follow-up`) works on the task you are editing, from anywhere in the block: it marks the task **done** (completion time written, a repeating task advances, exactly as Ctrl+Enter) and puts a new **TODO** right after it, as the next sibling. The new task carries the tags, page links and priority of the old one (not dates, not the repeat), links back with `follows:: ((id))`, and the editor goes into it at the end of its first line, so you type what comes next. The finished task gets a block ID (`^abc123`) if it had none; nothing else of it changes. On a task that is already done only the follow-up is added; on a block that is not a task it becomes done and gets the follow-up.

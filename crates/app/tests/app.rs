@@ -3158,6 +3158,104 @@ fn the_server_folder_browser_lists_folders_and_leaves_the_server_alone() {
     assert_eq!(e.code, "auth");
 }
 
+/// A page as Nextcloud Text writes it: text blocks between bullets, checkbox tasks, attachments next to the page.
+#[test]
+fn a_page_written_by_another_markdown_editor_shows_and_edits_in_place() {
+    let t = start("basic");
+    let original = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/graphs/edge-cases/pages/nextcloud-text.md"),
+    )
+    .unwrap();
+    std::fs::write(t.graph().join("pages/Czysty.md"), &original).unwrap();
+    t.ok("open_graph", json!({"path": t.graph(), "create": false}));
+    let p = t.ok("get_page", json!({"name": "Czysty"}));
+    let blocks = p["blocks"].as_array().unwrap();
+    let plain: Vec<bool> = blocks
+        .iter()
+        .map(|b| b["plain"].as_bool().unwrap())
+        .collect();
+    // bullets and the text blocks between them (headings, the code block with everything after it)
+    assert_eq!(plain.iter().filter(|x| **x).count(), 5, "{plain:?}");
+    assert!(
+        blocks
+            .iter()
+            .filter(|b| b["plain"] == true)
+            .all(|b| b["children"].as_array().unwrap().is_empty())
+    );
+    // checkboxes are tasks, shown as such
+    let task = |i: usize| blocks[i]["task"].clone();
+    let first_task = blocks
+        .iter()
+        .position(|b| b["task"]["checkbox"] == true)
+        .unwrap();
+    assert_eq!(task(first_task)["state"], "TODO");
+    assert_eq!(blocks[first_task]["text"], "[ ] Finish marketing campaign");
+
+    // ticking it changes one character of the file
+    let r = t.ok(
+        "apply_ops",
+        json!({"page": "Czysty", "base_hash": p["hash"], "ops": [{"op": "set_task_state", "block": {"path": [first_task]}, "state": "DONE", "done_at": "2026-10-18T10:00"}]}),
+    );
+    let after = t.read("pages/Czysty.md");
+    assert_eq!(
+        after,
+        original.replace(
+            "* [ ] Finish marketing campaign",
+            "* [x] Finish marketing campaign"
+        )
+    );
+    assert_eq!(r["page"]["blocks"][first_task]["task"]["state"], "DONE");
+
+    // editing a text block writes it back as typed and nothing around it changes
+    let p = t.ok("get_page", json!({"name": "Czysty"}));
+    let table_block = p["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|b| b["text"].as_str().unwrap().contains("| header"))
+        .unwrap();
+    let text = p["blocks"][table_block]["text"].as_str().unwrap().replace(
+        "| Cos pisze | 1     | 11   |",
+        "| Cos pisze | 1     | 12   |",
+    );
+    t.ok(
+        "apply_ops",
+        json!({"page": "Czysty", "base_hash": p["hash"], "ops": [{"op": "update_text", "block": {"path": [table_block]}, "text": text}]}),
+    );
+    assert_eq!(
+        t.read("pages/Czysty.md"),
+        original
+            .replace(
+                "* [ ] Finish marketing campaign",
+                "* [x] Finish marketing campaign"
+            )
+            .replace(
+                "| Cos pisze | 1     | 11   |",
+                "| Cos pisze | 1     | 12   |"
+            )
+    );
+
+    // a bullet cannot be given a block ID or properties in a text block, and nothing is written
+    let before = t.read("pages/Czysty.md");
+    let p = t.ok("get_page", json!({"name": "Czysty"}));
+    let e = t
+        .call(
+            "apply_ops",
+            json!({"page": "Czysty", "base_hash": p["hash"], "ops": [{"op": "set_property", "block": {"path": [table_block]}, "key": "x", "value": "y"}]}),
+        )
+        .unwrap_err();
+    assert!(e.message.contains("text between bullets"), "{e:?}");
+    assert_eq!(t.read("pages/Czysty.md"), before);
+
+    // the attachment next to the page: a file that is not a picture is a link to it, resolved from the page's folder
+    let hrefs = serde_json::to_string(&p["blocks"]).unwrap();
+    assert!(
+        hrefs.contains("\"href\":\"pages/.attachments.492/Makefile\""),
+        "{hrefs}"
+    );
+}
+
 /// A file of this computer is copied into the graph and linked, from a path or from bytes; programs are refused.
 #[test]
 fn a_file_is_copied_into_the_graph_and_linked_from_the_page() {

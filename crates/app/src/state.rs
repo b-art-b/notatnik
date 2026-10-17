@@ -1971,30 +1971,6 @@ impl AppState {
         })
     }
 
-    /// The file for an asset path as a link writes it (`../assets/…`), checked to be inside `assets/`.
-    pub fn asset_file(&self, rel: &str) -> ApiResult<PathBuf> {
-        self.with_open(|o| {
-            let clean = rel.trim_start_matches("../").trim_start_matches("./");
-            let p = Path::new(clean);
-            if p.is_absolute()
-                || p.components()
-                    .any(|c| matches!(c, std::path::Component::ParentDir))
-                || !clean.starts_with("assets/")
-            {
-                return Err(ApiError::new(
-                    "invalid",
-                    "assets must be inside the assets/ folder",
-                ));
-            }
-            let full = o.graph.root().join(p);
-            if full.is_file() {
-                Ok(full)
-            } else {
-                Err(ApiError::new("not_found", "asset not found"))
-            }
-        })
-    }
-
     /// `list_orphan_assets`: files below `assets/` that no page mentions.
     pub fn orphan_assets(&self, _: NoArgs) -> ApiResult<OrphanAssets> {
         self.with_open(|o| {
@@ -2022,23 +1998,50 @@ impl AppState {
         self.orphan_assets(NoArgs {})
     }
 
-    /// Reads a file below `assets/` (images).
+    /// Reads a picture of the graph for the webview: anything below `assets/`, or an image file elsewhere in the
+    /// graph (Nextcloud keeps a page's attachments in `.attachments.N/` beside it).
     pub fn read_asset(&self, rel: &str) -> ApiResult<Vec<u8>> {
+        let image = {
+            let ext = rel
+                .rsplit_once('.')
+                .map_or("", |(_, e)| e)
+                .to_ascii_lowercase();
+            matches!(
+                ext.as_str(),
+                "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "avif" | "bmp"
+            )
+        };
+        let full = self.graph_file(rel, |clean| clean.starts_with("assets/") || image)?;
+        std::fs::read(full).map_err(|_| ApiError::new("not_found", "asset not found"))
+    }
+
+    /// The file for a link as the page view gives it (graph-relative; a leading `../` is ignored), checked to be
+    /// inside the graph and outside `.notatnik`.
+    pub fn asset_file(&self, rel: &str) -> ApiResult<PathBuf> {
+        self.graph_file(rel, |_| true)
+    }
+
+    fn graph_file(&self, rel: &str, allowed: impl Fn(&str) -> bool) -> ApiResult<PathBuf> {
         self.with_open(|o| {
             let clean = rel.trim_start_matches("../").trim_start_matches("./");
             let p = Path::new(clean);
             if p.is_absolute()
                 || p.components()
                     .any(|c| matches!(c, std::path::Component::ParentDir))
-                || !clean.starts_with("assets/")
+                || clean.starts_with(".notatnik")
+                || !allowed(clean)
             {
                 return Err(ApiError::new(
                     "invalid",
-                    "assets must be inside the assets/ folder",
+                    "only files of this graph (below assets/, or pictures) can be opened",
                 ));
             }
-            std::fs::read(o.graph.root().join(p))
-                .map_err(|_| ApiError::new("not_found", "asset not found"))
+            let full = o.graph.root().join(p);
+            if full.is_file() {
+                Ok(full)
+            } else {
+                Err(ApiError::new("not_found", "asset not found"))
+            }
         })
     }
 }

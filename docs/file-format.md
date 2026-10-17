@@ -106,6 +106,13 @@ started: 2026-09-01
   block's content column (multi-line paragraphs, code fences, tables).
 - Text before the first bullet (after frontmatter) is a "preamble" block (kept, rendered
   as a normal block). This makes plain Markdown files written elsewhere still usable.
+- **Text between bullets.** An unindented line that is not a bullet and follows a blank line ends the bullet above
+  (as in CommonMark) and starts a *text block* (`BlockKind::Text`): a heading, a table, a code fence, paragraphs,
+  footnote definitions, as Nextcloud Text or Obsidian write them. It runs to the next unindented bullet; indented
+  list items inside it belong to it. A text block is a top-level block without bullet, ID, properties or task
+  marker; it is shown and edited as raw Markdown (Enter adds a line), kept byte for byte, never nested and nothing
+  nests under it. An unindented line *without* a blank line before it stays a lazy continuation of the bullet. The
+  app puts a blank line between a text block and a bullet it moves or inserts next to it, so the two stay apart.
 - **Indentation when writing:** new files use 2 spaces per level. When editing an existing file,
   the app detects the file's indentation style (2 spaces, 4 spaces or tabs, from its existing
   nested blocks) and uses that style for new or moved lines, so a file never ends up with mixed styles
@@ -201,6 +208,10 @@ before the children:
   progress; they are states of their own (kept as written), and the app treats them like `TODO` and `DOING`: open
   tasks (agenda, page tasks), sort order, the cycle, repeating tasks (a repeating `LATER`/`NOW` task starts over as `LATER`).
   `task: todo` matches only `TODO`; use `task: todo, later`.
+- A Markdown **checkbox** at the start of a bullet is a task too: `[ ]` is `TODO`, `[x]` and `[X]` are `DONE` (`[]`,
+  `[ ]text` and a checkbox in a text block are not). The app keeps the style: ticking writes `[x]`, unticking `[ ]`,
+  and no `done::` line is added, so other editors keep showing a plain checkbox. A state a checkbox cannot show
+  (`DOING`, ...) is written as the word.
 - Task properties:
 
 | Property | Format | Notes |
@@ -355,7 +366,9 @@ The parser never fails: any input gives a page plus diagnostics. Each rule below
 | Frontmatter never closed | Not frontmatter: the `---` is ordinary preamble text. | `unclosed-frontmatter.md` |
 | `---` later in the file | Ordinary text (a horizontal rule). Frontmatter is only recognised at byte 0 (after a BOM). | `hr-later.md` |
 | Text before the first bullet | The preamble block (headings, paragraphs, fences). | `text-between.md` |
-| Non-bullet lines after a bullet (including `# Heading` at column 0) | Lazy continuation: part of the block above. | `text-between.md` |
+| Non-bullet lines right after a bullet (including `# Heading` at column 0), no blank line between | Lazy continuation: part of the block above. | `text-between.md` |
+| Unindented text after a blank line, between bullets | A text block of its own (see 3.2); the bullets after it start at the top level. | `nextcloud-text.md` |
+| `- [ ] x`, `* [x] x` | A task (TODO / DONE) written as a checkbox. | `nextcloud-text.md` |
 | `- ## Heading` | An ordinary block whose text is a heading. | `text-between.md` |
 | Very long lines | No limit; linear time. | (generated in tests) |
 | `[[` without `]]` | Plain text. | `brackets.md` |

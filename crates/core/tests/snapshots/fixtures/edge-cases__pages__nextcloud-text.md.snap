@@ -1,0 +1,641 @@
+---
+source: crates/core/tests/parse_fixtures.rs
+expression: page
+---
+{
+  "style": {
+    "eol": "lf",
+    "indent": {
+      "kind": "spaces",
+      "width": 2
+    },
+    "bom": false,
+    "final_newline": false
+  },
+  "frontmatter": null,
+  "preamble": {
+    "kind": "preamble",
+    "level": 0,
+    "span": {
+      "start": 0,
+      "end": 16
+    },
+    "own_span": {
+      "start": 0,
+      "end": 16
+    },
+    "indent_span": {
+      "start": 0,
+      "end": 0
+    },
+    "bullet_span": {
+      "start": 0,
+      "end": 0
+    },
+    "first_line": {
+      "start": 0,
+      "end": 15
+    },
+    "props_span": null,
+    "rest_span": null,
+    "properties": [],
+    "block_id": null,
+    "task": null,
+    "refs": [],
+    "children": []
+  },
+  "blocks": [
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 17,
+        "end": 60
+      },
+      "own_span": {
+        "start": 17,
+        "end": 60
+      },
+      "indent_span": {
+        "start": 17,
+        "end": 17
+      },
+      "bullet_span": {
+        "start": 17,
+        "end": 18
+      },
+      "first_line": {
+        "start": 19,
+        "end": 59
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 60,
+        "end": 93
+      },
+      "own_span": {
+        "start": 60,
+        "end": 93
+      },
+      "indent_span": {
+        "start": 60,
+        "end": 60
+      },
+      "bullet_span": {
+        "start": 60,
+        "end": 61
+      },
+      "first_line": {
+        "start": 62,
+        "end": 92
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "text",
+      "level": 0,
+      "span": {
+        "start": 94,
+        "end": 107
+      },
+      "own_span": {
+        "start": 94,
+        "end": 107
+      },
+      "indent_span": {
+        "start": 94,
+        "end": 94
+      },
+      "bullet_span": {
+        "start": 94,
+        "end": 94
+      },
+      "first_line": {
+        "start": 94,
+        "end": 106
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 108,
+        "end": 140
+      },
+      "own_span": {
+        "start": 108,
+        "end": 140
+      },
+      "indent_span": {
+        "start": 108,
+        "end": 108
+      },
+      "bullet_span": {
+        "start": 108,
+        "end": 109
+      },
+      "first_line": {
+        "start": 110,
+        "end": 139
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 110,
+          "end": 113
+        },
+        "checkbox": true,
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 140,
+        "end": 154
+      },
+      "own_span": {
+        "start": 140,
+        "end": 154
+      },
+      "indent_span": {
+        "start": 140,
+        "end": 140
+      },
+      "bullet_span": {
+        "start": 140,
+        "end": 141
+      },
+      "first_line": {
+        "start": 142,
+        "end": 153
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 142,
+          "end": 145
+        },
+        "checkbox": true,
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 154,
+        "end": 164
+      },
+      "own_span": {
+        "start": 154,
+        "end": 164
+      },
+      "indent_span": {
+        "start": 154,
+        "end": 154
+      },
+      "bullet_span": {
+        "start": 154,
+        "end": 155
+      },
+      "first_line": {
+        "start": 156,
+        "end": 163
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 156,
+          "end": 159
+        },
+        "checkbox": true,
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "text",
+      "level": 0,
+      "span": {
+        "start": 165,
+        "end": 180
+      },
+      "own_span": {
+        "start": 165,
+        "end": 180
+      },
+      "indent_span": {
+        "start": 165,
+        "end": 165
+      },
+      "bullet_span": {
+        "start": 165,
+        "end": 165
+      },
+      "first_line": {
+        "start": 165,
+        "end": 179
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 181,
+        "end": 210
+      },
+      "own_span": {
+        "start": 181,
+        "end": 210
+      },
+      "indent_span": {
+        "start": 181,
+        "end": 181
+      },
+      "bullet_span": {
+        "start": 181,
+        "end": 182
+      },
+      "first_line": {
+        "start": 183,
+        "end": 209
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 210,
+        "end": 216
+      },
+      "own_span": {
+        "start": 210,
+        "end": 216
+      },
+      "indent_span": {
+        "start": 210,
+        "end": 210
+      },
+      "bullet_span": {
+        "start": 210,
+        "end": 211
+      },
+      "first_line": {
+        "start": 212,
+        "end": 215
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "text",
+      "level": 0,
+      "span": {
+        "start": 217,
+        "end": 249
+      },
+      "own_span": {
+        "start": 217,
+        "end": 249
+      },
+      "indent_span": {
+        "start": 217,
+        "end": 217
+      },
+      "bullet_span": {
+        "start": 217,
+        "end": 217
+      },
+      "first_line": {
+        "start": 217,
+        "end": 248
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 250,
+        "end": 256
+      },
+      "own_span": {
+        "start": 250,
+        "end": 256
+      },
+      "indent_span": {
+        "start": 250,
+        "end": 250
+      },
+      "bullet_span": {
+        "start": 250,
+        "end": 251
+      },
+      "first_line": {
+        "start": 252,
+        "end": 255
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "text",
+      "level": 0,
+      "span": {
+        "start": 257,
+        "end": 276
+      },
+      "own_span": {
+        "start": 257,
+        "end": 276
+      },
+      "indent_span": {
+        "start": 257,
+        "end": 257
+      },
+      "bullet_span": {
+        "start": 257,
+        "end": 257
+      },
+      "first_line": {
+        "start": 257,
+        "end": 275
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 277,
+        "end": 305
+      },
+      "own_span": {
+        "start": 277,
+        "end": 305
+      },
+      "indent_span": {
+        "start": 277,
+        "end": 277
+      },
+      "bullet_span": {
+        "start": 277,
+        "end": 278
+      },
+      "first_line": {
+        "start": 279,
+        "end": 304
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 305,
+        "end": 335
+      },
+      "own_span": {
+        "start": 305,
+        "end": 335
+      },
+      "indent_span": {
+        "start": 305,
+        "end": 305
+      },
+      "bullet_span": {
+        "start": 305,
+        "end": 306
+      },
+      "first_line": {
+        "start": 307,
+        "end": 334
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 336,
+        "end": 362
+      },
+      "own_span": {
+        "start": 336,
+        "end": 362
+      },
+      "indent_span": {
+        "start": 336,
+        "end": 336
+      },
+      "bullet_span": {
+        "start": 336,
+        "end": 337
+      },
+      "first_line": {
+        "start": 338,
+        "end": 361
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 338,
+          "end": 341
+        },
+        "checkbox": true,
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "bullet",
+      "level": 0,
+      "span": {
+        "start": 362,
+        "end": 378
+      },
+      "own_span": {
+        "start": 362,
+        "end": 378
+      },
+      "indent_span": {
+        "start": 362,
+        "end": 362
+      },
+      "bullet_span": {
+        "start": 362,
+        "end": 363
+      },
+      "first_line": {
+        "start": 364,
+        "end": 377
+      },
+      "props_span": null,
+      "rest_span": null,
+      "properties": [],
+      "block_id": null,
+      "task": {
+        "state": "TODO",
+        "marker_span": {
+          "start": 364,
+          "end": 367
+        },
+        "checkbox": true,
+        "scheduled": null,
+        "deadline": null,
+        "priority": null,
+        "repeat": null,
+        "done": null
+      },
+      "refs": [],
+      "children": []
+    },
+    {
+      "kind": "text",
+      "level": 0,
+      "span": {
+        "start": 379,
+        "end": 1165
+      },
+      "own_span": {
+        "start": 379,
+        "end": 1165
+      },
+      "indent_span": {
+        "start": 379,
+        "end": 379
+      },
+      "bullet_span": {
+        "start": 379,
+        "end": 379
+      },
+      "first_line": {
+        "start": 379,
+        "end": 382
+      },
+      "props_span": null,
+      "rest_span": {
+        "start": 419,
+        "end": 1165
+      },
+      "properties": [],
+      "block_id": null,
+      "task": null,
+      "refs": [],
+      "children": []
+    }
+  ],
+  "diagnostics": [],
+  "source_len": 1165
+}

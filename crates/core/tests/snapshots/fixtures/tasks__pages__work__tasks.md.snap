@@ -72,6 +72,7 @@ expression: page
           "start": 2,
           "end": 6
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": "2026-10-04",
         "priority": null,
@@ -128,6 +129,7 @@ expression: page
           "start": 58,
           "end": 62
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,

@@ -6,7 +6,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Block, Page, Span, TaskState, ids::is_valid_block_id, props::is_valid_key};
+use crate::{Block, BlockKind, Page, Span, TaskState, ids::is_valid_block_id, props::is_valid_key};
 
 /// Addresses a block by its child-index path, optionally guarded by the content hash the caller saw.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,6 +247,17 @@ fn resolve<'a>(source: &str, page: &'a Page, r: &BlockRef) -> Result<&'a Block, 
     Ok(b)
 }
 
+/// Like [`resolve`], for the ops that only make sense on a bullet (properties, task markers, block IDs).
+fn resolve_bullet<'a>(source: &str, page: &'a Page, r: &BlockRef) -> Result<&'a Block, EditError> {
+    let b = resolve(source, page, r)?;
+    if b.kind != BlockKind::Bullet {
+        return Err(EditError::Unsupported(
+            "text between bullets has no properties, task marker or block ID",
+        ));
+    }
+    Ok(b)
+}
+
 fn patch(source: &str, range: Span, new_text: impl Into<String>) -> TextPatch {
     TextPatch {
         range,
@@ -356,6 +367,34 @@ fn new_block_lines(text: &str, indent: &str) -> String {
     out
 }
 
+/// A line that starts a bullet block.
+fn is_bullet_line(line: &str) -> bool {
+    let t = line.trim_start_matches([' ', '\t']);
+    matches!(t.as_bytes().first(), Some(b'-' | b'*' | b'+'))
+        && matches!(
+            t.as_bytes().get(1),
+            None | Some(b' ' | b'\t' | b'\r' | b'\n')
+        )
+}
+
+/// An unindented, non-blank line that is not a bullet: what text between bullets starts with.
+fn is_text_line(line: &str) -> bool {
+    !line.trim().is_empty() && !line.starts_with([' ', '\t']) && !is_bullet_line(line)
+}
+
+/// Whether a block of lines put between `before` and `after` needs a blank line on either side to stay what it
+/// is: text right after a bullet would become part of that bullet, and a bullet right before unindented text
+/// would swallow it.
+fn blank_pad(before: &str, chunk: &str, after: &str) -> (bool, bool) {
+    let chunk_is_text = chunk
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .is_some_and(is_text_line);
+    let prev_nonblank = before.lines().last().is_some_and(|l| !l.trim().is_empty());
+    let next_is_text = after.lines().next().is_some_and(is_text_line);
+    (chunk_is_text && prev_nonblank, next_is_text)
+}
+
 fn with_eol(s: &str, eol: &str) -> String {
     if eol == "\n" {
         s.to_string()
@@ -451,8 +490,24 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
             index,
             text,
         } => {
+            if find(page, parent).is_some_and(|p| p.kind == BlockKind::Text) {
+                return Err(EditError::Unsupported(
+                    "text between bullets cannot have blocks under it",
+                ));
+            }
             let d = destination(source, page, parent, *index, None)?;
-            let lines = with_eol(&new_block_lines(text, &d.indent), eol);
+            let mut lines = with_eol(&new_block_lines(text, &d.indent), eol);
+            let (pre, post) = blank_pad(
+                source.get(..d.offset).unwrap_or(""),
+                &lines,
+                source.get(d.offset..).unwrap_or(""),
+            );
+            if pre {
+                lines.insert_str(0, eol);
+            }
+            if post {
+                lines.push_str(eol);
+            }
             vec![insert_lines(source, d.offset, &lines, eol)]
         }
         BlockOp::UpdateText { block, text } => update_text(source, page, block, text, eol)?,
@@ -469,6 +524,14 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
             let mut prev_path = parent_path.to_vec();
             prev_path.push(idx - 1);
             let prev = find(page, &prev_path).ok_or(EditError::CannotIndent)?;
+            if b.kind == BlockKind::Text {
+                return Err(EditError::Unsupported(
+                    "text between bullets cannot be nested",
+                ));
+            }
+            if prev.kind == BlockKind::Text {
+                return Err(EditError::CannotIndent);
+            }
             let unit = match prev.children.first() {
                 Some(c) => {
                     let ci = c.indent_span.slice(source);
@@ -524,15 +587,22 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
             if new_parent.starts_with(&block.path) {
                 return Err(EditError::InvalidMove);
             }
+            if (b.kind == BlockKind::Text && !new_parent.is_empty())
+                || find(page, new_parent).is_some_and(|p| p.kind == BlockKind::Text)
+            {
+                return Err(EditError::Unsupported(
+                    "text between bullets stays at the top level",
+                ));
+            }
             let d = destination(source, page, new_parent, *index, Some(&block.path))?;
             move_block(source, page, b, &d, eol)
         }
         BlockOp::SetProperty { block, key, value } => {
-            let b = resolve(source, page, block)?;
+            let b = resolve_bullet(source, page, block)?;
             set_property(source, b, key, value, page, eol)?
         }
         BlockOp::RemoveProperty { block, key } => {
-            let b = resolve(source, page, block)?;
+            let b = resolve_bullet(source, page, block)?;
             match b.properties.iter().find(|p| p.key == *key) {
                 Some(p) => vec![delete_lines(source, p.span.start, p.span.end)],
                 None => Vec::new(),
@@ -544,7 +614,7 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
             done_at,
             completed_limit,
         } => {
-            let b = resolve(source, page, block)?;
+            let b = resolve_bullet(source, page, block)?;
             match done_at {
                 None => set_task_state(source, b, *state),
                 Some(at) => set_task_state_full(
@@ -559,7 +629,7 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
             }
         }
         BlockOp::EnsureBlockId { block, id } => {
-            let b = resolve(source, page, block)?;
+            let b = resolve_bullet(source, page, block)?;
             if !is_valid_block_id(id) {
                 return Err(EditError::InvalidValue(format!(
                     "`{id}` is not a valid block id"
@@ -620,6 +690,18 @@ fn update_text(
     let b = resolve(source, page, r)?;
     let region_end = b.own_span.start + strip_eol(b.own_span.slice(source)).len();
     let region = Span::new(b.first_line.start, region_end);
+    if b.kind == BlockKind::Text {
+        // text between bullets is written back as it was typed: no bullet, indentation or block ID
+        let new = with_eol(
+            &text
+                .split('\n')
+                .map(|l| l.trim_end_matches('\r'))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            eol,
+        );
+        return Ok(diff_patch(region.slice(source), &new, region.start));
+    }
     let cont_indent = format!("{}  ", b.indent_span.slice(source));
     let mut lines: Vec<String> = Vec::new();
     for (i, line) in text.split('\n').enumerate() {
@@ -696,7 +778,18 @@ fn move_block(source: &str, page: &Page, b: &Block, d: &Dest, eol: &str) -> Vec<
             src.get(e..).unwrap_or("")
         )
     };
+    // text next to a bullet needs a blank line between them to stay apart
+    let at = if dest >= e { s + (dest - e) } else { dest };
     let mut new = new;
+    if let (Some(before), Some(after)) = (new.get(..at), new.get(at + moved.len()..)) {
+        let (pre, post) = blank_pad(before, &moved, after);
+        if post {
+            new.insert_str(at + moved.len(), eol);
+        }
+        if pre {
+            new.insert_str(at, eol);
+        }
+    }
     if !had_final_newline {
         if let Some(t) = new.strip_suffix("\r\n").or_else(|| new.strip_suffix('\n')) {
             new = t.to_string();
@@ -765,7 +858,15 @@ fn set_property(
 fn set_task_state(source: &str, b: &Block, state: Option<TaskState>) -> Vec<TextPatch> {
     let fl = b.first_line;
     match (&b.task, state) {
-        (Some(t), Some(s)) => vec![patch(source, t.marker_span, s.marker())],
+        (Some(t), Some(s)) => {
+            // a task written as a checkbox stays one while it can be (open or done)
+            let marker = if t.checkbox {
+                s.checkbox().unwrap_or(s.marker())
+            } else {
+                s.marker()
+            };
+            vec![patch(source, t.marker_span, marker)]
+        }
         (Some(t), None) => {
             let text = fl.slice(source);
             let after = t.marker_span.end - fl.start;
@@ -929,18 +1030,32 @@ fn set_task_state_full(
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
     // the marker on the first line
     let first = lines.first().cloned().unwrap_or_default();
-    let body = match first.split_once(' ').or(Some((first.as_str(), ""))) {
-        Some((w, rest)) if TaskState::from_marker(w).is_some() => rest.to_string(),
-        _ => first.clone(),
+    let (before, body, checkbox) = match crate::task::split_task_marker(&first) {
+        Some((_, cb, end, rest)) => (
+            first.get(..end).unwrap_or("").to_string(),
+            rest.trim_start_matches([' ', '\t']).to_string(),
+            cb,
+        ),
+        None => (
+            first
+                .split_once(' ')
+                .map_or(first.as_str(), |(w, _)| w)
+                .to_string(),
+            first.clone(),
+            false,
+        ),
     };
-    let before = first
-        .split_once(' ')
-        .map_or(first.as_str(), |(w, _)| w)
-        .to_string();
+    let marker_for = |s: TaskState| -> &'static str {
+        if checkbox {
+            s.checkbox().unwrap_or(s.marker())
+        } else {
+            s.marker()
+        }
+    };
     let set_marker = |lines: &mut Vec<String>, s: Option<TaskState>| {
         let new_first = match (s, body.is_empty()) {
-            (Some(s), true) => s.marker().to_string(),
-            (Some(s), false) => format!("{} {}", s.marker(), body),
+            (Some(s), true) => marker_for(s).to_string(),
+            (Some(s), false) => format!("{} {}", marker_for(s), body),
             (None, _) => body.clone(),
         };
         if let Some(l) = lines.first_mut() {
@@ -958,6 +1073,8 @@ fn set_task_state_full(
                     Some(TaskState::Later | TaskState::Now) => TaskState::Later,
                     _ => TaskState::Todo,
                 };
+                // a checkbox that was ticked and starts over is unticked
+                let again = if checkbox { TaskState::Todo } else { again };
                 set_marker(&mut lines, Some(again));
                 if let Some(ns) = ns {
                     set_prop_line(&mut lines, "scheduled", Some(&ns.to_string()));
@@ -993,7 +1110,9 @@ fn set_task_state_full(
         }
     }
     set_marker(&mut lines, state);
-    if state == Some(TaskState::Done) {
+    if checkbox {
+        // a file with checkboxes stays as plain as it was: no `done::` line (other editors would show it as text)
+    } else if state == Some(TaskState::Done) {
         set_prop_line(&mut lines, "done", Some(done_at));
     } else {
         set_prop_line(&mut lines, "done", None);

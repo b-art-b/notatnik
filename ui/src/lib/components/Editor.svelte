@@ -22,6 +22,8 @@
     selectLineEnd,
     selectLineStart,
     insertNewline,
+    deleteCharBackward,
+    deleteCharForward,
     redoDepth,
     undoDepth,
     undo as cmUndo,
@@ -52,8 +54,11 @@
     onundo: (kind: 'undo' | 'redo') => void
     onpaste: (text: string) => Promise<boolean>
     onblur: (text: string, prev: string) => void
+    /** Text between bullets: Enter adds a line, Tab and merging with the neighbours are off, a multi-line paste
+     * stays one piece of text. */
+    plain?: boolean
   }
-  let { text, cursor, pageName, onchange, onaction, onundo, onpaste, onblur }: Props = $props()
+  let { text, cursor, pageName, onchange, onaction, onundo, onpaste, onblur, plain = false }: Props = $props()
 
   let host: HTMLDivElement
   let view: EditorView | undefined
@@ -210,9 +215,30 @@
     return true
   }
 
+  /** The keys of a plain text block that differ from a bullet's: the text is not an outline item. */
+  const plainKeys = () => [
+    {
+      key: 'Enter',
+      run: (v: EditorView) =>
+        completionStatus(v.state) === 'active' ? acceptCompletion(v) : insertNewline(v),
+    },
+    { key: 'Backspace', run: deleteCharBackward },
+    { key: 'Delete', run: deleteCharForward },
+    ...[
+      'Tab',
+      'Shift-Tab',
+      'Shift-ISO_Left_Tab',
+      'ISO_Left_Tab',
+      'Alt-ArrowRight',
+      'Alt-ArrowLeft',
+      'Mod-Enter',
+    ].map((key) => ({ key, run: () => true })),
+  ]
+
   function keys(): Extension {
     return Prec.highest(
       keymap.of([
+        ...(plain ? plainKeys() : []),
         {
           key: 'Enter',
           run: (v) => {
@@ -460,7 +486,7 @@
                 })
                 return true
               }
-              if (!/\n/.test(data.trim())) return false
+              if (plain || !/\n/.test(data.trim())) return false
               e.preventDefault()
               clearTimeout(idle)
               const sel = v.state.selection.main

@@ -184,6 +184,9 @@ pub enum BlockKind {
     Bullet,
     /// Text before the first bullet.
     Preamble,
+    /// Unindented text between bullets that follows a blank line (a heading, a table, a code fence, a paragraph,
+    /// a footnote ...), as other Markdown editors write it. Kept as written, edited as raw Markdown, never nested.
+    Text,
 }
 
 /// One block of the outline.
@@ -266,7 +269,12 @@ impl Block {
         let start = self.first_line.start;
         let end = self.own_span.end;
         let raw = source.get(start..end).unwrap_or("");
-        let indent_w = self.indent_span.len() + 2;
+        // text outside the outline is shown exactly as written; only a bullet's lines lose their indentation
+        let indent_w = if self.kind == BlockKind::Bullet {
+            self.indent_span.len() + 2
+        } else {
+            0
+        };
         let mut out = String::new();
         for (i, line) in raw.split_inclusive('\n').enumerate() {
             let body = line.trim_end_matches(['\n', '\r']);

@@ -28,6 +28,103 @@ fn opts() -> Options {
     Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH
 }
 
+thread_local! {
+    /// The folder of the page being rendered (graph-relative, `pages` or `journals/2026`), so that relative links
+    /// and images such as `.attachments.12/a.png` can be turned into paths from the graph's root.
+    static BASE_DIR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Puts the page's folder in force for [`render`] until the guard is dropped.
+pub struct BaseDir(Option<String>);
+
+/// Renders with relative links and images resolved against `dir` (the folder of the page file).
+pub fn with_base_dir(dir: &str) -> BaseDir {
+    BaseDir(BASE_DIR.with(|b| b.replace(Some(dir.to_string()))))
+}
+
+impl Drop for BaseDir {
+    fn drop(&mut self) {
+        BASE_DIR.with(|b| b.replace(self.0.take()));
+    }
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            let hex = |c: u8| (c as char).to_digit(16);
+            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `rel` (as written in a page of folder `dir`) as a path from the graph's root, or `None` when it leaves the
+/// graph or points into `.notatnik`.
+fn resolve_in_graph(dir: &str, rel: &str) -> Option<String> {
+    let rel = rel.split(['?', '#']).next().unwrap_or("");
+    if rel.is_empty() || rel.starts_with('/') {
+        return None;
+    }
+    let mut parts: Vec<String> = dir
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    for seg in percent_decode(rel).split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s.to_string()),
+        }
+    }
+    if parts.is_empty() || parts.first().is_some_and(|p| p == ".notatnik") {
+        return None;
+    }
+    Some(parts.join("/"))
+}
+
+fn is_image_path(path: &str) -> bool {
+    let ext = path
+        .rsplit_once('.')
+        .map_or("", |(_, e)| e)
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "avif" | "bmp"
+    )
+}
+
+/// Where a relative link or image points, from the graph's root. Without a page folder in force (a list of
+/// results, a test) only `assets/…` paths are understood, as written.
+fn local_target(dest: &str, image: bool) -> Option<String> {
+    if has_scheme(dest) || dest.trim().is_empty() || dest.trim_start().starts_with('#') {
+        return None;
+    }
+    let base = BASE_DIR.with(|b| b.borrow().clone());
+    match base {
+        Some(dir) => {
+            let path = resolve_in_graph(&dir, dest.trim())?;
+            // a link to another page (`other.md`) is not a file to open
+            let page = path.rsplit_once('.').is_some_and(|(_, e)| {
+                e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown")
+            });
+            (image || !page).then_some(path)
+        }
+        None => (image || is_asset_link(dest)).then(|| dest.to_string()),
+    }
+}
+
 /// Renders block content.
 pub fn render(content: &str, refs: &[RefSpan]) -> Vec<Node> {
     let mut text = String::with_capacity(content.len());
@@ -306,11 +403,14 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
         }),
         Event::Start(Tag::Link { dest_url, .. }) => {
             let children = parse_inlines(it, refs, TagEnd::Link);
-            if allowed_href(&dest_url) || is_asset_link(&dest_url) {
+            if allowed_href(&dest_url) {
                 out.push(Inline::Link {
                     href: dest_url.to_string(),
                     children,
                 });
+            } else if let Some(href) = local_target(&dest_url, false) {
+                // a file in the graph (a copied attachment, Nextcloud's `.attachments.N/…`): opened by the shell
+                out.push(Inline::Link { href, children });
             } else {
                 out.extend(children);
             }
@@ -320,11 +420,29 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
             let alt = plain_text(&inner);
             let src = dest_url.to_string();
             if !has_scheme(&src) {
-                out.push(Inline::Image {
-                    src,
-                    alt,
-                    local: true,
-                });
+                match local_target(&src, true) {
+                    Some(path)
+                        if BASE_DIR.with(|b| b.borrow().is_none()) || is_image_path(&path) =>
+                    {
+                        out.push(Inline::Image {
+                            src: path,
+                            alt,
+                            local: true,
+                        });
+                    }
+                    // not a picture (Nextcloud writes every attachment as `![name](…)`): a link to the file
+                    Some(path) => out.push(Inline::Link {
+                        href: path.clone(),
+                        children: vec![Inline::Text {
+                            text: if alt.is_empty() {
+                                path.rsplit('/').next().unwrap_or("file").to_string()
+                            } else {
+                                alt
+                            },
+                        }],
+                    }),
+                    None => out.push(Inline::Text { text: alt }),
+                }
             } else {
                 // remote images are not loaded (privacy); show the alt text as a link when the scheme is safe
                 if allowed_href(&src) {
@@ -629,6 +747,39 @@ mod tests {
                 "assets/c.txt"
             ]
         );
+    }
+
+    #[test]
+    fn relative_links_and_images_are_resolved_against_the_pages_folder() {
+        let _g = with_base_dir("pages/work");
+        let n = render_with_core(
+            "![Makefile](.attachments.492/Makefile) ![pic](.attachments.1/a%20b.png) ![cat](../../assets/cat.png) [doc](../../assets/a.pdf) [page](other.md) ![out](../../../x.png) [up](../shared/f.txt)",
+        );
+        let Node::Paragraph { children } = &n[0] else {
+            panic!()
+        };
+        let shown: Vec<String> = children
+            .iter()
+            .filter_map(|c| match c {
+                Inline::Image { src, .. } => Some(format!("image {src}")),
+                Inline::Link { href, .. } => Some(format!("link {href}")),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                // Nextcloud writes every attachment as an image: a file that is not one becomes a link
+                "link pages/work/.attachments.492/Makefile",
+                "image pages/work/.attachments.1/a b.png",
+                "image assets/cat.png",
+                "link assets/a.pdf",
+                "link pages/shared/f.txt",
+            ]
+        );
+        // a link to a page is not a file; a path out of the graph shows its text only
+        assert!(children.contains(&text("page")), "{children:?}");
+        assert!(children.contains(&text("out")), "{children:?}");
     }
 
     #[test]

@@ -73,7 +73,8 @@ fn tasks() {
             Some(Todo),
             None,
             None,
-            None,
+            // a Markdown checkbox is a task too
+            Some(Todo),
             Some(Done),
             Some(Waiting),
             Some(Canceled),

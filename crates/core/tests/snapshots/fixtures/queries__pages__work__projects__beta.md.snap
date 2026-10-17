@@ -199,6 +199,7 @@ expression: page
           "start": 65,
           "end": 69
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": "C",
@@ -279,6 +280,7 @@ expression: page
           "start": 111,
           "end": 118
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": "2026-10-20",
         "priority": null,
@@ -321,6 +323,7 @@ expression: page
           "start": 158,
           "end": 166
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,

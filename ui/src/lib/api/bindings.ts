@@ -185,7 +185,11 @@ repeat: string | null,
 /**
  * The task is part of a chain of follow-ups (`follows::`), see `task_chain`.
  */
-chain: boolean, };
+chain: boolean, 
+/**
+ * Written as a Markdown checkbox (`[ ]`, `[x]`): the marker then toggles between open and done.
+ */
+checkbox: boolean, };
 export type LogEntryView = { 
 /**
  * `YYYY-MM-DD` or `YYYY-MM-DD HH:MM`; empty for a line without a date.
@@ -236,6 +240,11 @@ logbook: Array<LogEntryView>,
  * Properties.
  */
 props: Array<PropView>, 
+/**
+ * Text between bullets (a heading, a table, a code block ...), not a bullet: no bullet dot, no nesting,
+ * Enter adds a line, edited as raw Markdown.
+ */
+plain: boolean, 
 /**
  * Collapsed on this device.
  */

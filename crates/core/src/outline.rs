@@ -6,7 +6,7 @@ use crate::{
     ids::is_valid_block_id,
     inline::{InlineItem, scan_line},
     props::{coerce_value, infer_value, split_property_line},
-    task::{Moment, Priority, Repeat, Task, TaskState},
+    task::{Moment, Priority, Repeat, Task, TaskState, split_task_marker},
 };
 
 const MAX_DEPTH: usize = 100;
@@ -109,10 +109,8 @@ struct Raw {
     scan: Vec<Span>,
 }
 
-fn is_task_text(first: &str) -> Option<(TaskState, usize)> {
-    let word_end = first.find([' ', '\t']).unwrap_or(first.len());
-    let state = TaskState::from_marker(first.get(..word_end)?)?;
-    Some((state, word_end))
+fn is_task_text(first: &str) -> Option<(TaskState, bool, usize)> {
+    split_task_marker(first).map(|(state, checkbox, end, _)| (state, checkbox, end))
 }
 
 fn build_block(src: &str, raw: Raw, opts: &ParseOptions, diags: &mut Vec<Diagnostic>) -> Block {
@@ -120,7 +118,9 @@ fn build_block(src: &str, raw: Raw, opts: &ParseOptions, diags: &mut Vec<Diagnos
     // Block ID
     let trimmed = first_text.trim_end();
     let mut block_id = None;
-    if trimmed.len() > 7 {
+    if raw.kind == BlockKind::Text {
+        // text outside the outline has no block ID
+    } else if trimmed.len() > 7 {
         let id_start = trimmed.len() - 7;
         if let (Some(tail), Some(before)) = (trimmed.get(id_start..), trimmed.get(..id_start)) {
             if tail.starts_with('^')
@@ -184,7 +184,7 @@ fn build_block(src: &str, raw: Raw, opts: &ParseOptions, diags: &mut Vec<Diagnos
 
     // Task
     let task = if raw.kind == BlockKind::Bullet {
-        is_task_text(first_text).map(|(state, end)| {
+        is_task_text(first_text).map(|(state, checkbox, end)| {
             let marker_span = Span::new(raw.first_line.start, raw.first_line.start + end);
             let get = |k: &str| properties.iter().find(|p| p.key == k);
             let moment = |k: &str, diags: &mut Vec<Diagnostic>| {
@@ -236,6 +236,7 @@ fn build_block(src: &str, raw: Raw, opts: &ParseOptions, diags: &mut Vec<Diagnos
             Task {
                 state,
                 marker_span,
+                checkbox,
                 scheduled,
                 deadline,
                 priority,
@@ -319,6 +320,8 @@ pub fn parse_page_with(src: &str, opts: &ParseOptions) -> Page {
     let mut preamble_raw: Option<Raw> = None;
     let mut cur: Option<Raw> = None;
     let mut cur_is_preamble = false;
+    let mut cur_is_text = false;
+    let mut prev_blank = false;
     let mut eol_seen: Option<Eol> = None;
     let mut indent_style: Option<IndentStyle> = None;
     let mut over_depth = false;
@@ -340,6 +343,7 @@ pub fn parse_page_with(src: &str, opts: &ParseOptions) -> Page {
         let ws = text.get(..ws_len).unwrap_or("");
         let width = indent_width(ws);
         let blank = rest.trim().is_empty();
+        let after_blank = std::mem::replace(&mut prev_blank, blank);
 
         if let Some(c) = cur.as_mut() {
             if let Some(f) = c.fence {
@@ -371,7 +375,10 @@ pub fn parse_page_with(src: &str, opts: &ParseOptions) -> Page {
             continue;
         }
 
-        if let Some(bl) = bullet(rest) {
+        // inside a text block, an indented list item belongs to the text (a footnote's list, a nested definition);
+        // only an unindented one starts a bullet
+        let bullet_here = bullet(rest).filter(|_| !(cur_is_text && width > 0));
+        if let Some(bl) = bullet_here {
             if let Some(done) = cur.take() {
                 if cur_is_preamble {
                     preamble_raw = Some(done);
@@ -380,6 +387,7 @@ pub fn parse_page_with(src: &str, opts: &ParseOptions) -> Page {
                 }
             }
             cur_is_preamble = false;
+            cur_is_text = false;
             // tree position
             while stack
                 .last()
@@ -438,6 +446,41 @@ pub fn parse_page_with(src: &str, opts: &ParseOptions) -> Page {
                 raw.in_props = false;
             } else {
                 raw.scan.push(first_line);
+            }
+            cur = Some(raw);
+            continue;
+        }
+
+        // unindented text after a blank line is not part of the bullet above (CommonMark ends the list item there):
+        // it becomes a text block of its own, and bullets after it start at the top level again
+        if width == 0 && after_blank && cur.as_ref().is_some_and(|c| c.kind == BlockKind::Bullet) {
+            if let Some(done) = cur.take() {
+                raws.push(done);
+            }
+            stack.clear();
+            parents.push(None);
+            cur_is_text = true;
+            let mut raw = Raw {
+                kind: BlockKind::Text,
+                indent_width: 0,
+                start: line.start,
+                indent_end: line.start,
+                bullet: Span::new(line.start, line.start),
+                first_line: Span::new(line.start, line.content_end),
+                own_end: line.end,
+                prop_lines: Vec::new(),
+                props_end: line.end,
+                rest_start: None,
+                in_props: false,
+                fence: None,
+                fence_open_span: Span::default(),
+                scan: Vec::new(),
+            };
+            if let Some(f) = fence_open(rest) {
+                raw.fence = Some(f);
+                raw.fence_open_span = raw.first_line;
+            } else {
+                raw.scan.push(raw.first_line);
             }
             cur = Some(raw);
             continue;

@@ -268,3 +268,67 @@ proptest! {
         prop_assert!(parse_page(&r.merged_text).diagnostics.len() <= 3);
     }
 }
+
+/// A page as Nextcloud Text writes it (headings and a table between bullets, checkboxes, footnotes): edits made in
+/// different places on the web and in the app merge without a conflict, and nothing else in the file changes.
+#[test]
+fn a_page_written_by_nextcloud_text_merges_edits_made_in_different_places() {
+    let base = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/graphs/edge-cases/pages/nextcloud-text.md"),
+    )
+    .unwrap();
+    // in the app: a task is ticked and a bullet is reworded
+    let ours = base
+        .replace(
+            "* [ ] Finish marketing campaign",
+            "* [x] Finish marketing campaign",
+        )
+        .replace(
+            "* What we __want__ to change",
+            "* What we want to change first",
+        );
+    // on the web: a table cell is edited, the heading is renamed and a footnote is reworded
+    let theirs = base
+        .replace(
+            "| Cos pisze | 1     | 11   |",
+            "| Cos pisze | 1     | 12   |",
+        )
+        .replace("# Meeting notes", "# Team meeting notes")
+        .replace(
+            "[^1]: Tutaj jest tresc footnote",
+            "[^1]: Tutaj jest nowa tresc",
+        );
+    let merged = clean(&base, &ours, &theirs);
+    for want in [
+        "* [x] Finish marketing campaign",
+        "* What we want to change first",
+        "| Cos pisze | 1     | 12   |",
+        "# Team meeting notes",
+        "[^1]: Tutaj jest nowa tresc",
+    ] {
+        assert!(merged.contains(want), "{want} is missing from:\n{merged}");
+    }
+    // every other line is as it was
+    let changed = [
+        "* [ ] Finish marketing campaign",
+        "* What we __want__ to change",
+        "| Cos pisze | 1     | 11   |",
+        "# Meeting notes",
+        "[^1]: Tutaj jest tresc footnote",
+    ];
+    let kept: Vec<&str> = base.lines().filter(|l| !changed.contains(l)).collect();
+    let merged_lines: Vec<&str> = merged.lines().collect();
+    for l in kept {
+        assert!(merged_lines.contains(&l), "line lost: {l:?}");
+    }
+    assert_eq!(merged.lines().count(), base.lines().count());
+
+    // the same cell edited differently on both sides is one conflict, not a silent loss
+    let a = base.replace(
+        "| Cos pisze | 1     | 11   |",
+        "| Cos pisze | 1     | 13   |",
+    );
+    let r = merge(&base, &a, &theirs).unwrap();
+    assert!(!r.is_clean());
+}

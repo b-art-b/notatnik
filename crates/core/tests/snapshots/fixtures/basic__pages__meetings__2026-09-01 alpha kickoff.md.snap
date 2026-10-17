@@ -178,6 +178,7 @@ expression: page
               "start": 91,
               "end": 95
             },
+            "checkbox": false,
             "scheduled": "2026-09-02",
             "deadline": null,
             "priority": null,

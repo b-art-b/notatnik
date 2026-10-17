@@ -58,6 +58,15 @@ impl TaskState {
         TaskState::ALL.into_iter().find(|t| t.marker() == s)
     }
 
+    /// The Markdown checkbox for this state (`[ ]`, `[x]`), if it has one: only open and done tasks do.
+    pub const fn checkbox(self) -> Option<&'static str> {
+        match self {
+            TaskState::Todo => Some("[ ]"),
+            TaskState::Done => Some("[x]"),
+            _ => None,
+        }
+    }
+
     /// Lower-case name used in queries and the index (`todo`, ...).
     pub const fn name(self) -> &'static str {
         match self {
@@ -368,13 +377,35 @@ impl Repeat {
     }
 }
 
+/// Splits the first line of a block into its task marker and the text after it: a marker word (`TODO`, `DONE`, ...)
+/// or a Markdown checkbox (`[ ]` is TODO, `[x]` and `[X]` are DONE, as other Markdown editors write tasks).
+/// Returns the state, whether it was a checkbox, the marker's length in bytes, and the rest of the line.
+pub fn split_task_marker(first: &str) -> Option<(TaskState, bool, usize, &str)> {
+    for (cb, state) in [
+        ("[ ]", TaskState::Todo),
+        ("[x]", TaskState::Done),
+        ("[X]", TaskState::Done),
+    ] {
+        if let Some(rest) = first.strip_prefix(cb) {
+            if rest.is_empty() || rest.starts_with([' ', '\t']) {
+                return Some((state, true, cb.len(), rest));
+            }
+        }
+    }
+    let word_end = first.find([' ', '\t']).unwrap_or(first.len());
+    let state = TaskState::from_marker(first.get(..word_end)?)?;
+    Some((state, false, word_end, first.get(word_end..)?))
+}
+
 /// A parsed task: marker plus the task properties of the block.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Task {
     /// Current state.
     pub state: TaskState,
-    /// Span of the marker word in the source.
+    /// Span of the marker word (or checkbox) in the source.
     pub marker_span: crate::Span,
+    /// Written as a Markdown checkbox (`[ ]`, `[x]`); the app keeps that style when it toggles the task.
+    pub checkbox: bool,
     /// `scheduled::`
     pub scheduled: Option<Moment>,
     /// `deadline::`

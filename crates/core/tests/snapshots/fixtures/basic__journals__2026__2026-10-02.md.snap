@@ -135,6 +135,7 @@ expression: page
           "start": 67,
           "end": 71
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,

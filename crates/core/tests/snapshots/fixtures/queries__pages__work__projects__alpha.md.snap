@@ -214,6 +214,7 @@ expression: page
           "start": 56,
           "end": 60
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": "2026-10-01",
         "priority": "A",
@@ -314,6 +315,7 @@ expression: page
           "start": 124,
           "end": 128
         },
+        "checkbox": false,
         "scheduled": "2026-10-05",
         "deadline": "2026-10-09",
         "priority": null,
@@ -400,6 +402,7 @@ expression: page
           "start": 194,
           "end": 199
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": "2026-10-04",
         "priority": "B",
@@ -500,6 +503,7 @@ expression: page
           "start": 271,
           "end": 275
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": "2026-09-01",
         "priority": null,

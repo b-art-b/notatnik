@@ -48,6 +48,7 @@ expression: page
           "start": 2,
           "end": 6
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,
@@ -90,6 +91,7 @@ expression: page
           "start": 20,
           "end": 25
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,
@@ -132,6 +134,7 @@ expression: page
           "start": 40,
           "end": 47
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,
@@ -198,6 +201,7 @@ expression: page
           "start": 70,
           "end": 74
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,
@@ -240,6 +244,7 @@ expression: page
           "start": 112,
           "end": 120
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,
@@ -344,6 +349,7 @@ expression: page
           "start": 181,
           "end": 185
         },
+        "checkbox": false,
         "scheduled": null,
         "deadline": null,
         "priority": null,

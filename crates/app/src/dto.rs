@@ -109,6 +109,8 @@ pub struct TaskView {
     pub repeat: Option<String>,
     /// The task is part of a chain of follow-ups (`follows::`), see `task_chain`.
     pub chain: bool,
+    /// Written as a Markdown checkbox (`[ ]`, `[x]`): the marker then toggles between open and done.
+    pub checkbox: bool,
 }
 
 /// `task_chain`
@@ -173,6 +175,9 @@ pub struct BlockView {
     pub logbook: Vec<LogEntryView>,
     /// Properties.
     pub props: Vec<PropView>,
+    /// Text between bullets (a heading, a table, a code block ...), not a bullet: no bullet dot, no nesting,
+    /// Enter adds a line, edited as raw Markdown.
+    pub plain: bool,
     /// Collapsed on this device.
     pub collapsed: bool,
     /// Children.

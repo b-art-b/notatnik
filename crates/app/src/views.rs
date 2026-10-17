@@ -42,7 +42,12 @@ pub(crate) fn content_text(b: &Block, source: &str) -> (String, Vec<RefSpan>) {
     let mut out = String::new();
     let mut segments: Vec<(usize, usize, usize)> = Vec::new(); // src_start, src_end, out_start
     let own_end = b.own_span.end;
-    let indent_w = b.indent_span.len() + 2;
+    // text between bullets keeps its indentation (nested lists, aligned code)
+    let indent_w = if b.kind == BlockKind::Text {
+        0
+    } else {
+        b.indent_span.len() + 2
+    };
     let props = b.props_span;
     let mut pos = b.first_line.start;
     let mut first = true;
@@ -166,6 +171,7 @@ fn block_view(
     };
     let task = b.task.as_ref().map(|t| TaskView {
         state: t.state,
+        checkbox: t.checkbox,
         scheduled: t.scheduled.map(|m| m.to_string()),
         deadline: t.deadline.map(|m| m.to_string()),
         priority: t.priority.as_ref().map(|p| p.name().to_string()),
@@ -211,6 +217,7 @@ fn block_view(
         } else {
             path.iter().map(|x| *x as u32).collect()
         },
+        plain: b.kind == BlockKind::Text,
         collapsed: o.collapsed.contains(&hash),
         hash,
         uid: b.block_id.as_ref().map(|i| i.id.clone()),
@@ -241,6 +248,9 @@ pub struct PageInput<'a> {
 
 /// Builds the view. Runtime block IDs come from `tracker` (matching against the previous version).
 pub fn page_view(input: PageInput, tracker: &mut BlockIdentity, o: &ViewOptions) -> PageView {
+    // relative links and images are resolved against the page's folder while the blocks are rendered
+    let dir = input.path.rsplit_once('/').map_or("", |(d, _)| d);
+    let _base = crate::render::with_base_dir(dir);
     let tracked = tracker.assign(input.page, input.source);
     let ids: HashMap<Vec<usize>, u64> = tracked.into_iter().map(|t| (t.path, t.id)).collect();
     let preamble = input

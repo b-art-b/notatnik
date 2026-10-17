@@ -102,6 +102,7 @@ expression: page
               "start": 16,
               "end": 20
             },
+            "checkbox": false,
             "scheduled": null,
             "deadline": "2026-09-30",
             "priority": null,
