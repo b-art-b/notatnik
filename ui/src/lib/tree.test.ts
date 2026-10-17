@@ -6,6 +6,7 @@ import {
   getBlock,
   indent,
   indentMany,
+  outdentMany,
   insideFence,
   mergeWithNext,
   mergeWithPrevious,
@@ -172,6 +173,16 @@ describe('multi-block operations', () => {
     const plan = deleteBlocks(tree(), [[1], [2]])!
     expect(plan.ops.map((o) => (o as { block: { path: number[] } }).block.path)).toEqual([[2], [1]])
     expect(plan.focus).toEqual({ path: [0, 1], cursor: 'end' })
+  })
+  it('outdent works on blocks at different levels, last first, and leaves top-level blocks', () => {
+    const t = [b('a', [b('a1'), b('a2', [b('deep')])]), b('b')]
+    const plan = outdentMany(t, [[0, 0], [0, 1, 0], [1], [0, 1]])!
+    expect(plan.ops.map((o) => (o as { block: { path: number[] } }).block.path)).toEqual([
+      [0, 1, 0],
+      [0, 1],
+      [0, 0],
+    ])
+    expect(outdentMany(t, [[0], [1]])).toBeNull()
   })
   it('indent of three selected siblings keeps their order', () => {
     const t = [b('p'), b('x'), b('y'), b('z')]

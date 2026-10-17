@@ -273,11 +273,12 @@ export function indentMany(blocks: BlockView[], paths: Path[]): Plan | null {
   return { ops }
 }
 
+/** Outdent selected blocks, at any levels: each one moves up one level, the ones at the top level stay. They are
+ * done from the last in the document to the first, so the paths of the others stay valid. */
 export function outdentMany(blocks: BlockView[], paths: Path[]): Plan | null {
-  if (paths.length === 0 || paths[0].length < 2) return null
-  const sorted = [...paths].sort((a, b) => b[b.length - 1] - a[a.length - 1])
-  // outdent from the last to the first so earlier paths stay valid
-  return { ops: sorted.map((p) => ({ op: 'outdent' as const, block: ref(p) })) }
+  const movable = paths.filter((p) => p.length >= 2).sort((a, b) => comparePaths(b, a))
+  if (movable.length === 0) return null
+  return { ops: movable.map((p) => ({ op: 'outdent' as const, block: ref(p) })) }
 }
 
 /** Markdown of blocks with their children (what copy puts on the clipboard). `withIds` keeps the `^id` of each

@@ -504,11 +504,10 @@ async function runOnSelection(
   return sent
 }
 
-// Tab and Shift+Tab work on blocks at one level (siblings); a mixed selection is left alone
+// Tab indents blocks at one level (siblings) and leaves a mixed selection alone; Shift+Tab outdents blocks at any level
 export const selectionIndent = (ctx: Ctx) =>
   runOnSelection(ctx, (b, paths) => (areSiblings(paths) ? indentMany(b, paths) : null))
-export const selectionOutdent = (ctx: Ctx) =>
-  runOnSelection(ctx, (b, paths) => (areSiblings(paths) ? outdentMany(b, paths) : null))
+export const selectionOutdent = (ctx: Ctx) => runOnSelection(ctx, outdentMany)
 
 export async function selectionDelete(ctx: Ctx) {
   const ids = [...editing.selection]

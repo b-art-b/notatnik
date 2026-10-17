@@ -33,7 +33,8 @@ and everything below them. Every command is one undo step.
 | Shift+↑ / Shift+↓ | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along) |
 | Ctrl+A | Select all blocks of the page (in a block: first the text of the block, a second Ctrl+A all blocks) |
 | Enter | Edit the selected block |
-| Tab / Shift+Tab, or Alt+→ / Alt+← | Indent / outdent the selection (blocks at one level) |
+| Tab, or Alt+→ | Indent the selection (blocks at one level) |
+| Shift+Tab, or Alt+← | Outdent the selection, whatever the levels: each block moves up one level, top-level blocks stay |
 | Alt+↑ / Alt+↓ | Move the selected blocks together (blocks at one level) |
 | Delete / Backspace | Delete |
 | Ctrl+C | Copy as Markdown (indented outline), without block IDs |

@@ -269,3 +269,17 @@ test('text marked with the mouse stays marked (to copy it); a plain click still 
   await text(page, 'other').click()
   await expect(page.getByTestId('block-editor')).toBeFocused()
 })
+
+test('Shift+Tab outdents a selection that spans levels; top-level blocks stay', async ({ backend, page }) => {
+  backend.write('pages/t.md', TREE)
+  await backend.open('/page/t')
+  await settle(page)
+  await text(page, 'a1').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await text(page, 'b').click({ modifiers: ['Shift'] })
+  await expect(selected(page)).toHaveCount(3) // a1 a2 b
+  await page.keyboard.press('Shift+Tab')
+  await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- a1\n- a2\n- b\n- c\n  - c1\n- d\n')
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => backend.read('pages/t.md')).toBe(TREE)
+})
