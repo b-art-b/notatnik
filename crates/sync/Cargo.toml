@@ -1,0 +1,32 @@
+[package]
+name = "notatnik-sync"
+description = "Sync of a graph folder with a WebDAV folder (Nextcloud): remote trait, WebDAV client, state, planner and engine. No UI."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+# an in-memory WebDAV server for tests (also used by the browser tests through `fakedav`)
+fakedav = ["dep:tiny_http"]
+
+[[bin]]
+name = "notatnik-fakedav"
+path = "src/bin/fakedav.rs"
+required-features = ["fakedav"]
+
+[dependencies]
+blake3 = "1.8.7"
+chrono = "0.4.45"
+quick-xml = "0.38"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tiny_http = { version = "0.12", optional = true }
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
+
+[dev-dependencies]
+notatnik-sync = { path = ".", features = ["fakedav"] }
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 # Using a graph in a Nextcloud folder
 
-Put the graph folder inside a folder that the Nextcloud desktop client syncs. Notatnik never talks to
+Put the graph folder inside a folder that the Nextcloud desktop client syncs. (The app can also sync a graph with Nextcloud itself, without the client: see [webdav.md](webdav.md).) Notatnik never talks to
 Nextcloud for notes: it only reads and writes ordinary files (ST-1, NC-1).
 
 ## What gets synced, what doesn't

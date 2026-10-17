@@ -279,10 +279,15 @@ impl Drop for BackupTask {
     }
 }
 
+mod syncing;
+pub use syncing::{MemorySecrets, Secrets};
+
 struct Open {
     graph: Graph,
     _watcher: Option<Watcher>,
     backup: Option<BackupTask>,
+    /// The sync with a server folder, for a graph that has one.
+    sync: Option<syncing::SyncTask>,
     trackers: HashMap<String, BlockIdentity>,
     undo: Vec<UndoEntry>,
     redo: Vec<UndoEntry>,
@@ -302,6 +307,8 @@ pub struct AppState {
     last_rename: Mutex<Option<notatnik_graph::RenamePlan>>,
     /// The unlocked backup vault (EN-2), if any.
     backup_keys: Mutex<Option<Unlocked>>,
+    /// Passwords of server logins.
+    secrets: Arc<dyn Secrets>,
 }
 
 /// Options for [`AppState::new`].
@@ -355,6 +362,7 @@ impl AppState {
             watch: o.watch,
             last_rename: Mutex::new(None),
             backup_keys: Mutex::new(None),
+            secrets: Arc::new(MemorySecrets::default()),
         }
     }
 
@@ -389,8 +397,12 @@ impl AppState {
                 Graph::open(&path, &self.dirs)?
             };
         let emit = self.emit.clone();
+        // a change on this device asks for a sync a few seconds later (SY-6)
+        let wake = Arc::new(syncing::Wake::default());
+        let kick = wake.clone();
         let watcher = if self.watch {
             Some(graph.watch_with(Duration::from_millis(200), move |ev| {
+                kick.kick(syncing::SYNC_AFTER_WRITE_SECS);
                 emit(
                     "graph-changed",
                     json!({ "pages": ev.pages, "paths": ev.paths }),
@@ -404,17 +416,23 @@ impl AppState {
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
-        let info = Self::info(&graph, report.warnings.clone());
+        let mut info = Self::info(&graph, report.warnings.clone());
+        info.remote = self.remote_of(&graph.id()).map(|r| RemoteInfo {
+            url: r.url,
+            user: r.user,
+        });
         // the history of graphs: this one is now the last opened (opened by the app only, not by the CLI)
         let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         dev.register(&graph.id(), graph.root());
         let _ = dev.save(&self.dirs);
         // snapshots run on a thread of their own, only where the file watcher runs too (not in unit tests)
         let backup = self.watch.then(|| self.start_backups(&graph));
+        let sync = self.start_sync(&graph.id(), graph.root(), wake);
         *self.lock() = Some(Open {
             graph,
             _watcher: watcher,
             backup,
+            sync,
             trackers: HashMap::new(),
             undo: Vec::new(),
             redo: Vec::new(),
@@ -442,6 +460,7 @@ impl AppState {
                     path: g.path.clone(),
                     exists: p.is_dir(),
                     last: last.as_deref() == Some(g.id.as_str()),
+                    remote_url: g.remote.as_ref().map(|r| r.url.clone()),
                 }
             })
             .collect()
@@ -454,6 +473,7 @@ impl AppState {
 
     /// `forget_graph`: removes a graph from the history. Its folder, its cache and its backups are not touched.
     pub fn forget_graph(&self, a: ForgetGraphArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
+        self.forget_remote_secret(&a.id);
         let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         dev.forget(&a.id);
         dev.save(&self.dirs)?;
@@ -474,12 +494,20 @@ impl AppState {
             week_start: graph.config().graph.week_start,
             completed_log_limit: graph.config().tasks.completed_log_limit,
             priority_labels: graph.config().priority_labels(),
+            remote: None,
         }
     }
 
     /// `graph_info`
     pub fn graph_info(&self, _a: NoArgs) -> ApiResult<GraphInfo> {
-        self.with_open(|o| Ok(Self::info(&o.graph, o.warnings.clone())))
+        self.with_open(|o| {
+            let mut info = Self::info(&o.graph, o.warnings.clone());
+            info.remote = self.remote_of(&o.graph.id()).map(|r| RemoteInfo {
+                url: r.url,
+                user: r.user,
+            });
+            Ok(info)
+        })
     }
 
     /// `today`

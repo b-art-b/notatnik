@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use notatnik_app::{ApiError, AppOptions, AppState, dispatch};
+use notatnik_app::{ApiError, AppOptions, AppState, Secrets, dispatch};
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
 
@@ -60,6 +60,31 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Passwords of server logins go in the system's keyring (the Secret Service: GNOME Keyring, KWallet), never in a file.
+struct KeyringSecrets;
+
+impl KeyringSecrets {
+    fn entry(key: &str) -> Result<keyring::Entry, keyring::Error> {
+        keyring::Entry::new("notatnik", key)
+    }
+}
+
+impl Secrets for KeyringSecrets {
+    fn get(&self, key: &str) -> Option<String> {
+        Self::entry(key).ok()?.get_password().ok()
+    }
+    fn set(&self, key: &str, value: &str) -> Result<(), String> {
+        Self::entry(key)
+            .and_then(|e| e.set_password(value))
+            .map_err(|e| format!("{e} (is a keyring such as GNOME Keyring running?)"))
+    }
+    fn delete(&self, key: &str) {
+        if let Ok(e) = Self::entry(key) {
+            let _ = e.delete_credential();
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
@@ -87,7 +112,9 @@ fn main() {
             let emit: notatnik_app::Emitter = Arc::new(move |name, payload| {
                 let _ = handle.emit(name, payload);
             });
-            let state = Arc::new(AppState::new(AppOptions::standard(emit)));
+            let state = Arc::new(
+                AppState::new(AppOptions::standard(emit)).with_secrets(Arc::new(KeyringSecrets)),
+            );
             // reopen the last graph without asking only when the device setting says so; otherwise the start
             // screen lists the graphs, the last one selected
             if let Ok(s) = notatnik_graph::DeviceSettings::load(&notatnik_graph::Dirs::from_env()) {
@@ -112,16 +139,18 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error while building Notatnik")
         .run(|app, event| {
-            // a snapshot on quit (BK-3), in a thread so a slow target cannot keep the app from closing for long
+            // a last sync (SY-6) and a snapshot on quit (BK-3), in a thread so a slow server or target cannot keep
+            // the app from closing for long
             if let tauri::RunEvent::Exit = event {
                 if let Some(state) = app.try_state::<Arc<AppState>>() {
                     let state = Arc::clone(&state);
                     let (done, wait) = std::sync::mpsc::channel();
                     std::thread::spawn(move || {
+                        state.sync_on_quit();
                         state.backup_on_quit();
                         let _ = done.send(());
                     });
-                    let _ = wait.recv_timeout(std::time::Duration::from_secs(20));
+                    let _ = wait.recv_timeout(std::time::Duration::from_secs(30));
                 }
             }
         });

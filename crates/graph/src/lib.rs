@@ -22,7 +22,7 @@ pub use backup::{
 };
 pub use config::{
     CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, GraphEntry, GraphSection,
-    NamespaceSection, PageIconRule, PropertiesSection, SavedQuery, TasksSection,
+    NamespaceSection, PageIconRule, PropertiesSection, RemoteConfig, SavedQuery, TasksSection,
     default_priorities, new_graph_id, validate_priorities,
 };
 pub use error::{Error, Result};

@@ -139,3 +139,9 @@ after one move there while Chrome was fine. `scripts/check-webkit.sh` runs the f
 selection, moves) in Playwright's WebKit build (`ui/playwright.webkit.config.ts`; the first run downloads it, about
 100 MB). Run it after changes to the editor, focus handling or keys. The whole suite also runs there
 (`npx playwright test -c playwright.webkit.config.ts`): all but one test in `navigation.spec.ts` (clipboard) pass.
+
+## Sync with a server
+
+The sync engine and the app are tested against `notatnik-sync`'s in-memory WebDAV server (`fakedav` feature; the
+browser tests start its binary `notatnik-fakedav`). Runs against a real Nextcloud are `#[ignore]` tests that read
+the server and login from environment variables and clean up after themselves; see [webdav.md](webdav.md).

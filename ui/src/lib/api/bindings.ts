@@ -351,7 +351,11 @@ completed_log_limit: number,
 /**
  * `[tasks] priorities`: the priority labels, most important first.
  */
-priority_labels: Array<string>, };
+priority_labels: Array<string>, 
+/**
+ * The server folder this graph is kept in step with, if any.
+ */
+remote: RemoteInfo | null, };
 export type ApplyResult = { 
 /**
  * The page after the edit.
@@ -885,7 +889,11 @@ exists: boolean,
 /**
  * The graph that was open last.
  */
-last: boolean, };
+last: boolean, 
+/**
+ * The address of the server folder, for a graph that is synced with one.
+ */
+remote_url: string | null, };
 export type ForgetGraphArgs = { 
 /**
  * Graph ID.
@@ -1557,6 +1565,116 @@ path: string,
  * The Markdown to insert: `![](../../assets/2026/10/pasted-a1b2c3d4.png)`.
  */
 markdown: string, };
+export type RemoteInfo = { 
+/**
+ * The address of the folder.
+ */
+url: string, 
+/**
+ * The login name.
+ */
+user: string, };
+export type SyncStatus = { 
+/**
+ * The graph has a server folder.
+ */
+enabled: boolean, 
+/**
+ * `off`, `idle`, `syncing`, `offline` or `error`.
+ */
+state: string, 
+/**
+ * `auth` (a password is needed), `offline`, `mass_delete`, `files` (some files failed), `server`.
+ */
+error_code: string | null, 
+/**
+ * What went wrong, for people.
+ */
+error: string | null, 
+/**
+ * When the last complete sync ended (RFC 3339).
+ */
+last_sync: string | null, 
+/**
+ * Files uploaded by the last sync.
+ */
+pushed: number, 
+/**
+ * Files downloaded by the last sync.
+ */
+pulled: number, 
+/**
+ * Files deleted by the last sync, on either side.
+ */
+deleted: number, 
+/**
+ * Files that changed on both sides in the last sync (a "conflicted copy" was written for each).
+ */
+conflicts: number, 
+/**
+ * How many deletions the stopped sync wanted to make (`error_code` is `mass_delete`).
+ */
+pending_deletes: number, 
+/**
+ * Files that failed in the last sync.
+ */
+file_errors: Array<string>, 
+/**
+ * The address of the server folder.
+ */
+url: string, 
+/**
+ * The login name.
+ */
+user: string, };
+export type SyncNowArgs = { 
+/**
+ * Let a sync that was stopped for wanting to delete most of the graph go ahead.
+ */
+allow_mass_delete: boolean, };
+export type SyncPasswordArgs = { 
+/**
+ * The password (an app password on Nextcloud).
+ */
+password: string, };
+export type WebdavArgs = { 
+/**
+ * The server, `https://cloud.example.org`, or the full WebDAV address up to `…/remote.php/dav/files/<user>`.
+ */
+server: string, 
+/**
+ * The login name.
+ */
+user: string, 
+/**
+ * The password (an app password is best).
+ */
+password: string, 
+/**
+ * The folder below the account's files, e.g. `Notes/graph`.
+ */
+folder: string, 
+/**
+ * Download the graph that is in the folder instead of starting a new one (`create_remote_graph`).
+ */
+attach: boolean, };
+export type WebdavTest = { 
+/**
+ * The address of the folder that was looked at.
+ */
+url: string, 
+/**
+ * The folder exists.
+ */
+exists: boolean, 
+/**
+ * How many items are directly in it.
+ */
+items: number, 
+/**
+ * It holds a Notatnik graph (a `.notatnik`, `pages` or `journals` folder).
+ */
+has_graph: boolean, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1622,6 +1740,12 @@ export type Commands = {
   backup_encryption_confirm: { args: NoArgs; result: BackupEncryption };
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
   save_asset: { args: SaveAssetArgs; result: SavedAsset };
+  sync_status: { args: NoArgs; result: SyncStatus };
+  sync_now: { args: SyncNowArgs; result: SyncStatus };
+  sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };
+  webdav_test: { args: WebdavArgs; result: WebdavTest };
+  create_remote_graph: { args: WebdavArgs; result: GraphInfo };
+  disconnect_remote: { args: NoArgs; result: GraphInfo };
   backup_lock: { args: NoArgs; result: BackupEncryption };
   backup_encryption_change_password: { args: BackupChangePasswordArgs; result: BackupEncryption };
   backup_encryption_new_recovery_key: { args: BackupPasswordArgs; result: RecoveryKeyResult };

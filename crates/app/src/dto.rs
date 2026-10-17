@@ -260,6 +260,17 @@ pub struct GraphInfo {
     pub completed_log_limit: u32,
     /// `[tasks] priorities`: the priority labels, most important first.
     pub priority_labels: Vec<String>,
+    /// The server folder this graph is kept in step with, if any.
+    pub remote: Option<RemoteInfo>,
+}
+
+/// The server folder of a synced graph.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct RemoteInfo {
+    /// The address of the folder.
+    pub url: String,
+    /// The login name.
+    pub user: String,
 }
 
 /// Result of an edit.
@@ -618,6 +629,8 @@ pub struct GraphHistoryEntry {
     pub exists: bool,
     /// The graph that was open last.
     pub last: bool,
+    /// The address of the server folder, for a graph that is synced with one.
+    pub remote_url: Option<String>,
 }
 
 /// `forget_graph`
@@ -1221,4 +1234,109 @@ pub struct SavedAsset {
     pub path: String,
     /// The Markdown to insert: `![](../../assets/2026/10/pasted-a1b2c3d4.png)`.
     pub markdown: String,
+}
+
+/// `sync_status`: how the sync of the open graph is doing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct SyncStatus {
+    /// The graph has a server folder.
+    pub enabled: bool,
+    /// `off`, `idle`, `syncing`, `offline` or `error`.
+    pub state: String,
+    /// `auth` (a password is needed), `offline`, `mass_delete`, `files` (some files failed), `server`.
+    pub error_code: Option<String>,
+    /// What went wrong, for people.
+    pub error: Option<String>,
+    /// When the last complete sync ended (RFC 3339).
+    pub last_sync: Option<String>,
+    /// Files uploaded by the last sync.
+    pub pushed: u32,
+    /// Files downloaded by the last sync.
+    pub pulled: u32,
+    /// Files deleted by the last sync, on either side.
+    pub deleted: u32,
+    /// Files that changed on both sides in the last sync (a "conflicted copy" was written for each).
+    pub conflicts: u32,
+    /// How many deletions the stopped sync wanted to make (`error_code` is `mass_delete`).
+    pub pending_deletes: u32,
+    /// Files that failed in the last sync.
+    pub file_errors: Vec<String>,
+    /// The address of the server folder.
+    pub url: String,
+    /// The login name.
+    pub user: String,
+}
+
+impl SyncStatus {
+    /// For a graph without a server.
+    pub fn off() -> SyncStatus {
+        SyncStatus {
+            enabled: false,
+            state: "off".into(),
+            error_code: None,
+            error: None,
+            last_sync: None,
+            pushed: 0,
+            pulled: 0,
+            deleted: 0,
+            conflicts: 0,
+            pending_deletes: 0,
+            file_errors: Vec::new(),
+            url: String::new(),
+            user: String::new(),
+        }
+    }
+
+    /// For a graph with a server, before its first sync.
+    pub fn idle(cfg: &notatnik_graph::RemoteConfig) -> SyncStatus {
+        SyncStatus {
+            enabled: true,
+            state: "idle".into(),
+            url: cfg.url.clone(),
+            user: cfg.user.clone(),
+            ..SyncStatus::off()
+        }
+    }
+}
+
+/// `sync_now`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SyncNowArgs {
+    /// Let a sync that was stopped for wanting to delete most of the graph go ahead.
+    pub allow_mass_delete: bool,
+}
+
+/// `sync_set_password`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SyncPasswordArgs {
+    /// The password (an app password on Nextcloud).
+    pub password: String,
+}
+
+/// `webdav_test`, `create_remote_graph`: where the graph is kept.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct WebdavArgs {
+    /// The server, `https://cloud.example.org`, or the full WebDAV address up to `…/remote.php/dav/files/<user>`.
+    pub server: String,
+    /// The login name.
+    pub user: String,
+    /// The password (an app password is best).
+    pub password: String,
+    /// The folder below the account's files, e.g. `Notes/graph`.
+    pub folder: String,
+    /// Download the graph that is in the folder instead of starting a new one (`create_remote_graph`).
+    pub attach: bool,
+}
+
+/// `webdav_test` result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct WebdavTest {
+    /// The address of the folder that was looked at.
+    pub url: String,
+    /// The folder exists.
+    pub exists: bool,
+    /// How many items are directly in it.
+    pub items: u32,
+    /// It holds a Notatnik graph (a `.notatnik`, `pages` or `journals` folder).
+    pub has_graph: bool,
 }

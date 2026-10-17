@@ -377,8 +377,24 @@ impl Dirs {
 pub struct GraphEntry {
     /// Graph ID.
     pub id: String,
-    /// Absolute folder path on this device.
+    /// Absolute folder path on this device. For a graph that lives on a server this is its local copy (the replica).
     pub path: String,
+    /// The server folder the graph is kept in step with, if any (SY-1). The password is not here: it is in the
+    /// system's keyring.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<RemoteConfig>,
+}
+
+/// A WebDAV folder a graph is synced with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoteConfig {
+    /// The address of the folder, e.g. `https://cloud.example.org/remote.php/dav/files/me/Notes/graph`.
+    pub url: String,
+    /// The login name.
+    pub user: String,
+    /// The server's folder ETags change whenever something below changes (found by the connection test).
+    #[serde(default)]
+    pub trust_folder_etags: bool,
 }
 
 /// Per-device appearance settings.
@@ -525,12 +541,29 @@ impl DeviceSettings {
     /// Adds or updates a graph entry and makes it the last opened: it moves to the end of the history.
     pub fn register(&mut self, id: &str, path: &Path) {
         let path = path.to_string_lossy().into_owned();
+        let remote = self.remote_of(id);
         self.graphs.retain(|g| g.id != id);
         self.graphs.push(GraphEntry {
             id: id.to_string(),
             path,
+            remote,
         });
         self.last_graph = Some(id.to_string());
+    }
+
+    /// The server folder of a graph, if it has one.
+    pub fn remote_of(&self, id: &str) -> Option<RemoteConfig> {
+        self.graphs
+            .iter()
+            .find(|g| g.id == id)
+            .and_then(|g| g.remote.clone())
+    }
+
+    /// Sets or removes the server folder of a graph that is in the history.
+    pub fn set_remote(&mut self, id: &str, remote: Option<RemoteConfig>) {
+        if let Some(g) = self.graphs.iter_mut().find(|g| g.id == id) {
+            g.remote = remote;
+        }
     }
 
     /// Removes a graph from the history (its files are not touched).

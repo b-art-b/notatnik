@@ -8,7 +8,9 @@ mod templates;
 mod ts;
 pub mod views;
 
-pub use state::{ApiError, ApiResult, AppOptions, AppState, Emitter, asset_content_type};
+pub use state::{
+    ApiError, ApiResult, AppOptions, AppState, Emitter, MemorySecrets, Secrets, asset_content_type,
+};
 pub use ts::typescript_bindings;
 
 use dto::*;
@@ -103,6 +105,12 @@ commands! {
     backup_encryption_confirm(NoArgs) -> BackupEncryption => backup_encryption_confirm,
     backup_unlock(BackupUnlockArgs) -> BackupEncryption => backup_unlock,
     save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
+    sync_status(NoArgs) -> SyncStatus => sync_status,
+    sync_now(SyncNowArgs) -> SyncStatus => sync_now,
+    sync_set_password(SyncPasswordArgs) -> SyncStatus => sync_set_password,
+    webdav_test(WebdavArgs) -> WebdavTest => webdav_test,
+    create_remote_graph(WebdavArgs) -> GraphInfo => create_remote_graph,
+    disconnect_remote(NoArgs) -> GraphInfo => disconnect_remote,
     backup_lock(NoArgs) -> BackupEncryption => backup_lock,
     backup_encryption_change_password(BackupChangePasswordArgs) -> BackupEncryption => backup_encryption_change_password,
     backup_encryption_new_recovery_key(BackupPasswordArgs) -> RecoveryKeyResult => backup_encryption_new_recovery_key,

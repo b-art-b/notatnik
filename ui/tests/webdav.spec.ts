@@ -1,0 +1,117 @@
+import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { expect, test as base } from './fixtures'
+
+// A graph kept in a Nextcloud/WebDAV folder (SY-1..SY-8), against the in-memory WebDAV server of the sync tests.
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+
+interface Dav {
+  server: string
+  user: string
+  password: string
+}
+
+const test = base.extend<{ dav: Dav }>({
+  // Playwright reads the fixtures a fixture needs from the destructuring of its first argument: none here
+  // eslint-disable-next-line no-empty-pattern
+  dav: async ({}, use) => {
+    const proc: ChildProcess = spawn(path.join(root, 'target/debug/notatnik-fakedav'), [], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    })
+    const line = await new Promise<string>((resolve, reject) => {
+      let buf = ''
+      proc.stdout!.on('data', (d) => {
+        buf += d
+        if (buf.includes('\n')) resolve(buf.split('\n')[0])
+      })
+      proc.on('exit', (c) => reject(new Error(`fakedav exited early (${c})`)))
+    })
+    const [, url, user, ...pw] = line.split(' ')
+    await use({ server: url.replace(/\/dav$/, ''), user, password: pw.join(' ') })
+    proc.kill()
+  },
+})
+
+const dir = (server: string, user: string, folder: string) =>
+  `${server}/remote.php/dav/files/${user}/${folder}`
+
+test('a new graph on a server is created, shows its sync status, and can be disconnected', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await page.getByTestId('new-server-graph').click()
+  const form = page.getByTestId('webdav-form')
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  await form.getByLabel('Folder on the server').fill('Notes/e2e')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await expect(page.getByTestId('webdav-seen')).toContainText('does not exist yet')
+  await form.getByRole('button', { name: 'Create the graph' }).click()
+
+  // the new graph opens (the page reloads for another graph) and says it lives on a server
+  const status = page.getByTestId('sync-status')
+  await expect(status).toBeVisible({ timeout: 15000 })
+  await expect(status).toContainText('Synced')
+  await status.click()
+  await expect(status).toHaveAttribute('data-state', 'idle')
+
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await expect(page.getByTestId('sync-url')).toContainText(dir(dav.server, dav.user, 'Notes/e2e'))
+  await expect(page.getByTestId('sync-user')).toHaveText(dav.user)
+  await expect(page.getByTestId('sync-line')).toContainText('Synced')
+
+  // disconnect: the graph stays, the indicator and the pane go back to "local"
+  await page.getByRole('button', { name: 'Disconnect…' }).click()
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await expect(page.getByTestId('journals')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByTestId('sync-status')).toHaveCount(0)
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await expect(page.getByText('This graph is a folder on this device only.')).toBeVisible()
+})
+
+test('a folder that holds a graph is downloaded; other folders are refused', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  // the folder holds a graph already: put one there through a first device (the API of the same server)
+  await backend.open('/journals')
+  const first = await backend.call<{ id: string; root: string }>('create_remote_graph', {
+    server: dav.server,
+    user: dav.user,
+    password: dav.password,
+    folder: 'Notes/shared',
+    attach: false,
+  })
+  expect(first.id).toBeTruthy()
+
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await page.getByTestId('new-server-graph').click()
+  const form = page.getByTestId('webdav-form')
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  await form.getByLabel('Folder on the server').fill('Notes/shared')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await expect(page.getByTestId('webdav-seen')).toContainText('already holds a Notatnik graph')
+  await expect(form.getByRole('button', { name: 'Download and open' })).toBeVisible()
+
+  // a wrong password is said plainly
+  await form.getByLabel(/^Password/).fill('nope')
+  await form.getByLabel('Folder on the server').fill('Notes/other')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await expect(form.getByRole('alert')).toContainText('refused the login')
+  expect(fs.existsSync(first.root)).toBe(true)
+})

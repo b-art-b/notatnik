@@ -5,10 +5,12 @@
   import { onMount } from 'svelte'
   import { backend, type GraphHistoryEntry } from '../api'
   import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
+  import WebdavForm from './WebdavForm.svelte'
 
   let path = $state('')
   let graphs = $state<GraphHistoryEntry[]>([])
   let loaded = $state(false)
+  let serverForm = $state(false)
   let list: HTMLUListElement | undefined = $state()
 
   onMount(() => {
@@ -59,6 +61,7 @@
             <strong>{g.name}</strong>
             {#if g.last}<span class="badge">last opened</span>{/if}
             {#if app.graph?.id === g.id}<span class="badge">open now</span>{/if}
+            {#if g.remote_url}<span class="badge" title={g.remote_url}>☁ on a server</span>{/if}
             <div class="path">
               {g.path}{#if !g.exists}
                 · folder not found{/if}
@@ -90,6 +93,14 @@
   <button onclick={() => openGraph(path, true)} disabled={!path.trim()}>Open / create</button>
   {#if backend.pickFolder}
     <button type="button" class="browse" data-testid="browse-folder" onclick={browse}>Choose a folder…</button
+    >
+  {/if}
+  <h2>On a server</h2>
+  {#if serverForm}
+    <WebdavForm />
+  {:else}
+    <button type="button" data-testid="new-server-graph" onclick={() => (serverForm = true)}
+      >New graph on a server…</button
     >
   {/if}
   {#if app.graph}

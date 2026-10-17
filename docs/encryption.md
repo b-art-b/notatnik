@@ -91,10 +91,10 @@ Not built. The shape, so the formats of P1 and P2 fit it:
 | P0 | This document, requirements, formats | done |
 | P1 | `notatnik-crypt`: vault, slots, recovery key, file encryption, names, sealing | done |
 | P2 | Encrypted backups, `notatnik decrypt`, Settings | done |
-| P3 | Sync engine and the folder remote, two-device tests | planned |
+| P3 | Sync engine, two-device tests | built without encryption, as the WebDAV sync ([webdav.md](webdav.md)); the folder remote was dropped |
 | P4 | Settings → Sync & encryption (enable, recovery key, unlock, status) | planned |
 | P5 | Moving an existing graph out of the synced folder (wizard, warnings) | planned |
-| P6 | WebDAV remote for Nextcloud | planned |
+| P6 | WebDAV remote for Nextcloud | built, plain files; encrypting names and content (`Keys::encrypt`, `file_name`) is the open part |
 | P7 | Android | planned (Phase 8) |
 
 ## 6. Verification

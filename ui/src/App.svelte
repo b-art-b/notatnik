@@ -39,6 +39,7 @@
   import PageContent from './lib/components/PageContent.svelte'
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
+  import SyncIndicator from './lib/components/SyncIndicator.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
@@ -293,6 +294,7 @@
       <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
         {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
       </div>
+      <SyncIndicator />
       <RecentPages />
       {#if saved.length}
         <h3>Saved queries</h3>

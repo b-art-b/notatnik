@@ -29,6 +29,7 @@
   import { reloadOpenDocs } from '../stores/pages.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
   import SettingRow from './settings/SettingRow.svelte'
+  import SyncPane from './settings/SyncPane.svelte'
   import Segmented from './settings/Segmented.svelte'
 
   const SAMPLE = '2026-10-03'
@@ -59,6 +60,7 @@
     { id: 'tasks', label: 'Tasks', icon: '☐' },
     { id: 'icons', label: 'Page icons', icon: '☺' },
     { id: 'templates', label: 'Templates', icon: '⎘' },
+    { id: 'sync', label: 'Sync', icon: '☁' },
     { id: 'backup', label: 'Backup', icon: '⤓' },
     { id: 'graph', label: 'Graph', icon: '▤' },
   ] as const
@@ -1007,6 +1009,8 @@
               onchange={(e) => save({ templates_auto: (e.currentTarget as HTMLInputElement).checked })}
             />
           </SettingRow>
+        {:else if tab === 'sync'}
+          <SyncPane />
         {:else if tab === 'backup'}
           <h2>Backup</h2>
           <p class="scope">

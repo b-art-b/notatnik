@@ -77,6 +77,13 @@ The zoom level is remembered per device (browser/webview storage), not in the gr
 The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" in the palette) hides and shows the left sidebar; drag its right edge to resize it
 (180 to 560 px; with the edge focused, ←/→ move it by 10 px, Shift by 40 px, Home or a double click resets to 240 px). Both are remembered on this device. The width can also be set in Settings → Appearance → *Sidebar width* (slider, Reset).
 
+## Sync with a server
+
+- Start screen → **New graph on a server…**: server, user name, app password, folder. *Check the folder*, then *Create the graph* (new or empty folder) or *Download and open* (a folder that already holds a graph).
+- Sidebar line `☁ Synced 3 min ago`: click to sync now. It reads *Syncing…*, *Offline*, *Sign in needed*, *Sync problem* or *Stopped: many deletions* when something needs a look.
+- Settings → Sync: the server folder, the last sync, Sync now, a password field when the login is refused, *Delete N files and sync* after a stop for many deletions, and *Disconnect…* (the notes stay on this device).
+- A page changed on two devices keeps the server's version; yours is saved next to it as a "conflicted copy" (the conflict view lists it).
+
 ## Images
 
 - **Paste** a picture (a screenshot) while editing a block: the link `![](../assets/2026/10/pasted-1a2b3c4d.png)` is inserted at the cursor and the file is stored in the graph's `assets/` folder. A clipboard that also holds text pastes the text.

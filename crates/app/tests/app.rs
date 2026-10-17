@@ -2941,3 +2941,165 @@ fn pasted_images_are_stored_once_and_linked_relative_to_the_page() {
         assert_eq!(e.code, "invalid");
     }
 }
+
+/// SY-1..SY-6: a graph kept in a server folder; two devices through the in-memory WebDAV server.
+#[test]
+fn a_graph_kept_in_a_server_folder_syncs_both_ways() {
+    use notatnik_sync::fakedav::FakeDav;
+    let dav = FakeDav::start();
+    let t = start("basic");
+    let args = |folder: &str, attach: bool| json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": folder, "attach": attach});
+
+    // looking at an empty folder changes nothing
+    let seen = t.ok("webdav_test", args("Notes/graph", false));
+    assert_eq!(seen["exists"], false);
+    assert!(dav.files("Notes").is_empty());
+
+    // a new graph in a new folder: the local copy is uploaded
+    let info = t.ok("create_remote_graph", args("Notes/graph", false));
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    assert!(root.starts_with(t.tmp.path().join("device")), "{root:?}");
+    assert_eq!(
+        info["remote"]["url"],
+        format!(
+            "{}/remote.php/dav/files/{}/Notes/graph",
+            dav.server, dav.user
+        )
+    );
+    assert!(dav.file("Notes/graph/.notatnik/config.toml").is_some());
+    let st = t.ok("sync_status", json!({}));
+    assert_eq!(st["state"], "idle");
+    assert!(st["last_sync"].is_string(), "{st}");
+    let graphs = t.ok("list_graphs", json!({}));
+    assert_eq!(graphs[0]["remote_url"], info["remote"]["url"]);
+
+    // a page written here goes up, one written on the other device comes down
+    std::fs::create_dir_all(root.join("pages")).unwrap();
+    std::fs::write(root.join("pages/shopping.md"), "- milk\n").unwrap();
+    let st = t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["pushed"], 1, "{st}");
+    assert_eq!(
+        dav.file("Notes/graph/pages/shopping.md").unwrap(),
+        b"- milk\n"
+    );
+    dav.put_file("Notes/graph/pages/shopping.md", b"- milk\n- tea\n");
+    dav.put_file(
+        "Notes/graph/pages/from-phone.md",
+        b"- hello from the phone\n",
+    );
+    let st = t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["pulled"], 2, "{st}");
+    assert_eq!(
+        std::fs::read_to_string(root.join("pages/shopping.md")).unwrap(),
+        "- milk\n- tea\n"
+    );
+    let page = t.ok("get_page", json!({"name": "from-phone"}));
+    assert_eq!(page["exists"], true);
+
+    // the folder holds a graph now: starting another one there is refused, attaching downloads it
+    let seen = t.ok("webdav_test", args("Notes/graph", false));
+    assert_eq!(seen["has_graph"], true);
+    let err = t
+        .call("create_remote_graph", args("Notes/graph", false))
+        .unwrap_err();
+    assert_eq!(err.code, "has_graph");
+    let second = t.ok("create_remote_graph", args("Notes/graph", true));
+    assert_ne!(second["root"], info["root"]);
+    assert_eq!(second["id"], info["id"], "the same graph on a second copy");
+    assert!(
+        std::path::Path::new(second["root"].as_str().unwrap())
+            .join("pages/from-phone.md")
+            .exists()
+    );
+
+    // a folder with other things in it is not taken over
+    dav.put_file("Notes/stuff/todo.txt", b"x");
+    let err = t
+        .call("create_remote_graph", args("Notes/stuff", false))
+        .unwrap_err();
+    assert_eq!(err.code, "not_a_graph");
+    assert!(
+        dav.file("Notes/stuff/.notatnik/connection-test").is_none(),
+        "nothing was written there"
+    );
+
+    // wrong password
+    let mut bad = args("Notes/other", false);
+    bad["password"] = json!("wrong");
+    assert_eq!(t.call("create_remote_graph", bad).unwrap_err().code, "auth");
+
+    // a device that does not know the password yet (the keyring is empty): it asks, then goes on
+    let again = AppState::new(AppOptions {
+        dirs: Dirs::under(&t.tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 3).unwrap()),
+        watch: false,
+    });
+    dispatch(
+        &again,
+        "open_graph",
+        json!({"path": info["root"], "create": false}),
+    )
+    .unwrap();
+    let st = dispatch(&again, "sync_now", json!({"allow_mass_delete": false})).unwrap();
+    assert_eq!(st["error_code"], "auth");
+    let st = dispatch(&again, "sync_status", json!({})).unwrap();
+    assert_eq!(st["error_code"], "auth");
+    dispatch(&again, "sync_set_password", json!({"password": "wrong"})).unwrap();
+    let st = dispatch(
+        &again,
+        "sync_set_password",
+        json!({"password": dav.password}),
+    )
+    .unwrap();
+    assert_eq!(st["state"], "idle", "{st}");
+
+    // disconnecting keeps the notes here and stops the sync
+    let local = t.ok("disconnect_remote", json!({}));
+    assert!(local["remote"].is_null());
+    assert_eq!(t.ok("sync_status", json!({}))["enabled"], false);
+    assert!(root.join("pages/shopping.md").exists());
+    assert_eq!(
+        t.call("sync_now", json!({"allow_mass_delete": false}))
+            .unwrap_err()
+            .code,
+        "invalid"
+    );
+}
+
+/// Against a real Nextcloud: `NOTATNIK_WEBDAV_SERVER=http://localhost:8080 NOTATNIK_WEBDAV_USER=me
+/// NOTATNIK_WEBDAV_PASSWORD=… cargo test -p notatnik-app --test app -- --ignored`. Uses and removes the folder
+/// `Notes/notatnik-live-app-<process id>`.
+#[test]
+#[ignore = "needs a Nextcloud server and its login in the environment"]
+fn a_graph_in_a_real_nextcloud_folder_reaches_a_second_device() {
+    use notatnik_sync::{Remote, WebDavRemote};
+    let (Ok(server), Ok(user), Ok(password)) = (
+        std::env::var("NOTATNIK_WEBDAV_SERVER"),
+        std::env::var("NOTATNIK_WEBDAV_USER"),
+        std::env::var("NOTATNIK_WEBDAV_PASSWORD"),
+    ) else {
+        panic!("set NOTATNIK_WEBDAV_SERVER, NOTATNIK_WEBDAV_USER and NOTATNIK_WEBDAV_PASSWORD");
+    };
+    let folder = format!("Notes/notatnik-live-app-{}", std::process::id());
+    let args = |attach: bool| json!({"server": server, "user": user, "password": password, "folder": folder, "attach": attach});
+    let laptop = start("basic");
+    let info = laptop.ok("create_remote_graph", args(false));
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    std::fs::create_dir_all(root.join("pages")).unwrap();
+    std::fs::write(root.join("pages/live.md"), "- written on the laptop\n").unwrap();
+    let st = laptop.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["state"], "idle", "{st}");
+
+    let phone = start("basic");
+    let info2 = phone.ok("create_remote_graph", args(true));
+    assert_eq!(info2["id"], info["id"]);
+    let page = phone.ok("get_page", json!({"name": "live"}));
+    assert_eq!(page["exists"], true);
+
+    let url = notatnik_sync::folder_url(&server, &user, &folder).unwrap();
+    WebDavRemote::new(&url, &user, &password)
+        .unwrap()
+        .delete("", None)
+        .unwrap();
+}

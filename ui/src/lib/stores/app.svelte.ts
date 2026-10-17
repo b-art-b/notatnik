@@ -175,22 +175,28 @@ export async function loadDeviceSettings() {
 
 export async function openGraph(path: string, create: boolean) {
   try {
-    const switching = !!app.graph
-    app.graph = await backend.call('open_graph', { path, create })
-    app.needsGraph = false
-    if (switching) {
-      // another graph: nothing of the pages loaded so far applies, so start the page over
-      window.location.hash = '#/journals'
-      window.location.reload()
-      return
-    }
-    app.today = (await backend.call('today', {})).value
-    await refreshConflicts()
-    await loadDeviceSettings()
-    void loadIcons()
+    await adoptGraph(await backend.call('open_graph', { path, create }))
   } catch (e) {
     toast(errorMessage(e), 'error')
   }
+}
+
+/** Makes `info` (a graph the backend has just opened) the graph shown. Used after `open_graph` and after
+ * `create_remote_graph`, which opens the new graph itself. */
+export async function adoptGraph(info: GraphInfo) {
+  const switching = !!app.graph
+  app.graph = info
+  app.needsGraph = false
+  if (switching) {
+    // another graph: nothing of the pages loaded so far applies, so start the page over
+    window.location.hash = '#/journals'
+    window.location.reload()
+    return
+  }
+  app.today = (await backend.call('today', {})).value
+  await refreshConflicts()
+  await loadDeviceSettings()
+  void loadIcons()
 }
 
 backend.onGraphChanged(() => {

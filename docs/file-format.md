@@ -41,6 +41,7 @@ Outside the graph (per device, never synced):
 ├── history/                     # last-synced copies for 3-way merge
 └── state.json                   # collapsed blocks, open tabs, window layout
 ~/.config/notatnik/settings.toml # device settings; the history of graphs opened in the app (`[[graphs]]` id + path, the most recent last), `last_graph` (its id) and `[ui] open_last_graph`; written by the app only, the CLI does not add graphs
+~/.local/share/notatnik/replicas/<name>/  # a graph kept on a WebDAV server: its local copy (WebDAV, SY-1); <name>.sync-state.json beside it holds the sync state
 ~/.config/notatnik/backup-vault.json # the public descriptor of the backup encryption vault (EN-2, no secret that works without the password or recovery key); `backup-vault.pending.json` until the recovery key is confirmed
 ~/.local/share/notatnik/backups/ # snapshots (default folder; the device setting `backup_dir` can change it)
 ~/.local/share/notatnik/graphs/<graph-id>/journal/pending.json   # operation in progress (D38); exists only after a crash
