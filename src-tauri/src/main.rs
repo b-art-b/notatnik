@@ -42,6 +42,22 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
         .map(|p| p.to_string())
 }
 
+/// The picture on the system clipboard (a screenshot from Flameshot, Spectacle ...) as a base64 PNG, or `None` when
+/// the clipboard holds no picture. The webview does not hand such a picture to a `paste` event on every system, so
+/// the editor asks here when a paste brings no text and no file (ST-8).
+#[tauri::command]
+async fn clipboard_image() -> Option<String> {
+    use base64::Engine as _;
+    let img = arboard::Clipboard::new().ok()?.get_image().ok()?;
+    let (w, h) = (u32::try_from(img.width).ok()?, u32::try_from(img.height).ok()?);
+    let mut out = Vec::new();
+    let mut enc = png::Encoder::new(&mut out, w, h);
+    enc.set_color(png::ColorType::Rgba);
+    enc.set_depth(png::BitDepth::Eight);
+    enc.write_header().ok()?.write_image_data(&img.bytes).ok()?;
+    Some(base64::engine::general_purpose::STANDARD.encode(out))
+}
+
 /// Decodes `%XX` escapes (the UI sends the asset path as one `encodeURIComponent` segment).
 fn percent_decode(s: &str) -> String {
     let b = s.as_bytes();
@@ -134,7 +150,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             invoke_api,
             open_external,
-            pick_folder
+            pick_folder,
+            clipboard_image
         ])
         .build(tauri::generate_context!())
         .expect("error while building Notatnik")

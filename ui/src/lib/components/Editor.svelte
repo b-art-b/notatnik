@@ -35,7 +35,7 @@
   import { wikiCompletions } from '../completion'
   import { backend } from '../api'
   import { toast } from '../stores/app.svelte'
-  import { hasFiles, imageFiles, toBase64, usefulName } from '../images'
+  import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
@@ -417,6 +417,15 @@
               if (images.length > 0 && !e.clipboardData?.getData('text/plain')) {
                 e.preventDefault()
                 void addImages(images)
+                return true
+              }
+              // nothing usable in the event (some webviews leave out the picture): ask the desktop shell
+              const types = Array.from(e.clipboardData?.types ?? [])
+              if (backend.clipboardImage && !types.some((t) => t === 'text/plain' || t === 'text/html')) {
+                e.preventDefault()
+                void backend.clipboardImage().then((b64) => {
+                  if (b64) void addImages([pngFromBase64(b64)])
+                })
                 return true
               }
               const data = e.clipboardData?.getData('text/plain') ?? ''

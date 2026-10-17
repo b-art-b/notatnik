@@ -13,6 +13,9 @@ export interface Backend {
   openExternal(url: string): void
   /** The system's folder chooser (the desktop app only): the folder picked, `null` when cancelled. Absent in the
    * browser, where the path has to be typed. */
+  /** The picture on the system clipboard as base64 PNG (the desktop app only), for a paste that the webview
+   * delivers without the image. `null` when there is none. */
+  clipboardImage?: () => Promise<string | null>
   pickFolder?: () => Promise<string | null>
 }
 

@@ -29,6 +29,7 @@ export function createTauriBackend(): Backend {
     openExternal: (url) => {
       void invoke('open_external', { url })
     },
+    clipboardImage: async () => ((await invoke('clipboard_image')) as string | null) ?? null,
     pickFolder: async () => ((await invoke('pick_folder')) as string | null) ?? null,
   }
 }
