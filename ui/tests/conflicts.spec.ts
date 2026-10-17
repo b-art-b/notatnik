@@ -32,7 +32,8 @@ test('changes that do not overlap are merged with one click and the copy goes to
   await r.getByTestId('conflict-merge').click()
   await expect.poll(() => backend.read('pages/trip.md')).toBe('- pack bags\n- hotel server\n')
   await expect(page.getByTestId('conflict-banner')).toBeHidden()
-  expect(backend.exists(COPY)).toBe(false)
+  // the page is written first, then the copy moves
+  await expect.poll(() => backend.exists(COPY)).toBe(false)
   expect(backend.exists(`.notatnik/trash/${COPY}`)).toBe(true)
 })
 
@@ -65,5 +66,5 @@ test('without a common ancestor the page is kept or the copy is taken', async ({
   await expect(r.getByTestId('conflict-merge')).toHaveCount(0)
   await r.getByTestId('conflict-use-copy').click()
   await expect.poll(() => backend.read('pages/trip.md')).toBe('- theirs\n')
-  expect(backend.exists(COPY)).toBe(false)
+  await expect.poll(() => backend.exists(COPY)).toBe(false)
 })
