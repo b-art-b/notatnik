@@ -372,3 +372,37 @@ Parsing details worth knowing:
 - A block's own lines end at its last non-blank line; blank lines between blocks belong to no block.
 - Property keys are `[a-z0-9_-]+`; `Status:: x` is not a property.
 - A block ID may be the whole first line (`- ^abc123`).
+
+## 11. Encryption (EN-2, EN-3, EN-5)
+
+Specified in [encryption.md](encryption.md); this section is the byte layout. All numbers are little endian. All
+keys are 32 bytes; derivations use BLAKE3 `derive_key` with a context string.
+
+**Vault descriptor** (JSON, public): `version` (1), `key_id` (hex, 16 bytes: `derive_key("notatnik 2026 key id",
+data_key)[..16]`), `public_key` (hex, the X25519 public key), `kdf` (`m_kib`, `t`, `p`: Argon2id, version 0x13,
+32 byte output; limits 8 KiB to 1 GiB, 1 to 64 passes, 1 to 16 lanes), `slots`: `kind` (`password` or
+`recovery`), `salt` (hex 16 bytes, password only), `nonce` (hex 24 bytes), `wrapped` (hex). A slot wraps the key
+bundle `01 | data_key | x25519_secret` (65 bytes) with XChaCha20-Poly1305; the associated data is
+`"notatnik slot v1" | key_id | public_key | kind` (so a slot cannot be moved into another descriptor). The password
+slot's key is Argon2id over the NFC-normalised UTF-8 password and the salt. The recovery slot's key is
+`derive_key("notatnik recovery kek v1", recovery_key)`.
+
+**Recovery key text:** the 32 bytes plus a 3 byte check (`derive_key("notatnik recovery check v1", key)[..3]`) as
+56 characters of base32 (`A-Z2-7`, no padding) in 14 groups of four separated by `-`; reading ignores dashes,
+spaces and case.
+
+**Encrypted file** (`NTNKFILE`): `"NTNKFILE"` | version `01` | key_id (16 raw bytes) | stream nonce (19) | chunks.
+The key is `derive_key("notatnik file v1", data_key)`. Chunks: XChaCha20-Poly1305 STREAM-BE32, 64 KiB of plaintext
+each plus a 16 byte tag, the last one marked as last (an empty file is one empty last chunk). The associated data
+of every chunk is the header followed by the caller's context (the path). The file name for an encrypted copy is
+`hex(keyed_blake3(derive_key("notatnik name v1", data_key), path)[..16])`.
+
+**Sealed file** (`NTNKSEAL`, used for backups): `"NTNKSEAL"` | version `01` | descriptor length (u32) | descriptor
+(the vault JSON) | comment length (u16) | comment | ephemeral public key (32) | wrap nonce (24) | wrapped file key
+(48) | stream nonce (19) | chunks. The wrap key is `blake3 derive_key("notatnik seal v1")` over the X25519 shared
+secret, the ephemeral and the recipient public key; the file key is random and wrapped with XChaCha20-Poly1305
+with everything up to the ephemeral key as associated data. The chunks (as above) are bound to the BLAKE3 hash of
+the whole header. The comment holds `notatnik-backup v1 <fingerprint>` for a snapshot (BK-1). A sealed snapshot is
+`notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>[-before].zip.enc`; decrypting it gives the zip of BK-1.
+
+Fixtures made by an earlier build live in `fixtures/crypt/` and must keep opening.
