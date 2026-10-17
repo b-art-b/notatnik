@@ -62,8 +62,8 @@ test('a new graph on a server is created, shows its sync status, and can be disc
   await expect(status).toContainText('Synced')
   await status.click()
   await expect(status).toHaveAttribute('data-state', 'idle')
-  // a visible button with its own name, and the same action in the palette
-  await expect(status.getByText('Sync now')).toBeVisible()
+  // the tooltip says it is a button, and the same action is in the palette
+  await expect(status).toHaveAttribute('title', /Click to sync now/)
   const before = (await backend.call<{ last_sync: string }>('sync_status', {})).last_sync
   await page.waitForTimeout(1100) // `last_sync` has a resolution of a second
   await page.keyboard.press('Control+k')

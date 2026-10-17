@@ -20,77 +20,33 @@
     class:problem
     data-testid="sync-status"
     data-state={sync.status.state}
-    title={sync.status.error ?? `Synced with ${sync.status.url}. Click to sync now.`}
+    title={sync.status.error
+      ? `${sync.status.error}\nClick to try again.`
+      : `Click to sync now (also: Ctrl+K → Sync now).\nKept in step with ${sync.status.url}`}
     disabled={sync.busy || sync.status.state === 'syncing'}
     onclick={() => syncNow()}
   >
-    <!-- the arrow turns while a sync runs (`spin`); the text below it is the status line -->
-    <span class="ico" class:spin={sync.busy || sync.status.state === 'syncing'} aria-hidden="true">↻</span>
-    <span class="txt">
-      <strong>Sync now</strong>
-      <small>{syncLine(sync.status)}</small>
-    </span>
+    <span aria-hidden="true">☁</span>
+    {syncLine(sync.status)}
   </button>
 {/if}
 
 <style>
   .sync {
-    display: flex;
-    align-items: center;
-    gap: 0.6em;
-    width: calc(100% - 1.2em);
-    margin: 0.2em 0.6em;
+    display: block;
+    width: 100%;
     text-align: left;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border: none;
     background: none;
-    padding: 0.4em 0.6em;
-    color: var(--text);
+    padding: 0.2em 0.8em;
+    color: var(--muted);
+    font-size: 0.8em;
     cursor: pointer;
   }
-  .sync:hover:not(:disabled),
-  .sync:focus-visible {
-    background: var(--chip);
-  }
-  .sync:disabled {
-    cursor: progress;
-  }
-  .ico {
-    font-size: 1.2em;
-    line-height: 1;
-    color: var(--muted);
-  }
-  .spin {
-    animation: turn 1s linear infinite;
-  }
-  @keyframes turn {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .spin {
-      animation: none;
-    }
-  }
-  .txt {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .txt strong {
-    font-size: 0.85em;
-    font-weight: 600;
-  }
-  .txt small {
-    color: var(--muted);
-    font-size: 0.75em;
+  .sync:hover:not(:disabled) {
+    color: var(--text);
   }
   .sync.problem {
-    border-color: var(--danger);
-  }
-  .sync.problem .txt small,
-  .sync.problem .ico {
     color: var(--danger);
   }
 </style>
