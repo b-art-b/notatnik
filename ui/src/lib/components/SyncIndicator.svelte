@@ -24,27 +24,73 @@
     disabled={sync.busy || sync.status.state === 'syncing'}
     onclick={() => syncNow()}
   >
-    <span aria-hidden="true">☁</span>
-    {syncLine(sync.status)}
+    <!-- the arrow turns while a sync runs (`spin`); the text below it is the status line -->
+    <span class="ico" class:spin={sync.busy || sync.status.state === 'syncing'} aria-hidden="true">↻</span>
+    <span class="txt">
+      <strong>Sync now</strong>
+      <small>{syncLine(sync.status)}</small>
+    </span>
   </button>
 {/if}
 
 <style>
   .sync {
-    display: block;
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    width: calc(100% - 1.2em);
+    margin: 0.2em 0.6em;
     text-align: left;
-    border: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     background: none;
-    padding: 0.2em 0.8em;
-    color: var(--muted);
-    font-size: 0.8em;
+    padding: 0.4em 0.6em;
+    color: var(--text);
     cursor: pointer;
   }
-  .sync:hover:not(:disabled) {
-    color: var(--text);
+  .sync:hover:not(:disabled),
+  .sync:focus-visible {
+    background: var(--chip);
+  }
+  .sync:disabled {
+    cursor: progress;
+  }
+  .ico {
+    font-size: 1.2em;
+    line-height: 1;
+    color: var(--muted);
+  }
+  .spin {
+    animation: turn 1s linear infinite;
+  }
+  @keyframes turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin {
+      animation: none;
+    }
+  }
+  .txt {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .txt strong {
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  .txt small {
+    color: var(--muted);
+    font-size: 0.75em;
   }
   .sync.problem {
+    border-color: var(--danger);
+  }
+  .sync.problem .txt small,
+  .sync.problem .ico {
     color: var(--danger);
   }
 </style>

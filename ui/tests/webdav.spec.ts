@@ -62,6 +62,16 @@ test('a new graph on a server is created, shows its sync status, and can be disc
   await expect(status).toContainText('Synced')
   await status.click()
   await expect(status).toHaveAttribute('data-state', 'idle')
+  // a visible button with its own name, and the same action in the palette
+  await expect(status.getByText('Sync now')).toBeVisible()
+  const before = (await backend.call<{ last_sync: string }>('sync_status', {})).last_sync
+  await page.waitForTimeout(1100) // `last_sync` has a resolution of a second
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Sync now')
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(async () => (await backend.call<{ last_sync: string }>('sync_status', {})).last_sync)
+    .not.toBe(before)
 
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.getByRole('tab', { name: /Sync/ }).click()

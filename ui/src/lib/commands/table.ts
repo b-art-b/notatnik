@@ -1,7 +1,16 @@
 // The command table: one list of (id, title, keys, action) used by the palette, global shortcuts and docs/keymap.md.
-import { app, applyTheme, navigate, toggleLeft, toggleRight, toggleRightFocus } from '../stores/app.svelte'
+import {
+  app,
+  applyTheme,
+  navigate,
+  toast,
+  toggleLeft,
+  toggleRight,
+  toggleRightFocus,
+} from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
 import { globalUndo } from './exec'
+import { syncNow } from '../stores/sync.svelte'
 
 export interface Command {
   id: string
@@ -20,6 +29,15 @@ export const commands: Command[] = [
     title: 'Switch graph…',
     keys: '',
     run: () => (app.needsGraph = true),
+  },
+  {
+    id: 'sync-now',
+    title: 'Sync now',
+    keys: '',
+    run: () => {
+      if (app.graph?.remote) void syncNow()
+      else toast('This graph is not kept on a server.', 'info')
+    },
   },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
