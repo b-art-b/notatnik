@@ -81,6 +81,11 @@
       }
     }
     if (view !== v || links.length === 0) return
+    insertLinks(v, links, at)
+  }
+
+  /** Writes image links at the selection (or at `at`), with a space in front if they would stick to a word. */
+  function insertLinks(v: EditorView, links: string[], at?: number) {
     const sel = v.state.selection.main
     const from = at ?? sel.from
     const to = at ?? sel.to
@@ -429,6 +434,16 @@
                 return true
               }
               const data = e.clipboardData?.getData('text/plain') ?? ''
+              // a link copied from Settings → Unused images: `![](assets/...)` is written relative to this page
+              const asset = /^!\[\]\((assets\/[^)\s]+)\)$/.exec(data.trim())
+              if (asset) {
+                e.preventDefault()
+                const v0 = v
+                void backend.call('asset_link', { page: pageName, path: asset[1] }).then((r) => {
+                  if (view === v0) insertLinks(v0, [r.value])
+                })
+                return true
+              }
               if (!/\n/.test(data.trim())) return false
               e.preventDefault()
               clearTimeout(idle)

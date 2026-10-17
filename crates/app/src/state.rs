@@ -1861,6 +1861,35 @@ impl AppState {
         self.lock().as_ref().map(|o| o.graph.root().to_path_buf())
     }
 
+    /// The graph-relative file of a page, also for one that has no file yet.
+    fn page_file(o: &Open, name: &PageName) -> ApiResult<String> {
+        let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
+        let canonical = info
+            .as_ref()
+            .and_then(|i| PageName::parse(&i.name).ok())
+            .unwrap_or_else(|| name.clone());
+        Ok(info
+            .and_then(|i| i.file_path)
+            .unwrap_or_else(|| page_to_path(&canonical)))
+    }
+
+    /// `asset_link`: `![](...)` for an existing asset, with the path written relative to `page`'s file.
+    pub fn asset_link(&self, a: AssetLinkArgs) -> ApiResult<StringValue> {
+        let name = Self::parse_name(&a.page)?;
+        self.with_open(|o| {
+            if !a.path.starts_with("assets/") || a.path.contains("..") {
+                return Err(ApiError::new("invalid", "not a path below assets/"));
+            }
+            let page_rel = Self::page_file(o, &name)?;
+            Ok(StringValue {
+                value: format!(
+                    "![]({})",
+                    notatnik_graph::relative_asset_path(&page_rel, &a.path)
+                ),
+            })
+        })
+    }
+
     /// `save_asset`: stores a pasted or dropped image and returns the Markdown that links it from `page` (ST-8).
     pub fn save_asset(&self, a: SaveAssetArgs) -> ApiResult<SavedAsset> {
         use base64::Engine as _;
@@ -1870,14 +1899,7 @@ impl AppState {
             .map_err(|_| ApiError::new("invalid", "the image data is not valid base64"))?;
         let today = self.today();
         self.with_open(|o| {
-            let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
-            let canonical = info
-                .as_ref()
-                .and_then(|i| PageName::parse(&i.name).ok())
-                .unwrap_or_else(|| name.clone());
-            let page_rel = info
-                .and_then(|i| i.file_path)
-                .unwrap_or_else(|| page_to_path(&canonical));
+            let page_rel = Self::page_file(o, &name)?;
             let path = o.graph.save_asset(&bytes, a.name.as_deref(), today)?;
             let markdown = format!(
                 "![]({})",

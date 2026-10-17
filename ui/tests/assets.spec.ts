@@ -90,8 +90,31 @@ test('unused images are listed in Settings and can be deleted; a linked one stay
   await expect(page.getByTestId('unused-count')).toContainText('1 unused')
   await expect(page.getByTestId('unused-list')).toContainText(lost)
   await expect(page.getByTestId('unused-list')).not.toContainText(kept)
-  await page.getByTestId('unused-trash').click()
+  // the preview loads the picture
+  const thumb = page.getByTestId('unused-list').locator('img').first()
+  await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1)
+  await page.getByRole('button', { name: 'Enlarge' }).click()
+  await expect(page.getByRole('button', { name: 'Shrink' })).toBeVisible()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(page.getByTestId('unused-none')).toBeVisible()
   expect(backend.exists(lost)).toBe(false)
   expect(backend.exists(kept)).toBe(true)
+})
+
+test('a copied asset link is pasted with the path of the page it lands on', async ({ backend, page }) => {
+  await backend.open('/page/inbox')
+  const path = (
+    await backend.call<{ path: string }>('save_asset', { page: 'inbox', data: PNG, name: 'again.png' })
+  ).path
+  await page.getByText('Call the dentist').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.evaluate((p) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', `![](${p})`)
+    document
+      .querySelector('[data-testid="block-editor"]')!
+      .dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }))
+  }, path)
+  await expect(page.getByTestId('block-editor')).toContainText(`![](../${path})`)
 })

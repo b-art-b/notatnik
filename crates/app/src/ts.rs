@@ -140,6 +140,7 @@ pub fn typescript_bindings() -> String {
         SavedAsset,
         RemoteInfo,
         SyncStatus,
+        AssetLinkArgs,
         OrphanAsset,
         OrphanAssets,
         DeleteAssetsArgs,

@@ -104,6 +104,7 @@ commands! {
     backup_encryption_setup(BackupSetupArgs) -> RecoveryKeyResult => backup_encryption_setup,
     backup_encryption_confirm(NoArgs) -> BackupEncryption => backup_encryption_confirm,
     backup_unlock(BackupUnlockArgs) -> BackupEncryption => backup_unlock,
+    asset_link(AssetLinkArgs) -> StringValue => asset_link,
     save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
     list_orphan_assets(NoArgs) -> OrphanAssets => orphan_assets,
     delete_orphan_assets(DeleteAssetsArgs) -> OrphanAssets => delete_orphan_assets,

@@ -1227,6 +1227,14 @@ pub struct SaveAssetArgs {
     pub name: Option<String>,
 }
 
+/// `asset_link`: the Markdown that links the asset `path` from `page`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AssetLinkArgs {
+    pub page: String,
+    /// Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+    pub path: String,
+}
+
 /// `save_asset` result.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SavedAsset {

@@ -49,7 +49,10 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
 async fn clipboard_image() -> Option<String> {
     use base64::Engine as _;
     let img = arboard::Clipboard::new().ok()?.get_image().ok()?;
-    let (w, h) = (u32::try_from(img.width).ok()?, u32::try_from(img.height).ok()?);
+    let (w, h) = (
+        u32::try_from(img.width).ok()?,
+        u32::try_from(img.height).ok()?,
+    );
     let mut out = Vec::new();
     let mut enc = png::Encoder::new(&mut out, w, h);
     enc.set_color(png::ColorType::Rgba);

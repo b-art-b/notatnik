@@ -1627,6 +1627,11 @@ url: string,
  * The login name.
  */
 user: string, };
+export type AssetLinkArgs = { page: string, 
+/**
+ * Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+ */
+path: string, };
 export type OrphanAsset = { 
 /**
  * Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
@@ -1746,6 +1751,7 @@ export type Commands = {
   backup_encryption_setup: { args: BackupSetupArgs; result: RecoveryKeyResult };
   backup_encryption_confirm: { args: NoArgs; result: BackupEncryption };
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
+  asset_link: { args: AssetLinkArgs; result: StringValue };
   save_asset: { args: SaveAssetArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };

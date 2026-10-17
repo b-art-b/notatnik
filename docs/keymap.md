@@ -90,7 +90,7 @@ The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" 
 - In the desktop app a paste that brings no text and no file (the webview does not pass a screenshot from Flameshot or Spectacle on every system) makes the shell read the picture from the system clipboard instead.
 - **Drop** an image file on a block that is being edited: the link goes where it is dropped, and the file name is kept in the stored name.
 - The same picture twice is stored once. Only png, jpeg, gif and webp are accepted, up to 25 MB.
-- Images are never deleted by the app on its own, not even when their block is. Settings → Graph → **Unused images** lists the files in `assets/` that no page mentions (a path anywhere in a page's text, in a link or in code, counts as a mention) and **Delete them** moves them to this device's trash (kept 30 days, outside the graph, so not synced).
+- Images are never deleted by the app on its own, not even when their block is. Settings → Graph → **Unused images** lists the files in `assets/` that no page mentions (a path anywhere in a page's text, in a link or in code, counts as a mention) and **Delete all** (or **Delete** on one image) moves them to this device's trash (outside the graph, so not synced). Each row has a preview (click to enlarge) and **Copy link**: pasting the copied `![](assets/...)` into a block writes the path that suits the page it lands on.
 
 ## Slash commands
 
