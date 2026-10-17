@@ -2051,6 +2051,105 @@ fn backups_are_sealed_with_a_password_and_a_recovery_key() {
     t.ok("set_settings", json!({"backup_encrypt": false}));
 }
 
+/// EN-5 with BK-9: the second folder holds the sealed files, byte for byte, and converting the old plain
+/// snapshots reaches it too (and catches up when the folder was away).
+#[test]
+fn the_second_folder_holds_only_sealed_files() {
+    let t = start("basic");
+    let first = t.tmp.path().join("first");
+    let second = t.tmp.path().join("second");
+    std::fs::create_dir_all(&second).unwrap();
+    t.ok(
+        "set_settings",
+        json!({"backup_dir": first.to_str().unwrap(), "backup_mirror_dir": second.to_str().unwrap()}),
+    );
+    let files = |d: &Path| -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(d)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        v.sort();
+        v
+    };
+    // a plain snapshot made before encryption, dated long ago: it is in both folders
+    let l = t.ok("backup_now", json!({}));
+    let plain = l["backups"][0]["name"].as_str().unwrap().to_string();
+    let id = plain.split('-').nth(1).unwrap().to_string();
+    let old = format!("notatnik-{id}-20200101-120000.zip");
+    for d in [&first, &second] {
+        std::fs::rename(d.join(&plain), d.join(&old)).unwrap();
+    }
+
+    // encryption on; a marker in a page; the new snapshot is sealed in both folders, the same bytes
+    t.ok(
+        "backup_encryption_setup",
+        json!({"password": "a long enough password"}),
+    );
+    t.ok("backup_encryption_confirm", json!({}));
+    std::fs::write(
+        t.graph().join("pages/inbox.md"),
+        format!("{}- OKAPI-MARKER-58\n", t.read("pages/inbox.md")),
+    )
+    .unwrap();
+    let l = t.ok("backup_now", json!({}));
+    assert_eq!(l["mirror_error"], Value::Null);
+    let sealed = l["backups"][0]["name"].as_str().unwrap().to_string();
+    assert!(sealed.ends_with(".zip.enc"), "{sealed}");
+    assert_eq!(l["backups"][0]["in_mirror"], true);
+    assert_eq!(
+        std::fs::read(first.join(&sealed)).unwrap(),
+        std::fs::read(second.join(&sealed)).unwrap(),
+        "the copy is the sealed file itself"
+    );
+    for f in files(&second).iter().filter(|f| f.ends_with(".enc")) {
+        let bytes = std::fs::read(second.join(f)).unwrap();
+        assert!(!bytes.windows(13).any(|w| w == b"OKAPI-MARKER-"), "{f}");
+    }
+    // the old plain snapshot is still plain, in both folders, and counted twice
+    assert!(files(&first).contains(&old) && files(&second).contains(&old));
+    assert_eq!(
+        t.ok("backup_encryption_status", json!({}))["plain_snapshots"],
+        2
+    );
+
+    // the second folder is away while the old snapshots are converted: the first folder is done, the second not
+    let away = t.tmp.path().join("second-away");
+    std::fs::rename(&second, &away).unwrap();
+    let st = t.ok("backup_encrypt_existing", json!({}));
+    assert_eq!(
+        st["plain_snapshots"], 0,
+        "the missing folder counts nothing"
+    );
+    assert!(
+        files(&first).iter().all(|f| f.ends_with(".enc")),
+        "{:?}",
+        files(&first)
+    );
+    // it comes back: its plain copy is counted again and the button converts it
+    std::fs::rename(&away, &second).unwrap();
+    assert_eq!(
+        t.ok("backup_encryption_status", json!({}))["plain_snapshots"],
+        1
+    );
+    let st = t.ok("backup_encrypt_existing", json!({}));
+    assert_eq!(st["plain_snapshots"], 0);
+    assert!(
+        files(&second).iter().all(|f| f.ends_with(".enc")),
+        "{:?}",
+        files(&second)
+    );
+    // and the converted old snapshot still opens
+    let converted = format!("{old}.enc");
+    assert!(files(&second).contains(&converted));
+    let target = t.tmp.path().join("restored-old");
+    t.ok(
+        "restore_backup",
+        json!({"name": converted, "target": target.to_str().unwrap()}),
+    );
+    assert!(target.join("pages/inbox.md").exists());
+}
+
 /// A rename that touches several files and a delete of several pages first save a restore point (BK-6); the page
 /// history lists, shows and restores versions (VH-1..VH-3).
 #[test]
