@@ -75,7 +75,7 @@ The zoom level is remembered per device (browser/webview storage), not in the gr
 
 ## Side panel
 
-A panel at the **right** can hold a page's **references** (linked and unlinked) and its **tasks** instead of the bottom of the page: *Settings → Appearance → References / Page tasks → Side panel* (each on its own; this device). It follows the page you are on, shares the space with pages opened with Shift+click, and shows in windows at least about 1180 px wide; in a narrower window both go back below the page. **Ctrl+Shift+\\** (or the button at the panel's edge, or the palette) hides and shows it; drag its left edge to resize it (280 to 720 px; with the edge focused ←/→ move it by 10 px, Shift by 40, Home or a double click resets to 380). Hidden, the references and tasks are not shown at all until you show it again.
+A panel at the **right** can hold a page's **references** (linked and unlinked) and its **tasks** instead of the bottom of the page: *Settings → Appearance → References / Page tasks → Side panel* (each on its own; this device). It follows the page you are on and has **tabs** with live counts: *References*, *Tasks* (each only when it is set to the side) and *Pages* (the pages opened with Shift+click); ←/→ move between the tabs, the chosen tab is remembered, and with one tab there is no tab bar. It shows in windows at least about 1180 px wide; in a narrower window both go back below the page. **Ctrl+Shift+\\** (or the button at the panel's edge, or the palette) hides and shows it; drag its left edge to resize it (280 to 720 px; with the edge focused ←/→ move it by 10 px, Shift by 40, Home or a double click resets to 380). Hidden, the references and tasks are not shown at all until you show it again.
 
 ## Sidebar
 

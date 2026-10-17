@@ -11,13 +11,21 @@
   import SourcedTask from './SourcedTask.svelte'
 
   // `page`: the tasks of a page. `segment`: the tasks of every page that has this name somewhere in its path.
-  let { page = '', segment = '' }: { page?: string; segment?: string } = $props()
+  // `count`: how many tasks are listed, for the badge of a tab that shows this component
+  let {
+    page = '',
+    segment = '',
+    count = $bindable(0),
+  }: { page?: string; segment?: string; count?: number } = $props()
 
   const OPEN = 'todo, later, doing, now, waiting'
   const ALL = 'todo, later, doing, now, waiting, done, canceled'
   let found = $state<{ id: string; title: string; rows: ResultRow[] }[]>([])
   let open = $state(true)
   let showDone = $state(false)
+  $effect(() => {
+    count = found.reduce((n, g) => n + g.rows.length, 0)
+  })
 
   try {
     const s = JSON.parse(localStorage.getItem('notatnik-page-tasks') ?? '{}')

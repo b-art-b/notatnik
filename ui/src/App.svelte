@@ -44,8 +44,7 @@
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
   import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
-  import PageTasks from './lib/components/PageTasks.svelte'
-  import Backlinks from './lib/components/Backlinks.svelte'
+  import SidePanel from './lib/components/SidePanel.svelte'
   import SyncIndicator from './lib/components/SyncIndicator.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
@@ -64,7 +63,6 @@
   import SavedQueryPage from './lib/components/SavedQueryPage.svelte'
   import { backend } from './lib/api'
   import type { SavedQueryView } from './lib/api'
-  import { pageHash } from './lib/route'
   import { initZoom, zoomKey, zoomWheel } from './lib/zoom'
   import { installNavigation } from './lib/mouse'
 
@@ -450,25 +448,7 @@
         ondblclick={() => setRightWidth(RIGHT_DEFAULT)}
       ></div>
       <aside class="right" aria-label="Side panels" data-testid="side-panel">
-        {#if hasContext}
-          {#key route.kind === 'page' ? route.name : ''}
-            <section class="context" aria-label="About this page">
-              {#if onSide('tasks')}<PageTasks page={route.kind === 'page' ? route.name : ''} />{/if}
-              {#if onSide('refs')}<Backlinks page={route.kind === 'page' ? route.name : ''} />{/if}
-            </section>
-          {/key}
-        {/if}
-        {#each app.rightPanels as p (p)}
-          <section class="panel">
-            <header>
-              <a href={pageHash(p)}>{p}</a><button
-                aria-label="Close panel"
-                onclick={() => (app.rightPanels = app.rightPanels.filter((x) => x !== p))}>×</button
-              >
-            </header>
-            <PageContent name={p} viewKey={`side-${p}`} showBacklinks={false} compact />
-          </section>
-        {/each}
+        <SidePanel page={route.kind === 'page' ? route.name : null} />
       </aside>
     {/if}
   </div>

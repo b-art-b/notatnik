@@ -74,6 +74,8 @@ export const app = $state({
   /** Width of the right panel in px, and whether it is shown; remembered on this device. */
   rightWidth: loadRight().width,
   rightOpen: loadRight().open,
+  /** The tab of the right panel that is open: `refs`, `tasks` or `pages` (the pages opened beside the page). */
+  rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as 'refs' | 'tasks' | 'pages',
   /** Where the references and the tasks of a page go. */
   placement: loadPlacement(),
   /** The window is wide enough for a side panel. */
@@ -139,6 +141,15 @@ export function setRightWidth(px: number, save = true) {
   if (!save) return
   try {
     localStorage.setItem('notatnik-right-width', String(app.rightWidth))
+  } catch {
+    /* not remembered */
+  }
+}
+
+export function setRightTab(tab: 'refs' | 'tasks' | 'pages') {
+  app.rightTab = tab
+  try {
+    localStorage.setItem('notatnik-right-tab', tab)
   } catch {
     /* not remembered */
   }

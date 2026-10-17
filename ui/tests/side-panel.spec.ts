@@ -73,3 +73,26 @@ test('the side panel can be resized with the keyboard and reset', async ({ backe
   await page.keyboard.press('Home')
   expect(Math.round(await width())).toBe(380)
 })
+
+test('references and tasks are tabs with counts; the chosen tab is remembered', async ({ backend, page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('notatnik-placement', JSON.stringify({ refs: 'side', tasks: 'side' })),
+  )
+  backend.write('pages/target.md', '- TODO a task on the target\n')
+  backend.write('pages/source.md', '- see [[target]]\n- TODO follow up on [[target]]\n')
+  await backend.open('/page/target')
+  const tabs = page.getByRole('tablist', { name: 'Side panel' })
+  await expect(tabs.getByRole('tab')).toHaveText(['References2', 'Tasks2'])
+  await expect(tabs.getByRole('tab', { name: /References/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('region', { name: 'Linked references', exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Tasks' })).toBeHidden()
+  // arrow keys move between the tabs
+  await tabs.getByRole('tab', { name: /References/ }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(tabs.getByRole('tab', { name: /Tasks/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('region', { name: 'Linked references', exact: true })).toBeHidden()
+  await expect(page.getByTestId('side-panel')).toContainText('a task on the target')
+  // remembered
+  await page.reload()
+  await expect(tabs.getByRole('tab', { name: /Tasks/ })).toHaveAttribute('aria-selected', 'true')
+})

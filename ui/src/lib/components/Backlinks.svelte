@@ -8,8 +8,12 @@
   import Block from './Block.svelte'
   import { jumpOnClick } from '../jump'
 
-  let { page }: { page: string } = $props()
+  // `count`: how many linked references there are, for the badge of a tab that shows this component
+  let { page, count = $bindable(0) }: { page: string; count?: number } = $props()
   let links = $state<BacklinkView[]>([])
+  $effect(() => {
+    count = links.length
+  })
   let open = $state(true)
   // Unlinked references: plain-text mentions. Computed only while the panel is open (it searches the whole graph).
   let unlinkedOpen = $state(false)
