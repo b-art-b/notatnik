@@ -89,7 +89,7 @@ The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" 
 - **Paste** a picture (a screenshot) while editing a block: the link `![](../assets/2026/10/pasted-1a2b3c4d.png)` is inserted at the cursor and the file is stored in the graph's `assets/` folder. A clipboard that also holds text pastes the text.
 - **Drop** an image file on a block that is being edited: the link goes where it is dropped, and the file name is kept in the stored name.
 - The same picture twice is stored once. Only png, jpeg, gif and webp are accepted, up to 25 MB.
-- Images are never deleted by the app, not even when their block is.
+- Images are never deleted by the app on its own, not even when their block is. Settings → Graph → **Unused images** lists the files in `assets/` that no page mentions (a path anywhere in a page's text, in a link or in code, counts as a mention) and **Delete them** moves them to this device's trash (kept 30 days, outside the graph, so not synced).
 
 ## Slash commands
 

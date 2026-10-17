@@ -1627,6 +1627,13 @@ url: string,
  * The login name.
  */
 user: string, };
+export type OrphanAsset = { 
+/**
+ * Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+ */
+path: string, size: number, };
+export type OrphanAssets = { items: Array<OrphanAsset>, };
+export type DeleteAssetsArgs = { paths: Array<string>, };
 export type SyncNowArgs = { 
 /**
  * Let a sync that was stopped for wanting to delete most of the graph go ahead.
@@ -1740,6 +1747,8 @@ export type Commands = {
   backup_encryption_confirm: { args: NoArgs; result: BackupEncryption };
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
   save_asset: { args: SaveAssetArgs; result: SavedAsset };
+  list_orphan_assets: { args: NoArgs; result: OrphanAssets };
+  delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };
   sync_status: { args: NoArgs; result: SyncStatus };
   sync_now: { args: SyncNowArgs; result: SyncStatus };
   sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };

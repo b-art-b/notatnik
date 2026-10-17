@@ -1236,6 +1236,26 @@ pub struct SavedAsset {
     pub markdown: String,
 }
 
+/// One file below `assets/` that no page mentions.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct OrphanAsset {
+    /// Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+    pub path: String,
+    pub size: f64,
+}
+
+/// `list_orphan_assets` result.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct OrphanAssets {
+    pub items: Vec<OrphanAsset>,
+}
+
+/// `delete_orphan_assets`: the files to move to the trash.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct DeleteAssetsArgs {
+    pub paths: Vec<String>,
+}
+
 /// `sync_status`: how the sync of the open graph is doing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct SyncStatus {

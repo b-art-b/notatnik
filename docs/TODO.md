@@ -41,7 +41,7 @@ Done while using the app, each with requirement IDs in [requirements.md](require
 - Settings: four panes (device vs graph), date language/format/custom pattern, link brackets.
 - Encryption: [encryption.md](encryption.md) (EN-1..EN-10). Encrypted backups are built (P0 to P2); encrypted sync (P3 to P7) is planned and waits for review.
 - Sync with a WebDAV/Nextcloud server is built (plain files; SY-1..SY-8, [webdav.md](webdav.md)); encryption on the server, a folder browser, and Android background sync are open.
-- Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image attachments other than pictures and the orphan list (P5.5; paste and drop of images are built).
+- Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image attachments other than pictures (P5.5; the unused-images list is built; paste and drop of images are built).
 
 ## Known issues
 

@@ -63,3 +63,35 @@ test('a dropped image file keeps its name in the stored file', async ({ backend,
     .poll(() => backend.read('pages/inbox.md'))
     .toMatch(/\]\(\.\.\/assets\/\d{4}\/\d{2}\/floor-plan-[0-9a-f]{8}\.png\)/)
 })
+
+test('unused images are listed in Settings and can be deleted; a linked one stays', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/page/inbox')
+  const save = async (name: string) =>
+    (await backend.call<{ path: string }>('save_asset', { page: 'inbox', data: PNG, name })).path
+  const kept = await save('kept.png')
+  // the same bytes again would be the same file, so make a second picture by changing the last chunk
+  const other = Buffer.from(PNG, 'base64')
+  other[other.length - 20] ^= 1
+  const lost = (
+    await backend.call<{ path: string }>('save_asset', {
+      page: 'inbox',
+      data: other.toString('base64'),
+      name: 'lost.png',
+    })
+  ).path
+  backend.write('pages/pics.md', `- ![](../${kept})\n`)
+
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: 'Graph' }).click()
+  await page.getByTestId('unused-look').click()
+  await expect(page.getByTestId('unused-count')).toContainText('1 unused')
+  await expect(page.getByTestId('unused-list')).toContainText(lost)
+  await expect(page.getByTestId('unused-list')).not.toContainText(kept)
+  await page.getByTestId('unused-trash').click()
+  await expect(page.getByTestId('unused-none')).toBeVisible()
+  expect(backend.exists(lost)).toBe(false)
+  expect(backend.exists(kept)).toBe(true)
+})

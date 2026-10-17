@@ -64,7 +64,7 @@ JR-4, JR-6, ED-10, ED-11, ED-14, NF-10 (string externalisation).
 ### P5.5 Assets (ST-8)
 - [x] Paste an image or drag-drop an image file (png, jpeg, gif, webp; 25 MB) → copied to `assets/YYYY/MM/<name>-<short-hash>.<ext>` → `![](../assets/…)` inserted (path relative to the page file so other Markdown tools render it)
 - [x] Image rendering in blocks (the desktop shell serves `asset://localhost/…` from `read_asset`); non-images as attachment chips are not built
-- [ ] Orphan asset detection in the health screen (P5.3)
+- [x] Orphan asset detection (P5.3): `Graph::orphan_assets` and the Settings → Graph "Unused images" row; the health screen itself is still open
 
 **Verify**
 - [x] Paste a screenshot → the file exists in `assets/`, the link renders, and the same link works in the Nextcloud web Markdown viewer

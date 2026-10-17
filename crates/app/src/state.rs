@@ -1887,6 +1887,33 @@ impl AppState {
         })
     }
 
+    /// `list_orphan_assets`: files below `assets/` that no page mentions.
+    pub fn orphan_assets(&self, _: NoArgs) -> ApiResult<OrphanAssets> {
+        self.with_open(|o| {
+            let items = o
+                .graph
+                .orphan_assets()?
+                .into_iter()
+                .map(|(path, size)| OrphanAsset {
+                    path,
+                    size: size as f64,
+                })
+                .collect();
+            Ok(OrphanAssets { items })
+        })
+    }
+
+    /// `delete_orphan_assets`: moves orphans to the trash; returns the orphans that are left.
+    pub fn delete_orphan_assets(&self, a: DeleteAssetsArgs) -> ApiResult<OrphanAssets> {
+        self.with_open(|o| {
+            o.graph
+                .trash_orphan_assets(&a.paths)
+                .map(|_| ())
+                .map_err(Into::into)
+        })?;
+        self.orphan_assets(NoArgs {})
+    }
+
     /// Reads a file below `assets/` (images).
     pub fn read_asset(&self, rel: &str) -> ApiResult<Vec<u8>> {
         self.with_open(|o| {

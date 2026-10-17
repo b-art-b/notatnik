@@ -105,6 +105,8 @@ commands! {
     backup_encryption_confirm(NoArgs) -> BackupEncryption => backup_encryption_confirm,
     backup_unlock(BackupUnlockArgs) -> BackupEncryption => backup_unlock,
     save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
+    list_orphan_assets(NoArgs) -> OrphanAssets => orphan_assets,
+    delete_orphan_assets(DeleteAssetsArgs) -> OrphanAssets => delete_orphan_assets,
     sync_status(NoArgs) -> SyncStatus => sync_status,
     sync_now(SyncNowArgs) -> SyncStatus => sync_now,
     sync_set_password(SyncPasswordArgs) -> SyncStatus => sync_set_password,

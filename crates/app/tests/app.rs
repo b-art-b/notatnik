@@ -2942,6 +2942,46 @@ fn pasted_images_are_stored_once_and_linked_relative_to_the_page() {
     }
 }
 
+/// ST-8: assets no page mentions are listed and can be moved to the trash; a linked one is never offered.
+#[test]
+fn unused_images_are_listed_and_trashed_but_linked_ones_stay() {
+    use base64::Engine as _;
+    let t = start("basic");
+    let save = |tail: &str| {
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        png.extend_from_slice(tail.as_bytes());
+        let data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let a = t.ok(
+            "save_asset",
+            json!({"page": "inbox", "data": data, "name": null}),
+        );
+        a["path"].as_str().unwrap().to_string()
+    };
+    let kept = save("kept");
+    let lost = save("lost");
+    let graph = t.tmp.path().join("graph");
+    std::fs::write(graph.join("pics.md"), format!("- look ![](../{kept})\n")).unwrap();
+
+    let list = t.ok("list_orphan_assets", json!({}));
+    let paths: Vec<&str> = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["path"].as_str().unwrap())
+        .collect();
+    assert_eq!(paths, [lost.as_str()]);
+
+    // a linked file and a path outside assets/ are ignored; the orphan goes
+    let after = t.ok(
+        "delete_orphan_assets",
+        json!({"paths": [kept, lost, "pics.md"]}),
+    );
+    assert!(after["items"].as_array().unwrap().is_empty());
+    assert!(graph.join(&kept).exists());
+    assert!(!graph.join(&lost).exists());
+    assert!(graph.join("pics.md").exists());
+}
+
 /// SY-1..SY-6: a graph kept in a server folder; two devices through the in-memory WebDAV server.
 #[test]
 fn a_graph_kept_in_a_server_folder_syncs_both_ways() {

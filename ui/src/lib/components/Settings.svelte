@@ -30,6 +30,7 @@
   import EmojiPicker from './EmojiPicker.svelte'
   import SettingRow from './settings/SettingRow.svelte'
   import SyncPane from './settings/SyncPane.svelte'
+  import UnusedImages from './settings/UnusedImages.svelte'
   import Segmented from './settings/Segmented.svelte'
 
   const SAMPLE = '2026-10-03'
@@ -1464,6 +1465,7 @@
               <button class="plain" onclick={() => s && copy(s.graph_root)}>Copy</button></span
             >
           </SettingRow>
+          <UnusedImages />
           <SettingRow
             title="Your graphs"
             description="The graphs you opened on this device, with a way to remove one from the list. Removing only changes the list: the folder, its notes and its backups stay."
