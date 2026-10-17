@@ -815,8 +815,10 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-  /* Logseq-like task marker: a teal dot and the state in a soft pill; a finished task gets a tick */
+  /* Logseq-like task marker: a dot and the state in a soft pill. Each state has its own color (`--c`): blue to do,
+     orange doing, purple waiting, green done (with a tick), grey canceled */
   .marker {
+    --c: var(--task-todo);
     display: inline-flex;
     align-items: center;
     gap: 0.35em;
@@ -827,7 +829,7 @@
     letter-spacing: 0.04em;
     padding: 0.1em 0.65em 0.1em 0.3em;
     border-radius: 999px;
-    background: var(--chip);
+    background: color-mix(in srgb, var(--c) 16%, var(--chip));
     color: var(--text);
   }
   .marker::before {
@@ -836,23 +838,32 @@
     width: 1.25em;
     height: 1.25em;
     border-radius: 50%;
-    background: var(--task);
+    background: var(--c);
+  }
+  .marker-doing {
+    --c: var(--task-doing);
+    background: color-mix(in srgb, var(--c) 26%, var(--chip));
+  }
+  .marker-waiting {
+    --c: var(--task-waiting);
+  }
+  .marker-waiting::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--c);
+  }
+  .marker-done {
+    --c: var(--task-done);
   }
   .marker-done::before {
     background:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.6'/%3E%3C/svg%3E")
         center / 80% no-repeat,
-      var(--task);
-  }
-  .marker-doing {
-    background: color-mix(in srgb, var(--task) 22%, var(--chip));
-  }
-  .marker-waiting::before {
-    background: transparent;
-    box-shadow: inset 0 0 0 2px var(--task);
+      var(--c);
   }
   .marker-canceled {
+    --c: var(--muted);
     color: var(--muted);
+    background: var(--chip);
   }
   .marker-canceled::before {
     background: var(--muted);

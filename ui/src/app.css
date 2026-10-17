@@ -3,6 +3,11 @@
   --panel: #ffffff;
   --card: #f3f4f6;
   --task: #35b7d0;
+  /* one color per task state: to do, doing, waiting, done */
+  --task-todo: #3b7dd8;
+  --task-doing: #e07b00;
+  --task-waiting: #8a5cd6;
+  --task-done: #2e9d4f;
   --text: #1f2328;
   --muted: #566070;
   --border: #e3e5e8;
@@ -25,6 +30,10 @@
   --panel: #1e2126;
   --card: #23272d;
   --task: #3fbfd8;
+  --task-todo: #6aa5ff;
+  --task-doing: #f0a040;
+  --task-waiting: #b39dfa;
+  --task-done: #4cc272;
   --text: #e6e8eb;
   --muted: #9aa3ad;
   --border: #2d3138;
