@@ -77,3 +77,22 @@ test('the sidebar menu switches to another graph and leads to the start screen',
   await page.getByTestId('journals').click({ position: { x: 5, y: 5 } })
   await expect(menu).toBeHidden()
 })
+
+// Recent lists the pages opened in the open graph only.
+test('the Recent list belongs to the open graph', async ({ backend, page }) => {
+  await backend.open('/page/inbox')
+  const recent = page.getByTestId('recent-pages')
+  await expect(recent).toContainText('inbox')
+  await page.getByTestId('graph-switcher').click()
+  await page.getByRole('menuitem', { name: 'Add new graph…' }).click()
+  await page.getByLabel('Graph folder').fill(`${backend.dir}-other`)
+  await page.getByRole('button', { name: 'Open / create' }).click()
+  await expect(page.getByTestId('graph-switcher')).toContainText('-other', { timeout: 10000 })
+  await expect(recent).toBeHidden()
+  // back in the first graph its list is still there
+  await page.getByTestId('graph-switcher').click()
+  await page.getByRole('menuitem', { name: 'graph', exact: true }).click()
+  await expect(page.getByTestId('graph-switcher')).not.toContainText('-other', { timeout: 10000 })
+  await page.goto(`${page.url().split('#')[0]}#/page/inbox`)
+  await expect(page.getByTestId('recent-pages')).toContainText('inbox')
+})

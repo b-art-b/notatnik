@@ -2,6 +2,7 @@ import { backend, CommandError, type GraphInfo } from '../api'
 import { parseRoute, routeHash, type Route } from '../route'
 import { setDateFormat, setDateLocale } from '../dates'
 import { loadIcons } from './icons.svelte'
+import { useRecentFor } from './recent.svelte'
 
 export interface Toast {
   id: number
@@ -142,6 +143,7 @@ export async function bootstrap() {
   applyTheme(theme)
   try {
     app.graph = await backend.call('graph_info', {})
+    useRecentFor(app.graph.id)
     app.today = (await backend.call('today', {})).value
     await refreshConflicts()
     await loadDeviceSettings()
@@ -193,6 +195,7 @@ export async function adoptGraph(info: GraphInfo) {
     window.location.reload()
     return
   }
+  useRecentFor(info.id)
   app.today = (await backend.call('today', {})).value
   await refreshConflicts()
   await loadDeviceSettings()

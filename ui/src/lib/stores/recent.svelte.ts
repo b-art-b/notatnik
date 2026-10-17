@@ -1,21 +1,39 @@
-// Recently opened pages (most recent first), remembered on this device.
-const KEY = 'notatnik-recent'
+// Recently opened pages (most recent first), remembered on this device, separately for each graph.
+const LEGACY_KEY = 'notatnik-recent' // one list for all graphs, before the lists were per graph
 const MAX = 12
+/** The storage key of the open graph's list; empty until `useRecentFor` has been called. */
+let key = ''
 
-function load(): string[] {
+function load(k: string): string[] {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? '[]')
+    // the first graph to be opened takes over the old shared list
+    const raw = localStorage.getItem(k) ?? localStorage.getItem(LEGACY_KEY)
+    const v = JSON.parse(raw ?? '[]')
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, MAX) : []
   } catch {
     return []
   }
 }
 
-export const recent = $state({ items: load() })
+export const recent = $state<{ items: string[] }>({ items: [] })
+
+/** Switches the list to the one of graph `graphId`. */
+export function useRecentFor(graphId: string) {
+  // pages opened before the graph was known (the route is read first) belong to this graph
+  const early = key ? [] : recent.items
+  key = `${LEGACY_KEY}:${graphId}`
+  recent.items = [...early, ...load(key).filter((x) => !early.some((e) => same(e, x)))].slice(0, MAX)
+  try {
+    localStorage.removeItem(LEGACY_KEY)
+  } catch {
+    /* nothing to remove */
+  }
+  save()
+}
 
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify(recent.items))
+    if (key) localStorage.setItem(key, JSON.stringify(recent.items))
   } catch {
     /* not remembered */
   }

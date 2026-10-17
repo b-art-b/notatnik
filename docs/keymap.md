@@ -264,7 +264,7 @@ Drag a block's **bullet**. The block moves together with all its sub-bullets. Th
 
 ## Recent pages
 
-The sidebar's **Recent** list shows the last pages you opened (newest first, up to 10; remembered on this device). *clear* empties it; renaming a page keeps its place.
+The sidebar's **Recent** list shows the last pages you opened (newest first, up to 10; remembered on this device, separately for each graph). *clear* empties it; renaming a page keeps its place.
 
 ## Pages
 
