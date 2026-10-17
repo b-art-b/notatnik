@@ -263,6 +263,12 @@
         { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
         { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
         { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+        // WebKitGTK (the desktop app on Linux) names Shift+Tab `ISO_Left_Tab`
+        {
+          key: 'Shift-ISO_Left_Tab',
+          run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })),
+        },
+        { key: 'ISO_Left_Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
         // like org-mode's M-<right> / M-<left>: demote / promote the block (with its children)
         { key: 'Alt-ArrowRight', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
         { key: 'Alt-ArrowLeft', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },

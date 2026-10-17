@@ -182,7 +182,9 @@
       else if (k === 'ArrowDown' && e.altKey) void selectionMove(ctx, 'down')
       else if (k === 'ArrowUp') selectionStep(ctx, 'up', e.shiftKey)
       else if (k === 'ArrowDown') selectionStep(ctx, 'down', e.shiftKey)
-      else if (k === 'Tab') void (e.shiftKey ? selectionOutdent(ctx) : selectionIndent(ctx))
+      // WebKitGTK names Shift+Tab `ISO_Left_Tab`; the physical key (`code`) is the same everywhere
+      else if (e.code === 'Tab' || k === 'Tab' || k === 'ISO_Left_Tab')
+        void (e.shiftKey || k === 'ISO_Left_Tab' ? selectionOutdent(ctx) : selectionIndent(ctx))
       else if (k === 'ArrowRight' && e.altKey) void selectionIndent(ctx)
       else if (k === 'ArrowLeft' && e.altKey) void selectionOutdent(ctx)
       else if (k === 'Delete' || k === 'Backspace') void selectionDelete(ctx)
