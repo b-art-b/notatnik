@@ -111,6 +111,122 @@ struct UiState {
 struct BackupTask {
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
+    /// Copying to the second folder failed (BK-9).
+    mirror_error: Arc<Mutex<Option<String>>>,
+}
+
+/// The lines that differ between `old` and `new` (added or removed), in file order: a longest-common-subsequence
+/// diff, good enough for a settings file of a few dozen lines.
+fn line_diff(old: &str, new: &str) -> Vec<DiffLine> {
+    let (a, b): (Vec<&str>, Vec<&str>) = (old.lines().collect(), new.lines().collect());
+    let mut lcs = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for i in (0..a.len()).rev() {
+        for j in (0..b.len()).rev() {
+            lcs[i][j] = if a[i] == b[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+    let (mut i, mut j, mut out) = (0, 0, Vec::new());
+    let line = |kind: &str, text: &str| DiffLine {
+        kind: kind.into(),
+        text: text.into(),
+    };
+    while i < a.len() || j < b.len() {
+        if i < a.len() && j < b.len() && a[i] == b[j] {
+            i += 1;
+            j += 1;
+        } else if i < a.len() && (j == b.len() || lcs[i + 1][j] >= lcs[i][j + 1]) {
+            out.push(line("del", a[i]));
+            i += 1;
+        } else {
+            out.push(line("add", b[j]));
+            j += 1;
+        }
+    }
+    out
+}
+
+fn take<T: Clone>(m: &Mutex<T>) -> T {
+    m.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+fn put<T>(m: &Mutex<T>, v: T) {
+    *m.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = v;
+}
+
+/// The first snapshot folder of the device settings: the setting, or the default.
+fn primary_dir(dirs: &Dirs, dev: &notatnik_graph::DeviceSettings) -> PathBuf {
+    match dev.ui.backup_dir.trim() {
+        "" => dirs.data.join("backups"),
+        d => PathBuf::from(d),
+    }
+}
+
+/// The second snapshot folder, if one is set.
+fn mirror_dir(dev: &notatnik_graph::DeviceSettings) -> Option<PathBuf> {
+    Some(dev.ui.backup_mirror_dir.trim())
+        .filter(|d| !d.is_empty())
+        .map(PathBuf::from)
+}
+
+/// How snapshots are written now (BK-7, BK-8): the compression setting, and the device files that go with them.
+fn backup_options(
+    dirs: &Dirs,
+    dev: &notatnik_graph::DeviceSettings,
+    graph_id: &str,
+) -> notatnik_graph::BackupOptions {
+    use notatnik_graph::Extra;
+    notatnik_graph::BackupOptions {
+        compress: dev.ui.backup_compression != "none",
+        extras: vec![
+            Extra {
+                name: "settings.toml".into(),
+                path: dirs.config.join("settings.toml"),
+                tracked: true,
+            },
+            Extra {
+                name: "state.json".into(),
+                path: dirs.graph_data(graph_id).join("state.json"),
+                tracked: false,
+            },
+        ],
+    }
+}
+
+/// One backup run with the device settings as they are now: a snapshot (when `force`, or when one is due: the
+/// newest is older than `min_age` and something changed), then the copies in the second folder. The second folder
+/// is brought up to date even when no snapshot was due, so a disk that was away catches up. Returns the outcome of
+/// the snapshot and the error of the copying, if any.
+fn run_backup(
+    dirs: &Dirs,
+    graph: &Graph,
+    force: bool,
+    min_age: Option<chrono::Duration>,
+) -> (
+    notatnik_graph::Result<Option<notatnik_graph::BackupFile>>,
+    Option<String>,
+) {
+    let dev = notatnik_graph::DeviceSettings::load(dirs).unwrap_or_default();
+    let dir = primary_dir(dirs, &dev);
+    let opts = backup_options(dirs, &dev, &graph.id());
+    let made = graph.backup_now(
+        &dir,
+        chrono::Local::now().naive_local(),
+        force,
+        min_age,
+        &opts,
+    );
+    let mirror_error = mirror_dir(&dev).and_then(|m| {
+        notatnik_graph::sync_mirror(&dir, &m, &graph.id())
+            .err()
+            .map(|e| e.to_string())
+    });
+    (made, mirror_error)
 }
 
 impl Drop for BackupTask {
@@ -2055,6 +2171,8 @@ impl AppState {
             date_pattern: dev.ui.date_pattern,
             backup_dir: dev.ui.backup_dir,
             backup_auto: dev.ui.backup_auto,
+            backup_compression: dev.ui.backup_compression,
+            backup_mirror_dir: dev.ui.backup_mirror_dir,
             templates_auto: dev.ui.templates_auto,
             open_last_graph: dev.ui.open_last_graph,
             journal_template: cfg
@@ -2165,6 +2283,29 @@ impl AppState {
                 ));
             }
         }
+        if let Some(d) = &a.backup_mirror_dir {
+            let d = d.trim();
+            if d.chars().count() > 500 || d.chars().any(char::is_control) {
+                return Err(ApiError::new(
+                    "invalid",
+                    "backup_mirror_dir: not a folder path",
+                ));
+            }
+            if !d.is_empty() && !Path::new(d).is_absolute() {
+                return Err(ApiError::new(
+                    "invalid",
+                    "backup_mirror_dir must be an absolute path (or empty for none)",
+                ));
+            }
+        }
+        if let Some(c) = &a.backup_compression {
+            if !matches!(c.as_str(), "compressed" | "none") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "backup_compression must be compressed or none",
+                ));
+            }
+        }
         if let Some(l) = &a.date_locale {
             // a BCP 47 tag, e.g. `pl-PL`; the UI only offers known ones, this guards the settings file
             let ok = !l.is_empty()
@@ -2195,10 +2336,16 @@ impl AppState {
                 || a.date_pattern.is_some()
                 || a.backup_dir.is_some()
                 || a.backup_auto.is_some()
+                || a.backup_compression.is_some()
+                || a.backup_mirror_dir.is_some()
                 || a.templates_auto.is_some()
                 || a.open_last_graph.is_some()
             {
-                if let Some(d) = a.backup_dir.as_deref().map(str::trim) {
+                for d in [a.backup_dir.as_deref(), a.backup_mirror_dir.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .map(str::trim)
+                {
                     if !d.is_empty() && Path::new(d).starts_with(o.graph.root()) {
                         return Err(ApiError::new(
                             "invalid",
@@ -2233,6 +2380,18 @@ impl AppState {
                 }
                 if let Some(b) = a.backup_auto {
                     dev.ui.backup_auto = b;
+                }
+                if let Some(c) = a.backup_compression {
+                    dev.ui.backup_compression = c;
+                }
+                if let Some(d) = a.backup_mirror_dir {
+                    dev.ui.backup_mirror_dir = d.trim().to_string();
+                }
+                if mirror_dir(&dev).is_some_and(|m| m == primary_dir(&self.dirs, &dev)) {
+                    return Err(ApiError::new(
+                        "invalid",
+                        "the second backup folder must differ from the first",
+                    ));
                 }
                 if let Some(b) = a.templates_auto {
                     dev.ui.templates_auto = b;
@@ -2305,23 +2464,28 @@ impl AppState {
         self.dirs.data.join("backups")
     }
 
-    /// The snapshot folder: the device setting, or the default.
+    /// The first snapshot folder: the device setting, or the default.
     fn backup_dir(&self) -> PathBuf {
         let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
-        let d = dev.ui.backup_dir.trim();
-        if d.is_empty() {
-            self.default_backup_dir()
-        } else {
-            PathBuf::from(d)
-        }
+        primary_dir(&self.dirs, &dev)
     }
 
-    fn backup_list(&self, graph: &Graph, error: Option<String>) -> BackupList {
-        let dir = self.backup_dir();
+    fn backup_list(
+        &self,
+        graph: &Graph,
+        error: Option<String>,
+        mirror_error: Option<String>,
+    ) -> BackupList {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let dir = primary_dir(&self.dirs, &dev);
+        let mirror = mirror_dir(&dev).map(|m| graph.backups(&m));
         let backups = graph
             .backups(&dir)
             .into_iter()
             .map(|b| BackupView {
+                in_mirror: mirror
+                    .as_ref()
+                    .is_some_and(|m| m.iter().any(|x| x.name == b.name && x.bytes == b.bytes)),
                 name: b.name,
                 created: b.created.format("%Y-%m-%d %H:%M:%S").to_string(),
                 bytes: b.bytes as f64,
@@ -2333,6 +2497,8 @@ impl AppState {
             default_dir: self.default_backup_dir().to_string_lossy().into_owned(),
             backups,
             error,
+            mirror_dir: dev.ui.backup_mirror_dir,
+            mirror_error,
         }
     }
 
@@ -2341,8 +2507,9 @@ impl AppState {
     fn start_backups(&self, graph: &Graph) -> BackupTask {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
+        let mirror_error = Arc::new(Mutex::new(None));
         let (g, dirs) = (graph.clone(), self.dirs.clone());
-        let (stop2, error2) = (stop.clone(), error.clone());
+        let (stop2, error2, mirror2) = (stop.clone(), error.clone(), mirror_error.clone());
         let spawned = std::thread::Builder::new()
             .name("backup".into())
             .spawn(move || {
@@ -2362,25 +2529,39 @@ impl AppState {
                     if !dev.ui.backup_auto {
                         continue;
                     }
-                    let dir = match dev.ui.backup_dir.trim() {
-                        "" => dirs.data.join("backups"),
-                        d => PathBuf::from(d),
-                    };
-                    let r = g.backup_now(
-                        &dir,
-                        chrono::Local::now().naive_local(),
-                        false,
-                        Some(chrono::Duration::hours(24)),
-                    );
-                    *error2
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                        r.err().map(|e| e.to_string());
+                    let (made, mirror) =
+                        run_backup(&dirs, &g, false, Some(chrono::Duration::hours(24)));
+                    put(&error2, made.err().map(|e| e.to_string()));
+                    put(&mirror2, mirror);
                 }
             });
         // no thread, no automatic snapshots; "Back up now" still works
         drop(spawned);
-        BackupTask { stop, error }
+        BackupTask {
+            stop,
+            error,
+            mirror_error,
+        }
+    }
+
+    /// A snapshot when the app quits (BK-3): taken when automatic backups are on, something changed and the newest
+    /// snapshot is at least an hour old; the second folder is brought up to date too. The caller bounds the wait.
+    pub fn backup_on_quit(&self) {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        if !dev.ui.backup_auto {
+            return;
+        }
+        let g = self.lock();
+        let Some(o) = g.as_ref() else { return };
+        if let Some(b) = &o.backup {
+            b.stop.store(true, Ordering::Relaxed);
+        }
+        let _ = run_backup(
+            &self.dirs,
+            &o.graph,
+            false,
+            Some(chrono::Duration::hours(1)),
+        );
     }
 
     /// A restore point before a rename or delete that touches several files (BK-6). Skipped when automatic backups
@@ -2390,9 +2571,12 @@ impl AppState {
         if !dev.ui.backup_auto {
             return;
         }
-        let _ = o
-            .graph
-            .backup_before_change(&self.backup_dir(), chrono::Local::now().naive_local());
+        let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+        let _ = o.graph.backup_before_change(
+            &primary_dir(&self.dirs, &dev),
+            chrono::Local::now().naive_local(),
+            &opts,
+        );
     }
 
     // ---- page history (VH-1..VH-3) ------------------------------------------------------------
@@ -2456,26 +2640,24 @@ impl AppState {
     /// `list_backups`
     pub fn list_backups(&self, _a: NoArgs) -> ApiResult<BackupList> {
         self.with_open(|o| {
-            let err = o.backup.as_ref().and_then(|b| {
-                b.error
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .clone()
-            });
-            Ok(self.backup_list(&o.graph, err))
+            let (err, mirror) = o
+                .backup
+                .as_ref()
+                .map_or((None, None), |b| (take(&b.error), take(&b.mirror_error)));
+            Ok(self.backup_list(&o.graph, err, mirror))
         })
     }
 
     /// `backup_now`: always takes a snapshot.
     pub fn backup_now(&self, _a: NoArgs) -> ApiResult<BackupList> {
         self.with_open(|o| {
-            o.graph.backup_now(
-                &self.backup_dir(),
-                chrono::Local::now().naive_local(),
-                true,
-                None,
-            )?;
-            Ok(self.backup_list(&o.graph, None))
+            let (made, mirror) = run_backup(&self.dirs, &o.graph, true, None);
+            made?;
+            if let Some(b) = &o.backup {
+                put(&b.error, None);
+                put(&b.mirror_error, mirror.clone());
+            }
+            Ok(self.backup_list(&o.graph, None, mirror))
         })
     }
 
@@ -2497,16 +2679,78 @@ impl AppState {
         })
     }
 
+    /// The device settings stored in a snapshot (None for a snapshot without them).
+    fn snapshot_settings(&self, name: &str) -> ApiResult<Option<String>> {
+        if name.contains(['/', '\\']) || name.contains("..") || !name.ends_with(".zip") {
+            return Err(ApiError::new("invalid", "not a backup name"));
+        }
+        let entry = format!("{}/settings.toml", notatnik_graph::DEVICE_DIR);
+        Ok(notatnik_graph::read_entry(
+            &self.backup_dir().join(name),
+            &entry,
+        )?)
+    }
+
+    /// `backup_device_preview`: how the device settings in the snapshot differ from the current file (BK-8).
+    pub fn backup_device_preview(&self, a: BackupNameArgs) -> ApiResult<DeviceRestorePreview> {
+        self.with_open(|_| {
+            let Some(old) = self.snapshot_settings(&a.name)? else {
+                return Ok(DeviceRestorePreview {
+                    available: false,
+                    same: true,
+                    lines: Vec::new(),
+                });
+            };
+            let now =
+                std::fs::read_to_string(self.dirs.config.join("settings.toml")).unwrap_or_default();
+            let lines = line_diff(&now, &old);
+            Ok(DeviceRestorePreview {
+                available: true,
+                same: lines.is_empty(),
+                lines,
+            })
+        })
+    }
+
+    /// `restore_device_settings`: the snapshot's `settings.toml` replaces the current one. The current file is kept
+    /// next to it as `settings.toml.before-restore-<time>` (BK-8). The graph history and all device settings come
+    /// back as they were; nothing in a graph changes.
+    pub fn restore_device_settings(&self, a: BackupNameArgs) -> ApiResult<SettingsView> {
+        self.with_open(|o| {
+            let old = self
+                .snapshot_settings(&a.name)?
+                .ok_or_else(|| ApiError::new("not_found", "the snapshot has no device settings"))?;
+            notatnik_graph::DeviceSettings::parse(&old)
+                .map_err(|e| ApiError::new("invalid", format!("settings in the snapshot: {e}")))?;
+            let file = self.dirs.config.join("settings.toml");
+            if file.exists() {
+                let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+                std::fs::copy(
+                    &file,
+                    self.dirs
+                        .config
+                        .join(format!("settings.toml.before-restore-{stamp}")),
+                )
+                .map_err(notatnik_graph::Error::from)?;
+            }
+            std::fs::create_dir_all(&self.dirs.config).map_err(notatnik_graph::Error::from)?;
+            std::fs::write(&file, old).map_err(notatnik_graph::Error::from)?;
+            self.settings_view(o)
+        })
+    }
+
     /// `restore_backup_page`: the page's file in the snapshot replaces the current one.
     pub fn restore_backup_page(&self, a: RestoreBackupPageArgs) -> ApiResult<StringList> {
         let name = Self::parse_name(&a.page)?;
         self.with_open(|o| {
             let rel = page_to_path(&name);
+            let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
             o.graph.restore_page_from_backup(
-                &self.backup_dir(),
+                &primary_dir(&self.dirs, &dev),
                 &a.name,
                 &rel,
                 chrono::Local::now().naive_local(),
+                &backup_options(&self.dirs, &dev, &o.graph.id()),
             )?;
             // undo cannot follow a replaced file
             o.undo.retain(|e| e.rel != rel);

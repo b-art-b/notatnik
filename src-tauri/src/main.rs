@@ -73,6 +73,20 @@ fn main() {
             open_external,
             pick_folder
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Notatnik");
+        .build(tauri::generate_context!())
+        .expect("error while building Notatnik")
+        .run(|app, event| {
+            // a snapshot on quit (BK-3), in a thread so a slow target cannot keep the app from closing for long
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<Arc<AppState>>() {
+                    let state = Arc::clone(&state);
+                    let (done, wait) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        state.backup_on_quit();
+                        let _ = done.send(());
+                    });
+                    let _ = wait.recv_timeout(std::time::Duration::from_secs(20));
+                }
+            }
+        });
 }

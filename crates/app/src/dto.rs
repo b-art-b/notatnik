@@ -936,6 +936,10 @@ pub struct SettingsView {
     pub backup_dir: String,
     /// Device: take snapshots automatically.
     pub backup_auto: bool,
+    /// Device: `compressed` (zip deflate) or `none` (stored) for new snapshots (BK-7).
+    pub backup_compression: String,
+    /// Device: a second folder that gets a copy of every snapshot (empty = none, BK-9).
+    pub backup_mirror_dir: String,
     /// Device: apply the template of a page's type when `type` is set (PR-10).
     pub templates_auto: bool,
     /// Device: open the last graph at start without the start screen.
@@ -977,6 +981,10 @@ pub struct SetSettingsArgs {
     pub backup_dir: Option<String>,
     /// Device: automatic snapshots.
     pub backup_auto: Option<bool>,
+    /// Device: `compressed` or `none`.
+    pub backup_compression: Option<String>,
+    /// Device: the second snapshot folder (empty = none).
+    pub backup_mirror_dir: Option<String>,
     /// Device: a page template is applied when `type` is set.
     pub templates_auto: Option<bool>,
     /// Device: open the last graph at start.
@@ -1006,6 +1014,8 @@ pub struct BackupView {
     pub bytes: f64,
     /// Taken automatically before a rename or delete of several files (or before a page was replaced).
     pub before: bool,
+    /// The second folder holds a copy (always false without a second folder).
+    pub in_mirror: bool,
 }
 
 /// One recorded version of a page file.
@@ -1039,6 +1049,10 @@ pub struct BackupList {
     pub backups: Vec<BackupView>,
     /// The last automatic snapshot failed with this message (cleared by the next success).
     pub error: Option<String>,
+    /// The second folder as set (empty = none).
+    pub mirror_dir: String,
+    /// Copying to the second folder failed with this message (a disk that is not plugged in, ...).
+    pub mirror_error: Option<String>,
 }
 
 /// `restore_backup`: unpack a snapshot into a new or empty folder (open it as a graph afterwards).
@@ -1057,4 +1071,31 @@ pub struct RestoreBackupPageArgs {
     pub name: String,
     /// Page name.
     pub page: String,
+}
+
+/// `backup_device_preview`, `restore_device_settings`: a snapshot by name.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupNameArgs {
+    /// `BackupView.name`.
+    pub name: String,
+}
+
+/// One changed line of the device settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct DiffLine {
+    /// `add` (in the snapshot, not in the current settings) or `del` (in the current settings, not in the snapshot).
+    pub kind: String,
+    /// The line.
+    pub text: String,
+}
+
+/// `backup_device_preview`: how the device settings in a snapshot differ from the current ones.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct DeviceRestorePreview {
+    /// The snapshot holds device settings (older ones do not).
+    pub available: bool,
+    /// Nothing differs.
+    pub same: bool,
+    /// The changed lines, in file order.
+    pub lines: Vec<DiffLine>,
 }

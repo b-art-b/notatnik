@@ -2,7 +2,13 @@
   // Settings, organised by topic (Appearance, Dates & language, Tasks, Graph). Every change applies at once and
   // is confirmed inline, so there is no Save button to forget. Each pane says where its values are stored:
   // "this device" settings never leave the computer, "this graph" settings are synced with the notes.
-  import { backend, type BackupList, type PageIconRuleView, type SettingsView } from '../api'
+  import {
+    backend,
+    type BackupList,
+    type DeviceRestorePreview,
+    type PageIconRuleView,
+    type SettingsView,
+  } from '../api'
   import {
     app,
     applyLinkBrackets,
@@ -110,9 +116,12 @@
   let restoreOf = $state<string | null>(null) // the snapshot whose restore form is open
   let restoreTarget = $state('')
   let restorePage = $state('')
+  let bkMirror = $state('') // the second folder, a draft like the first
+  let devicePreview = $state<DeviceRestorePreview | null>(null) // the device settings of the open restore form
   $effect(() => {
     if (tab !== 'backup' || !s) return
     bkDir = s.backup_dir
+    bkMirror = s.backup_mirror_dir
     void loadBackups()
   })
   async function loadBackups() {
@@ -138,10 +147,38 @@
     if (s) bkDir = s.backup_dir
     await loadBackups()
   }
+  async function setMirrorDir(dir: string) {
+    await save({ backup_mirror_dir: dir.trim() })
+    if (s) bkMirror = s.backup_mirror_dir
+    await loadBackups()
+  }
   function openRestore(name: string) {
     restoreOf = restoreOf === name ? null : name
     restoreTarget = ''
     restorePage = ''
+    devicePreview = null
+  }
+  async function compareDevice(name: string) {
+    try {
+      devicePreview = await backend.call('backup_device_preview', { name })
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function restoreDevice(name: string) {
+    try {
+      s = await backend.call('restore_device_settings', { name })
+      setDateLocale(s.date_locale)
+      setDateFormat(s.date_format, s.date_pattern)
+      app.dateVersion++
+      applyTheme(s.theme as Theme)
+      applyLinkBrackets(s.link_brackets)
+      toast('Device settings restored. The settings they replaced are kept next to the file.')
+      devicePreview = null
+      restoreOf = null
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
   }
   async function restoreFolder(name: string) {
     try {
@@ -243,6 +280,8 @@
     block_properties: string
     backup_dir: string
     backup_auto: boolean
+    backup_compression: string
+    backup_mirror_dir: string
     templates_auto: boolean
     open_last_graph: boolean
     journal_template: string
@@ -273,6 +312,8 @@
         block_properties: null,
         backup_dir: null,
         backup_auto: null,
+        backup_compression: null,
+        backup_mirror_dir: null,
         templates_auto: null,
         open_last_graph: null,
         journal_template: null,
@@ -852,7 +893,8 @@
           <h2>Backup</h2>
           <p class="scope">
             <span class="badge">This device</span>
-            Snapshots are zip files of this graph's folder. They are kept outside it, so they are never synced.
+            Snapshots are zip files of this graph's folder and of this device's settings. They are kept outside
+            the graph, so they are never synced.
           </p>
           <p class="intro">
             Sync is not a backup: it copies a deleted or damaged page to every device. A snapshot is a full
@@ -891,10 +933,59 @@
             >
           </SettingRow>
           <SettingRow
+            title="Compression"
+            description="Compressed snapshots are about a third of the size. Not compressed keeps every file as it is inside the zip: bigger, but fine when the target compresses or deduplicates itself. Both are ordinary zip files. Applies to new snapshots."
+          >
+            <Segmented
+              name="backup-compression"
+              legend="Compression"
+              value={s.backup_compression}
+              options={[
+                { value: 'compressed', label: 'Compressed' },
+                { value: 'none', label: 'Not compressed' },
+              ]}
+              onchange={(v) => save({ backup_compression: v })}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Second folder"
+            description="Optional. Every snapshot is copied there too, for example to a USB disk or a network share. The folder must exist; while it is missing (disk not plugged in) the copy waits and catches up later."
+            labelFor="backup-mirror"
+          >
+            <span class="open"
+              ><input
+                id="backup-mirror"
+                bind:value={bkMirror}
+                placeholder="none"
+                onchange={() => setMirrorDir(bkMirror)}
+              />
+              {#if backend.pickFolder}
+                <button
+                  type="button"
+                  data-testid="browse-mirror"
+                  onclick={async () => {
+                    const picked = await backend.pickFolder?.()
+                    if (picked) await setMirrorDir(picked)
+                  }}>Choose a folder…</button
+                >
+              {/if}
+              <button class="plain" disabled={!s.backup_mirror_dir} onclick={() => setMirrorDir('')}
+                >Remove</button
+              ></span
+            >
+          </SettingRow>
+          {#if bk?.mirror_error}
+            <p class="muted" role="alert" data-testid="mirror-error">
+              The second folder is not up to date: {bk.mirror_error}
+            </p>
+          {/if}
+          <SettingRow
             title="Back up now"
-            description={bk?.backups.length
-              ? `Last: ${bk.backups[0].created}`
-              : 'No backup of this graph in the folder yet.'}
+            description={`${
+              bk?.backups.length
+                ? `Last: ${bk.backups[0].created}.`
+                : 'No backup of this graph in the folder yet.'
+            } Also when the app closes, if something changed in the last hour.`}
           >
             <button disabled={bkBusy} onclick={backupNow} data-testid="backup-now">Back up now</button>
           </SettingRow>
@@ -919,6 +1010,17 @@
               whole.
             </li>
             <li>
+              <strong>Device settings:</strong> <em>Restore…</em>, <em>Compare…</em> lists the lines that
+              differ (<span class="add">+</span> in the snapshot, <span class="del">−</span> now).
+              <em>Restore settings</em>
+              replaces <code>~/.config/notatnik/settings.toml</code>; the file it replaces is kept next to it
+              as
+              <code>settings.toml.before-restore-…</code>. No page changes. The settings are in the snapshot
+              under
+              <code>.notatnik-device/</code> together with the window state of the graph; <em>Everything</em> does
+              not unpack them into the graph folder.
+            </li>
+            <li>
               <strong>Without the app:</strong> a snapshot is a normal zip file. Unzip it with any tool; the result
               is a graph folder of Markdown files.
             </li>
@@ -933,6 +1035,11 @@
               <li data-testid="backup-item">
                 <span class="when">{b.created}</span>
                 <span class="muted">{mb(b.bytes)}</span>
+                {#if bk?.mirror_dir}<span
+                    class="badge"
+                    title={b.in_mirror ? 'Also in the second folder' : 'Not yet copied to the second folder'}
+                    >{b.in_mirror ? 'copied' : 'not copied'}</span
+                  >{/if}
                 {#if b.before}<span
                     class="badge"
                     title="Taken automatically before a rename, delete or restore">before a change</span
@@ -951,6 +1058,29 @@
                         ></span
                       ></label
                     >
+                    <div>
+                      Device settings of this device (theme, dates, graph list, backup options)
+                      <span class="open">
+                        <button onclick={() => compareDevice(b.name)}>Compare…</button>
+                      </span>
+                      {#if devicePreview}
+                        {#if !devicePreview.available}
+                          <p class="muted">This snapshot has no device settings.</p>
+                        {:else if devicePreview.same}
+                          <p class="muted">The same as now.</p>
+                        {:else}
+                          <pre
+                            class="diff"
+                            data-testid="device-diff"
+                            aria-label="Changed settings">{#each devicePreview.lines as l, i (i)}<span
+                                class:add={l.kind === 'add'}
+                                class:del={l.kind === 'del'}
+                                >{l.kind === 'add' ? '+ ' : '− '}{l.text}
+</span>{/each}</pre>
+                          <button onclick={() => restoreDevice(b.name)}>Restore settings</button>
+                        {/if}
+                      {/if}
+                    </div>
                     <label
                       >Everything, into a new folder
                       <span class="open"
@@ -1328,10 +1458,28 @@
     gap: 0.6em;
     padding: 0.3em 0 0.5em;
   }
-  .restore label {
+  .restore label,
+  .restore > div {
     display: grid;
     gap: 0.2em;
     font-size: 0.9em;
+  }
+  .diff {
+    margin: 0.2em 0;
+    padding: 0.4em 0.6em;
+    overflow-x: auto;
+    font-size: 0.85em;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .diff span {
+    display: block;
+  }
+  .add {
+    color: var(--ok, #1a7f37);
+  }
+  .del {
+    color: var(--danger, #cf222e);
   }
   @media (max-width: 760px) {
     .layout {

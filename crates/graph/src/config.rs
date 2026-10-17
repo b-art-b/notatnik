@@ -414,6 +414,12 @@ pub struct UiSettings {
     /// Take a snapshot at start and then daily while the app is open, when something changed (BK-3).
     #[serde(default = "default_true")]
     pub backup_auto: bool,
+    /// `compressed` (zip deflate) or `none` (stored without compression) for new snapshots (BK-7).
+    #[serde(default = "default_compression")]
+    pub backup_compression: String,
+    /// A second folder that gets a copy of every snapshot (BK-9); empty = none. Never inside a graph folder.
+    #[serde(default)]
+    pub backup_mirror_dir: String,
     /// Setting `type` on a page adds the properties of `templates/<type>.md` it lacks (PR-10).
     #[serde(default = "default_true")]
     pub templates_auto: bool,
@@ -428,6 +434,10 @@ pub const DATE_FORMATS: [&str; 5] = ["full", "long", "short", "iso", "custom"];
 
 fn default_true() -> bool {
     true
+}
+
+fn default_compression() -> String {
+    "compressed".into()
 }
 
 fn default_task_details() -> String {
@@ -457,6 +467,8 @@ impl Default for UiSettings {
             date_pattern: String::new(),
             backup_dir: String::new(),
             backup_auto: true,
+            backup_compression: default_compression(),
+            backup_mirror_dir: String::new(),
             templates_auto: true,
             open_last_graph: false,
         }
@@ -478,6 +490,11 @@ pub struct DeviceSettings {
 }
 
 impl DeviceSettings {
+    /// Parses the text of a settings file.
+    pub fn parse(text: &str) -> Result<DeviceSettings> {
+        toml::from_str(text).map_err(|e| Error::Config(e.to_string()))
+    }
+
     /// Reads the settings (empty if missing).
     pub fn load(dirs: &Dirs) -> Result<DeviceSettings> {
         let path = dirs.config.join("settings.toml");

@@ -14,7 +14,7 @@ pub mod synth;
 mod versions;
 mod watch;
 
-pub use backup::BackupFile;
+pub use backup::{BackupFile, BackupOptions, DEVICE_DIR, Extra, read_entry, sync_mirror};
 pub use config::{
     CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, GraphEntry, GraphSection,
     NamespaceSection, PageIconRule, PropertiesSection, SavedQuery, TasksSection,

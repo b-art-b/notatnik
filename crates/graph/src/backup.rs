@@ -6,6 +6,13 @@
 //!
 //! The file name is `notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>.zip`. The zip comment holds a fingerprint of the
 //! files (path, size, modification time) so an unchanged graph is not saved again.
+//!
+//! Besides the graph's files a snapshot can carry the device's own configuration (BK-8): files outside the graph
+//! folder, stored under `.notatnik-device/` (see [`BackupOptions`]). Unpacking a snapshot into a folder leaves them
+//! out, because that folder is a graph and holds nothing that is not meant to be synced (ST-2). Entries are
+//! compressed (deflate) or only stored (BK-7); both are ordinary zip files.
+//!
+//! A second folder keeps copies of the snapshots (BK-9, [`sync_mirror`]).
 
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
@@ -23,6 +30,39 @@ const KEEP_MONTHS: usize = 6;
 /// newest ones are kept.
 const KEEP_BEFORE: usize = 10;
 const COMMENT_PREFIX: &str = "notatnik-backup v1 ";
+/// Folder inside a snapshot for the device files (BK-8).
+pub const DEVICE_DIR: &str = ".notatnik-device";
+
+/// A file outside the graph folder that goes into every snapshot (BK-8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Extra {
+    /// Name inside the snapshot, below [`DEVICE_DIR`], e.g. `settings.toml`.
+    pub name: String,
+    /// The file. A missing file is left out.
+    pub path: PathBuf,
+    /// A change of this file counts as "something changed": it makes a new snapshot due. Files that change all the
+    /// time (the window state) are not tracked; they are saved with the next snapshot that is due anyway.
+    pub tracked: bool,
+}
+
+/// How a snapshot is written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackupOptions {
+    /// Deflate the entries (BK-7). `false` only stores them: bigger files, but they stay readable in place and suit
+    /// a target that compresses or deduplicates by itself.
+    pub compress: bool,
+    /// Device files saved with the graph.
+    pub extras: Vec<Extra>,
+}
+
+impl Default for BackupOptions {
+    fn default() -> Self {
+        BackupOptions {
+            compress: true,
+            extras: Vec::new(),
+        }
+    }
+}
 
 /// One snapshot file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -167,8 +207,15 @@ fn collect(root: &Path, skip: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
-fn fingerprint(files: &[(String, PathBuf)]) -> String {
+fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra]) -> String {
     let mut h = blake3::Hasher::new();
+    // tracked device files by content: their modification time changes without the content changing
+    for x in extras.iter().filter(|x| x.tracked) {
+        if let Ok(b) = std::fs::read(&x.path) {
+            h.update(format!("{DEVICE_DIR}/{}\0", x.name).as_bytes());
+            h.update(blake3::hash(&b).as_bytes());
+        }
+    }
     for (rel, abs) in files {
         let (len, mtime) = std::fs::metadata(abs).map_or((0, 0), |m| {
             let t = m
@@ -225,7 +272,7 @@ pub fn restore_backup(zip_path: &Path, target: &Path) -> Result<usize> {
         let Some(rel) = entry.enclosed_name() else {
             continue;
         };
-        if entry.is_dir() {
+        if entry.is_dir() || rel.starts_with(DEVICE_DIR) {
             continue;
         }
         let dest = target.join(rel);
@@ -239,6 +286,75 @@ pub fn restore_backup(zip_path: &Path, target: &Path) -> Result<usize> {
     Ok(n)
 }
 
+/// Re-reads a snapshot that was just written: it must open and hold `count` entries. A file that fails this is
+/// never kept as a backup.
+fn verify(path: &Path, count: usize) -> Result<()> {
+    let f = std::fs::File::open(path)?;
+    let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+    if z.len() != count {
+        return Err(Error::Io(std::io::Error::other(format!(
+            "the snapshot holds {} files instead of {count}",
+            z.len()
+        ))));
+    }
+    // reading every entry to the end checks the checksums
+    for i in 0..z.len() {
+        let mut e = z.by_index(i).map_err(zip_err)?;
+        std::io::copy(&mut e, &mut std::io::sink())?;
+    }
+    Ok(())
+}
+
+/// The text of one entry of a snapshot (None when it has no such entry).
+pub fn read_entry(zip_path: &Path, entry: &str) -> Result<Option<String>> {
+    let f = std::fs::File::open(zip_path)?;
+    let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+    let Ok(mut e) = z.by_name(entry) else {
+        return Ok(None);
+    };
+    let mut text = String::new();
+    e.read_to_string(&mut text)?;
+    Ok(Some(text))
+}
+
+/// Brings the second folder up to date with the first (BK-9): snapshots of the graph that it lacks are copied (to a
+/// `.partial` file first, then renamed), then its own retention removes the expired ones. Returns the number
+/// copied. The second folder must already exist: a missing one (an unplugged disk, an unmounted share) is an error
+/// and is never created, because a mount point that is gone would otherwise fill the system disk.
+pub fn sync_mirror(primary: &Path, mirror: &Path, graph_id: &str) -> Result<usize> {
+    if !mirror.is_dir() {
+        return Err(Error::InvalidPath(format!(
+            "the second backup folder {} is not available",
+            mirror.display()
+        )));
+    }
+    if mirror == primary {
+        return Err(Error::InvalidPath(
+            "the second backup folder must differ from the first".into(),
+        ));
+    }
+    let have = list_backups(mirror, graph_id);
+    let mut copied = 0;
+    for b in list_backups(primary, graph_id) {
+        if have.iter().any(|m| m.name == b.name && m.bytes == b.bytes) {
+            continue;
+        }
+        let dest = mirror.join(&b.name);
+        let partial = mirror.join(format!("{}.partial", b.name));
+        let r = std::fs::copy(&b.path, &partial).and_then(|_| std::fs::rename(&partial, &dest));
+        if let Err(e) = r {
+            let _ = std::fs::remove_file(&partial);
+            return Err(e.into());
+        }
+        copied += 1;
+    }
+    let all = list_backups(mirror, graph_id);
+    for old in expired(&all) {
+        let _ = std::fs::remove_file(&old.path);
+    }
+    Ok(copied)
+}
+
 impl Graph {
     /// Takes a snapshot into `dir` (created if needed) and removes the expired ones.
     ///
@@ -250,8 +366,9 @@ impl Graph {
         now: NaiveDateTime,
         force: bool,
         min_age: Option<chrono::Duration>,
+        opts: &BackupOptions,
     ) -> Result<Option<BackupFile>> {
-        self.snapshot(dir, now, force, min_age, None, false)
+        self.snapshot(dir, now, force, min_age, None, false, opts)
     }
 
     /// A restore point before a bulk change: like [`Graph::backup_now`] without `force`, so nothing is written when
@@ -260,11 +377,13 @@ impl Graph {
         &self,
         dir: &Path,
         now: NaiveDateTime,
+        opts: &BackupOptions,
     ) -> Result<Option<BackupFile>> {
-        self.snapshot(dir, now, false, None, None, true)
+        self.snapshot(dir, now, false, None, None, true, opts)
     }
 
     /// [`Graph::backup_now`]; the snapshot named `protect` is never removed by the retention.
+    #[allow(clippy::too_many_arguments)]
     fn snapshot(
         &self,
         dir: &Path,
@@ -273,6 +392,7 @@ impl Graph {
         min_age: Option<chrono::Duration>,
         protect: Option<&str>,
         before: bool,
+        opts: &BackupOptions,
     ) -> Result<Option<BackupFile>> {
         let root = self.root().to_path_buf();
         let id = self.id();
@@ -283,7 +403,7 @@ impl Graph {
         }
         let existing = list_backups(dir, &id);
         let files = collect(&root, dir);
-        let fp = fingerprint(&files);
+        let fp = fingerprint(&files, &opts.extras);
         if !force {
             if let Some(newest) = existing.first() {
                 if min_age.is_some_and(|a| now.signed_duration_since(newest.created) < a) {
@@ -307,23 +427,31 @@ impl Graph {
             let f = std::fs::File::create(&partial)?;
             let mut z = zip::ZipWriter::new(std::io::BufWriter::new(f));
             z.set_comment(format!("{COMMENT_PREFIX}{fp}"));
-            let opts = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated);
-            for (rel, abs) in &files {
+            let method = if opts.compress {
+                zip::CompressionMethod::Deflated
+            } else {
+                zip::CompressionMethod::Stored
+            };
+            let zopts = zip::write::SimpleFileOptions::default().compression_method(method);
+            let device = opts
+                .extras
+                .iter()
+                .map(|x| (format!("{DEVICE_DIR}/{}", x.name), x.path.clone()));
+            let mut count = 0;
+            for (rel, abs) in files.iter().cloned().chain(device) {
                 // a file that vanished or is unreadable now is skipped: the next snapshot has it
-                let Ok(mut src) = std::fs::File::open(abs) else {
+                let Ok(buf) = std::fs::read(&abs) else {
                     continue;
                 };
-                z.start_file(rel.as_str(), opts).map_err(zip_err)?;
-                let mut buf = Vec::new();
-                if src.read_to_end(&mut buf).is_ok() {
-                    z.write_all(&buf)?;
-                }
+                z.start_file(rel.as_str(), zopts).map_err(zip_err)?;
+                z.write_all(&buf)?;
+                count += 1;
             }
             let mut w = z.finish().map_err(zip_err)?;
             w.flush()?;
             w.get_ref().sync_all()?;
-            Ok(())
+            drop(w);
+            verify(&partial, count)
         })();
         if let Err(e) = written {
             let _ = std::fs::remove_file(&partial);
@@ -355,6 +483,7 @@ impl Graph {
         name: &str,
         rel: &str,
         now: NaiveDateTime,
+        opts: &BackupOptions,
     ) -> Result<()> {
         check_name(name)?;
         crate::check_rel(rel)?;
@@ -367,7 +496,7 @@ impl Graph {
                 .map_err(|_| Error::NotFound(format!("{rel} in {name}")))?;
             entry.read_to_string(&mut text)?;
         }
-        self.snapshot(dir, now, true, None, Some(name), true)?;
+        self.snapshot(dir, now, true, None, Some(name), true, opts)?;
         let current = match self.read_page(rel) {
             Ok(p) => Some(p.hash),
             Err(Error::NotFound(_)) => None,

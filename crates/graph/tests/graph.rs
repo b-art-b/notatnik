@@ -955,6 +955,10 @@ fn a_page_can_move_alone_to_a_name_below_itself_while_its_subpages_stay() {
 
 // ---- backups (BK-1..BK-5) -----------------------------------------------------------------
 
+fn opts() -> notatnik_graph::BackupOptions {
+    notatnik_graph::BackupOptions::default()
+}
+
 fn stamp(s: &str) -> chrono::NaiveDateTime {
     chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()
 }
@@ -965,7 +969,7 @@ fn a_snapshot_holds_the_graph_files_and_restores_byte_for_byte() {
     let g = open(&e);
     let dir = e.dirs.data.join("backups");
     let made = g
-        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None)
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &opts())
         .unwrap()
         .expect("first snapshot");
     assert!(made.name.starts_with(&format!("notatnik-{}-", g.id())));
@@ -999,6 +1003,147 @@ fn a_snapshot_holds_the_graph_files_and_restores_byte_for_byte() {
     );
 }
 
+/// BK-7: a snapshot can be stored without compression; both kinds restore the same bytes.
+#[test]
+fn a_snapshot_can_be_stored_without_compression() {
+    use notatnik_graph::BackupOptions;
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let method = |dir: &Path, name: &str| {
+        let z = zip::ZipArchive::new(std::fs::File::open(dir.join(name)).unwrap()).unwrap();
+        let mut z = z;
+        (0..z.len())
+            .map(|i| z.by_index(i).unwrap().compression())
+            .collect::<Vec<_>>()
+    };
+    let packed = e.dirs.data.join("packed");
+    let plain = e.dirs.data.join("plain");
+    let a = g
+        .backup_now(&packed, stamp("2026-10-10 09:00:00"), true, None, &opts())
+        .unwrap()
+        .unwrap();
+    let stored = BackupOptions {
+        compress: false,
+        ..BackupOptions::default()
+    };
+    let b = g
+        .backup_now(&plain, stamp("2026-10-10 09:00:00"), true, None, &stored)
+        .unwrap()
+        .unwrap();
+    assert!(method(&packed, &a.name).contains(&zip::CompressionMethod::Deflated));
+    assert!(
+        method(&plain, &b.name)
+            .iter()
+            .all(|m| *m == zip::CompressionMethod::Stored)
+    );
+    assert!(b.bytes > a.bytes, "{} vs {}", b.bytes, a.bytes);
+    for (dir, name, to) in [(&packed, &a.name, "r1"), (&plain, &b.name, "r2")] {
+        let target = e.dirs.data.join(to);
+        g.restore_backup_to(dir, name, &target).unwrap();
+        assert_eq!(
+            std::fs::read(target.join("pages/inbox.md")).unwrap(),
+            std::fs::read(e.graph_dir.join("pages/inbox.md")).unwrap()
+        );
+    }
+}
+
+/// BK-8: device files ride along under `.notatnik-device/`, are not unpacked into a graph folder, and a change of
+/// a tracked one makes a snapshot due.
+#[test]
+fn a_snapshot_carries_the_device_files() {
+    use notatnik_graph::{BackupOptions, DEVICE_DIR, Extra, read_entry};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let settings = e.dirs.data.join("settings.toml");
+    let state = e.dirs.data.join("state.json");
+    std::fs::write(&settings, "[ui]\ntheme = \"dark\"\n").unwrap();
+    std::fs::write(&state, "{}").unwrap();
+    let o = BackupOptions {
+        compress: true,
+        extras: vec![
+            Extra {
+                name: "settings.toml".into(),
+                path: settings.clone(),
+                tracked: true,
+            },
+            Extra {
+                name: "state.json".into(),
+                path: state.clone(),
+                tracked: false,
+            },
+            Extra {
+                name: "absent.toml".into(),
+                path: e.dirs.data.join("absent.toml"),
+                tracked: true,
+            },
+        ],
+    };
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &o)
+        .unwrap()
+        .unwrap();
+    let entry = |n: &str| read_entry(&dir.join(&made.name), &format!("{DEVICE_DIR}/{n}")).unwrap();
+    assert_eq!(entry("settings.toml").unwrap(), "[ui]\ntheme = \"dark\"\n");
+    assert_eq!(entry("state.json").unwrap(), "{}");
+    assert_eq!(entry("absent.toml"), None);
+    // not unpacked into the graph folder
+    let target = e.dirs.data.join("restored");
+    g.restore_backup_to(&dir, &made.name, &target).unwrap();
+    assert!(!target.join(DEVICE_DIR).exists());
+    // the untracked file changing does not make a snapshot due, the tracked one does
+    let day = Some(chrono::Duration::hours(1));
+    std::fs::write(&state, "{\"x\":1}").unwrap();
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-11 09:00:00"), false, day, &o)
+            .unwrap()
+            .is_none()
+    );
+    std::fs::write(&settings, "[ui]\ntheme = \"light\"\n").unwrap();
+    let next = g
+        .backup_now(&dir, stamp("2026-10-11 09:00:00"), false, day, &o)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        read_entry(&dir.join(&next.name), &format!("{DEVICE_DIR}/state.json"))
+            .unwrap()
+            .unwrap(),
+        "{\"x\":1}"
+    );
+}
+
+/// BK-9: the second folder gets what it lacks, applies its own retention, and is never created.
+#[test]
+fn the_second_folder_gets_copies_and_is_never_created() {
+    use notatnik_graph::sync_mirror;
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let mirror = e.dirs.data.join("usb");
+    g.backup_now(&dir, stamp("2026-10-10 09:00:00"), true, None, &opts())
+        .unwrap();
+    // an unplugged disk: an error, and nothing is created
+    assert!(sync_mirror(&dir, &mirror, &g.id()).is_err());
+    assert!(!mirror.exists());
+    std::fs::create_dir_all(&mirror).unwrap();
+    assert_eq!(sync_mirror(&dir, &mirror, &g.id()).unwrap(), 1);
+    assert_eq!(g.backups(&mirror).len(), 1);
+    assert_eq!(g.backups(&mirror)[0].bytes, g.backups(&dir)[0].bytes);
+    assert!(names(&mirror).iter().all(|n| !n.ends_with(".partial")));
+    // a second run copies nothing; a new snapshot is copied
+    assert_eq!(sync_mirror(&dir, &mirror, &g.id()).unwrap(), 0);
+    g.backup_now(&dir, stamp("2026-10-11 09:00:00"), true, None, &opts())
+        .unwrap();
+    assert_eq!(sync_mirror(&dir, &mirror, &g.id()).unwrap(), 1);
+    assert_eq!(g.backups(&mirror).len(), 2);
+    // the same folder twice is refused
+    assert!(sync_mirror(&dir, &dir, &g.id()).is_err());
+    // other files in the second folder are left alone
+    std::fs::write(mirror.join("holiday.jpg"), "x").unwrap();
+    sync_mirror(&dir, &mirror, &g.id()).unwrap();
+    assert!(mirror.join("holiday.jpg").exists());
+}
+
 fn walk_files(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     for e in std::fs::read_dir(dir).unwrap() {
@@ -1019,15 +1164,27 @@ fn an_unchanged_graph_is_not_saved_again_and_a_daily_limit_applies() {
     let dir = e.dirs.data.join("backups");
     let day = chrono::Duration::hours(24);
     assert!(
-        g.backup_now(&dir, stamp("2026-10-10 09:00:00"), false, Some(day))
-            .unwrap()
-            .is_some()
+        g.backup_now(
+            &dir,
+            stamp("2026-10-10 09:00:00"),
+            false,
+            Some(day),
+            &opts()
+        )
+        .unwrap()
+        .is_some()
     );
     // unchanged: nothing, even a day later
     assert!(
-        g.backup_now(&dir, stamp("2026-10-11 10:00:00"), false, Some(day))
-            .unwrap()
-            .is_none()
+        g.backup_now(
+            &dir,
+            stamp("2026-10-11 10:00:00"),
+            false,
+            Some(day),
+            &opts()
+        )
+        .unwrap()
+        .is_none()
     );
     // changed, but the newest snapshot is younger than a day
     let page = g.read_page("pages/inbox.md").unwrap();
@@ -1038,21 +1195,33 @@ fn an_unchanged_graph_is_not_saved_again_and_a_daily_limit_applies() {
     )
     .unwrap();
     assert!(
-        g.backup_now(&dir, stamp("2026-10-10 20:00:00"), false, Some(day))
-            .unwrap()
-            .is_none()
+        g.backup_now(
+            &dir,
+            stamp("2026-10-10 20:00:00"),
+            false,
+            Some(day),
+            &opts()
+        )
+        .unwrap()
+        .is_none()
     );
     // changed and old enough
     assert!(
-        g.backup_now(&dir, stamp("2026-10-11 10:00:00"), false, Some(day))
-            .unwrap()
-            .is_some()
+        g.backup_now(
+            &dir,
+            stamp("2026-10-11 10:00:00"),
+            false,
+            Some(day),
+            &opts()
+        )
+        .unwrap()
+        .is_some()
     );
     assert_eq!(g.backups(&dir).len(), 2);
     // forced: always, even unchanged; a name taken in that second is not reused. Retention keeps one
     // snapshot per day, so the new one replaces the older one of the same day
     let a = g
-        .backup_now(&dir, stamp("2026-10-11 10:00:00"), true, None)
+        .backup_now(&dir, stamp("2026-10-11 10:00:00"), true, None, &opts())
         .unwrap()
         .unwrap();
     let all = g.backups(&dir);
@@ -1065,7 +1234,8 @@ fn an_unchanged_graph_is_not_saved_again_and_a_daily_limit_applies() {
             &e.graph_dir.join("bk"),
             stamp("2026-10-12 10:00:00"),
             true,
-            None
+            None,
+            &opts(),
         )
         .is_err()
     );
@@ -1078,7 +1248,7 @@ fn one_page_comes_back_from_a_snapshot() {
     let dir = e.dirs.data.join("backups");
     let before = g.read_page("pages/inbox.md").unwrap();
     let made = g
-        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None)
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &opts())
         .unwrap()
         .unwrap();
     g.write_page("pages/inbox.md", "- ruined\n", Some(&before.hash))
@@ -1088,6 +1258,7 @@ fn one_page_comes_back_from_a_snapshot() {
         &made.name,
         "pages/inbox.md",
         stamp("2026-10-10 10:00:00"),
+        &opts(),
     )
     .unwrap();
     assert_eq!(g.read_page("pages/inbox.md").unwrap().text, before.text);
@@ -1107,7 +1278,8 @@ fn one_page_comes_back_from_a_snapshot() {
             &dir,
             &newest_name,
             "pages/nothing-here.md",
-            stamp("2026-10-10 10:00:00")
+            stamp("2026-10-10 10:00:00"),
+            &opts(),
         ),
         Err(Error::NotFound(_))
     ));
@@ -1116,7 +1288,8 @@ fn one_page_comes_back_from_a_snapshot() {
             &dir,
             "../x.zip",
             "pages/inbox.md",
-            stamp("2026-10-10 10:00:00")
+            stamp("2026-10-10 10:00:00"),
+            &opts(),
         )
         .is_err()
     );

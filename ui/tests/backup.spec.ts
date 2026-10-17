@@ -60,3 +60,57 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
     page.getByRole('tabpanel').getByRole('switch', { name: 'Automatic backups' }),
   ).not.toBeChecked()
 })
+
+// BK-7..BK-9: compression, the second folder, and the device settings inside a snapshot.
+test('backup: compression choice, second folder, and restoring the device settings with a preview', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/t.md', '- original\n')
+  const first = path.join(backend.dir, '..', 'first')
+  const second = path.join(backend.dir, '..', 'second')
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  const pane = page.getByRole('tabpanel')
+  await pane.getByLabel('Backup folder').fill(first)
+  await pane.getByLabel('Backup folder').press('Enter')
+
+  // the compression choice is saved and used for new snapshots
+  await expect(pane.getByRole('radio', { name: 'Compressed', exact: true })).toBeChecked()
+  await pane.getByRole('radio', { name: 'Not compressed' }).check()
+  await pane.getByTestId('backup-now').click()
+  await expect(pane.getByTestId('backup-item')).toHaveCount(1)
+  const zip = fs.readdirSync(first).find((f) => f.endsWith('.zip'))!
+  // a stored entry: the text of the page is readable inside the zip file
+  expect(fs.readFileSync(path.join(first, zip)).includes('- original')).toBe(true)
+
+  // second folder: a folder that is not there is reported, one that exists gets the copies
+  const mirror = pane.getByLabel('Second folder')
+  await mirror.fill(second)
+  await mirror.press('Enter')
+  await pane.getByTestId('backup-now').click()
+  await expect(pane.getByTestId('mirror-error')).toContainText('not available')
+  fs.mkdirSync(second)
+  await pane.getByTestId('backup-now').click()
+  await expect(pane.getByTestId('mirror-error')).toHaveCount(0)
+  await expect(pane.getByTestId('backup-item').first()).toContainText('copied')
+  expect(fs.readdirSync(second).filter((f) => f.endsWith('.zip')).length).toBeGreaterThan(0)
+  // the same folder twice is refused
+  await mirror.fill(first)
+  await mirror.press('Enter')
+  await expect(page.getByRole('alert').filter({ hasText: /must differ/ })).toBeVisible()
+  await mirror.fill(second)
+
+  // device settings: change one after the snapshot, compare, restore
+  await page.getByRole('tab', { name: /Appearance/ }).click()
+  await page.getByRole('radio', { name: 'Dark', exact: true }).check()
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  const item = pane.getByTestId('backup-item').last()
+  await item.getByRole('button', { name: 'Restore…' }).click()
+  await item.getByRole('button', { name: 'Compare…' }).click()
+  const diff = item.getByTestId('device-diff')
+  await expect(diff).toContainText('theme = "dark"')
+  await item.getByRole('button', { name: 'Restore settings' }).click()
+  await page.getByRole('tab', { name: /Appearance/ }).click()
+  await expect(page.getByRole('radio', { name: 'System', exact: true })).toBeChecked()
+})

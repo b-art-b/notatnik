@@ -1647,6 +1647,139 @@ fn backups_are_taken_listed_and_restored() {
     );
 }
 
+/// BK-7..BK-9 and the quit backup: compression, the second folder, device settings in the snapshot and their
+/// restore with a preview.
+#[test]
+fn backups_compress_mirror_and_carry_the_device_settings() {
+    let t = start("basic");
+    let first = t.tmp.path().join("first");
+    let second = t.tmp.path().join("second");
+    let ok = |args: Value| t.ok("set_settings", args);
+    // validation
+    assert!(
+        t.call("set_settings", json!({"backup_compression": "zstd"}))
+            .is_err()
+    );
+    assert!(
+        t.call("set_settings", json!({"backup_mirror_dir": "rel"}))
+            .is_err()
+    );
+    assert!(
+        t.call(
+            "set_settings",
+            json!({"backup_mirror_dir": t.graph().join("m").to_str().unwrap()})
+        )
+        .is_err()
+    );
+    ok(json!({"backup_dir": first.to_str().unwrap()}));
+    assert!(
+        t.call(
+            "set_settings",
+            json!({"backup_mirror_dir": first.to_str().unwrap()})
+        )
+        .is_err(),
+        "the same folder twice"
+    );
+    let s = t.ok("get_settings", json!({}));
+    assert_eq!(s["backup_compression"], "compressed");
+    assert_eq!(s["backup_mirror_dir"], "");
+
+    // the second folder does not exist yet (an unplugged disk): the snapshot works, the copy is reported
+    ok(
+        json!({"backup_mirror_dir": second.to_str().unwrap(), "backup_compression": "none", "theme": "dark"}),
+    );
+    let l = t.ok("backup_now", json!({}));
+    assert_eq!(l["backups"].as_array().unwrap().len(), 1);
+    assert!(
+        l["mirror_error"]
+            .as_str()
+            .unwrap()
+            .contains("not available")
+    );
+    assert_eq!(l["backups"][0]["in_mirror"], false);
+    assert!(!second.exists());
+    // plugged in: the next run copies
+    std::fs::create_dir_all(&second).unwrap();
+    let l = t.ok("backup_now", json!({}));
+    assert_eq!(l["mirror_error"], Value::Null);
+    let names: Vec<String> = l["backups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["name"].as_str().unwrap().to_string())
+        .collect();
+    assert!(names.iter().all(|n| second.join(n).exists()));
+    assert!(
+        l["backups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["in_mirror"] == true)
+    );
+
+    // the device settings are in the snapshot; changing them and previewing the restore shows the difference
+    let name = names[0].clone();
+    let preview = t.ok("backup_device_preview", json!({"name": name}));
+    assert_eq!(preview["available"], true);
+    assert_eq!(preview["same"], true);
+    ok(json!({"theme": "light", "date_format": "iso"}));
+    let preview = t.ok("backup_device_preview", json!({"name": name}));
+    assert_eq!(preview["same"], false);
+    let lines: Vec<String> = preview["lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| {
+            format!(
+                "{} {}",
+                l["kind"].as_str().unwrap(),
+                l["text"].as_str().unwrap()
+            )
+        })
+        .collect();
+    assert!(
+        lines.contains(&"del theme = \"light\"".to_string()),
+        "{lines:?}"
+    );
+    assert!(
+        lines.contains(&"add theme = \"dark\"".to_string()),
+        "{lines:?}"
+    );
+    assert!(
+        t.call("backup_device_preview", json!({"name": "../x.zip"}))
+            .is_err()
+    );
+    let s = t.ok("restore_device_settings", json!({"name": name}));
+    assert_eq!(s["theme"], "dark");
+    assert_eq!(s["date_format"], "full");
+    // the replaced file is kept next to it
+    let kept = std::fs::read_dir(t.tmp.path().join("device/config"))
+        .unwrap()
+        .flatten()
+        .any(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("settings.toml.before-restore-")
+        });
+    assert!(kept);
+
+    // quit: the newest snapshot is younger than an hour, so no new one (the age rule itself is tested in the
+    // graph crate)
+    let count = |t: &T| {
+        t.ok("list_backups", json!({}))["backups"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    let before = count(&t);
+    t.app.backup_on_quit();
+    assert_eq!(
+        count(&t),
+        before,
+        "unchanged graph, and the newest is younger than an hour"
+    );
+}
+
 /// A rename that touches several files and a delete of several pages first save a restore point (BK-6); the page
 /// history lists, shows and restores versions (VH-1..VH-3).
 #[test]

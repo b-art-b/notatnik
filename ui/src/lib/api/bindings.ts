@@ -1187,6 +1187,14 @@ backup_dir: string,
  */
 backup_auto: boolean, 
 /**
+ * Device: `compressed` (zip deflate) or `none` (stored) for new snapshots (BK-7).
+ */
+backup_compression: string, 
+/**
+ * Device: a second folder that gets a copy of every snapshot (empty = none, BK-9).
+ */
+backup_mirror_dir: string, 
+/**
  * Device: apply the template of a page's type when `type` is set (PR-10).
  */
 templates_auto: boolean, 
@@ -1260,6 +1268,14 @@ backup_dir: string | null,
  */
 backup_auto: boolean | null, 
 /**
+ * Device: `compressed` or `none`.
+ */
+backup_compression: string | null, 
+/**
+ * Device: the second snapshot folder (empty = none).
+ */
+backup_mirror_dir: string | null, 
+/**
  * Device: a page template is applied when `type` is set.
  */
 templates_auto: boolean | null, 
@@ -1307,7 +1323,11 @@ bytes: number,
 /**
  * Taken automatically before a rename or delete of several files (or before a page was replaced).
  */
-before: boolean, };
+before: boolean, 
+/**
+ * The second folder holds a copy (always false without a second folder).
+ */
+in_mirror: boolean, };
 export type PageVersionView = { 
 /**
  * What `page_version_text` and `restore_page_version` take.
@@ -1346,7 +1366,15 @@ backups: Array<BackupView>,
 /**
  * The last automatic snapshot failed with this message (cleared by the next success).
  */
-error: string | null, };
+error: string | null, 
+/**
+ * The second folder as set (empty = none).
+ */
+mirror_dir: string, 
+/**
+ * Copying to the second folder failed with this message (a disk that is not plugged in, ...).
+ */
+mirror_error: string | null, };
 export type RestoreBackupArgs = { 
 /**
  * `BackupView.name`.
@@ -1365,6 +1393,33 @@ name: string,
  * Page name.
  */
 page: string, };
+export type BackupNameArgs = { 
+/**
+ * `BackupView.name`.
+ */
+name: string, };
+export type DiffLine = { 
+/**
+ * `add` (in the snapshot, not in the current settings) or `del` (in the current settings, not in the snapshot).
+ */
+kind: string, 
+/**
+ * The line.
+ */
+text: string, };
+export type DeviceRestorePreview = { 
+/**
+ * The snapshot holds device settings (older ones do not).
+ */
+available: boolean, 
+/**
+ * Nothing differs.
+ */
+same: boolean, 
+/**
+ * The changed lines, in file order.
+ */
+lines: Array<DiffLine>, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1425,6 +1480,8 @@ export type Commands = {
   backup_now: { args: NoArgs; result: BackupList };
   restore_backup: { args: RestoreBackupArgs; result: StringValue };
   restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
+  backup_device_preview: { args: BackupNameArgs; result: DeviceRestorePreview };
+  restore_device_settings: { args: BackupNameArgs; result: SettingsView };
   page_versions: { args: PageArgs; result: PageVersionView[] };
   page_version_text: { args: PageVersionArgs; result: StringValue };
   restore_page_version: { args: PageVersionArgs; result: StringList };
