@@ -1083,7 +1083,8 @@ pub struct BackupNameArgs {
 /// One changed line of the device settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct DiffLine {
-    /// `add` (in the snapshot, not in the current settings) or `del` (in the current settings, not in the snapshot).
+    /// `add` (in the snapshot, not now), `del` (now, not in the snapshot), `same` (context) or `gap` (unchanged lines
+    /// left out; the text is empty).
     pub kind: String,
     /// The line.
     pub text: String,
@@ -1097,5 +1098,47 @@ pub struct DeviceRestorePreview {
     /// Nothing differs.
     pub same: bool,
     /// The changed lines, in file order.
+    pub lines: Vec<DiffLine>,
+}
+
+/// One file that differs between a snapshot and the graph now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupChange {
+    /// Path in the graph folder, or `.notatnik-device/<name>` for a device file.
+    pub path: String,
+    /// `changed`, `only_snapshot` (restoring would bring it back) or `only_now` (created since the snapshot).
+    pub status: String,
+    /// Not text: no lines are compared.
+    pub binary: bool,
+    /// Lines only in the snapshot.
+    pub added: u32,
+    /// Lines only now.
+    pub removed: u32,
+}
+
+/// `backup_compare`: all files that differ between a snapshot and the current state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupCompare {
+    /// Sorted by path; empty when nothing differs.
+    pub changes: Vec<BackupChange>,
+}
+
+/// `backup_file_diff`: one file of a snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupFileArgs {
+    /// `BackupView.name`.
+    pub name: String,
+    /// `BackupChange.path`.
+    pub path: String,
+}
+
+/// `backup_file_diff`: the differing lines of one file, with context.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupFileDiff {
+    /// Not text.
+    pub binary: bool,
+    /// Too long and too different to compare.
+    pub too_large: bool,
+    /// The lines.
     pub lines: Vec<DiffLine>,
 }

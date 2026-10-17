@@ -115,38 +115,18 @@ struct BackupTask {
     mirror_error: Arc<Mutex<Option<String>>>,
 }
 
-/// The lines that differ between `old` and `new` (added or removed), in file order: a longest-common-subsequence
-/// diff, good enough for a settings file of a few dozen lines.
-fn line_diff(old: &str, new: &str) -> Vec<DiffLine> {
-    let (a, b): (Vec<&str>, Vec<&str>) = (old.lines().collect(), new.lines().collect());
-    let mut lcs = vec![vec![0usize; b.len() + 1]; a.len() + 1];
-    for i in (0..a.len()).rev() {
-        for j in (0..b.len()).rev() {
-            lcs[i][j] = if a[i] == b[j] {
-                lcs[i + 1][j + 1] + 1
-            } else {
-                lcs[i + 1][j].max(lcs[i][j + 1])
-            };
-        }
-    }
-    let (mut i, mut j, mut out) = (0, 0, Vec::new());
-    let line = |kind: &str, text: &str| DiffLine {
-        kind: kind.into(),
-        text: text.into(),
+fn diff_line(op: notatnik_graph::DiffOp) -> DiffLine {
+    use notatnik_graph::DiffOp;
+    let (kind, text) = match op {
+        DiffOp::Same(t) => ("same", t),
+        DiffOp::Add(t) => ("add", t),
+        DiffOp::Del(t) => ("del", t),
+        DiffOp::Gap => ("gap", String::new()),
     };
-    while i < a.len() || j < b.len() {
-        if i < a.len() && j < b.len() && a[i] == b[j] {
-            i += 1;
-            j += 1;
-        } else if i < a.len() && (j == b.len() || lcs[i + 1][j] >= lcs[i][j + 1]) {
-            out.push(line("del", a[i]));
-            i += 1;
-        } else {
-            out.push(line("add", b[j]));
-            j += 1;
-        }
+    DiffLine {
+        kind: kind.into(),
+        text,
     }
-    out
 }
 
 fn take<T: Clone>(m: &Mutex<T>) -> T {
@@ -2691,6 +2671,53 @@ impl AppState {
         )?)
     }
 
+    /// `backup_compare`: every file that differs between the snapshot and the graph (and device settings) as they
+    /// are now (BK-10). Nothing changes.
+    pub fn backup_compare(&self, a: BackupNameArgs) -> ApiResult<BackupCompare> {
+        use notatnik_graph::ChangeStatus;
+        self.with_open(|o| {
+            let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+            let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+            let changes = o
+                .graph
+                .compare_backup(&primary_dir(&self.dirs, &dev), &a.name, &opts)?
+                .into_iter()
+                .map(|c| BackupChange {
+                    path: c.path,
+                    status: match c.status {
+                        ChangeStatus::Changed => "changed",
+                        ChangeStatus::OnlySnapshot => "only_snapshot",
+                        ChangeStatus::OnlyNow => "only_now",
+                    }
+                    .into(),
+                    binary: c.binary,
+                    added: c.added as u32,
+                    removed: c.removed as u32,
+                })
+                .collect();
+            Ok(BackupCompare { changes })
+        })
+    }
+
+    /// `backup_file_diff`: the differing lines of one file.
+    pub fn backup_file_diff(&self, a: BackupFileArgs) -> ApiResult<BackupFileDiff> {
+        self.with_open(|o| {
+            let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+            let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+            let d = o.graph.backup_file_diff(
+                &primary_dir(&self.dirs, &dev),
+                &a.name,
+                &a.path,
+                &opts,
+            )?;
+            Ok(BackupFileDiff {
+                binary: d.binary,
+                too_large: d.too_large,
+                lines: d.lines.into_iter().map(diff_line).collect(),
+            })
+        })
+    }
+
     /// `backup_device_preview`: how the device settings in the snapshot differ from the current file (BK-8).
     pub fn backup_device_preview(&self, a: BackupNameArgs) -> ApiResult<DeviceRestorePreview> {
         self.with_open(|_| {
@@ -2703,7 +2730,12 @@ impl AppState {
             };
             let now =
                 std::fs::read_to_string(self.dirs.config.join("settings.toml")).unwrap_or_default();
-            let lines = line_diff(&now, &old);
+            let lines: Vec<DiffLine> = notatnik_graph::diff_lines(&now, &old, 0)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|o| !matches!(o, notatnik_graph::DiffOp::Gap))
+                .map(diff_line)
+                .collect();
             Ok(DeviceRestorePreview {
                 available: true,
                 same: lines.is_empty(),

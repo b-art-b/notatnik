@@ -1780,6 +1780,52 @@ fn backups_compress_mirror_and_carry_the_device_settings() {
     );
 }
 
+/// BK-10 through the API: the files that differ and the lines of one of them.
+#[test]
+fn a_backup_is_compared_with_the_current_state() {
+    let t = start("basic");
+    let l = t.ok("backup_now", json!({}));
+    let name = l["backups"][0]["name"].as_str().unwrap().to_string();
+    let none = t.ok("backup_compare", json!({"name": name}));
+    assert_eq!(none["changes"], json!([]));
+    std::fs::write(t.graph().join("pages/inbox.md"), "- ruined\n").unwrap();
+    std::fs::remove_file(t.graph().join("pages/work/projects/alpha.md")).unwrap();
+    let c = t.ok("backup_compare", json!({"name": name}));
+    let paths: Vec<(&str, &str)> = c["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| (c["path"].as_str().unwrap(), c["status"].as_str().unwrap()))
+        .collect();
+    assert!(paths.contains(&("pages/inbox.md", "changed")), "{paths:?}");
+    assert!(
+        paths.contains(&("pages/work/projects/alpha.md", "only_snapshot")),
+        "{paths:?}"
+    );
+    let d = t.ok(
+        "backup_file_diff",
+        json!({"name": name, "path": "pages/inbox.md"}),
+    );
+    let lines = d["lines"].as_array().unwrap();
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["kind"] == "del" && l["text"] == "- ruined")
+    );
+    assert!(lines.iter().any(|l| l["kind"] == "add"));
+    assert!(
+        t.call("backup_compare", json!({"name": "../x.zip"}))
+            .is_err()
+    );
+    assert!(
+        t.call(
+            "backup_file_diff",
+            json!({"name": name, "path": "../../etc/passwd"})
+        )
+        .is_err()
+    );
+}
+
 /// A rename that touches several files and a delete of several pages first save a restore point (BK-6); the page
 /// history lists, shows and restores versions (VH-1..VH-3).
 #[test]

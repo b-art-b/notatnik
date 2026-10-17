@@ -48,7 +48,7 @@ Outside the graph (per device, never synced):
 
 A snapshot is `notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>.zip` (local time) with the graph folder's files under their
 relative paths, minus `.notatnik/tmp/`. The zip comment is `notatnik-backup v1 <fingerprint>`. Unzipping one gives a
-folder that opens as the graph (BK-1). Besides the graph's files a snapshot holds the device's configuration under `.notatnik-device/` (`settings.toml`, `state.json`; BK-8), which unpacking leaves out. Entries are deflated or only stored (BK-7). The device setting `backup_mirror_dir` names an optional second folder that gets a copy of every snapshot (BK-9). A snapshot taken before a bulk change ends in `-before.zip` (BK-6).
+folder that opens as the graph (BK-1). Besides the graph's files a snapshot holds the device's configuration under `.notatnik-device/` (`settings.toml`, `state.json`; BK-8), which unpacking leaves out. Entries are deflated or only stored (BK-7). The device setting `backup_mirror_dir` names an optional second folder that gets a copy of every snapshot (BK-9). Settings → Backup compares a snapshot with the current files line by line before a restore (BK-10). A snapshot taken before a bulk change ends in `-before.zip` (BK-6).
 
 ## 2. Page names and file paths
 

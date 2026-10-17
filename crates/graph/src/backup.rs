@@ -355,6 +355,275 @@ pub fn sync_mirror(primary: &Path, mirror: &Path, graph_id: &str) -> Result<usiz
     Ok(copied)
 }
 
+/// How a file differs between a snapshot and the graph as it is now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeStatus {
+    /// In both, with different content.
+    Changed,
+    /// Only in the snapshot (deleted or renamed since).
+    OnlySnapshot,
+    /// Only now (created since the snapshot).
+    OnlyNow,
+}
+
+/// One file that differs (BK-10). Line counts are from the snapshot's point of view: `added` lines are in the
+/// snapshot and not now (a restore would bring them back), `removed` lines are now and not in the snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileChange {
+    /// Path in the graph folder, or `.notatnik-device/<name>` for a device file.
+    pub path: String,
+    /// How it differs.
+    pub status: ChangeStatus,
+    /// Not UTF-8 text: no lines are compared.
+    pub binary: bool,
+    /// Lines only in the snapshot.
+    pub added: usize,
+    /// Lines only now.
+    pub removed: usize,
+}
+
+/// A line of [`diff_lines`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiffOp {
+    /// Same in both (context).
+    Same(String),
+    /// Only in the new text.
+    Add(String),
+    /// Only in the old text.
+    Del(String),
+    /// Unchanged lines left out.
+    Gap,
+}
+
+/// Above this many table cells (lines × lines after the common start and end are cut off) a diff is not computed.
+const MAX_DIFF_CELLS: usize = 4_000_000;
+
+/// The lines that differ between `old` and `new` (a longest-common-subsequence diff), each change with `context`
+/// unchanged lines around it and [`DiffOp::Gap`] between distant changes. `None` when the texts are too different
+/// and long to compare.
+pub fn diff_lines(old: &str, new: &str, context: usize) -> Option<Vec<DiffOp>> {
+    let (a, b): (Vec<&str>, Vec<&str>) = (old.lines().collect(), new.lines().collect());
+    let pre = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
+    let suf = a[pre..]
+        .iter()
+        .rev()
+        .zip(b[pre..].iter().rev())
+        .take_while(|(x, y)| x == y)
+        .count();
+    let (ma, mb) = (&a[pre..a.len() - suf], &b[pre..b.len() - suf]);
+    if (ma.len() + 1).saturating_mul(mb.len() + 1) > MAX_DIFF_CELLS {
+        return None;
+    }
+    let mut lcs = vec![vec![0u32; mb.len() + 1]; ma.len() + 1];
+    for i in (0..ma.len()).rev() {
+        for j in (0..mb.len()).rev() {
+            lcs[i][j] = if ma[i] == mb[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+    let mut ops: Vec<DiffOp> = a[..pre].iter().map(|l| DiffOp::Same((*l).into())).collect();
+    let (mut i, mut j) = (0, 0);
+    while i < ma.len() || j < mb.len() {
+        if i < ma.len() && j < mb.len() && ma[i] == mb[j] {
+            ops.push(DiffOp::Same(ma[i].into()));
+            i += 1;
+            j += 1;
+        } else if i < ma.len() && (j == mb.len() || lcs[i + 1][j] >= lcs[i][j + 1]) {
+            ops.push(DiffOp::Del(ma[i].into()));
+            i += 1;
+        } else {
+            ops.push(DiffOp::Add(mb[j].into()));
+            j += 1;
+        }
+    }
+    ops.extend(a[a.len() - suf..].iter().map(|l| DiffOp::Same((*l).into())));
+    // keep the changes and `context` lines around them
+    let changed: Vec<bool> = ops.iter().map(|o| !matches!(o, DiffOp::Same(_))).collect();
+    let near = |k: usize| {
+        let (lo, hi) = (k.saturating_sub(context), (k + context + 1).min(ops.len()));
+        changed[lo..hi].iter().any(|c| *c)
+    };
+    let mut out = Vec::new();
+    let mut skipped = false;
+    for (k, op) in ops.iter().enumerate() {
+        if near(k) {
+            if skipped {
+                out.push(DiffOp::Gap);
+                skipped = false;
+            }
+            out.push(op.clone());
+        } else {
+            skipped = true;
+        }
+    }
+    if skipped && !out.is_empty() {
+        out.push(DiffOp::Gap);
+    }
+    Some(out)
+}
+
+/// A file compared with the same file in a snapshot (BK-10).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileDiff {
+    /// Not UTF-8 text.
+    pub binary: bool,
+    /// Too long and too different to compare line by line.
+    pub too_large: bool,
+    /// The differing lines with context (old = now, new = snapshot).
+    pub lines: Vec<DiffOp>,
+}
+
+impl Graph {
+    /// The current content of `path` (a graph file, or `.notatnik-device/<name>`), None when it does not exist.
+    fn current_bytes(&self, path: &str, opts: &BackupOptions) -> Result<Option<Vec<u8>>> {
+        let file = match path.strip_prefix(&format!("{DEVICE_DIR}/")) {
+            Some(name) => match opts.extras.iter().find(|x| x.name == name) {
+                Some(x) => x.path.clone(),
+                None => return Ok(None),
+            },
+            None => {
+                // any file of the graph folder (not only pages), but never a path that leaves it
+                let safe = !path.is_empty()
+                    && !path.contains('\\')
+                    && Path::new(path)
+                        .components()
+                        .all(|c| matches!(c, std::path::Component::Normal(_)));
+                if !safe {
+                    return Err(Error::InvalidPath(format!("`{path}` is not a graph file")));
+                }
+                self.root().join(path)
+            }
+        };
+        match std::fs::read(file) {
+            Ok(b) => Ok(Some(b)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Every file that differs between the snapshot `name` in `dir` and the graph (and device files) as they are
+    /// now, sorted by path (BK-10). Reads only; nothing changes.
+    pub fn compare_backup(
+        &self,
+        dir: &Path,
+        name: &str,
+        opts: &BackupOptions,
+    ) -> Result<Vec<FileChange>> {
+        check_name(name)?;
+        let f = std::fs::File::open(dir.join(name))?;
+        let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+        let mut saved: std::collections::BTreeMap<String, Vec<u8>> = Default::default();
+        for i in 0..z.len() {
+            let mut e = z.by_index(i).map_err(zip_err)?;
+            let Some(rel) = e.enclosed_name() else {
+                continue;
+            };
+            if e.is_dir() {
+                continue;
+            }
+            let mut buf = Vec::new();
+            e.read_to_end(&mut buf)?;
+            saved.insert(rel.to_string_lossy().replace('\\', "/"), buf);
+        }
+        let mut paths: BTreeSet<String> = saved.keys().cloned().collect();
+        for (rel, _) in collect(self.root(), dir) {
+            paths.insert(rel);
+        }
+        for x in &opts.extras {
+            if x.path.is_file() {
+                paths.insert(format!("{DEVICE_DIR}/{}", x.name));
+            }
+        }
+        let mut out = Vec::new();
+        for path in paths {
+            let now = self.current_bytes(&path, opts)?;
+            let then = saved.get(&path);
+            let (status, a, b) = match (&now, then) {
+                (Some(n), Some(t)) if n == t => continue,
+                (Some(n), Some(t)) => (ChangeStatus::Changed, Some(n), Some(t)),
+                (Some(n), None) => (ChangeStatus::OnlyNow, Some(n), None),
+                (None, Some(t)) => (ChangeStatus::OnlySnapshot, None, Some(t)),
+                (None, None) => continue,
+            };
+            let text = |v: Option<&Vec<u8>>| match v {
+                None => Some(String::new()),
+                Some(b) => String::from_utf8(b.clone()).ok(),
+            };
+            let (binary, added, removed) = match (text(a), text(b)) {
+                (Some(old), Some(new)) => {
+                    let ops = diff_lines(&old, &new, 0);
+                    let count = |f: fn(&DiffOp) -> bool| {
+                        ops.as_ref()
+                            .map_or(0, |o| o.iter().filter(|x| f(x)).count())
+                    };
+                    (
+                        false,
+                        count(|o| matches!(o, DiffOp::Add(_))),
+                        count(|o| matches!(o, DiffOp::Del(_))),
+                    )
+                }
+                _ => (true, 0, 0),
+            };
+            out.push(FileChange {
+                path,
+                status,
+                binary,
+                added,
+                removed,
+            });
+        }
+        Ok(out)
+    }
+
+    /// The lines that differ in one file between the graph as it is now and the snapshot (BK-10).
+    pub fn backup_file_diff(
+        &self,
+        dir: &Path,
+        name: &str,
+        path: &str,
+        opts: &BackupOptions,
+    ) -> Result<FileDiff> {
+        check_name(name)?;
+        let f = std::fs::File::open(dir.join(name))?;
+        let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+        let then = match z.by_name(path) {
+            Ok(mut e) => {
+                let mut buf = Vec::new();
+                e.read_to_end(&mut buf)?;
+                Some(buf)
+            }
+            Err(_) => None,
+        };
+        let now = self.current_bytes(path, opts)?;
+        let text = |v: Option<Vec<u8>>| match v {
+            None => Some(String::new()),
+            Some(b) => String::from_utf8(b).ok(),
+        };
+        let (Some(old), Some(new)) = (text(now), text(then)) else {
+            return Ok(FileDiff {
+                binary: true,
+                too_large: false,
+                lines: Vec::new(),
+            });
+        };
+        Ok(match diff_lines(&old, &new, 2) {
+            Some(lines) => FileDiff {
+                binary: false,
+                too_large: false,
+                lines,
+            },
+            None => FileDiff {
+                binary: false,
+                too_large: true,
+                lines: Vec::new(),
+            },
+        })
+    }
+}
+
 impl Graph {
     /// Takes a snapshot into `dir` (created if needed) and removes the expired ones.
     ///

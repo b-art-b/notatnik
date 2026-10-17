@@ -98,6 +98,8 @@ commands! {
     backup_now(NoArgs) -> BackupList => backup_now,
     restore_backup(RestoreBackupArgs) -> StringValue => restore_backup,
     restore_backup_page(RestoreBackupPageArgs) -> StringList => restore_backup_page,
+    backup_compare(BackupNameArgs) -> BackupCompare => backup_compare,
+    backup_file_diff(BackupFileArgs) -> BackupFileDiff => backup_file_diff,
     backup_device_preview(BackupNameArgs) -> DeviceRestorePreview => backup_device_preview,
     restore_device_settings(BackupNameArgs) -> SettingsView => restore_device_settings,
     page_versions(PageArgs) -> Vec<PageVersionView> => page_versions,

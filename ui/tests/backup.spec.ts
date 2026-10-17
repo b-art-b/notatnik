@@ -114,3 +114,44 @@ test('backup: compression choice, second folder, and restoring the device settin
   await page.getByRole('tab', { name: /Appearance/ }).click()
   await expect(page.getByRole('radio', { name: 'System', exact: true })).toBeChecked()
 })
+
+// BK-10: before restoring, every file that differs is listed, and its lines can be opened.
+test('backup: compare a snapshot with the current state before restoring', async ({ backend, page }) => {
+  backend.write('pages/t.md', '- original\n- same line\n')
+  backend.write('pages/gone.md', '- will be deleted\n')
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  const pane = page.getByRole('tabpanel')
+  await pane.getByLabel('Backup folder').fill(path.join(backend.dir, '..', 'cmp-backups'))
+  await pane.getByLabel('Backup folder').press('Enter')
+  await pane.getByTestId('backup-now').click()
+  const item = pane.getByTestId('backup-item').first()
+  await expect(item).toBeVisible()
+
+  // nothing differs yet
+  await item.getByRole('button', { name: 'Restore…' }).click()
+  await expect(item.getByTestId('backup-changes')).toContainText('Nothing differs')
+  await item.getByRole('button', { name: 'Restore…' }).click()
+
+  // change a page, delete one, add one; the list shows all three
+  fs.writeFileSync(path.join(backend.dir, 'pages/t.md'), '- changed\n- same line\n')
+  fs.rmSync(path.join(backend.dir, 'pages/gone.md'))
+  fs.writeFileSync(path.join(backend.dir, 'pages/new.md'), '- brand new\n')
+  await item.getByRole('button', { name: 'Restore…' }).click()
+  const changes = item.getByTestId('backup-changes')
+  await expect(changes.getByRole('button', { name: /pages\/t\.md/ })).toBeVisible()
+  await expect(changes.getByRole('button', { name: /pages\/gone\.md/ })).toContainText('deleted since')
+  await expect(changes.getByRole('button', { name: /pages\/new\.md/ })).toContainText('new since')
+
+  // open one file: the line now and the line in the snapshot, with the unchanged line as context
+  await changes.getByRole('button', { name: /pages\/t\.md/ }).click()
+  const diff = changes.getByLabel('Changes in pages/t.md')
+  await expect(diff).toContainText('− - changed')
+  await expect(diff).toContainText('+ - original')
+  await expect(diff).toContainText('- same line')
+  // all at once
+  await changes.getByRole('button', { name: 'Show all changes' }).click()
+  await expect(changes.getByLabel('Changes in pages/gone.md')).toContainText('+ - will be deleted')
+  await changes.getByRole('button', { name: 'Hide all' }).click()
+  await expect(changes.getByLabel('Changes in pages/t.md')).toHaveCount(0)
+})

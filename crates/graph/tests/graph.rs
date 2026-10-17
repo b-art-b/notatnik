@@ -1144,6 +1144,97 @@ fn the_second_folder_gets_copies_and_is_never_created() {
     assert!(mirror.join("holiday.jpg").exists());
 }
 
+/// BK-10: every file that differs between a snapshot and now, with the lines.
+#[test]
+fn a_snapshot_is_compared_with_the_current_state() {
+    use notatnik_graph::{ChangeStatus, DiffOp};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &opts())
+        .unwrap()
+        .unwrap();
+    assert!(
+        g.compare_backup(&dir, &made.name, &opts())
+            .unwrap()
+            .is_empty()
+    );
+    // change one page, delete one, add one
+    let page = g.read_page("pages/inbox.md").unwrap();
+    g.write_page(
+        "pages/inbox.md",
+        &format!("{}- brand new\n", page.text),
+        Some(&page.hash),
+    )
+    .unwrap();
+    std::fs::remove_file(e.graph_dir.join("pages/work/projects/alpha.md")).unwrap();
+    std::fs::write(e.graph_dir.join("pages/fresh.md"), "- a\n- b\n").unwrap();
+    std::fs::write(e.graph_dir.join("pages/bin.dat"), [0xff, 0xfe, 0x00]).unwrap();
+    let changes = g.compare_backup(&dir, &made.name, &opts()).unwrap();
+    let by = |p: &str| {
+        changes
+            .iter()
+            .find(|c| c.path == p)
+            .unwrap_or_else(|| panic!("{p}: {changes:?}"))
+    };
+    let inbox = by("pages/inbox.md");
+    assert_eq!(inbox.status, ChangeStatus::Changed);
+    assert_eq!((inbox.added, inbox.removed), (0, 1), "one line only now");
+    let alpha = by("pages/work/projects/alpha.md");
+    assert_eq!(alpha.status, ChangeStatus::OnlySnapshot);
+    assert!(alpha.added > 0 && alpha.removed == 0);
+    let fresh = by("pages/fresh.md");
+    assert_eq!(fresh.status, ChangeStatus::OnlyNow);
+    assert_eq!((fresh.added, fresh.removed), (0, 2));
+    assert!(by("pages/bin.dat").binary);
+    assert_eq!(changes.len(), 4, "{changes:?}");
+    // sorted by path
+    let paths: Vec<_> = changes.iter().map(|c| c.path.clone()).collect();
+    let mut sorted = paths.clone();
+    sorted.sort();
+    assert_eq!(paths, sorted);
+    // the lines of one file, with the context around them
+    let d = g
+        .backup_file_diff(&dir, &made.name, "pages/inbox.md", &opts())
+        .unwrap();
+    assert!(!d.binary && !d.too_large);
+    assert!(d.lines.contains(&DiffOp::Del("- brand new".into())));
+    assert!(d.lines.iter().any(|l| matches!(l, DiffOp::Same(_))));
+    // unsafe paths are refused
+    assert!(
+        g.backup_file_diff(&dir, &made.name, "../x", &opts())
+            .is_err()
+    );
+    assert!(
+        g.backup_file_diff(&dir, "../x.zip", "pages/inbox.md", &opts())
+            .is_err()
+    );
+}
+
+#[test]
+fn diff_lines_cuts_context_and_gives_up_on_huge_texts() {
+    use notatnik_graph::{DiffOp, diff_lines};
+    let old: String = (0..20).map(|i| format!("l{i}\n")).collect();
+    let new = old.replace("l10\n", "ten\n");
+    let ops = diff_lines(&old, &new, 1).unwrap();
+    assert_eq!(
+        ops,
+        vec![
+            DiffOp::Gap,
+            DiffOp::Same("l9".into()),
+            DiffOp::Del("l10".into()),
+            DiffOp::Add("ten".into()),
+            DiffOp::Same("l11".into()),
+            DiffOp::Gap,
+        ]
+    );
+    assert_eq!(diff_lines("a\n", "a\n", 2).unwrap(), vec![]);
+    let a: String = (0..3000).map(|i| format!("a{i}\n")).collect();
+    let b: String = (0..3000).map(|i| format!("b{i}\n")).collect();
+    assert!(diff_lines(&a, &b, 2).is_none());
+}
+
 fn walk_files(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     for e in std::fs::read_dir(dir).unwrap() {

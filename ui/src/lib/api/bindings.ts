@@ -1400,7 +1400,8 @@ export type BackupNameArgs = {
 name: string, };
 export type DiffLine = { 
 /**
- * `add` (in the snapshot, not in the current settings) or `del` (in the current settings, not in the snapshot).
+ * `add` (in the snapshot, not now), `del` (now, not in the snapshot), `same` (context) or `gap` (unchanged lines
+ * left out; the text is empty).
  */
 kind: string, 
 /**
@@ -1418,6 +1419,54 @@ available: boolean,
 same: boolean, 
 /**
  * The changed lines, in file order.
+ */
+lines: Array<DiffLine>, };
+export type BackupChange = { 
+/**
+ * Path in the graph folder, or `.notatnik-device/<name>` for a device file.
+ */
+path: string, 
+/**
+ * `changed`, `only_snapshot` (restoring would bring it back) or `only_now` (created since the snapshot).
+ */
+status: string, 
+/**
+ * Not text: no lines are compared.
+ */
+binary: boolean, 
+/**
+ * Lines only in the snapshot.
+ */
+added: number, 
+/**
+ * Lines only now.
+ */
+removed: number, };
+export type BackupCompare = { 
+/**
+ * Sorted by path; empty when nothing differs.
+ */
+changes: Array<BackupChange>, };
+export type BackupFileArgs = { 
+/**
+ * `BackupView.name`.
+ */
+name: string, 
+/**
+ * `BackupChange.path`.
+ */
+path: string, };
+export type BackupFileDiff = { 
+/**
+ * Not text.
+ */
+binary: boolean, 
+/**
+ * Too long and too different to compare.
+ */
+too_large: boolean, 
+/**
+ * The lines.
  */
 lines: Array<DiffLine>, };
 
@@ -1480,6 +1529,8 @@ export type Commands = {
   backup_now: { args: NoArgs; result: BackupList };
   restore_backup: { args: RestoreBackupArgs; result: StringValue };
   restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
+  backup_compare: { args: BackupNameArgs; result: BackupCompare };
+  backup_file_diff: { args: BackupFileArgs; result: BackupFileDiff };
   backup_device_preview: { args: BackupNameArgs; result: DeviceRestorePreview };
   restore_device_settings: { args: BackupNameArgs; result: SettingsView };
   page_versions: { args: PageArgs; result: PageVersionView[] };

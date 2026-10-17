@@ -4,6 +4,8 @@
   // "this device" settings never leave the computer, "this graph" settings are synced with the notes.
   import {
     backend,
+    type BackupChange,
+    type BackupFileDiff,
     type BackupList,
     type DeviceRestorePreview,
     type PageIconRuleView,
@@ -152,11 +154,45 @@
     if (s) bkMirror = s.backup_mirror_dir
     await loadBackups()
   }
+  // the files that differ between the open snapshot and now, and the lines of those the user opened
+  let changes = $state<BackupChange[] | null>(null)
+  let diffs = $state<Record<string, BackupFileDiff>>({})
+  let openPaths = $state<Record<string, boolean>>({})
   function openRestore(name: string) {
     restoreOf = restoreOf === name ? null : name
     restoreTarget = ''
     restorePage = ''
     devicePreview = null
+    changes = null
+    diffs = {}
+    openPaths = {}
+    if (restoreOf) void loadChanges(name)
+  }
+  async function loadChanges(name: string) {
+    try {
+      const c = await backend.call('backup_compare', { name })
+      if (restoreOf === name) changes = c.changes
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function showDiff(name: string, path: string, on: boolean) {
+    openPaths[path] = on
+    if (!on || diffs[path]) return
+    try {
+      diffs[path] = await backend.call('backup_file_diff', { name, path })
+    } catch (e) {
+      openPaths[path] = false
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function showAll(name: string, on: boolean) {
+    for (const c of changes ?? []) if (!c.binary) await showDiff(name, c.path, on)
+  }
+  const CHANGE_LABEL: Record<string, string> = {
+    changed: 'changed',
+    only_snapshot: 'deleted since',
+    only_now: 'new since',
   }
   async function compareDevice(name: string) {
     try {
@@ -1049,6 +1085,63 @@
                 >
                 {#if restoreOf === b.name}
                   <div class="restore">
+                    <div class="changes" data-testid="backup-changes">
+                      <strong>Changes since this snapshot</strong>
+                      {#if !changes}
+                        <p class="muted">Comparing…</p>
+                      {:else if !changes.length}
+                        <p class="muted">Nothing differs: all files are the same as in this snapshot.</p>
+                      {:else}
+                        <p class="muted">
+                          {changes.length} file{changes.length === 1 ? '' : 's'} differ.
+                          <span class="add">+</span>
+                          lines in the snapshot (a restore brings them back), <span class="del">−</span> lines
+                          now.
+                          <button class="plain" onclick={() => showAll(b.name, true)}>Show all changes</button
+                          >
+                          <button class="plain" onclick={() => showAll(b.name, false)}>Hide all</button>
+                        </p>
+                        <ul class="chg">
+                          {#each changes as c (c.path)}
+                            <li>
+                              <button
+                                class="plain row"
+                                aria-expanded={!!openPaths[c.path]}
+                                disabled={c.binary}
+                                onclick={() => showDiff(b.name, c.path, !openPaths[c.path])}
+                              >
+                                <span class="badge">{CHANGE_LABEL[c.status]}</span>
+                                <code>{c.path}</code>
+                                {#if c.binary}<span class="muted">not text</span>{:else}<span class="muted"
+                                    ><span class="add">+{c.added}</span>
+                                    <span class="del">−{c.removed}</span></span
+                                  >{/if}
+                              </button>
+                              {#if openPaths[c.path] && diffs[c.path]}
+                                {#if diffs[c.path].too_large}
+                                  <p class="muted">Too long and too different to show line by line.</p>
+                                {:else}
+                                  <pre
+                                    class="diff"
+                                    aria-label={`Changes in ${c.path}`}>{#each diffs[c.path].lines as l, i (i)}<span
+                                        class:add={l.kind === 'add'}
+                                        class:del={l.kind === 'del'}
+                                        class:gap={l.kind === 'gap'}
+                                        >{l.kind === 'add'
+                                          ? '+ '
+                                          : l.kind === 'del'
+                                            ? '− '
+                                            : l.kind === 'gap'
+                                              ? '…'
+                                              : '  '}{l.text}
+</span>{/each}</pre>
+                                {/if}
+                              {/if}
+                            </li>
+                          {/each}
+                        </ul>
+                      {/if}
+                    </div>
                     <label
                       >One page, replacing the current one
                       <span class="open"
@@ -1474,6 +1567,28 @@
   }
   .diff span {
     display: block;
+  }
+  .gap {
+    color: var(--muted);
+  }
+  .chg {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 28em;
+    overflow-y: auto;
+  }
+  .chg li {
+    display: block;
+    border: none;
+    padding: 0;
+  }
+  .chg .row {
+    display: flex;
+    gap: 0.6em;
+    align-items: baseline;
+    text-align: left;
+    width: 100%;
   }
   .add {
     color: var(--ok, #1a7f37);
