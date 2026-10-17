@@ -977,7 +977,9 @@ fn a_snapshot_holds_the_graph_files_and_restores_byte_for_byte() {
     // no temp files are left, and nothing from `.notatnik/tmp` is inside
     assert!(names(&dir).iter().all(|n| !n.ends_with(".partial")));
     let target = e.dirs.data.join("restored");
-    let n = g.restore_backup_to(&dir, &made.name, &target).unwrap();
+    let n = g
+        .restore_backup_to(&dir, &made.name, &target, &opts())
+        .unwrap();
     assert!(n > 0);
     for f in walk_files(&e.graph_dir) {
         let rel = f.strip_prefix(&e.graph_dir).unwrap();
@@ -995,10 +997,13 @@ fn a_snapshot_holds_the_graph_files_and_restores_byte_for_byte() {
     let (g2, _) = Graph::open(&target, &Dirs::under(&e.dirs.data.join("other"))).unwrap();
     assert_eq!(g2.id(), g.id());
     // a restore target must be empty
-    assert!(g.restore_backup_to(&dir, &made.name, &target).is_err());
+    assert!(
+        g.restore_backup_to(&dir, &made.name, &target, &opts())
+            .is_err()
+    );
     // and outside the graph
     assert!(
-        g.restore_backup_to(&dir, &made.name, &e.graph_dir.join("again"))
+        g.restore_backup_to(&dir, &made.name, &e.graph_dir.join("again"), &opts())
             .is_err()
     );
 }
@@ -1039,7 +1044,7 @@ fn a_snapshot_can_be_stored_without_compression() {
     assert!(b.bytes > a.bytes, "{} vs {}", b.bytes, a.bytes);
     for (dir, name, to) in [(&packed, &a.name, "r1"), (&plain, &b.name, "r2")] {
         let target = e.dirs.data.join(to);
-        g.restore_backup_to(dir, name, &target).unwrap();
+        g.restore_backup_to(dir, name, &target, &opts()).unwrap();
         assert_eq!(
             std::fs::read(target.join("pages/inbox.md")).unwrap(),
             std::fs::read(e.graph_dir.join("pages/inbox.md")).unwrap()
@@ -1061,6 +1066,8 @@ fn a_snapshot_carries_the_device_files() {
     std::fs::write(&state, "{}").unwrap();
     let o = BackupOptions {
         compress: true,
+        seal_to: None,
+        keys: None,
         extras: vec![
             Extra {
                 name: "settings.toml".into(),
@@ -1083,13 +1090,15 @@ fn a_snapshot_carries_the_device_files() {
         .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &o)
         .unwrap()
         .unwrap();
-    let entry = |n: &str| read_entry(&dir.join(&made.name), &format!("{DEVICE_DIR}/{n}")).unwrap();
+    let entry =
+        |n: &str| read_entry(&dir.join(&made.name), &format!("{DEVICE_DIR}/{n}"), None).unwrap();
     assert_eq!(entry("settings.toml").unwrap(), "[ui]\ntheme = \"dark\"\n");
     assert_eq!(entry("state.json").unwrap(), "{}");
     assert_eq!(entry("absent.toml"), None);
     // not unpacked into the graph folder
     let target = e.dirs.data.join("restored");
-    g.restore_backup_to(&dir, &made.name, &target).unwrap();
+    g.restore_backup_to(&dir, &made.name, &target, &opts())
+        .unwrap();
     assert!(!target.join(DEVICE_DIR).exists());
     // the untracked file changing does not make a snapshot due, the tracked one does
     let day = Some(chrono::Duration::hours(1));
@@ -1105,9 +1114,13 @@ fn a_snapshot_carries_the_device_files() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        read_entry(&dir.join(&next.name), &format!("{DEVICE_DIR}/state.json"))
-            .unwrap()
-            .unwrap(),
+        read_entry(
+            &dir.join(&next.name),
+            &format!("{DEVICE_DIR}/state.json"),
+            None
+        )
+        .unwrap()
+        .unwrap(),
         "{\"x\":1}"
     );
 }
@@ -1235,6 +1248,162 @@ fn diff_lines_cuts_context_and_gives_up_on_huge_texts() {
     assert!(diff_lines(&a, &b, 2).is_none());
 }
 
+/// EN-5, EN-6: sealed snapshots hold no plaintext, need the keys to be read, and work with everything else.
+#[test]
+fn sealed_snapshots_hide_everything_and_open_with_the_keys() {
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_graph::{BackupOptions, DEVICE_DIR, Extra, read_entry, seal_existing};
+    use std::sync::Arc;
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let (vault, keys, rk) = Vault::create("pw", KdfParams::insecure_for_tests()).unwrap();
+    let keys = Arc::new(keys);
+    let settings = e.dirs.data.join("settings.toml");
+    std::fs::write(&settings, "[ui]\ntheme = \"dark\"\n").unwrap();
+    // a marker in a page: it must not appear anywhere in the backup folder
+    let page = g.read_page("pages/inbox.md").unwrap();
+    g.write_page(
+        "pages/inbox.md",
+        &format!("{}- ZEBRA-MARKER-4711\n", page.text),
+        Some(&page.hash),
+    )
+    .unwrap();
+    let extras = vec![Extra {
+        name: "settings.toml".into(),
+        path: settings,
+        tracked: true,
+    }];
+    let plain_opts = BackupOptions {
+        extras: extras.clone(),
+        ..BackupOptions::default()
+    };
+    let locked = BackupOptions {
+        extras: extras.clone(),
+        seal_to: Some(vault.clone()),
+        ..BackupOptions::default()
+    };
+    let unlocked = BackupOptions {
+        keys: Some(keys.clone()),
+        ..locked.clone()
+    };
+
+    // an old plain snapshot, then one sealed without any key
+    let old = g
+        .backup_now(&dir, stamp("2026-10-09 09:00:00"), true, None, &plain_opts)
+        .unwrap()
+        .unwrap();
+    assert!(!old.encrypted);
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &locked)
+        .unwrap()
+        .expect("a plain newest snapshot does not stand in for a sealed one");
+    assert!(
+        made.encrypted && made.name.ends_with(".zip.enc"),
+        "{}",
+        made.name
+    );
+    // unchanged graph: nothing new, the fingerprint is read from the sealed header
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-12 09:00:00"), false, None, &locked)
+            .unwrap()
+            .is_none()
+    );
+    // forced, and with the keys at hand (the whole file is read back)
+    let again = g
+        .backup_now(&dir, stamp("2026-10-11 09:00:00"), true, None, &unlocked)
+        .unwrap()
+        .unwrap();
+    assert!(again.encrypted);
+
+    // no sealed snapshot holds the marker or a page name (the zip entries are not even compressed text here)
+    for b in g.backups(&dir).iter().filter(|b| b.encrypted) {
+        let bytes = std::fs::read(dir.join(&b.name)).unwrap();
+        assert!(
+            !bytes.windows(13).any(|w| w == b"ZEBRA-MARKER-"),
+            "{}",
+            b.name
+        );
+        assert!(!bytes.windows(5).any(|w| w == b"inbox"), "{}", b.name);
+    }
+
+    // locked: reading is refused with a clear error; no key, no data
+    assert!(matches!(
+        g.restore_backup_to(&dir, &made.name, &e.dirs.data.join("r0"), &locked),
+        Err(Error::Locked(_))
+    ));
+    assert!(matches!(
+        g.compare_backup(&dir, &made.name, &locked),
+        Err(Error::Locked(_))
+    ));
+    // keys of another vault are refused
+    let (_, other, _) = Vault::create("x", KdfParams::insecure_for_tests()).unwrap();
+    let wrong = BackupOptions {
+        keys: Some(Arc::new(other)),
+        ..locked.clone()
+    };
+    assert!(matches!(
+        g.compare_backup(&dir, &made.name, &wrong),
+        Err(Error::Crypt(_))
+    ));
+
+    // unlocked (by the password, or by the recovery key): restore, compare, page restore, device settings
+    let by_rk = Arc::new(vault.unlock_recovery(&rk.to_string()).unwrap());
+    for (i, k) in [keys.clone(), by_rk].into_iter().enumerate() {
+        let o = BackupOptions {
+            keys: Some(k),
+            ..locked.clone()
+        };
+        let target = e.dirs.data.join(format!("r-{i}"));
+        g.restore_backup_to(&dir, &made.name, &target, &o).unwrap();
+        assert!(
+            std::fs::read_to_string(target.join("pages/inbox.md"))
+                .unwrap()
+                .contains("ZEBRA-MARKER-4711")
+        );
+        assert!(!target.join(DEVICE_DIR).exists());
+        assert!(g.compare_backup(&dir, &made.name, &o).unwrap().is_empty());
+        let entry = format!("{DEVICE_DIR}/settings.toml");
+        assert_eq!(
+            read_entry(&dir.join(&made.name), &entry, o.keys.as_deref())
+                .unwrap()
+                .unwrap(),
+            "[ui]\ntheme = \"dark\"\n"
+        );
+    }
+    // one page back from a sealed snapshot, and the "before" snapshot of the replaced state is sealed too
+    g.write_page("pages/inbox.md", "- ruined\n", None).ok();
+    g.restore_page_from_backup(
+        &dir,
+        &made.name,
+        "pages/inbox.md",
+        stamp("2026-10-13 09:00:00"),
+        &unlocked,
+    )
+    .unwrap();
+    assert!(
+        g.read_page("pages/inbox.md")
+            .unwrap()
+            .text
+            .contains("ZEBRA-MARKER-4711")
+    );
+    let newest = g.backups(&dir).into_iter().next().unwrap();
+    assert!(newest.encrypted && newest.before, "{newest:?}");
+
+    // the old plain snapshot is converted: sealed, readable with the keys, the plain file gone
+    let n = seal_existing(&dir, &g.id(), &vault).unwrap();
+    assert_eq!(n, 1);
+    assert!(g.backups(&dir).iter().all(|b| b.encrypted));
+    assert!(!dir.join(&old.name).exists());
+    assert!(names(&dir).iter().all(|n| !n.ends_with(".partial")));
+    let converted = format!("{}.enc", old.name);
+    let t2 = e.dirs.data.join("r-old");
+    g.restore_backup_to(&dir, &converted, &t2, &unlocked)
+        .unwrap();
+    assert!(t2.join("pages/inbox.md").exists());
+    assert_eq!(seal_existing(&dir, &g.id(), &vault).unwrap(), 0);
+}
+
 fn walk_files(dir: &Path) -> Vec<std::path::PathBuf> {
     let mut out = Vec::new();
     for e in std::fs::read_dir(dir).unwrap() {
@@ -1357,7 +1526,8 @@ fn one_page_comes_back_from_a_snapshot() {
     let newest = &g.backups(&dir)[0];
     assert_ne!(newest.name, made.name);
     let copy = e.dirs.data.join("ruined");
-    g.restore_backup_to(&dir, &newest.name, &copy).unwrap();
+    g.restore_backup_to(&dir, &newest.name, &copy, &opts())
+        .unwrap();
     assert_eq!(
         std::fs::read_to_string(copy.join("pages/inbox.md")).unwrap(),
         "- ruined\n"

@@ -282,7 +282,11 @@ fn fixtures_from_an_earlier_build_still_open() {
         let (v, keys, rk) = Vault::create(password, KdfParams::insecure_for_tests()).unwrap();
         std::fs::write(dir.join("vault.json"), v.to_json()).unwrap();
         std::fs::write(dir.join("recovery-key.txt"), format!("{rk}\n")).unwrap();
-        std::fs::write(dir.join("file.enc"), keys.encrypt(&plain, b"pages/a.md").unwrap()).unwrap();
+        std::fs::write(
+            dir.join("file.enc"),
+            keys.encrypt(&plain, b"pages/a.md").unwrap(),
+        )
+        .unwrap();
         std::fs::write(dir.join("sealed.bin"), sealed(&v, b"fixture", &plain)).unwrap();
     }
     let v = Vault::from_json(&std::fs::read(dir.join("vault.json")).unwrap()).unwrap();

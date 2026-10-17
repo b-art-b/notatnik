@@ -417,6 +417,10 @@ pub struct UiSettings {
     /// `compressed` (zip deflate) or `none` (stored without compression) for new snapshots (BK-7).
     #[serde(default = "default_compression")]
     pub backup_compression: String,
+    /// Seal new snapshots to the backup vault (EN-5). Turned on only after the vault was set up and its recovery
+    /// key confirmed; while it is on, a backup that cannot be sealed fails instead of being written in plain.
+    #[serde(default)]
+    pub backup_encrypt: bool,
     /// A second folder that gets a copy of every snapshot (BK-9); empty = none. Never inside a graph folder.
     #[serde(default)]
     pub backup_mirror_dir: String,
@@ -468,6 +472,7 @@ impl Default for UiSettings {
             backup_dir: String::new(),
             backup_auto: true,
             backup_compression: default_compression(),
+            backup_encrypt: false,
             backup_mirror_dir: String::new(),
             templates_auto: true,
             open_last_graph: false,

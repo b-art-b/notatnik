@@ -940,6 +940,8 @@ pub struct SettingsView {
     pub backup_compression: String,
     /// Device: a second folder that gets a copy of every snapshot (empty = none, BK-9).
     pub backup_mirror_dir: String,
+    /// Device: new snapshots are sealed to the backup vault (EN-5).
+    pub backup_encrypt: bool,
     /// Device: apply the template of a page's type when `type` is set (PR-10).
     pub templates_auto: bool,
     /// Device: open the last graph at start without the start screen.
@@ -985,6 +987,8 @@ pub struct SetSettingsArgs {
     pub backup_compression: Option<String>,
     /// Device: the second snapshot folder (empty = none).
     pub backup_mirror_dir: Option<String>,
+    /// Device: seal new snapshots (only `true` once the vault is set up; `false` always works).
+    pub backup_encrypt: Option<bool>,
     /// Device: a page template is applied when `type` is set.
     pub templates_auto: Option<bool>,
     /// Device: open the last graph at start.
@@ -1016,6 +1020,8 @@ pub struct BackupView {
     pub before: bool,
     /// The second folder holds a copy (always false without a second folder).
     pub in_mirror: bool,
+    /// Sealed to the backup vault: reading it needs the password or the recovery key.
+    pub encrypted: bool,
 }
 
 /// One recorded version of a page file.
@@ -1141,4 +1147,58 @@ pub struct BackupFileDiff {
     pub too_large: bool,
     /// The lines.
     pub lines: Vec<DiffLine>,
+}
+
+/// The state of backup encryption (EN-5, EN-6).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct BackupEncryption {
+    /// New snapshots are sealed.
+    pub enabled: bool,
+    /// A vault is set up and confirmed (it can be unlocked, changed and used).
+    pub configured: bool,
+    /// A vault was made but its recovery key was not confirmed yet.
+    pub pending: bool,
+    /// The keys are in memory: encrypted snapshots can be read. They lock again after 15 minutes without use.
+    pub unlocked: bool,
+    /// The vault's key ID (empty without a vault).
+    pub key_id: String,
+    /// Snapshots that are not sealed, in the backup folder and the second folder together.
+    pub plain_snapshots: u32,
+}
+
+/// `backup_encryption_setup`: a first password.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupSetupArgs {
+    /// At least 8 characters.
+    pub password: String,
+}
+
+/// `backup_encryption_setup`, `backup_encryption_new_recovery_key`: shown to the user once.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RecoveryKeyResult {
+    /// 14 groups of four letters and digits.
+    pub recovery_key: String,
+}
+
+/// `backup_unlock`: the password, or the recovery key.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupUnlockArgs {
+    /// What the user typed.
+    pub secret: String,
+}
+
+/// `backup_encryption_change_password`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupChangePasswordArgs {
+    /// The current password (or the recovery key).
+    pub old_password: String,
+    /// The new password, at least 8 characters.
+    pub new_password: String,
+}
+
+/// `backup_encryption_new_recovery_key`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct BackupPasswordArgs {
+    /// The current password (or the recovery key).
+    pub password: String,
 }

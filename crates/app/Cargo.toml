@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 notatnik-core = { workspace = true, features = ["ts"] }
 notatnik-index = { workspace = true }
+notatnik-crypt = { workspace = true }
 notatnik-graph = { workspace = true }
 chrono = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false }

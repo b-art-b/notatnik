@@ -276,3 +276,60 @@ fn gen_graph_is_deterministic() {
     let (out, _, code) = e.run(&["check", a.to_str().unwrap()]);
     assert_eq!(code, 0, "{out}");
 }
+
+/// EN-5: `decrypt` opens a sealed backup with the password or the recovery key, and refuses a wrong one without
+/// leaving a file behind.
+#[test]
+fn decrypt_opens_a_sealed_file_with_the_password_or_the_recovery_key() {
+    use notatnik_crypt::{KdfParams, Vault, seal};
+    let tmp = tempfile::tempdir().unwrap();
+    let (vault, _keys, recovery) =
+        Vault::create("a long password", KdfParams::insecure_for_tests()).unwrap();
+    let plain = b"PK-not-really-a-zip but some bytes".repeat(5000);
+    let file = tmp.path().join("notatnik-gx-20261010-090000.zip.enc");
+    let mut out = Vec::new();
+    seal(&vault, b"c", &mut &plain[..], &mut out).unwrap();
+    std::fs::write(&file, out).unwrap();
+    let run = |secret: &str, extra: &[&str]| {
+        Command::cargo_bin("notatnik")
+            .unwrap()
+            .env("NOTATNIK_PASSWORD", secret)
+            .arg("decrypt")
+            .arg(&file)
+            .args(extra)
+            .assert()
+    };
+    // wrong password: error, no output
+    run("nope nope nope", &[]).failure().code(1);
+    assert!(!tmp.path().join("notatnik-gx-20261010-090000.zip").exists());
+    assert!(
+        std::fs::read_dir(tmp.path())
+            .unwrap()
+            .flatten()
+            .all(|e| !e.file_name().to_string_lossy().ends_with(".partial"))
+    );
+    // the password
+    run("a long password", &[]).success();
+    let dest = tmp.path().join("notatnik-gx-20261010-090000.zip");
+    assert_eq!(std::fs::read(&dest).unwrap(), plain);
+    // an existing output is kept unless --force
+    run("a long password", &[]).failure().code(1);
+    std::fs::write(&dest, "old").unwrap();
+    run("a long password", &["--force"]).success();
+    assert_eq!(std::fs::read(&dest).unwrap(), plain);
+    // the recovery key, to another file
+    let other = tmp.path().join("other.zip");
+    run(&recovery.to_string(), &["-o", other.to_str().unwrap()]).success();
+    assert_eq!(std::fs::read(&other).unwrap(), plain);
+    // a file that is not sealed
+    let junk = tmp.path().join("junk.enc");
+    std::fs::write(&junk, b"hello").unwrap();
+    Command::cargo_bin("notatnik")
+        .unwrap()
+        .env("NOTATNIK_PASSWORD", "x")
+        .arg("decrypt")
+        .arg(&junk)
+        .assert()
+        .failure()
+        .code(1);
+}

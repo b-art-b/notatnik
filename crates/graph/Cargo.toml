@@ -10,10 +10,12 @@ rust-version.workspace = true
 blake3 = "1.8.7"
 chrono = "0.4.45"
 notatnik-core.workspace = true
+notatnik-crypt.workspace = true
 notatnik-index.workspace = true
 notify = "8"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+tempfile = "3.27.0"
 toml = "1.1.6"
 zip = { version = "2.4", default-features = false, features = ["deflate-miniz"] }
 
@@ -23,7 +25,6 @@ workspace = true
 [dev-dependencies]
 chrono = "0.4.45"
 criterion = "0.7.0"
-tempfile = "3.27.0"
 
 [[bench]]
 name = "synthetic"

@@ -22,6 +22,10 @@ pub enum Error {
     InvalidPath(String),
     /// A rename was refused or failed.
     Rename(String),
+    /// The snapshot is encrypted and the backups are locked (no password was entered yet).
+    Locked(String),
+    /// Encryption or decryption failed: wrong keys, a damaged or changed file.
+    Crypt(String),
     /// A rename was interrupted by a conflict after some files were already written.
     PartialRename {
         /// Files already written.
@@ -47,7 +51,7 @@ impl fmt::Display for Error {
             Error::Edit(e) => write!(f, "edit rejected: {e}"),
             Error::NotFound(p) => write!(f, "not found: {p}"),
             Error::InvalidPath(p) => write!(f, "not a page file path: {p}"),
-            Error::Rename(m) => write!(f, "{m}"),
+            Error::Rename(m) | Error::Locked(m) | Error::Crypt(m) => write!(f, "{m}"),
             Error::PartialRename { done, failed } => {
                 write!(
                     f,
@@ -74,5 +78,16 @@ impl From<notatnik_index::Error> for Error {
 impl From<notatnik_core::EditError> for Error {
     fn from(e: notatnik_core::EditError) -> Self {
         Error::Edit(e)
+    }
+}
+impl From<notatnik_crypt::Error> for Error {
+    fn from(e: notatnik_crypt::Error) -> Self {
+        match e {
+            notatnik_crypt::Error::Io(e) => Error::Io(e),
+            notatnik_crypt::Error::WrongSecret => Error::Crypt(
+                "wrong password or recovery key, or the file was sealed to another vault".into(),
+            ),
+            e => Error::Crypt(e.to_string()),
+        }
     }
 }

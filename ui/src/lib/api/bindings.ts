@@ -1195,6 +1195,10 @@ backup_compression: string,
  */
 backup_mirror_dir: string, 
 /**
+ * Device: new snapshots are sealed to the backup vault (EN-5).
+ */
+backup_encrypt: boolean, 
+/**
  * Device: apply the template of a page's type when `type` is set (PR-10).
  */
 templates_auto: boolean, 
@@ -1276,6 +1280,10 @@ backup_compression: string | null,
  */
 backup_mirror_dir: string | null, 
 /**
+ * Device: seal new snapshots (only `true` once the vault is set up; `false` always works).
+ */
+backup_encrypt: boolean | null, 
+/**
  * Device: a page template is applied when `type` is set.
  */
 templates_auto: boolean | null, 
@@ -1327,7 +1335,11 @@ before: boolean,
 /**
  * The second folder holds a copy (always false without a second folder).
  */
-in_mirror: boolean, };
+in_mirror: boolean, 
+/**
+ * Sealed to the backup vault: reading it needs the password or the recovery key.
+ */
+encrypted: boolean, };
 export type PageVersionView = { 
 /**
  * What `page_version_text` and `restore_page_version` take.
@@ -1469,6 +1481,60 @@ too_large: boolean,
  * The lines.
  */
 lines: Array<DiffLine>, };
+export type BackupEncryption = { 
+/**
+ * New snapshots are sealed.
+ */
+enabled: boolean, 
+/**
+ * A vault is set up and confirmed (it can be unlocked, changed and used).
+ */
+configured: boolean, 
+/**
+ * A vault was made but its recovery key was not confirmed yet.
+ */
+pending: boolean, 
+/**
+ * The keys are in memory: encrypted snapshots can be read. They lock again after 15 minutes without use.
+ */
+unlocked: boolean, 
+/**
+ * The vault's key ID (empty without a vault).
+ */
+key_id: string, 
+/**
+ * Snapshots that are not sealed, in the backup folder and the second folder together.
+ */
+plain_snapshots: number, };
+export type BackupSetupArgs = { 
+/**
+ * At least 8 characters.
+ */
+password: string, };
+export type RecoveryKeyResult = { 
+/**
+ * 14 groups of four letters and digits.
+ */
+recovery_key: string, };
+export type BackupUnlockArgs = { 
+/**
+ * What the user typed.
+ */
+secret: string, };
+export type BackupChangePasswordArgs = { 
+/**
+ * The current password (or the recovery key).
+ */
+old_password: string, 
+/**
+ * The new password, at least 8 characters.
+ */
+new_password: string, };
+export type BackupPasswordArgs = { 
+/**
+ * The current password (or the recovery key).
+ */
+password: string, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1529,6 +1595,14 @@ export type Commands = {
   backup_now: { args: NoArgs; result: BackupList };
   restore_backup: { args: RestoreBackupArgs; result: StringValue };
   restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
+  backup_encryption_status: { args: NoArgs; result: BackupEncryption };
+  backup_encryption_setup: { args: BackupSetupArgs; result: RecoveryKeyResult };
+  backup_encryption_confirm: { args: NoArgs; result: BackupEncryption };
+  backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
+  backup_lock: { args: NoArgs; result: BackupEncryption };
+  backup_encryption_change_password: { args: BackupChangePasswordArgs; result: BackupEncryption };
+  backup_encryption_new_recovery_key: { args: BackupPasswordArgs; result: RecoveryKeyResult };
+  backup_encrypt_existing: { args: NoArgs; result: BackupEncryption };
   backup_compare: { args: BackupNameArgs; result: BackupCompare };
   backup_file_diff: { args: BackupFileArgs; result: BackupFileDiff };
   backup_device_preview: { args: BackupNameArgs; result: DeviceRestorePreview };

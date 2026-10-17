@@ -5,6 +5,7 @@
   import {
     backend,
     type BackupChange,
+    type BackupEncryption,
     type BackupFileDiff,
     type BackupList,
     type DeviceRestorePreview,
@@ -125,6 +126,7 @@
     bkDir = s.backup_dir
     bkMirror = s.backup_mirror_dir
     void loadBackups()
+    void loadEnc()
   })
   async function loadBackups() {
     try {
@@ -154,6 +156,83 @@
     if (s) bkMirror = s.backup_mirror_dir
     await loadBackups()
   }
+  // --- encryption of the backups (EN-2, EN-5, EN-6): the keys live in memory only and lock after 15 idle minutes ---
+  let enc = $state<BackupEncryption | null>(null)
+  let encForm = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery'>('')
+  let encPw = $state('')
+  let encPw2 = $state('')
+  let encOld = $state('')
+  let recoveryShown = $state<string | null>(null) // the recovery key, right after it was made: shown once
+  let recoverySaved = $state(false)
+  async function loadEnc() {
+    try {
+      enc = await backend.call('backup_encryption_status', {})
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  function closeEncForm() {
+    encForm = ''
+    encPw = encPw2 = encOld = ''
+  }
+  const encPasswordOk = () => encPw.length >= 8 && encPw === encPw2
+  async function encRun(work: () => Promise<void>) {
+    try {
+      await work()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  const encSetup = () =>
+    encRun(async () => {
+      const r = await backend.call('backup_encryption_setup', { password: encPw })
+      recoveryShown = r.recovery_key
+      recoverySaved = false
+      closeEncForm()
+      await loadEnc()
+    })
+  const encConfirm = () =>
+    encRun(async () => {
+      enc = await backend.call('backup_encryption_confirm', {})
+      recoveryShown = null
+      s = await backend.call('get_settings', {})
+      await loadBackups()
+      toast('New backups are encrypted')
+    })
+  const encUnlock = () =>
+    encRun(async () => {
+      enc = await backend.call('backup_unlock', { secret: encPw })
+      closeEncForm()
+      if (restoreOf) void loadChanges(restoreOf)
+    })
+  const encLock = () =>
+    encRun(async () => {
+      enc = await backend.call('backup_lock', {})
+      changes = null
+    })
+  const encChange = () =>
+    encRun(async () => {
+      enc = await backend.call('backup_encryption_change_password', {
+        old_password: encOld,
+        new_password: encPw,
+      })
+      closeEncForm()
+      toast('Password changed. Backups already made still open with the old password too.')
+    })
+  const encNewRecovery = () =>
+    encRun(async () => {
+      const r = await backend.call('backup_encryption_new_recovery_key', { password: encOld })
+      recoveryShown = r.recovery_key
+      recoverySaved = true // the key is already in use: there is nothing to confirm, only to save
+      closeEncForm()
+    })
+  const encExisting = () =>
+    encRun(async () => {
+      enc = await backend.call('backup_encrypt_existing', {})
+      await loadBackups()
+      toast('Existing backups are encrypted')
+    })
+
   // the files that differ between the open snapshot and now, and the lines of those the user opened
   let changes = $state<BackupChange[] | null>(null)
   let diffs = $state<Record<string, BackupFileDiff>>({})
@@ -166,7 +245,8 @@
     changes = null
     diffs = {}
     openPaths = {}
-    if (restoreOf) void loadChanges(name)
+    const snap = bk?.backups.find((x) => x.name === name)
+    if (restoreOf && (!snap?.encrypted || enc?.unlocked)) void loadChanges(name)
   }
   async function loadChanges(name: string) {
     try {
@@ -318,6 +398,7 @@
     backup_auto: boolean
     backup_compression: string
     backup_mirror_dir: string
+    backup_encrypt: boolean
     templates_auto: boolean
     open_last_graph: boolean
     journal_template: string
@@ -350,6 +431,7 @@
         backup_auto: null,
         backup_compression: null,
         backup_mirror_dir: null,
+        backup_encrypt: null,
         templates_auto: null,
         open_last_graph: null,
         journal_template: null,
@@ -984,6 +1066,154 @@
             />
           </SettingRow>
           <SettingRow
+            title="Encryption"
+            description="Seal backups with a password so that a backup disk or the second folder only ever holds unreadable files. Backups are written without asking for the password; it is needed to read one. Your notes in the graph folder stay plain text."
+          >
+            {#if enc?.configured}
+              <span class="open">
+                <input
+                  class="switch"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Encrypt new backups"
+                  checked={s.backup_encrypt}
+                  onchange={(e) => save({ backup_encrypt: (e.currentTarget as HTMLInputElement).checked })}
+                />
+                <span class="muted" data-testid="enc-state">{enc.unlocked ? 'Unlocked' : 'Locked'}</span>
+                {#if enc.unlocked}
+                  <button class="plain" onclick={encLock}>Lock</button>
+                {:else}
+                  <button class="plain" onclick={() => (encForm = encForm === 'unlock' ? '' : 'unlock')}
+                    >Unlock…</button
+                  >
+                {/if}
+              </span>
+            {:else}
+              <button data-testid="enc-setup" onclick={() => (encForm = encForm === 'setup' ? '' : 'setup')}
+                >Set up…</button
+              >
+            {/if}
+          </SettingRow>
+          {#if recoveryShown}
+            <div class="recovery" role="group" aria-label="Recovery key" data-testid="recovery-box">
+              <strong>Your recovery key</strong>
+              <p class="muted">
+                It opens your backups if you forget the password. It is shown only now. Write it down or put
+                it in a password manager, and keep it away from the backups. Without the password and this key
+                the backups cannot be read by anyone.
+              </p>
+              <code class="key" data-testid="recovery-key">{recoveryShown}</code>
+              <span class="open">
+                <button class="plain" onclick={() => recoveryShown && copy(recoveryShown)}>Copy</button>
+              </span>
+              {#if enc?.configured}
+                <button onclick={() => ((recoveryShown = null), (recoverySaved = false))}>Done</button>
+              {:else}
+                <label class="check">
+                  <input type="checkbox" bind:checked={recoverySaved} /> I saved the recovery key
+                </label>
+                <button disabled={!recoverySaved} onclick={encConfirm} data-testid="enc-confirm"
+                  >Turn on encryption</button
+                >
+              {/if}
+            </div>
+          {/if}
+          {#if encForm === 'setup'}
+            <form
+              class="encform"
+              onsubmit={(e) => {
+                e.preventDefault()
+                if (encPasswordOk()) void encSetup()
+              }}
+            >
+              <label
+                >Password (at least 8 characters)
+                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+              >
+              <label
+                >Password again
+                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+              >
+              <span class="open">
+                <button type="submit" disabled={!encPasswordOk()}>Create</button>
+                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+              </span>
+            </form>
+          {:else if encForm === 'unlock'}
+            <form
+              class="encform"
+              onsubmit={(e) => {
+                e.preventDefault()
+                void encUnlock()
+              }}
+            >
+              <label
+                >Password or recovery key
+                <input type="password" autocomplete="current-password" bind:value={encPw} /></label
+              >
+              <span class="open">
+                <button type="submit" disabled={!encPw}>Unlock</button>
+                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+              </span>
+            </form>
+          {:else if encForm === 'password'}
+            <form
+              class="encform"
+              onsubmit={(e) => {
+                e.preventDefault()
+                if (encPw.length >= 8 && encPw === encPw2) void encChange()
+              }}
+            >
+              <label
+                >Current password
+                <input type="password" autocomplete="current-password" bind:value={encOld} /></label
+              >
+              <label
+                >New password (at least 8 characters)
+                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+              >
+              <label
+                >New password again
+                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+              >
+              <span class="open">
+                <button type="submit" disabled={!encOld || !encPasswordOk()}>Change password</button>
+                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+              </span>
+            </form>
+          {:else if encForm === 'recovery'}
+            <form
+              class="encform"
+              onsubmit={(e) => {
+                e.preventDefault()
+                void encNewRecovery()
+              }}
+            >
+              <label
+                >Current password
+                <input type="password" autocomplete="current-password" bind:value={encOld} /></label
+              >
+              <p class="muted">
+                The old recovery key stops working for new backups. Backups made before keep it.
+              </p>
+              <span class="open">
+                <button type="submit" disabled={!encOld}>Make a new recovery key</button>
+                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+              </span>
+            </form>
+          {/if}
+          {#if enc?.configured}
+            <p class="encmore">
+              <button class="plain" onclick={() => (encForm = 'password')}>Change password…</button>
+              <button class="plain" onclick={() => (encForm = 'recovery')}>New recovery key…</button>
+              {#if enc.plain_snapshots > 0}
+                <button class="plain" onclick={encExisting} data-testid="enc-existing"
+                  >Encrypt {enc.plain_snapshots} existing backup{enc.plain_snapshots === 1 ? '' : 's'}</button
+                >
+              {/if}
+            </p>
+          {/if}
+          <SettingRow
             title="Second folder"
             description="Optional. Every snapshot is copied there too, for example to a USB disk or a network share. The folder must exist; while it is missing (disk not plugged in) the copy waits and catches up later."
             labelFor="backup-mirror"
@@ -1071,6 +1301,9 @@
               <li data-testid="backup-item">
                 <span class="when">{b.created}</span>
                 <span class="muted">{mb(b.bytes)}</span>
+                {#if b.encrypted}<span class="badge" title="Sealed with the backup password"
+                    >🔒 encrypted</span
+                  >{/if}
                 {#if bk?.mirror_dir}<span
                     class="badge"
                     title={b.in_mirror ? 'Also in the second folder' : 'Not yet copied to the second folder'}
@@ -1085,108 +1318,130 @@
                 >
                 {#if restoreOf === b.name}
                   <div class="restore">
-                    <div class="changes" data-testid="backup-changes">
-                      <strong>Changes since this snapshot</strong>
-                      {#if !changes}
-                        <p class="muted">Comparing…</p>
-                      {:else if !changes.length}
-                        <p class="muted">Nothing differs: all files are the same as in this snapshot.</p>
-                      {:else}
-                        <p class="muted">
-                          {changes.length} file{changes.length === 1 ? '' : 's'} differ.
-                          <span class="add">+</span>
-                          lines in the snapshot (a restore brings them back), <span class="del">−</span> lines
-                          now.
-                          <button class="plain" onclick={() => showAll(b.name, true)}>Show all changes</button
-                          >
-                          <button class="plain" onclick={() => showAll(b.name, false)}>Hide all</button>
-                        </p>
-                        <ul class="chg">
-                          {#each changes as c (c.path)}
-                            <li>
-                              <button
-                                class="plain row"
-                                aria-expanded={!!openPaths[c.path]}
-                                disabled={c.binary}
-                                onclick={() => showDiff(b.name, c.path, !openPaths[c.path])}
-                              >
-                                <span class="badge">{CHANGE_LABEL[c.status]}</span>
-                                <code>{c.path}</code>
-                                {#if c.binary}<span class="muted">not text</span>{:else}<span class="muted"
-                                    ><span class="add">+{c.added}</span>
-                                    <span class="del">−{c.removed}</span></span
-                                  >{/if}
-                              </button>
-                              {#if openPaths[c.path] && diffs[c.path]}
-                                {#if diffs[c.path].too_large}
-                                  <p class="muted">Too long and too different to show line by line.</p>
-                                {:else}
-                                  <pre
-                                    class="diff"
-                                    aria-label={`Changes in ${c.path}`}>{#each diffs[c.path].lines as l, i (i)}<span
-                                        class:add={l.kind === 'add'}
-                                        class:del={l.kind === 'del'}
-                                        class:gap={l.kind === 'gap'}
-                                        >{l.kind === 'add'
-                                          ? '+ '
-                                          : l.kind === 'del'
-                                            ? '− '
-                                            : l.kind === 'gap'
-                                              ? '…'
-                                              : '  '}{l.text}
-</span>{/each}</pre>
-                                {/if}
-                              {/if}
-                            </li>
-                          {/each}
-                        </ul>
-                      {/if}
-                    </div>
-                    <label
-                      >One page, replacing the current one
-                      <span class="open"
-                        ><input aria-label="Page name" placeholder="page name" bind:value={restorePage} />
-                        <button disabled={!restorePage.trim()} onclick={() => restoreOnePage(b.name)}
-                          >Restore page</button
-                        ></span
-                      ></label
-                    >
-                    <div>
-                      Device settings of this device (theme, dates, graph list, backup options)
-                      <span class="open">
-                        <button onclick={() => compareDevice(b.name)}>Compare…</button>
-                      </span>
-                      {#if devicePreview}
-                        {#if !devicePreview.available}
-                          <p class="muted">This snapshot has no device settings.</p>
-                        {:else if devicePreview.same}
-                          <p class="muted">The same as now.</p>
+                    {#if b.encrypted && !enc?.unlocked}
+                      <form
+                        class="encform"
+                        onsubmit={(e) => {
+                          e.preventDefault()
+                          void encUnlock()
+                        }}
+                      >
+                        <label
+                          >This backup is encrypted. Password or recovery key
+                          <input
+                            type="password"
+                            autocomplete="current-password"
+                            aria-label="Password or recovery key"
+                            bind:value={encPw}
+                          /></label
+                        >
+                        <span class="open"><button type="submit" disabled={!encPw}>Unlock</button></span>
+                      </form>
+                    {:else}
+                      <div class="changes" data-testid="backup-changes">
+                        <strong>Changes since this snapshot</strong>
+                        {#if !changes}
+                          <p class="muted">Comparing…</p>
+                        {:else if !changes.length}
+                          <p class="muted">Nothing differs: all files are the same as in this snapshot.</p>
                         {:else}
-                          <pre
-                            class="diff"
-                            data-testid="device-diff"
-                            aria-label="Changed settings">{#each devicePreview.lines as l, i (i)}<span
-                                class:add={l.kind === 'add'}
-                                class:del={l.kind === 'del'}
-                                >{l.kind === 'add' ? '+ ' : '− '}{l.text}
+                          <p class="muted">
+                            {changes.length} file{changes.length === 1 ? '' : 's'} differ.
+                            <span class="add">+</span>
+                            lines in the snapshot (a restore brings them back), <span class="del">−</span>
+                            lines now.
+                            <button class="plain" onclick={() => showAll(b.name, true)}
+                              >Show all changes</button
+                            >
+                            <button class="plain" onclick={() => showAll(b.name, false)}>Hide all</button>
+                          </p>
+                          <ul class="chg">
+                            {#each changes as c (c.path)}
+                              <li>
+                                <button
+                                  class="plain row"
+                                  aria-expanded={!!openPaths[c.path]}
+                                  disabled={c.binary}
+                                  onclick={() => showDiff(b.name, c.path, !openPaths[c.path])}
+                                >
+                                  <span class="badge">{CHANGE_LABEL[c.status]}</span>
+                                  <code>{c.path}</code>
+                                  {#if c.binary}<span class="muted">not text</span>{:else}<span class="muted"
+                                      ><span class="add">+{c.added}</span>
+                                      <span class="del">−{c.removed}</span></span
+                                    >{/if}
+                                </button>
+                                {#if openPaths[c.path] && diffs[c.path]}
+                                  {#if diffs[c.path].too_large}
+                                    <p class="muted">Too long and too different to show line by line.</p>
+                                  {:else}
+                                    <pre
+                                      class="diff"
+                                      aria-label={`Changes in ${c.path}`}>{#each diffs[c.path].lines as l, i (i)}<span
+                                          class:add={l.kind === 'add'}
+                                          class:del={l.kind === 'del'}
+                                          class:gap={l.kind === 'gap'}
+                                          >{l.kind === 'add'
+                                            ? '+ '
+                                            : l.kind === 'del'
+                                              ? '− '
+                                              : l.kind === 'gap'
+                                                ? '…'
+                                                : '  '}{l.text}
 </span>{/each}</pre>
-                          <button onclick={() => restoreDevice(b.name)}>Restore settings</button>
+                                  {/if}
+                                {/if}
+                              </li>
+                            {/each}
+                          </ul>
                         {/if}
-                      {/if}
-                    </div>
-                    <label
-                      >Everything, into a new folder
-                      <span class="open"
-                        ><input
-                          aria-label="Target folder"
-                          placeholder="/path/to/new-folder"
-                          bind:value={restoreTarget}
-                        />
-                        <button disabled={!restoreTarget.trim()} onclick={() => restoreFolder(b.name)}
-                          >Restore folder</button
-                        ></span
-                      ></label
-                    >
+                      </div>
+                      <label
+                        >One page, replacing the current one
+                        <span class="open"
+                          ><input aria-label="Page name" placeholder="page name" bind:value={restorePage} />
+                          <button disabled={!restorePage.trim()} onclick={() => restoreOnePage(b.name)}
+                            >Restore page</button
+                          ></span
+                        ></label
+                      >
+                      <div>
+                        Device settings of this device (theme, dates, graph list, backup options)
+                        <span class="open">
+                          <button onclick={() => compareDevice(b.name)}>Compare…</button>
+                        </span>
+                        {#if devicePreview}
+                          {#if !devicePreview.available}
+                            <p class="muted">This snapshot has no device settings.</p>
+                          {:else if devicePreview.same}
+                            <p class="muted">The same as now.</p>
+                          {:else}
+                            <pre
+                              class="diff"
+                              data-testid="device-diff"
+                              aria-label="Changed settings">{#each devicePreview.lines as l, i (i)}<span
+                                  class:add={l.kind === 'add'}
+                                  class:del={l.kind === 'del'}
+                                  >{l.kind === 'add' ? '+ ' : '− '}{l.text}
+</span>{/each}</pre>
+                            <button onclick={() => restoreDevice(b.name)}>Restore settings</button>
+                          {/if}
+                        {/if}
+                      </div>
+                      <label
+                        >Everything, into a new folder
+                        <span class="open"
+                          ><input
+                            aria-label="Target folder"
+                            placeholder="/path/to/new-folder"
+                            bind:value={restoreTarget}
+                          />
+                          <button disabled={!restoreTarget.trim()} onclick={() => restoreFolder(b.name)}
+                            >Restore folder</button
+                          ></span
+                        ></label
+                      >
+                    {/if}
                   </div>
                 {/if}
               </li>
@@ -1570,6 +1825,49 @@
   }
   .gap {
     color: var(--muted);
+  }
+  .recovery {
+    display: grid;
+    gap: 0.6em;
+    justify-items: start;
+    margin: 0.5em 0 1em;
+    padding: 0.8em 1em;
+    border: 1px solid var(--warn, var(--border));
+    border-radius: 6px;
+    max-width: 42em;
+  }
+  .recovery p {
+    margin: 0;
+  }
+  .key {
+    font-size: 1.05em;
+    letter-spacing: 0.05em;
+    word-break: break-word;
+    user-select: all;
+  }
+  .check {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+  }
+  .encform {
+    display: grid;
+    gap: 0.5em;
+    justify-items: start;
+    margin: 0.4em 0 1em;
+    max-width: 24em;
+  }
+  .encform label {
+    display: grid;
+    gap: 0.2em;
+    font-size: 0.9em;
+    width: 100%;
+  }
+  .encmore {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2em 1em;
+    margin: 0 0 0.6em;
   }
   .chg {
     list-style: none;

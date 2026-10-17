@@ -155,3 +155,69 @@ test('backup: compare a snapshot with the current state before restoring', async
   await changes.getByRole('button', { name: 'Hide all' }).click()
   await expect(changes.getByLabel('Changes in pages/t.md')).toHaveCount(0)
 })
+
+// EN-2, EN-5, EN-6: set up encryption, back up, lock, unlock with the password and with the recovery key.
+test('backup encryption: set up with a recovery key, seal, lock and unlock', async ({ backend, page }) => {
+  backend.write('pages/t.md', '- NARWHAL-MARKER-7 in a page\n')
+  const dir = path.join(backend.dir, '..', 'sealed-backups')
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  const pane = page.getByRole('tabpanel')
+  await pane.getByLabel('Backup folder').fill(dir)
+  await pane.getByLabel('Backup folder').press('Enter')
+
+  // set up: two passwords that match, then the recovery key is shown once and must be confirmed
+  await pane.getByTestId('enc-setup').click()
+  const form = pane.locator('form.encform')
+  await form.getByLabel('Password (at least 8 characters)').fill('correct horse')
+  await form.getByLabel('Password again').fill('something else')
+  await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled()
+  await form.getByLabel('Password again').fill('correct horse')
+  await form.getByRole('button', { name: 'Create' }).click()
+  const key = (await pane.getByTestId('recovery-key').textContent())!.trim()
+  expect(key.split('-')).toHaveLength(14)
+  const turnOn = pane.getByTestId('enc-confirm')
+  await expect(turnOn).toBeDisabled()
+  await pane.getByLabel('I saved the recovery key').check()
+  await turnOn.click()
+  await expect(pane.getByRole('switch', { name: 'Encrypt new backups' })).toBeChecked()
+  await expect(pane.getByTestId('enc-state')).toHaveText('Unlocked')
+  await expect(pane.getByTestId('recovery-box')).toHaveCount(0)
+
+  // a backup is sealed: a .zip.enc file, a lock badge, nothing readable in the folder
+  await pane.getByTestId('backup-now').click()
+  const item = pane.getByTestId('backup-item').first()
+  await expect(item).toContainText('encrypted')
+  const files = fs.readdirSync(dir)
+  expect(files.some((f) => f.endsWith('.zip.enc'))).toBe(true)
+  for (const f of files) {
+    const bytes = fs.readFileSync(path.join(dir, f))
+    expect(bytes.includes('NARWHAL-MARKER')).toBe(false)
+  }
+
+  // locked: opening the snapshot asks for the password; a wrong one is refused
+  await pane.getByRole('button', { name: 'Lock', exact: true }).click()
+  await expect(pane.getByTestId('enc-state')).toHaveText('Locked')
+  await item.getByRole('button', { name: 'Restore…' }).click()
+  const ask = item.getByLabel('Password or recovery key')
+  await ask.fill('wrong password')
+  await item.getByRole('button', { name: 'Unlock' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: /wrong password or recovery key/ })).toBeVisible()
+  await ask.fill('correct horse')
+  await item.getByRole('button', { name: 'Unlock' }).click()
+  await expect(item.getByTestId('backup-changes')).toContainText('Nothing differs')
+
+  // the recovery key opens it as well
+  await pane.getByRole('button', { name: 'Lock', exact: true }).click()
+  await pane.getByRole('button', { name: 'Unlock…' }).click()
+  // (the open snapshot has an unlock form of its own: this one is the form with a Cancel button)
+  const top = pane.locator('form.encform').filter({ has: page.getByRole('button', { name: 'Cancel' }) })
+  await top.getByLabel('Password or recovery key').fill(key)
+  await top.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await expect(pane.getByTestId('enc-state')).toHaveText('Unlocked')
+
+  // the choice survives a reload; the vault and the state are on the device
+  await page.reload()
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  await expect(page.getByRole('tabpanel').getByRole('switch', { name: 'Encrypt new backups' })).toBeChecked()
+})

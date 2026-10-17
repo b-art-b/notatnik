@@ -114,6 +114,19 @@ enum Command {
         /// Graph folder
         graph: PathBuf,
     },
+    /// Decrypt an encrypted backup (`*.zip.enc`) without the app
+    ///
+    /// The password or the recovery key comes from the environment variable NOTATNIK_PASSWORD, or is asked for.
+    Decrypt {
+        /// The encrypted file
+        file: PathBuf,
+        /// Where to write the zip (default: the file name without `.enc`)
+        #[arg(long, short)]
+        out: Option<PathBuf>,
+        /// Replace the output file if it exists
+        #[arg(long)]
+        force: bool,
+    },
     /// Developer tools
     #[command(subcommand, hide = true)]
     Dev(Dev),
@@ -431,6 +444,7 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 println!("changed: {}", ev.pages.join(", "));
             }
         }
+        Command::Decrypt { file, out, force } => decrypt(&file, out, force)?,
         Command::Dev(Dev::GenGraph {
             seed,
             pages,
@@ -450,6 +464,54 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `notatnik decrypt`: opens a sealed file with the password or recovery key and writes what is inside.
+fn decrypt(file: &Path, out: Option<PathBuf>, force: bool) -> Result<(), String> {
+    use std::io::Write;
+    let out = match out {
+        Some(o) => o,
+        None => match file.to_str().and_then(|f| f.strip_suffix(".enc")) {
+            Some(p) => PathBuf::from(p),
+            None => {
+                return Err(
+                    "give the output file with --out (the name does not end in .enc)".into(),
+                );
+            }
+        },
+    };
+    if out.exists() && !force {
+        return Err(format!(
+            "{} exists (use --force to replace it)",
+            out.display()
+        ));
+    }
+    let open_file = || std::fs::File::open(file).map_err(|e| format!("{}: {e}", file.display()));
+    // the descriptor sits in the file's header: the file and the password are all that is needed
+    let header = notatnik_crypt::read_header(&mut std::io::BufReader::new(open_file()?))
+        .map_err(|e| e.to_string())?;
+    let secret = match std::env::var("NOTATNIK_PASSWORD") {
+        Ok(s) if !s.is_empty() => s,
+        _ => rpassword::prompt_password("Password or recovery key: ").map_err(|e| e.to_string())?,
+    };
+    let keys = header.vault.unlock(&secret).map_err(|e| e.to_string())?;
+    let partial = out.with_extension("partial");
+    let result = (|| -> Result<(), String> {
+        let mut w = std::io::BufWriter::new(
+            std::fs::File::create(&partial).map_err(|e| format!("{}: {e}", partial.display()))?,
+        );
+        notatnik_crypt::open(&keys, &mut std::io::BufReader::new(open_file()?), &mut w)
+            .map_err(|e| e.to_string())?;
+        w.flush().map_err(|e| e.to_string())?;
+        w.get_ref().sync_all().map_err(|e| e.to_string())
+    })();
+    if let Err(e) = result {
+        let _ = std::fs::remove_file(&partial);
+        return Err(e);
+    }
+    std::fs::rename(&partial, &out).map_err(|e| e.to_string())?;
+    println!("wrote {}", out.display());
+    Ok(())
 }
 
 fn main() -> ExitCode {

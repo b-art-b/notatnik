@@ -1826,6 +1826,231 @@ fn a_backup_is_compared_with_the_current_state() {
     );
 }
 
+/// EN-2, EN-5, EN-6 through the API: set up, confirm, seal, lock and unlock, compare and restore, change the
+/// password, convert old snapshots, never fall back to plaintext.
+#[test]
+fn backups_are_sealed_with_a_password_and_a_recovery_key() {
+    let t = start("basic");
+    let dir = t.tmp.path().join("bk");
+    t.ok("set_settings", json!({"backup_dir": dir.to_str().unwrap()}));
+    // a plain snapshot from before encryption
+    let l = t.ok("backup_now", json!({}));
+    assert_eq!(l["backups"][0]["encrypted"], false);
+    // dated long ago, so the retention (one per day) does not replace it by the sealed one of today
+    let plain = l["backups"][0]["name"].as_str().unwrap().to_string();
+    let id = plain.split('-').nth(1).unwrap().to_string();
+    std::fs::rename(
+        dir.join(&plain),
+        dir.join(format!("notatnik-{id}-20200101-120000.zip")),
+    )
+    .unwrap();
+    let st = t.ok("backup_encryption_status", json!({}));
+    assert_eq!(
+        (st["enabled"].clone(), st["configured"].clone()),
+        (json!(false), json!(false))
+    );
+    assert_eq!(st["plain_snapshots"], 1);
+
+    // not set up: cannot be turned on, and the password has to be long enough
+    assert!(
+        t.call("set_settings", json!({"backup_encrypt": true}))
+            .is_err()
+    );
+    assert!(
+        t.call("backup_encryption_setup", json!({"password": "short"}))
+            .is_err()
+    );
+    assert!(t.call("backup_unlock", json!({"secret": "x"})).is_err());
+
+    // set up: the recovery key comes back once; encryption is not on until it is confirmed
+    let r = t.ok(
+        "backup_encryption_setup",
+        json!({"password": "correct horse battery"}),
+    );
+    let recovery = r["recovery_key"].as_str().unwrap().to_string();
+    assert_eq!(recovery.split('-').count(), 14);
+    let st = t.ok("backup_encryption_status", json!({}));
+    assert_eq!(
+        (
+            st["pending"].clone(),
+            st["enabled"].clone(),
+            st["configured"].clone()
+        ),
+        (json!(true), json!(false), json!(false))
+    );
+    assert!(
+        t.call("set_settings", json!({"backup_encrypt": true}))
+            .is_err()
+    );
+    let st = t.ok("backup_encryption_confirm", json!({}));
+    assert_eq!(
+        (
+            st["enabled"].clone(),
+            st["configured"].clone(),
+            st["pending"].clone(),
+            st["unlocked"].clone()
+        ),
+        (json!(true), json!(true), json!(false), json!(true))
+    );
+    assert!(
+        t.call(
+            "backup_encryption_setup",
+            json!({"password": "another password"})
+        )
+        .is_err()
+    );
+
+    // a marker in a page; the next snapshot is sealed and shows nothing of it
+    std::fs::write(
+        t.graph().join("pages/inbox.md"),
+        format!("{}- QUOKKA-MARKER-93\n", t.read("pages/inbox.md")),
+    )
+    .unwrap();
+    let l = t.ok("backup_now", json!({}));
+    let newest = &l["backups"][0];
+    assert_eq!(newest["encrypted"], true);
+    let name = newest["name"].as_str().unwrap().to_string();
+    assert!(name.ends_with(".zip.enc"), "{name}");
+    for f in std::fs::read_dir(&dir).unwrap().flatten() {
+        let bytes = std::fs::read(f.path()).unwrap();
+        if f.file_name().to_string_lossy().ends_with(".enc") {
+            assert!(!bytes.windows(14).any(|w| w == b"QUOKKA-MARKER-"));
+            assert!(!bytes.windows(5).any(|w| w == b"inbox"));
+        }
+    }
+    // the plain one is still there until it is converted
+    assert_eq!(
+        t.ok("backup_encryption_status", json!({}))["plain_snapshots"],
+        1
+    );
+
+    // locked: reading is refused with its own error code
+    t.ok("backup_lock", json!({}));
+    for (cmd, args) in [
+        ("backup_compare", json!({"name": name})),
+        ("backup_device_preview", json!({"name": name})),
+        (
+            "restore_backup",
+            json!({"name": name, "target": t.tmp.path().join("r0").to_str().unwrap()}),
+        ),
+    ] {
+        let e = t.call(cmd, args).unwrap_err();
+        assert_eq!(e.code, "locked", "{cmd}: {e}");
+    }
+    // a backup still works while locked (sealing needs no password)
+    // (one snapshot per day is kept, so this one replaces the earlier of today: use its name from here on)
+    let l = t.ok("backup_now", json!({}));
+    assert_eq!(l["backups"][0]["encrypted"], true);
+    let name = l["backups"][0]["name"].as_str().unwrap().to_string();
+    // wrong secret, then the password, then (after locking) the recovery key
+    assert!(
+        t.call("backup_unlock", json!({"secret": "wrong password!"}))
+            .is_err()
+    );
+    assert_eq!(
+        t.ok("backup_unlock", json!({"secret": "correct horse battery"}))["unlocked"],
+        true
+    );
+    let c = t.ok("backup_compare", json!({"name": name}));
+    let changed: Vec<&str> = c["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["path"].as_str().unwrap())
+        .collect();
+    assert!(changed.is_empty(), "{changed:?}");
+    t.ok("backup_lock", json!({}));
+    assert_eq!(
+        t.ok("backup_unlock", json!({"secret": recovery}))["unlocked"],
+        true
+    );
+    let target = t.tmp.path().join("restored");
+    t.ok(
+        "restore_backup",
+        json!({"name": name, "target": target.to_str().unwrap()}),
+    );
+    assert!(
+        std::fs::read_to_string(target.join("pages/inbox.md"))
+            .unwrap()
+            .contains("QUOKKA-MARKER-93")
+    );
+    // device settings come out of a sealed snapshot too
+    assert_eq!(
+        t.ok("backup_device_preview", json!({"name": name}))["available"],
+        true
+    );
+    // one page back, from a sealed snapshot; the replaced state is sealed as well
+    std::fs::write(t.graph().join("pages/inbox.md"), "- ruined\n").unwrap();
+    t.ok(
+        "restore_backup_page",
+        json!({"name": name, "page": "inbox"}),
+    );
+    assert!(t.read("pages/inbox.md").contains("QUOKKA-MARKER-93"));
+    let l = t.ok("list_backups", json!({}));
+    assert!(
+        l["backups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b["before"] == true && b["encrypted"] == true),
+        "the snapshot of the replaced state is sealed too"
+    );
+
+    // change the password: the old one stops, the new one and the recovery key work, old snapshots still open
+    assert!(
+        t.call(
+            "backup_encryption_change_password",
+            json!({"old_password": "not it at all", "new_password": "a brand new password"})
+        )
+        .is_err()
+    );
+    t.ok(
+        "backup_encryption_change_password",
+        json!({"old_password": "correct horse battery", "new_password": "a brand new password"}),
+    );
+    t.ok("backup_lock", json!({}));
+    assert!(
+        t.call("backup_unlock", json!({"secret": "correct horse battery"}))
+            .is_err()
+    );
+    t.ok("backup_unlock", json!({"secret": "a brand new password"}));
+    t.ok("backup_compare", json!({"name": name}));
+    let new_recovery = t.ok(
+        "backup_encryption_new_recovery_key",
+        json!({"password": "a brand new password"}),
+    );
+    assert_ne!(new_recovery["recovery_key"].as_str().unwrap(), recovery);
+
+    // convert the plain snapshot
+    let st = t.ok("backup_encrypt_existing", json!({}));
+    assert_eq!(st["plain_snapshots"], 0);
+    assert!(
+        t.ok("list_backups", json!({}))["backups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["encrypted"] == true)
+    );
+
+    // never plaintext by accident: with the vault gone a backup fails and writes nothing
+    let before: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name())
+        .collect();
+    std::fs::remove_file(t.tmp.path().join("device/config/backup-vault.json")).unwrap();
+    let e = t.call("backup_now", json!({})).unwrap_err();
+    assert!(e.message.contains("backup-vault.json"), "{e}");
+    let after: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name())
+        .collect();
+    assert_eq!(before.len(), after.len());
+    // switching it off is always possible
+    t.ok("set_settings", json!({"backup_encrypt": false}));
+}
+
 /// A rename that touches several files and a delete of several pages first save a restore point (BK-6); the page
 /// history lists, shows and restores versions (VH-1..VH-3).
 #[test]

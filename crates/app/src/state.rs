@@ -63,6 +63,8 @@ impl From<GraphError> for ApiError {
         let code = match &e {
             GraphError::Conflict { .. } | GraphError::PartialRename { .. } => "conflict",
             GraphError::NotFound(_) => "not_found",
+            GraphError::Locked(_) => "locked",
+            GraphError::Crypt(_) => "invalid",
             GraphError::Edit(notatnik_core::EditError::Stale) => "conflict",
             GraphError::Edit(_)
             | GraphError::InvalidPath(_)
@@ -154,14 +156,69 @@ fn mirror_dir(dev: &notatnik_graph::DeviceSettings) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// How snapshots are written now (BK-7, BK-8): the compression setting, and the device files that go with them.
+/// Backup keys stay in memory this long after their last use.
+const BACKUP_LOCK_AFTER: Duration = Duration::from_secs(15 * 60);
+
+/// The unlocked backup vault (EN-2): in memory only, wiped when dropped.
+struct Unlocked {
+    keys: Arc<notatnik_crypt::Keys>,
+    last_use: std::time::Instant,
+}
+
+fn vault_path(dirs: &Dirs) -> PathBuf {
+    dirs.config.join("backup-vault.json")
+}
+
+/// A vault made but not yet confirmed (the recovery key was shown, the user has not said it is saved).
+fn pending_vault_path(dirs: &Dirs) -> PathBuf {
+    dirs.config.join("backup-vault.pending.json")
+}
+
+fn load_vault(path: &Path) -> Result<Option<notatnik_crypt::Vault>, String> {
+    match std::fs::read(path) {
+        Ok(b) => notatnik_crypt::Vault::from_json(&b)
+            .map(Some)
+            .map_err(|e| format!("{}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Writes a descriptor next to its final place, then renames it: a crash leaves the old one.
+fn save_vault(path: &Path, vault: &notatnik_crypt::Vault) -> std::io::Result<()> {
+    if let Some(d) = path.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, vault.to_json())?;
+    std::fs::rename(&tmp, path)
+}
+
+/// How snapshots are written now (BK-7, BK-8, EN-5): the compression setting, the device files that go with them
+/// and, when encryption is on, the vault to seal to. With `for_writing` an enabled encryption whose vault cannot
+/// be read is an error: a backup must never be written in plain by accident. `keys` are the unlocked keys, if any.
 fn backup_options(
     dirs: &Dirs,
     dev: &notatnik_graph::DeviceSettings,
     graph_id: &str,
-) -> notatnik_graph::BackupOptions {
+    keys: Option<Arc<notatnik_crypt::Keys>>,
+    for_writing: bool,
+) -> Result<notatnik_graph::BackupOptions, String> {
     use notatnik_graph::Extra;
-    notatnik_graph::BackupOptions {
+    let seal_to = if dev.ui.backup_encrypt && for_writing {
+        match load_vault(&vault_path(dirs))? {
+            Some(v) => Some(v),
+            None => {
+                return Err(format!(
+                    "backup encryption is on but {} is missing; nothing was written",
+                    vault_path(dirs).display()
+                ));
+            }
+        }
+    } else {
+        None
+    };
+    Ok(notatnik_graph::BackupOptions {
         compress: dev.ui.backup_compression != "none",
         extras: vec![
             Extra {
@@ -175,7 +232,9 @@ fn backup_options(
                 tracked: false,
             },
         ],
-    }
+        seal_to,
+        keys,
+    })
 }
 
 /// One backup run with the device settings as they are now: a snapshot (when `force`, or when one is due: the
@@ -187,13 +246,17 @@ fn run_backup(
     graph: &Graph,
     force: bool,
     min_age: Option<chrono::Duration>,
+    keys: Option<Arc<notatnik_crypt::Keys>>,
 ) -> (
     notatnik_graph::Result<Option<notatnik_graph::BackupFile>>,
     Option<String>,
 ) {
     let dev = notatnik_graph::DeviceSettings::load(dirs).unwrap_or_default();
     let dir = primary_dir(dirs, &dev);
-    let opts = backup_options(dirs, &dev, &graph.id());
+    let opts = match backup_options(dirs, &dev, &graph.id(), keys, true) {
+        Ok(o) => o,
+        Err(m) => return (Err(GraphError::Crypt(m)), None),
+    };
     let made = graph.backup_now(
         &dir,
         chrono::Local::now().naive_local(),
@@ -236,6 +299,8 @@ pub struct AppState {
     watch: bool,
     /// The plan of a rename that stopped half way (for `rename_revert`).
     last_rename: Mutex<Option<notatnik_graph::RenamePlan>>,
+    /// The unlocked backup vault (EN-2), if any.
+    backup_keys: Mutex<Option<Unlocked>>,
 }
 
 /// Options for [`AppState::new`].
@@ -288,6 +353,7 @@ impl AppState {
             dirs: o.dirs,
             watch: o.watch,
             last_rename: Mutex::new(None),
+            backup_keys: Mutex::new(None),
         }
     }
 
@@ -2153,6 +2219,7 @@ impl AppState {
             backup_auto: dev.ui.backup_auto,
             backup_compression: dev.ui.backup_compression,
             backup_mirror_dir: dev.ui.backup_mirror_dir,
+            backup_encrypt: dev.ui.backup_encrypt,
             templates_auto: dev.ui.templates_auto,
             open_last_graph: dev.ui.open_last_graph,
             journal_template: cfg
@@ -2318,6 +2385,7 @@ impl AppState {
                 || a.backup_auto.is_some()
                 || a.backup_compression.is_some()
                 || a.backup_mirror_dir.is_some()
+                || a.backup_encrypt.is_some()
                 || a.templates_auto.is_some()
                 || a.open_last_graph.is_some()
             {
@@ -2366,6 +2434,16 @@ impl AppState {
                 }
                 if let Some(d) = a.backup_mirror_dir {
                     dev.ui.backup_mirror_dir = d.trim().to_string();
+                }
+                if let Some(on) = a.backup_encrypt {
+                    // turning it on needs a confirmed vault; turning it off always works
+                    if on && !matches!(load_vault(&vault_path(&self.dirs)), Ok(Some(_))) {
+                        return Err(ApiError::new(
+                            "invalid",
+                            "set up backup encryption first (Settings → Backup → Encryption)",
+                        ));
+                    }
+                    dev.ui.backup_encrypt = on;
                 }
                 if mirror_dir(&dev).is_some_and(|m| m == primary_dir(&self.dirs, &dev)) {
                     return Err(ApiError::new(
@@ -2463,6 +2541,7 @@ impl AppState {
             .backups(&dir)
             .into_iter()
             .map(|b| BackupView {
+                encrypted: b.encrypted,
                 in_mirror: mirror
                     .as_ref()
                     .is_some_and(|m| m.iter().any(|x| x.name == b.name && x.bytes == b.bytes)),
@@ -2510,7 +2589,7 @@ impl AppState {
                         continue;
                     }
                     let (made, mirror) =
-                        run_backup(&dirs, &g, false, Some(chrono::Duration::hours(24)));
+                        run_backup(&dirs, &g, false, Some(chrono::Duration::hours(24)), None);
                     put(&error2, made.err().map(|e| e.to_string()));
                     put(&mirror2, mirror);
                 }
@@ -2541,6 +2620,7 @@ impl AppState {
             &o.graph,
             false,
             Some(chrono::Duration::hours(1)),
+            self.unlocked_keys(),
         );
     }
 
@@ -2551,7 +2631,11 @@ impl AppState {
         if !dev.ui.backup_auto {
             return;
         }
-        let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+        // without a usable vault nothing is written, never a plain snapshot in its place
+        let Ok(opts) = backup_options(&self.dirs, &dev, &o.graph.id(), self.unlocked_keys(), true)
+        else {
+            return;
+        };
         let _ = o.graph.backup_before_change(
             &primary_dir(&self.dirs, &dev),
             chrono::Local::now().naive_local(),
@@ -2617,6 +2701,202 @@ impl AppState {
         })
     }
 
+    // ---- backup encryption (EN-2, EN-5, EN-6) -------------------------------------------------
+
+    /// The unlocked keys, or None when locked. Using them counts as use; they lock after 15 idle minutes.
+    fn unlocked_keys(&self) -> Option<Arc<notatnik_crypt::Keys>> {
+        let mut g = self
+            .backup_keys
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match g.as_mut() {
+            Some(u) if u.last_use.elapsed() < BACKUP_LOCK_AFTER => {
+                u.last_use = std::time::Instant::now();
+                Some(u.keys.clone())
+            }
+            Some(_) => {
+                *g = None;
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn set_unlocked(&self, keys: Option<notatnik_crypt::Keys>) {
+        *self
+            .backup_keys
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = keys.map(|k| Unlocked {
+            keys: Arc::new(k),
+            last_use: std::time::Instant::now(),
+        });
+    }
+
+    /// Options for reading snapshots (compare, restore, device settings): the keys if unlocked, no sealing.
+    fn read_options(&self, graph_id: &str) -> ApiResult<notatnik_graph::BackupOptions> {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        backup_options(&self.dirs, &dev, graph_id, self.unlocked_keys(), false)
+            .map_err(|m| ApiError::new("invalid", m))
+    }
+
+    fn encryption_status(&self) -> BackupEncryption {
+        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let vault = load_vault(&vault_path(&self.dirs)).ok().flatten();
+        // peek without counting as use
+        let unlocked = self
+            .backup_keys
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|u| u.last_use.elapsed() < BACKUP_LOCK_AFTER);
+        let plain = self.lock().as_ref().map_or(0, |o| {
+            let mut dirs = vec![primary_dir(&self.dirs, &dev)];
+            dirs.extend(mirror_dir(&dev));
+            dirs.iter()
+                .map(|d| o.graph.backups(d).iter().filter(|b| !b.encrypted).count())
+                .sum()
+        });
+        BackupEncryption {
+            enabled: dev.ui.backup_encrypt,
+            configured: vault.is_some(),
+            pending: pending_vault_path(&self.dirs).exists(),
+            unlocked,
+            key_id: vault.map(|v| v.key_id).unwrap_or_default(),
+            plain_snapshots: plain as u32,
+        }
+    }
+
+    fn check_new_password(p: &str) -> ApiResult<()> {
+        if p.chars().count() < 8 || p.chars().count() > 200 {
+            return Err(ApiError::new(
+                "invalid",
+                "the password needs 8 to 200 characters",
+            ));
+        }
+        Ok(())
+    }
+
+    fn configured_vault(&self) -> ApiResult<notatnik_crypt::Vault> {
+        load_vault(&vault_path(&self.dirs))
+            .map_err(|m| ApiError::new("invalid", m))?
+            .ok_or_else(|| ApiError::new("invalid", "backup encryption is not set up"))
+    }
+
+    /// `backup_encryption_status`
+    pub fn backup_encryption_status(&self, _a: NoArgs) -> ApiResult<BackupEncryption> {
+        Ok(self.encryption_status())
+    }
+
+    /// `backup_encryption_setup`: makes a vault and returns its recovery key, to be shown once. Encryption turns on
+    /// only with `backup_encryption_confirm`, after the user said the key is saved.
+    pub fn backup_encryption_setup(&self, a: BackupSetupArgs) -> ApiResult<RecoveryKeyResult> {
+        Self::check_new_password(&a.password)?;
+        if vault_path(&self.dirs).exists() {
+            return Err(ApiError::new(
+                "invalid",
+                "backup encryption is already set up: change the password or make a new recovery key instead",
+            ));
+        }
+        let (vault, keys, recovery) =
+            notatnik_crypt::Vault::create(&a.password, notatnik_crypt::KdfParams::default())
+                .map_err(|e| ApiError::new("internal", e.to_string()))?;
+        save_vault(&pending_vault_path(&self.dirs), &vault).map_err(notatnik_graph::Error::from)?;
+        self.set_unlocked(Some(keys));
+        Ok(RecoveryKeyResult {
+            recovery_key: recovery.to_string(),
+        })
+    }
+
+    /// `backup_encryption_confirm`: the user saved the recovery key; the vault becomes the backup vault and new
+    /// snapshots are sealed.
+    pub fn backup_encryption_confirm(&self, _a: NoArgs) -> ApiResult<BackupEncryption> {
+        let pending = pending_vault_path(&self.dirs);
+        if load_vault(&pending)
+            .map_err(|m| ApiError::new("invalid", m))?
+            .is_none()
+        {
+            return Err(ApiError::new(
+                "invalid",
+                "there is no encryption to confirm",
+            ));
+        }
+        std::fs::rename(&pending, vault_path(&self.dirs)).map_err(notatnik_graph::Error::from)?;
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs)?;
+        dev.ui.backup_encrypt = true;
+        dev.save(&self.dirs)?;
+        Ok(self.encryption_status())
+    }
+
+    /// `backup_unlock`: the password or the recovery key; the keys stay in memory for reading encrypted snapshots.
+    pub fn backup_unlock(&self, a: BackupUnlockArgs) -> ApiResult<BackupEncryption> {
+        let vault = self.configured_vault()?;
+        let keys = vault
+            .unlock(&a.secret)
+            .map_err(|e| ApiError::new("invalid", e.to_string()))?;
+        self.set_unlocked(Some(keys));
+        Ok(self.encryption_status())
+    }
+
+    /// `backup_lock`: forgets the keys.
+    pub fn backup_lock(&self, _a: NoArgs) -> ApiResult<BackupEncryption> {
+        self.set_unlocked(None);
+        Ok(self.encryption_status())
+    }
+
+    /// `backup_encryption_change_password`: rewraps the keys; snapshots already made keep opening with the old
+    /// password (they carry the descriptor they were made with) and with the recovery key.
+    pub fn backup_encryption_change_password(
+        &self,
+        a: BackupChangePasswordArgs,
+    ) -> ApiResult<BackupEncryption> {
+        Self::check_new_password(&a.new_password)?;
+        let mut vault = self.configured_vault()?;
+        let keys = vault
+            .unlock(&a.old_password)
+            .map_err(|e| ApiError::new("invalid", e.to_string()))?;
+        vault
+            .change_password(&keys, &a.new_password, notatnik_crypt::KdfParams::default())
+            .map_err(|e| ApiError::new("internal", e.to_string()))?;
+        save_vault(&vault_path(&self.dirs), &vault).map_err(notatnik_graph::Error::from)?;
+        self.set_unlocked(Some(keys));
+        Ok(self.encryption_status())
+    }
+
+    /// `backup_encryption_new_recovery_key`: replaces the recovery key; the old one stops opening new snapshots.
+    pub fn backup_encryption_new_recovery_key(
+        &self,
+        a: BackupPasswordArgs,
+    ) -> ApiResult<RecoveryKeyResult> {
+        let mut vault = self.configured_vault()?;
+        let keys = vault
+            .unlock(&a.password)
+            .map_err(|e| ApiError::new("invalid", e.to_string()))?;
+        let recovery = vault
+            .new_recovery_key(&keys)
+            .map_err(|e| ApiError::new("internal", e.to_string()))?;
+        save_vault(&vault_path(&self.dirs), &vault).map_err(notatnik_graph::Error::from)?;
+        self.set_unlocked(Some(keys));
+        Ok(RecoveryKeyResult {
+            recovery_key: recovery.to_string(),
+        })
+    }
+
+    /// `backup_encrypt_existing`: seals the plain snapshots in the backup folder and the second folder, then
+    /// removes the plain files.
+    pub fn backup_encrypt_existing(&self, _a: NoArgs) -> ApiResult<BackupEncryption> {
+        let vault = self.configured_vault()?;
+        self.with_open(|o| {
+            let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+            let mut dirs = vec![primary_dir(&self.dirs, &dev)];
+            dirs.extend(mirror_dir(&dev).filter(|m| m.is_dir()));
+            for d in dirs {
+                notatnik_graph::seal_existing(&d, &o.graph.id(), &vault)?;
+            }
+            Ok(())
+        })?;
+        Ok(self.encryption_status())
+    }
+
     /// `list_backups`
     pub fn list_backups(&self, _a: NoArgs) -> ApiResult<BackupList> {
         self.with_open(|o| {
@@ -2631,7 +2911,7 @@ impl AppState {
     /// `backup_now`: always takes a snapshot.
     pub fn backup_now(&self, _a: NoArgs) -> ApiResult<BackupList> {
         self.with_open(|o| {
-            let (made, mirror) = run_backup(&self.dirs, &o.graph, true, None);
+            let (made, mirror) = run_backup(&self.dirs, &o.graph, true, None, self.unlocked_keys());
             made?;
             if let Some(b) = &o.backup {
                 put(&b.error, None);
@@ -2651,8 +2931,9 @@ impl AppState {
             ));
         }
         self.with_open(|o| {
+            let opts = self.read_options(&o.graph.id())?;
             o.graph
-                .restore_backup_to(&self.backup_dir(), &a.name, &target)?;
+                .restore_backup_to(&self.backup_dir(), &a.name, &target, &opts)?;
             Ok(StringValue {
                 value: target.to_string_lossy().into_owned(),
             })
@@ -2661,13 +2942,17 @@ impl AppState {
 
     /// The device settings stored in a snapshot (None for a snapshot without them).
     fn snapshot_settings(&self, name: &str) -> ApiResult<Option<String>> {
-        if name.contains(['/', '\\']) || name.contains("..") || !name.ends_with(".zip") {
+        if name.contains(['/', '\\'])
+            || name.contains("..")
+            || !(name.ends_with(".zip") || name.ends_with(".zip.enc"))
+        {
             return Err(ApiError::new("invalid", "not a backup name"));
         }
         let entry = format!("{}/settings.toml", notatnik_graph::DEVICE_DIR);
         Ok(notatnik_graph::read_entry(
             &self.backup_dir().join(name),
             &entry,
+            self.unlocked_keys().as_deref(),
         )?)
     }
 
@@ -2677,7 +2962,7 @@ impl AppState {
         use notatnik_graph::ChangeStatus;
         self.with_open(|o| {
             let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
-            let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+            let opts = self.read_options(&o.graph.id())?;
             let changes = o
                 .graph
                 .compare_backup(&primary_dir(&self.dirs, &dev), &a.name, &opts)?
@@ -2703,7 +2988,7 @@ impl AppState {
     pub fn backup_file_diff(&self, a: BackupFileArgs) -> ApiResult<BackupFileDiff> {
         self.with_open(|o| {
             let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
-            let opts = backup_options(&self.dirs, &dev, &o.graph.id());
+            let opts = self.read_options(&o.graph.id())?;
             let d = o.graph.backup_file_diff(
                 &primary_dir(&self.dirs, &dev),
                 &a.name,
@@ -2782,7 +3067,8 @@ impl AppState {
                 &a.name,
                 &rel,
                 chrono::Local::now().naive_local(),
-                &backup_options(&self.dirs, &dev, &o.graph.id()),
+                &backup_options(&self.dirs, &dev, &o.graph.id(), self.unlocked_keys(), true)
+                    .map_err(|m| ApiError::new("invalid", m))?,
             )?;
             // undo cannot follow a replaced file
             o.undo.retain(|e| e.rel != rel);

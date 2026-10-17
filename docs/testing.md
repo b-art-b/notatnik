@@ -124,7 +124,7 @@ must never regress:
 5. **No silent deletion:** sync logic (file sync, CalDAV) never deletes user content without either an explicit user action or a recoverable copy.
 6. **Backups round-trip and stay outside:** a snapshot restores byte for byte (all files but `.notatnik/tmp/`), is refused
    inside the graph folder, never leaves a `.partial` file, and replacing a page from a snapshot first saves the version
-   it replaces (BK-1..BK-10, including the comparison with the current state, stored vs deflated entries, the device files, the second folder and the settings preview; `crates/graph/tests/graph.rs`, `crates/app/tests/app.rs`, `ui/tests/backup.spec.ts`).
+   it replaces (BK-1..BK-10 and EN-2..EN-6 (sealed snapshots hold no marker string, lock and unlock by password and recovery key, never plain, conversion, `notatnik decrypt`), including the comparison with the current state, stored vs deflated entries, the device files, the second folder and the settings preview; `crates/graph/tests/graph.rs`, `crates/app/tests/app.rs`, `ui/tests/backup.spec.ts`).
 7. **Interrupted operations are undone:** a journal record left by a rename or delete that stopped half way is rolled back on
    open (files byte for byte as before), a completed one is only dropped, and a normal operation leaves no record
    (`crates/graph/tests/graph.rs`: `a_rename_that_died_half_way...`, `a_delete_that_died_half_way...`).

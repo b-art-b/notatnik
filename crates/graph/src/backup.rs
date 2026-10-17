@@ -15,10 +15,12 @@
 //! A second folder keeps copies of the snapshots (BK-9, [`sync_mirror`]).
 
 use std::collections::BTreeSet;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
+use notatnik_crypt::{Keys, Vault};
 
 use crate::{Error, Graph, Result};
 
@@ -45,14 +47,20 @@ pub struct Extra {
     pub tracked: bool,
 }
 
-/// How a snapshot is written.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// How a snapshot is written and read.
+#[derive(Debug, Clone)]
 pub struct BackupOptions {
     /// Deflate the entries (BK-7). `false` only stores them: bigger files, but they stay readable in place and suit
     /// a target that compresses or deduplicates by itself.
     pub compress: bool,
     /// Device files saved with the graph.
     pub extras: Vec<Extra>,
+    /// Seal new snapshots to this vault's public key (EN-5): no password is needed to write them, and the file
+    /// is `...zip.enc`. Never falls back to a plain zip: the caller decides whether to write at all.
+    pub seal_to: Option<Vault>,
+    /// The unlocked vault, needed to read an encrypted snapshot (compare, restore) and used to read a new one
+    /// back completely. `None` while the backups are locked.
+    pub keys: Option<Arc<Keys>>,
 }
 
 impl Default for BackupOptions {
@@ -60,6 +68,8 @@ impl Default for BackupOptions {
         BackupOptions {
             compress: true,
             extras: Vec::new(),
+            seal_to: None,
+            keys: None,
         }
     }
 }
@@ -75,36 +85,42 @@ pub struct BackupFile {
     pub created: NaiveDateTime,
     /// Taken automatically before a bulk change (rename, delete, restore), not on the schedule.
     pub before: bool,
-    /// Size of the zip in bytes.
+    /// Size of the file in bytes.
     pub bytes: u64,
+    /// Sealed to a vault (`.zip.enc`): reading it needs the password or the recovery key.
+    pub encrypted: bool,
 }
 
-fn file_name(graph_id: &str, at: NaiveDateTime, before: bool) -> String {
+fn file_name(graph_id: &str, at: NaiveDateTime, before: bool, encrypted: bool) -> String {
     let tag = if before { "-before" } else { "" };
+    let ext = if encrypted { "zip.enc" } else { "zip" };
     format!(
-        "notatnik-{graph_id}-{}{tag}.zip",
+        "notatnik-{graph_id}-{}{tag}.{ext}",
         at.format("%Y%m%d-%H%M%S")
     )
 }
 
-fn parse_name(graph_id: &str, name: &str) -> Option<(NaiveDateTime, bool)> {
-    let stamp = name
+fn parse_name(graph_id: &str, name: &str) -> Option<(NaiveDateTime, bool, bool)> {
+    let rest = name
         .strip_prefix("notatnik-")?
         .strip_prefix(graph_id)?
-        .strip_prefix('-')?
-        .strip_suffix(".zip")?;
+        .strip_prefix('-')?;
+    let (stamp, encrypted) = match rest.strip_suffix(".zip.enc") {
+        Some(s) => (s, true),
+        None => (rest.strip_suffix(".zip")?, false),
+    };
     let (stamp, before) = match stamp.strip_suffix("-before") {
         Some(s) => (s, true),
         None => (stamp, false),
     };
     let at = NaiveDateTime::parse_from_str(stamp, "%Y%m%d-%H%M%S").ok()?;
-    Some((at, before))
+    Some((at, before, encrypted))
 }
 
 /// A snapshot name is a plain file name of this module's form: never a path.
 fn check_name(name: &str) -> Result<()> {
     let ok = name.starts_with("notatnik-")
-        && name.ends_with(".zip")
+        && (name.ends_with(".zip") || name.ends_with(".zip.enc"))
         && !name.contains(['/', '\\'])
         && !name.contains("..");
     if ok {
@@ -123,7 +139,7 @@ pub fn list_backups(dir: &Path, graph_id: &str) -> Vec<BackupFile> {
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_str()?.to_string();
-            let (created, before) = parse_name(graph_id, &name)?;
+            let (created, before, encrypted) = parse_name(graph_id, &name)?;
             let bytes = e.metadata().ok()?.len();
             Some(BackupFile {
                 name,
@@ -131,6 +147,7 @@ pub fn list_backups(dir: &Path, graph_id: &str) -> Vec<BackupFile> {
                 created,
                 before,
                 bytes,
+                encrypted,
             })
         })
         .collect();
@@ -234,12 +251,38 @@ fn zip_err(e: zip::result::ZipError) -> Error {
     Error::Io(std::io::Error::other(e.to_string()))
 }
 
-/// The fingerprint stored in a snapshot (None for a file that is not one of ours).
+/// The fingerprint stored in a snapshot (None for a file that is not one of ours): in the zip comment, or for a
+/// sealed file in the comment of its header, which can be read without a key.
 fn stored_fingerprint(path: &Path) -> Option<String> {
     let f = std::fs::File::open(path).ok()?;
-    let z = zip::ZipArchive::new(f).ok()?;
-    let c = String::from_utf8_lossy(z.comment()).into_owned();
+    let c = if path.extension().is_some_and(|e| e == "enc") {
+        let h = notatnik_crypt::read_header(&mut std::io::BufReader::new(f)).ok()?;
+        String::from_utf8_lossy(&h.comment).into_owned()
+    } else {
+        let z = zip::ZipArchive::new(f).ok()?;
+        String::from_utf8_lossy(z.comment()).into_owned()
+    };
     c.strip_prefix(COMMENT_PREFIX).map(str::to_string)
+}
+
+/// Opens a snapshot as a zip. A sealed one is decrypted into an unnamed temporary file first (deleted when it is
+/// closed); that needs the unlocked keys.
+fn open_zip(path: &Path, keys: Option<&Keys>) -> Result<zip::ZipArchive<std::fs::File>> {
+    let mut f = std::fs::File::open(path)?;
+    if path.extension().is_some_and(|e| e == "enc") {
+        let keys = keys.ok_or_else(|| {
+            Error::Locked("this snapshot is encrypted: unlock the backups first".into())
+        })?;
+        let mut tmp = tempfile::tempfile()?;
+        {
+            let mut w = std::io::BufWriter::new(&mut tmp);
+            notatnik_crypt::open(keys, &mut std::io::BufReader::new(&mut f), &mut w)?;
+            w.flush()?;
+        }
+        tmp.rewind()?;
+        f = tmp;
+    }
+    zip::ZipArchive::new(f).map_err(zip_err)
 }
 
 /// A restore target must be a folder that does not exist yet or is empty.
@@ -261,10 +304,9 @@ fn check_target(target: &Path) -> Result<()> {
 
 /// Unpacks a snapshot into `target` (a new or empty folder). Returns the number of files.
 /// The result opens as a graph. Entries with unsafe names are skipped.
-pub fn restore_backup(zip_path: &Path, target: &Path) -> Result<usize> {
+pub fn restore_backup(zip_path: &Path, target: &Path, keys: Option<&Keys>) -> Result<usize> {
     check_target(target)?;
-    let f = std::fs::File::open(zip_path)?;
-    let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+    let mut z = open_zip(zip_path, keys)?;
     std::fs::create_dir_all(target)?;
     let mut n = 0;
     for i in 0..z.len() {
@@ -286,10 +328,95 @@ pub fn restore_backup(zip_path: &Path, target: &Path) -> Result<usize> {
     Ok(n)
 }
 
+/// Writes the zip of a snapshot into `out` and returns the number of entries.
+fn write_zip(
+    out: &std::fs::File,
+    files: &[(String, PathBuf)],
+    device: &[(String, PathBuf)],
+    method: zip::CompressionMethod,
+    comment: &str,
+) -> Result<usize> {
+    let mut z = zip::ZipWriter::new(std::io::BufWriter::new(out));
+    z.set_comment(comment);
+    let zopts = zip::write::SimpleFileOptions::default().compression_method(method);
+    let mut count = 0;
+    for (rel, abs) in files.iter().chain(device) {
+        // a file that vanished or is unreadable now is skipped: the next snapshot has it
+        let Ok(buf) = std::fs::read(abs) else {
+            continue;
+        };
+        z.start_file(rel.as_str(), zopts).map_err(zip_err)?;
+        z.write_all(&buf)?;
+        count += 1;
+    }
+    let mut w = z.finish().map_err(zip_err)?;
+    w.flush()?;
+    Ok(count)
+}
+
+/// Checks a sealed file that was just written: the header must read back and name this vault. With the unlocked
+/// keys of that vault the whole file is decrypted as well, which also proves that the keys are the right ones.
+fn check_sealed(path: &Path, vault: &Vault, keys: Option<&Keys>) -> Result<()> {
+    let mut r = std::io::BufReader::new(std::fs::File::open(path)?);
+    let h = notatnik_crypt::read_header(&mut r)?;
+    if h.vault.key_id != vault.key_id {
+        return Err(Error::Crypt("the sealed file names another vault".into()));
+    }
+    if let Some(k) = keys.filter(|k| k.key_id() == vault.key_id) {
+        let mut r = std::io::BufReader::new(std::fs::File::open(path)?);
+        notatnik_crypt::open(k, &mut r, &mut std::io::sink())?;
+    }
+    Ok(())
+}
+
+/// Seals every plain snapshot of the graph in `dir` to `vault` and removes the plain file afterwards (EN-6).
+/// Returns how many were converted. A snapshot whose sealed twin already exists is left alone.
+pub fn seal_existing(dir: &Path, graph_id: &str, vault: &Vault) -> Result<usize> {
+    let mut n = 0;
+    for b in list_backups(dir, graph_id)
+        .into_iter()
+        .filter(|b| !b.encrypted)
+    {
+        let dest = dir.join(format!("{}.enc", b.name));
+        if dest.exists() {
+            continue;
+        }
+        let comment = stored_fingerprint(&b.path)
+            .map(|f| format!("{COMMENT_PREFIX}{f}"))
+            .unwrap_or_default();
+        let partial = dir.join(format!("{}.enc.partial", b.name));
+        let done = (|| -> Result<()> {
+            let mut w = std::io::BufWriter::new(std::fs::File::create(&partial)?);
+            let src = std::fs::File::open(&b.path)?;
+            notatnik_crypt::seal(
+                vault,
+                comment.as_bytes(),
+                &mut std::io::BufReader::new(src),
+                &mut w,
+            )?;
+            w.flush()?;
+            w.get_ref().sync_all()?;
+            drop(w);
+            check_sealed(&partial, vault, None)
+        })();
+        if let Err(e) = done {
+            let _ = std::fs::remove_file(&partial);
+            return Err(e);
+        }
+        std::fs::rename(&partial, &dest)?;
+        std::fs::remove_file(&b.path)?;
+        n += 1;
+    }
+    Ok(n)
+}
+
 /// Re-reads a snapshot that was just written: it must open and hold `count` entries. A file that fails this is
 /// never kept as a backup.
 fn verify(path: &Path, count: usize) -> Result<()> {
-    let f = std::fs::File::open(path)?;
+    verify_zip(std::fs::File::open(path)?, count)
+}
+
+fn verify_zip<R: Read + Seek>(f: R, count: usize) -> Result<()> {
     let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
     if z.len() != count {
         return Err(Error::Io(std::io::Error::other(format!(
@@ -306,9 +433,8 @@ fn verify(path: &Path, count: usize) -> Result<()> {
 }
 
 /// The text of one entry of a snapshot (None when it has no such entry).
-pub fn read_entry(zip_path: &Path, entry: &str) -> Result<Option<String>> {
-    let f = std::fs::File::open(zip_path)?;
-    let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+pub fn read_entry(zip_path: &Path, entry: &str, keys: Option<&Keys>) -> Result<Option<String>> {
+    let mut z = open_zip(zip_path, keys)?;
     let Ok(mut e) = z.by_name(entry) else {
         return Ok(None);
     };
@@ -513,8 +639,7 @@ impl Graph {
         opts: &BackupOptions,
     ) -> Result<Vec<FileChange>> {
         check_name(name)?;
-        let f = std::fs::File::open(dir.join(name))?;
-        let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+        let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
         let mut saved: std::collections::BTreeMap<String, Vec<u8>> = Default::default();
         for i in 0..z.len() {
             let mut e = z.by_index(i).map_err(zip_err)?;
@@ -587,8 +712,7 @@ impl Graph {
         opts: &BackupOptions,
     ) -> Result<FileDiff> {
         check_name(name)?;
-        let f = std::fs::File::open(dir.join(name))?;
-        let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+        let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
         let then = match z.by_name(path) {
             Ok(mut e) => {
                 let mut buf = Vec::new();
@@ -678,7 +802,11 @@ impl Graph {
                 if min_age.is_some_and(|a| now.signed_duration_since(newest.created) < a) {
                     return Ok(None);
                 }
-                if stored_fingerprint(&newest.path).as_deref() == Some(fp.as_str()) {
+                // a plain newest snapshot does not stand in for a sealed one (encryption was just turned on), and
+                // the other way round
+                if newest.encrypted == opts.seal_to.is_some()
+                    && stored_fingerprint(&newest.path).as_deref() == Some(fp.as_str())
+                {
                     return Ok(None);
                 }
             }
@@ -686,41 +814,54 @@ impl Graph {
         std::fs::create_dir_all(dir)?;
         // two snapshots in one second (a forced one right after another): the later one waits for a free name
         let mut at = now.with_nanosecond(0).unwrap_or(now);
-        while dir.join(file_name(&id, at, before)).exists() {
+        let sealed = opts.seal_to.is_some();
+        while dir.join(file_name(&id, at, before, sealed)).exists() {
             at += chrono::Duration::seconds(1);
         }
-        let name = file_name(&id, at, before);
+        let name = file_name(&id, at, before, sealed);
         let dest = dir.join(&name);
         let partial = dir.join(format!("{name}.partial"));
+        let comment = format!("{COMMENT_PREFIX}{fp}");
         let written = (|| -> Result<()> {
-            let f = std::fs::File::create(&partial)?;
-            let mut z = zip::ZipWriter::new(std::io::BufWriter::new(f));
-            z.set_comment(format!("{COMMENT_PREFIX}{fp}"));
             let method = if opts.compress {
                 zip::CompressionMethod::Deflated
             } else {
                 zip::CompressionMethod::Stored
             };
-            let zopts = zip::write::SimpleFileOptions::default().compression_method(method);
-            let device = opts
+            let device: Vec<(String, PathBuf)> = opts
                 .extras
                 .iter()
-                .map(|x| (format!("{DEVICE_DIR}/{}", x.name), x.path.clone()));
-            let mut count = 0;
-            for (rel, abs) in files.iter().cloned().chain(device) {
-                // a file that vanished or is unreadable now is skipped: the next snapshot has it
-                let Ok(buf) = std::fs::read(&abs) else {
-                    continue;
-                };
-                z.start_file(rel.as_str(), zopts).map_err(zip_err)?;
-                z.write_all(&buf)?;
-                count += 1;
+                .map(|x| (format!("{DEVICE_DIR}/{}", x.name), x.path.clone()))
+                .collect();
+            match &opts.seal_to {
+                None => {
+                    let f = std::fs::File::create(&partial)?;
+                    let count = write_zip(&f, &files, &device, method, &comment)?;
+                    f.sync_all()?;
+                    drop(f);
+                    verify(&partial, count)
+                }
+                Some(vault) => {
+                    // the plain zip exists only in an unnamed temporary file, never in the backup folder
+                    let mut tmp = tempfile::tempfile()?;
+                    let count = write_zip(&tmp, &files, &device, method, &comment)?;
+                    tmp.rewind()?;
+                    verify_zip(&tmp, count)?;
+                    tmp.rewind()?;
+                    let out = std::fs::File::create(&partial)?;
+                    let mut w = std::io::BufWriter::new(out);
+                    notatnik_crypt::seal(
+                        vault,
+                        comment.as_bytes(),
+                        &mut std::io::BufReader::new(&tmp),
+                        &mut w,
+                    )?;
+                    w.flush()?;
+                    w.get_ref().sync_all()?;
+                    drop(w);
+                    check_sealed(&partial, vault, opts.keys.as_deref())
+                }
             }
-            let mut w = z.finish().map_err(zip_err)?;
-            w.flush()?;
-            w.get_ref().sync_all()?;
-            drop(w);
-            verify(&partial, count)
         })();
         if let Err(e) = written {
             let _ = std::fs::remove_file(&partial);
@@ -734,6 +875,7 @@ impl Graph {
             created: at,
             before,
             bytes,
+            encrypted: sealed,
         };
         let all = list_backups(dir, &id);
         for old in expired(&all) {
@@ -756,8 +898,7 @@ impl Graph {
     ) -> Result<()> {
         check_name(name)?;
         crate::check_rel(rel)?;
-        let f = std::fs::File::open(dir.join(name))?;
-        let mut z = zip::ZipArchive::new(f).map_err(zip_err)?;
+        let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
         let mut text = String::new();
         {
             let mut entry = z
@@ -777,7 +918,13 @@ impl Graph {
     }
 
     /// Unpacks a snapshot of this graph from `dir` into a new or empty folder.
-    pub fn restore_backup_to(&self, dir: &Path, name: &str, target: &Path) -> Result<usize> {
+    pub fn restore_backup_to(
+        &self,
+        dir: &Path,
+        name: &str,
+        target: &Path,
+        opts: &BackupOptions,
+    ) -> Result<usize> {
         check_name(name)?;
         let root = self.root().to_path_buf();
         if target.starts_with(&root) {
@@ -785,7 +932,7 @@ impl Graph {
                 "restore into a folder outside the graph folder".into(),
             ));
         }
-        restore_backup(&dir.join(name), target)
+        restore_backup(&dir.join(name), target, opts.keys.as_deref())
     }
 
     /// The snapshots of this graph in `dir`, newest first.
@@ -804,31 +951,40 @@ mod tests {
 
     fn fake(id: &str, s: &str) -> BackupFile {
         let created = at(s);
-        let name = file_name(id, created, false);
+        let name = file_name(id, created, false, false);
         BackupFile {
             path: PathBuf::from(&name),
             name,
             created,
             before: false,
             bytes: 1,
+            encrypted: false,
         }
     }
 
     #[test]
     fn names_round_trip_and_belong_to_one_graph() {
-        let n = file_name("gab12cd", at("2026-10-10 09:30:05"), false);
+        let n = file_name("gab12cd", at("2026-10-10 09:30:05"), false, false);
         assert_eq!(n, "notatnik-gab12cd-20261010-093005.zip");
         assert_eq!(
             parse_name("gab12cd", &n),
-            Some((at("2026-10-10 09:30:05"), false))
+            Some((at("2026-10-10 09:30:05"), false, false))
         );
-        let b = file_name("gab12cd", at("2026-10-10 09:30:05"), true);
+        let b = file_name("gab12cd", at("2026-10-10 09:30:05"), true, false);
         assert_eq!(b, "notatnik-gab12cd-20261010-093005-before.zip");
         assert_eq!(
             parse_name("gab12cd", &b),
-            Some((at("2026-10-10 09:30:05"), true))
+            Some((at("2026-10-10 09:30:05"), true, false))
         );
         assert!(check_name(&b).is_ok());
+        let e = file_name("gab12cd", at("2026-10-10 09:30:05"), false, true);
+        assert_eq!(e, "notatnik-gab12cd-20261010-093005.zip.enc");
+        assert_eq!(
+            parse_name("gab12cd", &e),
+            Some((at("2026-10-10 09:30:05"), false, true))
+        );
+        assert!(check_name(&e).is_ok());
+        assert!(check_name("notatnik-g-20261010-093005.enc").is_err());
         assert_eq!(parse_name("gother", &n), None);
         assert_eq!(parse_name("gab12cd", "notatnik-gab12cd-x.zip"), None);
         assert!(check_name(&n).is_ok());
