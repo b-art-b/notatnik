@@ -29,22 +29,22 @@ JR-4, JR-6, ED-10, ED-11, ED-14, NF-10 (string externalisation).
 ## 5A: Data safety
 
 ### P5.1 Three-way merge engine
-- [ ] In `core`: `merge(base, ours, theirs) -> MergeResult { merged_text, conflicts: Vec<BlockConflict> }`, working at **block level** (block trees aligned using block IDs, then content similarity, then position), with line-level diff3 inside a block only when both sides changed it
-- [ ] Base = the history snapshot (P1.36)
+- [x] In `core`: `merge(base, ours, theirs) -> MergeResult { merged_text, conflicts: Vec<BlockConflict> }`, working at **block level** (block trees aligned using block IDs, then content similarity, then position), with line-level diff3 inside a block only when both sides changed it
+- [x] Base = the page as last synced, kept by the sync (`<replica>.sync-bases`); for a conflict copy its ancestor; else a guess from the history snapshots (P1.36)
 
 **Verify**
-- [ ] Table tests (≥ 15 cases): different blocks edited → clean merge; same block edited identically → clean; same block edited differently → conflict; one side deletes a block the other edited → conflict; both add blocks at the same place → both kept (ours first); property changes merged per key
-- [ ] Property test: `merge(base, x, base) == x` and `merge(base, base, x) == x` for random trees
-- [ ] A clean merge result reparses with no new diagnostics
+- [x] Table tests (≥ 15 cases): different blocks edited → clean merge; same block edited identically → clean; same block edited differently → conflict; one side deletes a block the other edited → conflict; both add blocks at the same place → both kept (ours first); property changes merged per key
+- [x] Property test: `merge(base, x, base) == x` and `merge(base, base, x) == x` for random trees
+- [x] A clean merge result reparses with no new diagnostics
 
 ### P5.2 Conflict resolution view (ST-6)
-- [ ] For each Nextcloud conflict file: automatic merge attempt with P5.1; if clean → show the merged preview, one-click accept; else side-by-side view per conflicting block (ours / theirs / both / edit manually)
-- [ ] On accept: write the merged file (guarded), move the conflict file to `.notatnik/trash/` (recoverable), never delete it directly
+- [x] For each Nextcloud conflict file: automatic merge attempt with P5.1; if clean → show the merged preview, one-click accept; else side-by-side view per conflicting block (ours / theirs / both / edit manually)
+- [x] On accept: write the merged file (guarded), move the conflict file to `.notatnik/trash/` (recoverable), never delete it directly
 
 **Verify**
-- [ ] Create a real Nextcloud conflict (edit the same page on two devices while offline, then reconnect) → the conflict view appears; resolving yields a file containing both edits
-- [ ] The resolved conflict file is in `.notatnik/trash/` and can be restored
-- [ ] A clean merge with one click: the file on disk equals the previewed result exactly
+- [x] A conflict made by the sync engine (two devices, in-memory server) appears in the conflict view; resolving yields a file containing both edits (`conflicts.spec.ts`; not yet tried with a real Nextcloud client's copy)
+- [ ] The resolved conflict file is in `.notatnik/trash/` (done, tested); a restore button is not built, it is copied back by hand
+- [x] A clean merge with one click: the file on disk equals the previewed result exactly
 
 ### P5.3 Integrity check UI (ST-9)
 - [ ] A "Graph health" screen running `check`: broken links, duplicate block IDs (with a fix action: re-ID one), orphan assets, parse diagnostics with jump-to-location

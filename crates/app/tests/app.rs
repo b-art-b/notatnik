@@ -2942,6 +2942,106 @@ fn pasted_images_are_stored_once_and_linked_relative_to_the_page() {
     }
 }
 
+/// ST-6, P5.2: a conflict copy is merged with its page from the page as it was at the last sync: a clean merge
+/// is one click, a real conflict is decided block by block, and the copy goes to the trash.
+#[test]
+fn a_conflict_copy_is_merged_with_its_page_and_trashed() {
+    let t = start("basic");
+    let g = t.graph();
+    let copy = "pages/trip (conflicted copy 2026-10-17 123000).md";
+    let write = |rel: &str, text: &str| std::fs::write(g.join(rel), text).unwrap();
+    write(
+        "pages/trip.md",
+        "- pack\n- book hotel server\n- buy tickets\n",
+    );
+    write(copy, "- pack bags\n- book hotel\n- buy tickets\n");
+    let bases = notatnik_sync::Bases::new(Some(t.tmp.path().join("graph.sync-bases")));
+    bases.save_ancestor(copy, b"- pack\n- book hotel\n- buy tickets\n");
+
+    // only the copy changed "pack", only the page changed the hotel line: nothing to decide
+    let v = t.ok("conflict_merge", json!({"path": copy, "choices": []}));
+    assert_eq!(v["base"], "synced");
+    assert_eq!(v["clean"], true, "{v}");
+    assert_eq!(
+        v["merged_text"],
+        "- pack bags\n- book hotel server\n- buy tickets\n"
+    );
+    let hash = v["original_hash"].as_str().unwrap().to_string();
+
+    // a page that changed since the view is not overwritten
+    write("pages/trip.md", "- other change\n");
+    let e = t
+        .call(
+            "resolve_conflict",
+            json!({"path": copy, "mode": "merge", "choices": [], "expected_hash": hash}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "conflict");
+    assert!(g.join(copy).exists());
+
+    // both edited the same line: one conflict, decided by the user
+    write(
+        "pages/trip.md",
+        "- pack: mine\n- book hotel\n- buy tickets\n",
+    );
+    let v = t.ok("conflict_merge", json!({"path": copy, "choices": []}));
+    assert_eq!(v["clean"], false);
+    assert_eq!(v["conflicts"].as_array().unwrap().len(), 1);
+    assert_eq!(v["conflicts"][0]["kind"], "edit");
+    assert_eq!(v["conflicts"][0]["theirs"], "- pack bags\n");
+    let v = t.ok(
+        "conflict_merge",
+        json!({"path": copy, "choices": [{"pick": "both", "text": null}]}),
+    );
+    assert_eq!(
+        v["merged_text"],
+        "- pack: mine\n- pack bags\n- book hotel\n- buy tickets\n"
+    );
+    let left = t.ok(
+        "resolve_conflict",
+        json!({"path": copy, "mode": "merge", "choices": [{"pick": "both", "text": null}], "expected_hash": v["original_hash"]}),
+    );
+    assert!(left["items"].as_array().unwrap().is_empty());
+    assert_eq!(
+        std::fs::read_to_string(g.join("pages/trip.md")).unwrap(),
+        "- pack: mine\n- pack bags\n- book hotel\n- buy tickets\n"
+    );
+    // the copy is in the trash, and its ancestor is forgotten
+    assert!(!g.join(copy).exists());
+    assert!(g.join(".notatnik/trash").join(copy).exists());
+    assert!(bases.ancestor(copy).is_none());
+}
+
+/// ST-6: without an ancestor from the sync the page's version history gives a guess; with nothing to go on the
+/// page and the copy can only be kept or taken.
+#[test]
+fn a_conflict_copy_without_an_ancestor_can_be_kept_or_taken() {
+    let t = start("basic");
+    let g = t.graph();
+    let copy = "pages/note (conflicted copy 2026-10-17 123000).md";
+    std::fs::write(g.join("pages/note.md"), "- mine\n").unwrap();
+    std::fs::write(g.join(copy), "- theirs\n").unwrap();
+    let v = t.ok("conflict_merge", json!({"path": copy, "choices": []}));
+    assert_eq!(v["base"], "none");
+    assert!(v["merged_text"].is_null());
+    let e = t
+        .call(
+            "resolve_conflict",
+            json!({"path": copy, "mode": "merge", "choices": [], "expected_hash": null}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "invalid");
+    t.ok(
+        "resolve_conflict",
+        json!({"path": copy, "mode": "use_copy", "choices": [], "expected_hash": null}),
+    );
+    assert_eq!(
+        std::fs::read_to_string(g.join("pages/note.md")).unwrap(),
+        "- theirs\n"
+    );
+    assert!(!g.join(copy).exists());
+}
+
 /// ST-8: assets no page mentions are listed and can be moved to the trash; a linked one is never offered.
 #[test]
 fn unused_images_are_listed_and_trashed_but_linked_ones_stay() {

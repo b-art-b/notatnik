@@ -47,6 +47,28 @@
     <span data-testid="sync-user">{st.user}</span>
   </SettingRow>
   <SettingRow
+    title="Merge changes from two devices"
+    description="When the same page was changed here and on the server, combine the changes block by block if they do not overlap. Off, or when they do overlap, your version is kept next to the server's as a conflicted copy that you resolve under the conflict warning."
+    labelFor="sync-merge"
+  >
+    <input
+      id="sync-merge"
+      class="switch"
+      type="checkbox"
+      role="switch"
+      checked={st.merge}
+      onchange={async (e) => {
+        try {
+          sync.status = await backend.call('sync_set_merge', {
+            enabled: (e.currentTarget as HTMLInputElement).checked,
+          })
+        } catch (err) {
+          toast(errorMessage(err), 'error')
+        }
+      }}
+    />
+  </SettingRow>
+  <SettingRow
     title="Status"
     description="Changes here are sent a few seconds after you stop typing, changes elsewhere arrive within a minute, and the app syncs once more when it closes."
   >

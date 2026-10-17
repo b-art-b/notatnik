@@ -395,6 +395,13 @@ pub struct RemoteConfig {
     /// The server's folder ETags change whenever something below changes (found by the connection test).
     #[serde(default)]
     pub trust_folder_etags: bool,
+    /// Merge a page that changed on both sides when the merge is clean (ST-6); off keeps a "conflicted copy".
+    #[serde(default = "yes")]
+    pub merge: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// Per-device appearance settings.

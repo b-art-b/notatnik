@@ -45,7 +45,7 @@ A **graph** is a folder of notes.
 | ST-3 | Round-trip fidelity: files the app did not edit stay byte-for-byte unchanged. Editing a block rewrites only that block's text range. | MVP |
 | ST-4 | Writes are atomic (temp file + rename) and never clobber a newer external change. If the file changed on disk since it was read, merge or raise a conflict instead of overwriting. | MVP |
 | ST-5 | Detect external changes (Nextcloud client, text editor, git) and reindex them within ~1 s. | MVP |
-| ST-6 | Detect Nextcloud conflict files (`* (conflicted copy *).md`) and show them in a "Conflicts" view with a side-by-side diff and merge helper. | V1 |
+| ST-6 | Detect Nextcloud conflict files (`* (conflicted copy *).md`) and show them in a "Conflicts" view with a block-level three-way merge: a clean merge in one click, otherwise a decision per block (page, copy, both, edit); the sync merges a page changed on two devices by itself when the changes do not overlap. | V1 |
 | ST-7 | Multiple graphs, switchable from the UI. | V1 |
 | ST-8 | Assets (images, attachments) are stored in `assets/` and referenced by relative path. Paste and drop of images (png, jpeg, gif, webp, up to 25 MB) store `assets/YYYY/MM/<name>-<hash8>.<ext>` once per content and insert `![](relative/path)`; the extension comes from the bytes, never from the claimed name; moving a page keeps its relative paths working. Settings → Graph lists unused files in `assets/` (no page mentions the path) and moves them to the trash on request. Attachments other than images are open. | V1 |
 | ST-9 | Full reindex command plus an integrity check (broken links, duplicate block IDs, orphan assets). | V1 |

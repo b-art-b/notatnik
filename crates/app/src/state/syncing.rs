@@ -66,12 +66,22 @@ fn state_file(replica: &Path) -> PathBuf {
     replica.with_file_name(format!("{name}.sync-state.json"))
 }
 
+/// Where the pages as last synced are kept, beside the replica and the state file (ST-2).
+pub(super) fn bases_dir(replica: &Path) -> PathBuf {
+    let name = replica
+        .file_name()
+        .map_or_else(|| "graph".into(), |n| n.to_string_lossy().into_owned());
+    replica.with_file_name(format!("{name}.sync-bases"))
+}
+
 /// What the graph's sync is doing and has done, shown in the status line and in the settings.
 pub(super) struct SyncCtx {
     root: PathBuf,
     cfg: RemoteConfig,
     secrets: Arc<dyn Secrets>,
     emit: Emitter,
+    /// Merge pages changed on both sides (the setting; read at each sync).
+    merge: AtomicBool,
     status: Mutex<SyncStatus>,
     /// One sync at a time, whether it was asked for or came from the timer.
     gate: Mutex<()>,
@@ -159,6 +169,7 @@ impl SyncCtx {
                 s.pulled = report.pulled.len() as u32;
                 s.deleted = (report.deleted_remote.len() + report.deleted_local.len()) as u32;
                 s.conflicts = report.conflicts.len() as u32;
+                s.merged = report.merged.len() as u32;
                 s.file_errors = report
                     .errors
                     .iter()
@@ -199,6 +210,8 @@ impl SyncCtx {
         let mut opts = Options::new(state_file(&self.root));
         opts.trust_folder_etags = self.cfg.trust_folder_etags;
         opts.allow_mass_delete = allow_mass_delete;
+        opts.bases = notatnik_sync::Bases::new(Some(bases_dir(&self.root)));
+        opts.merge = self.merge.load(Ordering::Relaxed);
         notatnik_sync::sync(&self.root, &remote, &opts)
     }
 }
@@ -263,6 +276,7 @@ impl AppState {
         let ctx = Arc::new(SyncCtx {
             root: root.to_path_buf(),
             status: Mutex::new(SyncStatus::idle(&cfg)),
+            merge: AtomicBool::new(cfg.merge),
             cfg,
             secrets: self.secrets.clone(),
             emit: self.emit.clone(),
@@ -301,6 +315,20 @@ impl AppState {
                 .as_ref()
                 .map_or_else(SyncStatus::off, |t| t.ctx.snapshot()))
         })
+    }
+
+    /// `sync_set_merge`: turns the merge of pages changed on both sides on or off for this graph.
+    pub fn sync_set_merge(&self, a: SyncMergeArgs) -> ApiResult<SyncStatus> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let ctx = self.sync_ctx()?;
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        if let Some(mut cfg) = dev.remote_of(&id) {
+            cfg.merge = a.enabled;
+            dev.set_remote(&id, Some(cfg));
+            dev.save(&self.dirs)?;
+        }
+        ctx.merge.store(a.enabled, Ordering::Relaxed);
+        Ok(ctx.set_status(|s| s.merge = a.enabled))
     }
 
     /// `sync_now`: syncs now and returns how it went. `allow_mass_delete` lets a sync that was stopped for wanting
@@ -411,10 +439,12 @@ impl AppState {
         let cleanup = |replica: &Path| {
             let _ = std::fs::remove_dir_all(replica);
             let _ = std::fs::remove_file(state_file(replica));
+            let _ = std::fs::remove_dir_all(bases_dir(replica));
         };
         if has_graph {
             let mut opts = Options::new(state_file(&replica));
             opts.trust_folder_etags = probe.trusts_folder_etags;
+            opts.bases = notatnik_sync::Bases::new(Some(bases_dir(&replica)));
             let report = notatnik_sync::sync(&replica, &remote, &opts).map_err(|e| {
                 cleanup(&replica);
                 api_err(&e)
@@ -444,6 +474,7 @@ impl AppState {
             url,
             user: a.user.clone(),
             trust_folder_etags: probe.trusts_folder_etags,
+            merge: true,
         };
         self.secrets
             .set(&secret_key(&cfg), &a.password)
@@ -477,6 +508,7 @@ impl AppState {
         dev.set_remote(&id, None);
         dev.save(&self.dirs)?;
         let _ = std::fs::remove_file(state_file(&root));
+        let _ = std::fs::remove_dir_all(bases_dir(&root));
         self.open_graph(OpenGraphArgs {
             path: root.to_string_lossy().into_owned(),
             create: false,

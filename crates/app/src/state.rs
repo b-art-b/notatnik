@@ -279,6 +279,7 @@ impl Drop for BackupTask {
     }
 }
 
+mod conflicts;
 mod syncing;
 pub use syncing::{MemorySecrets, Secrets};
 

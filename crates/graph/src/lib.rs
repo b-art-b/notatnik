@@ -808,6 +808,27 @@ impl Graph {
         Ok(stats)
     }
 
+    /// Moves a conflict copy to `.notatnik/trash/` (recoverable; never synced) once it is resolved. Only files
+    /// that are conflict copies can go this way.
+    pub fn trash_conflict_file(&self, rel: &str) -> Result<()> {
+        check_rel(rel)?;
+        if !self.conflict_files()?.iter().any(|c| c == rel) {
+            return Err(Error::NotFound(format!("{rel} is not a conflict copy")));
+        }
+        let base = self.root.join(".notatnik").join("trash").join(rel);
+        let mut target = base.clone();
+        let mut n = 1;
+        while target.exists() {
+            target = std::path::PathBuf::from(format!("{}.{n}", base.display()));
+            n += 1;
+        }
+        if let Some(dir) = target.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::rename(self.root.join(rel), target)?;
+        Ok(())
+    }
+
     /// Nextcloud conflict copies currently in the graph (not indexed as pages).
     pub fn conflict_files(&self) -> Result<Vec<String>> {
         Ok(walk::scan(&self.root)?.conflicts)

@@ -70,10 +70,19 @@ sync (kept in `~/.local/share/notatnik/replicas/<name>.sync-state.json`, outside
 | changed | deleted | | upload again (an edit beats a deletion) |
 | new | new (no history) | | compare contents; equal → nothing, different → conflict |
 
-A **conflict** keeps the server's version at the path and saves yours next to it as
-`name (conflicted copy YYYY-MM-DD HHMMSS).ext`. That copy is uploaded too, so every device sees it, and the app's
-conflict view (ST-6) lists it. The same page edited on two devices at once is rare for one person; the cost of
-the simple rule is that you merge by hand.
+When a **Markdown page** changed on both sides and the sync has the page as it was at the last sync (kept beside the
+replica in `<replica>.sync-bases/synced/`, outside the graph), the two versions are **merged block by block**
+(`notatnik_core::merge`, ST-6). A clean merge (no block changed on both sides) is written locally and uploaded
+under `If-Match`; nothing is left over. The setting is *Settings → Sync → Merge changes from two devices* (on by
+default).
+
+Otherwise a **conflict** keeps the server's version at the path and saves yours next to it as
+`name (conflicted copy YYYY-MM-DD HHMMSS).ext`, and the common ancestor is kept for that copy in
+`<replica>.sync-bases/ancestor/`. The copy is uploaded too, so every device sees it, and the conflict view lists
+it. There you decide each block that both sides changed (page, copy, both or your own text), see the merged page
+as a diff, and write it; the copy then goes to `.notatnik/trash/`. Without a kept ancestor (another device made
+the copy, or the Nextcloud client did) the ancestor is guessed from the page's version history; with none the
+page can only be kept or replaced by the copy.
 
 Not synced: `.notatnik/tmp/`, `.notatnik/trash/`, `*.partial`, `*~`, `.DS_Store`, symbolic links, names that are
 not valid UTF-8.

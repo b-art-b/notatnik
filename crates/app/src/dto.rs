@@ -592,6 +592,75 @@ pub struct UndoResult {
     pub page: PageView,
 }
 
+/// How one conflict of a merge is resolved.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ConflictChoice {
+    /// `ours` (the page as it is), `theirs` (the conflict copy), `both` or `text`.
+    pub pick: String,
+    /// For `text`: the block's own lines as they should be.
+    pub text: Option<String>,
+}
+
+/// A difference between the page and its conflict copy that needs a decision.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ConflictItem {
+    pub index: u32,
+    /// `edit`, `edit_delete` or `text`.
+    pub kind: String,
+    /// The first line of the block.
+    pub label: String,
+    /// The common ancestor's lines of the block.
+    pub base: Option<String>,
+    /// The page's own lines (`None`: deleted there).
+    pub ours: Option<String>,
+    /// The conflict copy's lines (`None`: deleted there).
+    pub theirs: Option<String>,
+}
+
+/// A conflict copy merged with its page (ST-6).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ConflictMergeView {
+    /// Path of the conflict copy.
+    pub path: String,
+    /// Path and name of the page the copy belongs to, and its text and hash (guard for resolving).
+    pub original_path: Option<String>,
+    pub original: Option<String>,
+    pub original_text: Option<String>,
+    pub original_hash: Option<String>,
+    /// The text of the conflict copy.
+    pub copy_text: String,
+    /// Where the common ancestor came from: `synced` (kept by the sync), `history` (guessed from the page's
+    /// versions) or `none` (no merge possible).
+    pub base: String,
+    /// The merged page, with the given choices applied (ours where there is none).
+    pub merged_text: Option<String>,
+    /// The merge has nothing to decide.
+    pub clean: bool,
+    pub conflicts: Vec<ConflictItem>,
+}
+
+/// `conflict_merge`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ConflictMergeArgs {
+    /// Path of the conflict copy.
+    pub path: String,
+    /// Decisions, in the order of the conflicts.
+    pub choices: Vec<ConflictChoice>,
+}
+
+/// `resolve_conflict`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ResolveConflictArgs {
+    /// Path of the conflict copy.
+    pub path: String,
+    /// `merge` (write the merge), `keep_original` (drop the copy) or `use_copy` (the copy becomes the page).
+    pub mode: String,
+    /// For `merge`: the decisions.
+    pub choices: Vec<ConflictChoice>,
+    /// The hash of the page as the view showed it; the page is not written if it changed since.
+    pub expected_hash: Option<String>,
+}
+
 /// A conflict file shown next to its original.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct ConflictView {
@@ -1285,6 +1354,10 @@ pub struct SyncStatus {
     pub deleted: u32,
     /// Files that changed on both sides in the last sync (a "conflicted copy" was written for each).
     pub conflicts: u32,
+    /// Pages that changed on both sides in the last sync and were merged without a conflict.
+    pub merged: u32,
+    /// Pages that changed on both sides are merged when that is possible (the setting).
+    pub merge: bool,
     /// How many deletions the stopped sync wanted to make (`error_code` is `mass_delete`).
     pub pending_deletes: u32,
     /// Files that failed in the last sync.
@@ -1308,6 +1381,8 @@ impl SyncStatus {
             pulled: 0,
             deleted: 0,
             conflicts: 0,
+            merged: 0,
+            merge: true,
             pending_deletes: 0,
             file_errors: Vec::new(),
             url: String::new(),
@@ -1322,9 +1397,16 @@ impl SyncStatus {
             state: "idle".into(),
             url: cfg.url.clone(),
             user: cfg.user.clone(),
+            merge: cfg.merge,
             ..SyncStatus::off()
         }
     }
+}
+
+/// `sync_set_merge`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SyncMergeArgs {
+    pub enabled: bool,
 }
 
 /// `sync_now`

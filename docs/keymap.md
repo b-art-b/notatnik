@@ -82,7 +82,8 @@ The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" 
 - Start screen → **New graph on a server…**: server, user name, app password, folder. *Check the folder*, then *Create the graph* (new or empty folder) or *Download and open* (a folder that already holds a graph).
 - Sidebar line `☁ Synced 3 min ago`: click to sync now. It reads *Syncing…*, *Offline*, *Sign in needed*, *Sync problem* or *Stopped: many deletions* when something needs a look.
 - Settings → Sync: the server folder, the last sync, Sync now, a password field when the login is refused, *Delete N files and sync* after a stop for many deletions, and *Disconnect…* (the notes stay on this device).
-- A page changed on two devices keeps the server's version; yours is saved next to it as a "conflicted copy" (the conflict view lists it).
+- A page changed on two devices is merged block by block when the changes do not overlap. Otherwise the server's version is kept and yours is saved next to it as a "conflicted copy".
+- **Sync conflicts:** the warning above the page lists each conflicted copy; click one to open the resolver. It shows the blocks that both sides changed (before, the page, the copy) with *The page / The copy / Both / Edit…* per block (for a block deleted on one side: *Keep it / Delete it*), and the page as it would become, as a diff. *Write the merge* saves it and moves the copy to `.notatnik/trash/`; *Keep the page* and *Use the copy* skip the merge. *Settings → Sync → Merge changes from two devices* turns the automatic merge off.
 
 ## Images
 

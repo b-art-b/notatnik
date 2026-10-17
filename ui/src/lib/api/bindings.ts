@@ -1612,6 +1612,14 @@ deleted: number,
  */
 conflicts: number, 
 /**
+ * Pages that changed on both sides in the last sync and were merged without a conflict.
+ */
+merged: number, 
+/**
+ * Pages that changed on both sides are merged when that is possible (the setting).
+ */
+merge: boolean, 
+/**
  * How many deletions the stopped sync wanted to make (`error_code` is `mass_delete`).
  */
 pending_deletes: number, 
@@ -1632,6 +1640,89 @@ export type AssetLinkArgs = { page: string,
  * Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
  */
 path: string, };
+export type ConflictChoice = { 
+/**
+ * `ours` (the page as it is), `theirs` (the conflict copy), `both` or `text`.
+ */
+pick: string, 
+/**
+ * For `text`: the block's own lines as they should be.
+ */
+text: string | null, };
+export type ConflictItem = { index: number, 
+/**
+ * `edit`, `edit_delete` or `text`.
+ */
+kind: string, 
+/**
+ * The first line of the block.
+ */
+label: string, 
+/**
+ * The common ancestor's lines of the block.
+ */
+base: string | null, 
+/**
+ * The page's own lines (`None`: deleted there).
+ */
+ours: string | null, 
+/**
+ * The conflict copy's lines (`None`: deleted there).
+ */
+theirs: string | null, };
+export type ConflictMergeView = { 
+/**
+ * Path of the conflict copy.
+ */
+path: string, 
+/**
+ * Path and name of the page the copy belongs to, and its text and hash (guard for resolving).
+ */
+original_path: string | null, original: string | null, original_text: string | null, original_hash: string | null, 
+/**
+ * The text of the conflict copy.
+ */
+copy_text: string, 
+/**
+ * Where the common ancestor came from: `synced` (kept by the sync), `history` (guessed from the page's
+ * versions) or `none` (no merge possible).
+ */
+base: string, 
+/**
+ * The merged page, with the given choices applied (ours where there is none).
+ */
+merged_text: string | null, 
+/**
+ * The merge has nothing to decide.
+ */
+clean: boolean, conflicts: Array<ConflictItem>, };
+export type ConflictMergeArgs = { 
+/**
+ * Path of the conflict copy.
+ */
+path: string, 
+/**
+ * Decisions, in the order of the conflicts.
+ */
+choices: Array<ConflictChoice>, };
+export type ResolveConflictArgs = { 
+/**
+ * Path of the conflict copy.
+ */
+path: string, 
+/**
+ * `merge` (write the merge), `keep_original` (drop the copy) or `use_copy` (the copy becomes the page).
+ */
+mode: string, 
+/**
+ * For `merge`: the decisions.
+ */
+choices: Array<ConflictChoice>, 
+/**
+ * The hash of the page as the view showed it; the page is not written if it changed since.
+ */
+expected_hash: string | null, };
+export type SyncMergeArgs = { enabled: boolean, };
 export type OrphanAsset = { 
 /**
  * Graph-relative path, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
@@ -1722,6 +1813,8 @@ export type Commands = {
   ensure_block_id: { args: EnsureBlockIdArgs; result: StringValue };
   get_block: { args: GetBlockArgs; result: BlockLookup | null };
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
+  conflict_merge: { args: ConflictMergeArgs; result: ConflictMergeView };
+  resolve_conflict: { args: ResolveConflictArgs; result: StringList };
   list_conflicts: { args: NoArgs; result: StringList };
   read_conflict: { args: ReadConflictArgs; result: ConflictView };
   task_chain: { args: ChainArgs; result: ChainView };
@@ -1756,6 +1849,7 @@ export type Commands = {
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };
   sync_status: { args: NoArgs; result: SyncStatus };
+  sync_set_merge: { args: SyncMergeArgs; result: SyncStatus };
   sync_now: { args: SyncNowArgs; result: SyncStatus };
   sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
