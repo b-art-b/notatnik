@@ -12,6 +12,8 @@
     setRightWidth,
     toggleLeft,
     toggleRight,
+    toggleRightFocus,
+    PAGE_MIN,
   } from './lib/stores/app.svelte'
   import { watchArchived } from './lib/stores/archived.svelte'
   import { editing, isEditingDoc, stopEditing } from './lib/stores/editing.svelte'
@@ -71,6 +73,8 @@
   const hasContext = $derived(route.kind === 'page' && (onSide('refs') || onSide('tasks')))
   const rightExists = $derived(hasContext || app.rightPanels.length > 0)
   const rightShown = $derived(rightExists && app.rightOpen)
+  // the page is folded away: the panel has the window
+  const focus = $derived(rightShown && app.rightFocus)
   let saved = $state<SavedQueryView[]>([])
   $effect(() => {
     void app.savedVersion
@@ -168,7 +172,14 @@
     const handle = e.currentTarget as HTMLElement
     handle.setPointerCapture(e.pointerId)
     resizingRight = true
-    const move = (m: PointerEvent) => setRightWidth(window.innerWidth - m.clientX, false)
+    // no upper limit: dragged so far that the page would be narrower than PAGE_MIN, the page folds away; dragged
+    // back, it returns
+    const move = (m: PointerEvent) => {
+      const want = window.innerWidth - m.clientX
+      const room = window.innerWidth - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
+      app.rightFocus = want > room
+      if (!app.rightFocus) setRightWidth(want, false)
+    }
     const stop = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', stop)
@@ -183,10 +194,17 @@
   function resizeKeyRight(e: KeyboardEvent) {
     const step = e.shiftKey ? 40 : 10
     // the handle is on the panel's left edge: moving it left makes the panel wider
-    if (e.key === 'ArrowLeft') setRightWidth(app.rightWidth + step)
-    else if (e.key === 'ArrowRight') setRightWidth(app.rightWidth - step)
-    else if (e.key === 'Home') setRightWidth(RIGHT_DEFAULT)
-    else return
+    if (e.key === 'ArrowLeft') {
+      const room = window.innerWidth - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
+      if (app.rightWidth + step > room) app.rightFocus = true
+      else setRightWidth(app.rightWidth + step)
+    } else if (e.key === 'ArrowRight') {
+      if (app.rightFocus) app.rightFocus = false
+      else setRightWidth(app.rightWidth - step)
+    } else if (e.key === 'Home') {
+      app.rightFocus = false
+      setRightWidth(RIGHT_DEFAULT)
+    } else return
     e.preventDefault()
   }
 
@@ -300,8 +318,10 @@
     class="app"
     class:left-closed={!app.leftOpen}
     class:resizing={resizing || resizingRight}
+    class:right-focus={focus}
     style:--left-w="{app.leftWidth}px"
     style:--right-w="{app.rightWidth}px"
+    style:--left-eff="{app.leftOpen ? app.leftWidth : 0}px"
   >
     <!-- one button for both states: it sits on the sidebar's edge while open and in the corner when closed -->
     <button
@@ -378,7 +398,15 @@
       ></div>
     {/if}
     <main>
-      <div class="column">
+      {#if focus}
+        <button
+          class="show-page"
+          onclick={toggleRightFocus}
+          data-testid="show-page"
+          title="Show the page again"><span aria-hidden="true">◂</span> Show page</button
+        >
+      {/if}
+      <div class="column" hidden={focus}>
         <ConflictBanner />
         {#if route.kind === 'journals'}
           <JournalsView />
@@ -428,6 +456,26 @@
           /><path d="M10 3v10" stroke="currentColor" stroke-width="1.5" /></svg
         ></button
       >
+      {#if rightShown}
+        <button
+          class="right-toggle right-focus-btn"
+          aria-label={focus ? 'Show the page' : 'Focus on the side panel'}
+          aria-pressed={focus}
+          title={focus ? 'Show the page again' : 'Fold the page away and give the panel the whole window'}
+          onclick={toggleRightFocus}
+          data-testid="right-focus"
+          ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
+            ><path
+              d={focus ? 'M2 6h4V2M14 6h-4V2M2 10h4v4M14 10h-4v4' : 'M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4'}
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            /></svg
+          ></button
+        >
+      {/if}
     {/if}
     {#if rightShown}
       <!-- a focusable separator on the panel's left edge, like the sidebar's -->
@@ -439,13 +487,12 @@
         aria-orientation="vertical"
         aria-label="Resize side panel"
         aria-valuemin={280}
-        aria-valuemax={720}
         aria-valuenow={app.rightWidth}
         tabindex="0"
         data-testid="right-resizer"
         onpointerdown={startResizeRight}
         onkeydown={resizeKeyRight}
-        ondblclick={() => setRightWidth(RIGHT_DEFAULT)}
+        ondblclick={toggleRightFocus}
       ></div>
       <aside class="right" aria-label="Side panels" data-testid="side-panel">
         <SidePanel page={route.kind === 'page' ? route.name : null} />

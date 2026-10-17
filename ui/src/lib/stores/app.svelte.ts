@@ -37,7 +37,6 @@ function loadLeftOpen(): boolean {
 }
 
 const RIGHT_MIN = 280
-const RIGHT_MAX = 720
 export const RIGHT_DEFAULT = 380
 /** The window is wide enough for a side panel next to the page; below this the panels fall back to the bottom. */
 const WIDE_PX = 1180
@@ -47,7 +46,7 @@ function loadRight(): { open: boolean; width: number } {
     const n = Number(localStorage.getItem('notatnik-right-width'))
     return {
       open: localStorage.getItem('notatnik-right-open') !== 'no',
-      width: Number.isFinite(n) && n >= RIGHT_MIN && n <= RIGHT_MAX ? n : RIGHT_DEFAULT,
+      width: Number.isFinite(n) && n >= RIGHT_MIN ? n : RIGHT_DEFAULT,
     }
   } catch {
     return { open: true, width: RIGHT_DEFAULT }
@@ -74,6 +73,8 @@ export const app = $state({
   /** Width of the right panel in px, and whether it is shown; remembered on this device. */
   rightWidth: loadRight().width,
   rightOpen: loadRight().open,
+  /** The right panel fills the window and the page is folded away to a strip (not remembered across restarts). */
+  rightFocus: false,
   /** The tab of the right panel that is open: `refs`, `tasks` or `pages` (the pages opened beside the page). */
   rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as 'refs' | 'tasks' | 'pages',
   /** Where the references and the tasks of a page go. */
@@ -137,7 +138,7 @@ export function setPlacement(kind: keyof Placement, place: Place) {
 
 /** Sets the right panel's width in px (clamped); `save` remembers it (done when a drag ends). */
 export function setRightWidth(px: number, save = true) {
-  app.rightWidth = Math.round(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, px)))
+  app.rightWidth = Math.round(Math.max(RIGHT_MIN, px))
   if (!save) return
   try {
     localStorage.setItem('notatnik-right-width', String(app.rightWidth))
@@ -155,8 +156,17 @@ export function setRightTab(tab: 'refs' | 'tasks' | 'pages') {
   }
 }
 
+/** The page is folded away and the right panel gets the whole window, or the page is back. */
+export function toggleRightFocus() {
+  app.rightFocus = !app.rightFocus
+}
+
+/** The least width the page keeps beside the panel before it is folded away. */
+export const PAGE_MIN = 320
+
 /** Shows or hides the right panel (Ctrl+Shift+\\ and the button in the corner). */
 export function toggleRight() {
+  app.rightFocus = false
   app.rightOpen = !app.rightOpen
   try {
     localStorage.setItem('notatnik-right-open', app.rightOpen ? 'yes' : 'no')

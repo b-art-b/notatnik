@@ -96,3 +96,44 @@ test('references and tasks are tabs with counts; the chosen tab is remembered', 
   await page.reload()
   await expect(tabs.getByRole('tab', { name: /Tasks/ })).toHaveAttribute('aria-selected', 'true')
 })
+
+test('the panel can be dragged as wide as you like: the page folds away and comes back', async ({
+  backend,
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('notatnik-placement', JSON.stringify({ refs: 'side', tasks: 'bottom' })),
+  )
+  backend.write('pages/target.md', '- the target\n')
+  backend.write('pages/source.md', '- see [[target]]\n')
+  await backend.open('/page/target')
+  const handle = page.getByTestId('right-resizer')
+  const box = (await handle.boundingBox())!
+  const y = box.y + 200
+  const panelWidth = () => page.getByTestId('side-panel').evaluate((e) => e.getBoundingClientRect().width)
+  // wider than the old 720px limit while the page keeps room
+  await page.mouse.move(box.x + 5, y)
+  await page.mouse.down()
+  await page.mouse.move(700, y, { steps: 5 })
+  await page.mouse.up()
+  expect(await panelWidth()).toBeGreaterThan(560)
+  await expect(page.getByTestId('show-page')).toHaveCount(0)
+  // dragged further left than the page can follow: it folds into a strip and the panel has the rest
+  const box2 = (await handle.boundingBox())!
+  await page.mouse.move(box2.x + 5, y)
+  await page.mouse.down()
+  await page.mouse.move(330, y, { steps: 5 })
+  await page.mouse.up()
+  await expect(page.getByTestId('show-page')).toBeVisible()
+  await expect(page.locator('main .column')).toBeHidden()
+  expect(await panelWidth()).toBeGreaterThan(900)
+  // the strip brings the page back
+  await page.getByTestId('show-page').click()
+  await expect(page.locator('main .column')).toBeVisible()
+  await expect(page.getByTestId('show-page')).toHaveCount(0)
+  // the button in the panel and the handle's double click do the same, in both directions
+  await page.getByTestId('right-focus').click()
+  await expect(page.getByTestId('show-page')).toBeVisible()
+  await page.getByTestId('right-resizer').dblclick()
+  await expect(page.getByTestId('show-page')).toHaveCount(0)
+})
