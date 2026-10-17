@@ -154,8 +154,9 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
             None => status(404),
             Some(node) => {
                 let depth1 = header(&req, "depth").as_deref() != Some("0");
-                let mut xml =
-                    String::from("<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\">");
+                let mut xml = String::from(
+                    "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:oc=\"http://owncloud.org/ns\">",
+                );
                 let entry = |p: &str, n: &Node| -> String {
                     let href = format!(
                         "{mount}/{}{}",
@@ -166,12 +167,21 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
                             ""
                         }
                     );
+                    // like Nextcloud (and unlike plain WebDAV), the `remote.php` mount numbers its items
+                    let fileid = if mount.starts_with("/remote.php") {
+                        let h = p
+                            .bytes()
+                            .fold(7u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
+                        format!("<oc:fileid>{}</oc:fileid>", 100 + h % 100_000)
+                    } else {
+                        String::new()
+                    };
                     match n {
                         Node::Dir { etag } => format!(
-                            "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+                            "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag>{fileid}<d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
                         ),
                         Node::File { data, etag } => format!(
-                            "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag><d:getcontentlength>{}</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
+                            "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag>{fileid}<d:getcontentlength>{}</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
                             data.len()
                         ),
                     }

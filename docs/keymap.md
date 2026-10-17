@@ -265,6 +265,16 @@ misread (`a: b`) is quoted automatically.
 
 Drag a block's **bullet**. The block moves together with all its sub-bullets. The drop line shows where it lands: upper half of a block = before it; lower half = after it, or as its first child when that block shows children, or as a child when you drop clearly to the right of its bullet. A block can't be dropped into itself. Undo (Ctrl+Z) brings it back. Dragging works within a page (moving between pages is not built yet).
 
+## Linking files
+
+- `/file` ("Link a file…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.
+- **A server:** each server in the list opens as a file browser: breadcrumbs, folders, files with their size, a filter box (Enter takes the only match). Click a file to link it. *Add a server…* asks for a name, the server, user name and password (on Nextcloud an app password); it logs in once, so a wrong password is told at once. The server the open graph is synced with is always in the list.
+- A link to a Nextcloud file is its `…/f/<number>` address: it opens the file in Nextcloud's web interface and keeps working when the file is renamed or moved. A server that gives no file numbers gets the file's own address, which breaks when the file is renamed or moved (the picker says so).
+- **This computer:** in the desktop app a file chooser opens, then *Link to the file where it is* writes `[name](file:///home/me/…)` (works only on this computer) or *Copy it into the graph* stores the file as `assets/YYYY/MM/<name>-<hash8>.<ext>` (synced, up to 25 MB, programs and scripts are refused) and links it by a relative path. In a browser only the copy exists.
+- **Type an address:** any `https://`, `http://`, `mailto:` or `file:///` address, with optional link text.
+- Clicking such a link opens it in the system browser (a web address) or with the system's program for the file (`file:///…` and copied files). Programs and scripts are never opened from a note.
+- Settings → **Linked files** lists the servers (this device only; the password is in the system keyring) with *Edit*, *Remove…* and *Add a server…*.
+
 ## Emojis
 
 - Type `:` and a word (`:rocket`, `:check`, `:fire`) for suggestions; Enter inserts the emoji itself. Times like `12:30` and `key::` properties are not affected.

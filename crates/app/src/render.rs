@@ -262,7 +262,20 @@ fn parse_inlines(it: &mut Events, refs: &[&RefSpan], until: TagEnd) -> Vec<Inlin
 
 fn allowed_href(h: &str) -> bool {
     let l = h.trim().to_ascii_lowercase();
-    l.starts_with("http://") || l.starts_with("https://") || l.starts_with("mailto:")
+    l.starts_with("http://")
+        || l.starts_with("https://")
+        || l.starts_with("mailto:")
+        || l.starts_with("file:///")
+}
+
+/// A link to a file copied into the graph (`../assets/2026/10/a.pdf`); it is opened with the system's program for it.
+fn is_asset_link(h: &str) -> bool {
+    let h = h.trim();
+    if has_scheme(h) {
+        return false;
+    }
+    let clean = h.trim_start_matches("../").trim_start_matches("./");
+    clean.starts_with("assets/") && !clean.contains("/../")
 }
 
 fn has_scheme(s: &str) -> bool {
@@ -293,7 +306,7 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
         }),
         Event::Start(Tag::Link { dest_url, .. }) => {
             let children = parse_inlines(it, refs, TagEnd::Link);
-            if allowed_href(&dest_url) {
+            if allowed_href(&dest_url) || is_asset_link(&dest_url) {
                 out.push(Inline::Link {
                     href: dest_url.to_string(),
                     children,
@@ -568,7 +581,7 @@ mod tests {
     #[test]
     fn only_safe_link_schemes() {
         let n = render_with_core(
-            "[ok](https://example.com/a#b) [mail](mailto:a@b.c) [bad](javascript:alert(1)) [rel](other.md)",
+            "[ok](https://example.com/a#b) [mail](mailto:a@b.c) [bad](javascript:alert(1)) [rel](other.md) [esc](../assets/../../etc/passwd)",
         );
         let Node::Paragraph { children } = &n[0] else {
             panic!()
@@ -587,6 +600,34 @@ mod tests {
         assert!(
             children.contains(&text("bad")),
             "unsafe links keep their text only"
+        );
+    }
+
+    #[test]
+    fn links_to_local_files_and_copied_attachments_are_kept() {
+        let n = render_with_core(
+            "[a](file:///home/me/My%20Docs/a.pdf) [b](../../assets/2026/10/b-1234abcd.pdf) [c](assets/c.txt) [d](../notes/d.md) [e](../assets/../../etc/passwd)",
+        );
+        let Node::Paragraph { children } = &n[0] else {
+            panic!()
+        };
+        let links: Vec<&str> = children
+            .iter()
+            .filter_map(|c| {
+                if let Inline::Link { href, .. } = c {
+                    Some(href.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(
+            links,
+            [
+                "file:///home/me/My%20Docs/a.pdf",
+                "../../assets/2026/10/b-1234abcd.pdf",
+                "assets/c.txt"
+            ]
         );
     }
 

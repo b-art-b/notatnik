@@ -280,6 +280,7 @@ impl Drop for BackupTask {
 }
 
 mod conflicts;
+mod filesources;
 mod syncing;
 pub use syncing::{MemorySecrets, Secrets};
 
@@ -1910,6 +1911,90 @@ impl AppState {
         })
     }
 
+    /// `attach_file`: copies a file into the graph's `assets/` and returns the Markdown link to it from `page`.
+    pub fn attach_file(&self, a: AttachFileArgs) -> ApiResult<SavedAsset> {
+        use base64::Engine as _;
+        let name = Self::parse_name(&a.page)?;
+        let (bytes, file_name) = match (&a.path, &a.data) {
+            (Some(path), _) => {
+                let p = Path::new(path);
+                let meta = std::fs::metadata(p)
+                    .map_err(|e| ApiError::new("not_found", format!("{path}: {e}")))?;
+                if !meta.is_file() {
+                    return Err(ApiError::new("invalid", "that is not a file"));
+                }
+                if meta.len() > notatnik_graph::MAX_ASSET_BYTES as u64 {
+                    return Err(ApiError::new(
+                        "invalid",
+                        "the file is larger than 25 MB; link to it instead of copying it",
+                    ));
+                }
+                let bytes = std::fs::read(p)
+                    .map_err(|e| ApiError::new("not_found", format!("{path}: {e}")))?;
+                let n = p
+                    .file_name()
+                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+                (bytes, n)
+            }
+            (None, Some(data)) => (
+                base64::engine::general_purpose::STANDARD
+                    .decode(data.trim())
+                    .map_err(|_| ApiError::new("invalid", "the file data is not valid base64"))?,
+                a.name.clone().unwrap_or_default(),
+            ),
+            (None, None) => return Err(ApiError::new("invalid", "no file was given")),
+        };
+        let today = self.today();
+        self.with_open(|o| {
+            let page_rel = Self::page_file(o, &name)?;
+            let path = o.graph.save_attachment(&bytes, &file_name, today)?;
+            let label = if file_name.is_empty() {
+                path.rsplit('/').next().unwrap_or("file").to_string()
+            } else {
+                file_name.clone()
+            };
+            let label: String = label
+                .chars()
+                .flat_map(|c| {
+                    if matches!(c, '[' | ']' | '\\') {
+                        vec!['\\', c]
+                    } else {
+                        vec![c]
+                    }
+                })
+                .collect();
+            let markdown = format!(
+                "[{label}]({})",
+                notatnik_graph::relative_asset_path(&page_rel, &path)
+            );
+            Ok(SavedAsset { path, markdown })
+        })
+    }
+
+    /// The file for an asset path as a link writes it (`../assets/…`), checked to be inside `assets/`.
+    pub fn asset_file(&self, rel: &str) -> ApiResult<PathBuf> {
+        self.with_open(|o| {
+            let clean = rel.trim_start_matches("../").trim_start_matches("./");
+            let p = Path::new(clean);
+            if p.is_absolute()
+                || p.components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+                || !clean.starts_with("assets/")
+            {
+                return Err(ApiError::new(
+                    "invalid",
+                    "assets must be inside the assets/ folder",
+                ));
+            }
+            let full = o.graph.root().join(p);
+            if full.is_file() {
+                Ok(full)
+            } else {
+                Err(ApiError::new("not_found", "asset not found"))
+            }
+        })
+    }
+
     /// `list_orphan_assets`: files below `assets/` that no page mentions.
     pub fn orphan_assets(&self, _: NoArgs) -> ApiResult<OrphanAssets> {
         self.with_open(|o| {
@@ -3203,6 +3288,8 @@ pub fn asset_content_type(path: &str) -> &'static str {
         "gif" => "image/gif",
         "svg" => "image/svg+xml",
         "webp" => "image/webp",
+        "pdf" => "application/pdf",
+        "txt" | "md" => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
     }
 }

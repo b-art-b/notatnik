@@ -3158,6 +3158,155 @@ fn the_server_folder_browser_lists_folders_and_leaves_the_server_alone() {
     assert_eq!(e.code, "auth");
 }
 
+/// A file of this computer is copied into the graph and linked, from a path or from bytes; programs are refused.
+#[test]
+fn a_file_is_copied_into_the_graph_and_linked_from_the_page() {
+    use base64::Engine as _;
+    let t = start("basic");
+    let src = t.tmp.path().join("My report [v2].pdf");
+    std::fs::write(&src, b"%PDF-1.4 not really").unwrap();
+    let a = t.ok(
+        "attach_file",
+        json!({"page": "inbox", "path": src.to_string_lossy(), "data": null, "name": null}),
+    );
+    let path = a["path"].as_str().unwrap();
+    assert!(
+        path.starts_with("assets/2026/10/My-report-v2-") && path.ends_with(".pdf"),
+        "{path}"
+    );
+    assert_eq!(
+        a["markdown"],
+        format!("[My report \\[v2\\].pdf](../{path})")
+    );
+    assert_eq!(
+        std::fs::read(t.tmp.path().join("graph").join(path)).unwrap(),
+        b"%PDF-1.4 not really"
+    );
+    // the same bytes from a browser: the same file
+    let data = base64::engine::general_purpose::STANDARD.encode(b"%PDF-1.4 not really");
+    let b = t.ok(
+        "attach_file",
+        json!({"page": "2026-10-03", "path": null, "data": data, "name": "My report [v2].pdf"}),
+    );
+    assert_eq!(b["path"], a["path"]);
+    assert_eq!(
+        b["markdown"],
+        format!("[My report \\[v2\\].pdf](../../{path})")
+    );
+    // programs, scripts and empty files are not copied
+    for bad in ["run.sh", "setup.EXE", "x.desktop"] {
+        let e = t
+            .call(
+                "attach_file",
+                json!({"page": "inbox", "path": null, "data": data, "name": bad}),
+            )
+            .unwrap_err();
+        assert_eq!(e.code, "invalid", "{bad}: {e:?}");
+    }
+    assert!(
+        t.call(
+            "attach_file",
+            json!({"page": "inbox", "path": null, "data": "", "name": "a.txt"})
+        )
+        .is_err()
+    );
+    assert!(
+        t.call(
+            "attach_file",
+            json!({"page": "inbox", "path": "/no/such/file", "data": null, "name": null})
+        )
+        .is_err()
+    );
+}
+
+/// The "link a file" picker: servers kept in the device settings, browsing them, links by file ID.
+#[test]
+fn files_on_a_server_are_browsed_and_linked_by_their_id() {
+    use notatnik_sync::fakedav::FakeDav;
+    let dav = FakeDav::start();
+    let t = start("basic");
+    for f in [
+        "Docs/Manual v2.pdf",
+        "Docs/.hidden",
+        "Docs/Sub/a.txt",
+        "top.md",
+    ] {
+        dav.put_file(f, b"x");
+    }
+    assert_eq!(t.ok("file_sources", json!({})), json!([]));
+    let save = |password: &str| {
+        t.call(
+            "file_source_save",
+            json!({"id": null, "name": "Cloud", "server": dav.server, "user": dav.user, "password": password}),
+        )
+    };
+    // a wrong password is refused and nothing is kept
+    assert_eq!(save("nope").unwrap_err().code, "auth");
+    assert_eq!(t.ok("file_sources", json!({})), json!([]));
+    let src = save(&dav.password).unwrap();
+    let id = src["id"].as_str().unwrap().to_string();
+    assert_eq!(t.ok("file_sources", json!({})).as_array().unwrap().len(), 1);
+    // the password is not in the settings file
+    let settings = std::fs::read_to_string(t.tmp.path().join("device/config/settings.toml"))
+        .unwrap_or_default();
+    assert!(!settings.contains(&dav.password), "{settings}");
+
+    let top = t.ok("file_browse", json!({"source": id, "path": ""}));
+    assert!(top["folders"].as_array().unwrap().contains(&json!("Docs")));
+    assert_eq!(top["files"][0]["name"], "top.md");
+    let docs = t.ok("file_browse", json!({"source": id, "path": "/Docs/"}));
+    assert_eq!(docs["path"], "Docs");
+    assert_eq!(docs["folders"], json!(["Sub"]));
+    assert_eq!(docs["files"].as_array().unwrap().len(), 1); // the hidden file is left out
+    let f = &docs["files"][0];
+    assert_eq!(f["name"], "Manual v2.pdf");
+    let link = f["link"].as_str().unwrap();
+    assert!(
+        link.starts_with(&format!("{}/f/", dav.server)),
+        "a Nextcloud link by file ID: {link}"
+    );
+    assert_eq!(f["by_path"], false);
+    // the same file has the same link the next time
+    let again = t.ok("file_browse", json!({"source": id, "path": "Docs"}));
+    assert_eq!(again["files"][0]["link"], f["link"]);
+    // a folder that is not there is empty, not an error; `..` is refused
+    assert_eq!(
+        t.ok("file_browse", json!({"source": id, "path": "nope"}))["exists"],
+        false
+    );
+    assert_eq!(
+        t.call("file_browse", json!({"source": id, "path": "../x"}))
+            .unwrap_err()
+            .code,
+        "invalid"
+    );
+
+    // renaming keeps the name and password: an edit without a password keeps the stored one
+    let changed = t
+        .call(
+            "file_source_save",
+            json!({"id": id, "name": "Work", "server": dav.server, "user": dav.user, "password": ""}),
+        )
+        .unwrap();
+    assert_eq!(changed["id"], id);
+    assert_eq!(changed["name"], "Work");
+    assert!(
+        t.ok("file_browse", json!({"source": id, "path": ""}))["folders"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Docs"))
+    );
+
+    // removing forgets it
+    assert_eq!(t.ok("file_source_delete", json!({"id": id})), json!([]));
+    assert_eq!(
+        t.call("file_browse", json!({"source": id, "path": ""}))
+            .unwrap_err()
+            .code,
+        "not_found"
+    );
+}
+
 /// SY-1..SY-6: a graph kept in a server folder; two devices through the in-memory WebDAV server.
 #[test]
 fn a_graph_kept_in_a_server_folder_syncs_both_ways() {

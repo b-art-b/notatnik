@@ -24,6 +24,55 @@ pub fn sniff_image(b: &[u8]) -> Option<&'static str> {
     }
 }
 
+/// A file that starts a program or a script when it is opened (an installer, a shortcut, a script). Such files are
+/// not copied into a graph and links to them are not opened by the app.
+pub fn is_risky_file(name: &str) -> bool {
+    let ext = name
+        .rsplit_once('.')
+        .map_or("", |(_, e)| e)
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "exe"
+            | "msi"
+            | "bat"
+            | "cmd"
+            | "com"
+            | "scr"
+            | "ps1"
+            | "vbs"
+            | "jar"
+            | "sh"
+            | "bash"
+            | "run"
+            | "desktop"
+            | "appimage"
+            | "app"
+            | "command"
+            | "lnk"
+            | "reg"
+    )
+}
+
+/// The extension a stored attachment keeps: that of an image from its bytes, else the claimed one when it is short
+/// and plain (`pdf`, `docx`, `tar.gz` keeps `gz`), else none.
+fn attachment_ext(bytes: &[u8], name: &str) -> String {
+    if let Some(e) = sniff_image(bytes) {
+        return e.to_string();
+    }
+    let base = name.rsplit(['/', '\\']).next().unwrap_or("");
+    match base.rsplit_once('.') {
+        Some((stem, e))
+            if !stem.is_empty()
+                && (1..=8).contains(&e.len())
+                && e.chars().all(|c| c.is_ascii_alphanumeric()) =>
+        {
+            e.to_ascii_lowercase()
+        }
+        _ => String::new(),
+    }
+}
+
 /// A file name stem made of the ASCII letters, digits, `-` and `_` of `hint` (a dropped file's name), at most 40
 /// characters; `pasted` when nothing is left.
 fn clean_stem(hint: Option<&str>) -> String {
@@ -87,6 +136,41 @@ impl Graph {
         let abs = self.root().join(&rel);
         // the hash is in the name: a file that exists already holds this image (a rare clash of 8 hex digits
         // is caught by comparing the length too)
+        if std::fs::metadata(&abs).is_ok_and(|m| m.len() == bytes.len() as u64) {
+            return Ok(rel);
+        }
+        atomic_write(self.root(), &abs, bytes)?;
+        Ok(rel)
+    }
+
+    /// Stores any file below `assets/YYYY/MM/<name>-<hash8>[.<ext>]` and returns its graph-relative path, like
+    /// [`Graph::save_asset`] does for an image. Programs and scripts are refused.
+    pub fn save_attachment(&self, bytes: &[u8], name: &str, today: NaiveDate) -> Result<String> {
+        if bytes.is_empty() {
+            return Err(Error::Asset("the file is empty".into()));
+        }
+        if bytes.len() > MAX_ASSET_BYTES {
+            return Err(Error::Asset(format!(
+                "the file is larger than {} MB; link to it instead of copying it",
+                MAX_ASSET_BYTES / (1024 * 1024)
+            )));
+        }
+        if is_risky_file(name) {
+            return Err(Error::Asset(
+                "programs and scripts are not copied into a graph".into(),
+            ));
+        }
+        let ext = attachment_ext(bytes, name);
+        let hash = hash_bytes(bytes);
+        let rel = format!(
+            "assets/{:04}/{:02}/{}-{}{}{ext}",
+            today.year(),
+            today.month(),
+            clean_stem(Some(name)),
+            &hash[..8],
+            if ext.is_empty() { "" } else { "." }
+        );
+        let abs = self.root().join(&rel);
         if std::fs::metadata(&abs).is_ok_and(|m| m.len() == bytes.len() as u64) {
             return Ok(rel);
         }

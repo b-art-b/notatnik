@@ -10,7 +10,7 @@ use quick_xml::events::Event;
 use crate::remote::{Cond, Entry, Listing, Remote, norm_etag};
 use crate::{Error, Result};
 
-const PROPFIND_BODY: &str = r#"<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getetag/><d:getcontentlength/><d:resourcetype/></d:prop></d:propfind>"#;
+const PROPFIND_BODY: &str = r#"<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><d:getetag/><d:getcontentlength/><d:resourcetype/><oc:fileid/></d:prop></d:propfind>"#;
 
 /// A WebDAV folder with a login.
 pub struct WebDavRemote {
@@ -77,6 +77,25 @@ pub fn folder_url(server: &str, user: &str, folder: &str) -> Result<String> {
     }
     check_url(&url)?;
     Ok(url)
+}
+
+/// The address of `path` (segments joined with `/`, below `root`) as a link, each segment percent-encoded.
+pub fn item_url(root: &str, path: &str) -> String {
+    let mut u = root.trim_end_matches('/').to_string();
+    for seg in path.split('/').filter(|s| !s.is_empty()) {
+        u.push('/');
+        u.push_str(&encode_segment(seg));
+    }
+    u
+}
+
+/// The address of a Nextcloud's web interface, from a WebDAV address of one of its accounts
+/// (`https://cloud.example.org/remote.php/dav/files/me/Notes` gives `https://cloud.example.org`). `None` for a
+/// server that is not laid out like Nextcloud.
+pub fn web_base(dav_url: &str) -> Option<String> {
+    dav_url
+        .split_once("/remote.php/dav/files/")
+        .map(|(base, _)| base.to_string())
 }
 
 fn is_local_host(host: &str) -> bool {
@@ -376,6 +395,7 @@ fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
         etag: String,
         size: u64,
         dir: bool,
+        file_id: String,
     }
     let mut reader = Reader::from_str(xml);
     let mut items: Vec<Item> = Vec::new();
@@ -406,6 +426,7 @@ fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
                         "href" => c.href.push_str(text.trim()),
                         "getetag" => c.etag.push_str(&norm_etag(&text)),
                         "getcontentlength" => c.size = text.trim().parse().unwrap_or(0),
+                        "fileid" => c.file_id.push_str(text.trim()),
                         _ => {}
                     }
                 }
@@ -452,6 +473,7 @@ fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
             dir: it.dir,
             etag: it.etag,
             size: it.size,
+            file_id: it.file_id,
         });
     }
     // an answer that does not mention the folder itself was not understood; taking it for an empty folder
@@ -504,4 +526,42 @@ pub fn probe(remote: &dyn Remote) -> Result<Probe> {
     })();
     let _ = remote.delete(path, Some(&etag));
     result
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+
+    #[test]
+    fn the_listing_carries_nextclouds_file_id_when_there_is_one() {
+        let xml = r#"<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+<d:response><d:href>/remote.php/dav/files/me/D/</d:href><d:propstat><d:prop><d:getetag>"e0"</d:getetag><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/files/me/D/a.pdf</d:href><d:propstat><d:prop><d:getetag>"e1"</d:getetag><oc:fileid>209</oc:fileid><d:getcontentlength>5</d:getcontentlength><d:resourcetype/></d:prop></d:propstat></d:response>
+<d:response><d:href>/remote.php/dav/files/me/D/b.pdf</d:href><d:propstat><d:prop><d:getetag>"e2"</d:getetag><d:getcontentlength>7</d:getcontentlength><d:resourcetype/></d:prop></d:propstat></d:response>
+</d:multistatus>"#;
+        let l = parse_multistatus(xml, "/remote.php/dav/files/me/D/").unwrap();
+        let id = |n: &str| {
+            l.entries
+                .iter()
+                .find(|e| e.name == n)
+                .unwrap()
+                .file_id
+                .clone()
+        };
+        assert_eq!(id("a.pdf"), "209");
+        assert_eq!(id("b.pdf"), "", "a server without file IDs leaves it empty");
+    }
+
+    #[test]
+    fn links_by_path_are_encoded_and_the_web_address_comes_from_the_dav_address() {
+        assert_eq!(
+            item_url("http://h/remote.php/dav/files/me", "My Docs/a (1).pdf"),
+            "http://h/remote.php/dav/files/me/My%20Docs/a%20%281%29.pdf"
+        );
+        assert_eq!(
+            web_base("https://c.example.org/nc/remote.php/dav/files/me/Notes"),
+            Some("https://c.example.org/nc".into())
+        );
+        assert_eq!(web_base("https://dav.example.org/files"), None);
+    }
 }

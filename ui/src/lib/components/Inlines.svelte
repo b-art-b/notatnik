@@ -33,7 +33,9 @@
       onclick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        backend.openExternal(it.href)
+        // a link without a scheme is a file copied into the graph (`../assets/…`)
+        if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
+        else backend.openAsset(it.href)
       }}><Self items={it.children} {chain} /></a
     >{:else if it.type === 'image'}<img
       class="inline-image"

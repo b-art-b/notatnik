@@ -39,6 +39,7 @@
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
+  import FilePicker from './FilePicker.svelte'
 
   interface Props {
     text: string
@@ -60,7 +61,7 @@
   // the text the editor starts with; updated as changes are sent (not reactive on purpose)
   let lastSent = untrack(() => text)
   /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
-  let picker = $state<{ kind: DateKind | 'emoji'; at: number; x: number; y: number } | null>(null)
+  let picker = $state<{ kind: DateKind | 'emoji' | 'file'; at: number; x: number; y: number } | null>(null)
 
   /** Stores pasted or dropped images as assets (ST-8) and writes their links into the text: replacing the
    * selection, or at `at` for a drop. The editor may be gone when the backend answers; then only the files remain. */
@@ -100,7 +101,7 @@
     v.focus()
   }
 
-  function openPicker(kind: DateKind | 'emoji', at: number) {
+  function openPicker(kind: DateKind | 'emoji' | 'file', at: number) {
     if (!view) return
     const c = view.coordsAtPos(at)
     const h = host.getBoundingClientRect()
@@ -133,10 +134,18 @@
   }
 
   function pickDate(iso: string) {
-    if (!picker || !view || picker.kind === 'emoji') return
+    if (!picker || !view || picker.kind === 'emoji' || picker.kind === 'file') return
     const { kind, at } = picker
     view.dispatch({ changes: dateChanges(view.state.doc.toString(), at, kind, iso) })
     closePicker()
+  }
+
+  /** A file link from the picker, written where `/file` was typed. */
+  function pickFile(markdown: string) {
+    if (!picker || !view) return
+    const { at } = picker
+    picker = null
+    insertLinks(view, [markdown], at)
   }
 
   const wiki = new MatchDecorator({
@@ -387,6 +396,7 @@
               clearTimeout(idle)
               void onaction({ kind: 'followup', text: view.state.doc.toString(), prev: lastSent })
             },
+            (at) => openPicker('file', at),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
@@ -493,9 +503,15 @@
 
 <div class="editor" bind:this={host}>
   {#if picker}
-    <div class="picker-anchor" style:left="{picker.x}px" style:top="{picker.y}px">
+    <div
+      class="picker-anchor"
+      style:left="{picker.kind === 'file' ? 0 : picker.x}px"
+      style:top="{picker.y}px"
+    >
       {#if picker.kind === 'emoji'}
         <EmojiPicker onpick={pickEmoji} oncancel={cancelEmoji} />
+      {:else if picker.kind === 'file'}
+        <FilePicker {pageName} oninsert={pickFile} oncancel={closePicker} />
       {:else}
         <DatePicker
           title={DATE_TITLES[picker.kind]}

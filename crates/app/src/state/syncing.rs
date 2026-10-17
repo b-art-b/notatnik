@@ -42,11 +42,11 @@ impl Secrets for MemorySecrets {
     }
 }
 
-fn secret_key(cfg: &RemoteConfig) -> String {
+pub(super) fn secret_key(cfg: &RemoteConfig) -> String {
     format!("webdav {}@{}", cfg.user, cfg.url)
 }
 
-fn api_err(e: &SyncError) -> ApiError {
+pub(super) fn api_err(e: &SyncError) -> ApiError {
     let code = match e {
         SyncError::Auth(_) => "auth",
         SyncError::Offline(_) => "offline",

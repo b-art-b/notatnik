@@ -1556,6 +1556,23 @@ data: string,
  * The name of a dropped file; its cleaned stem is kept in the stored name.
  */
 name: string | null, };
+export type AttachFileArgs = { 
+/**
+ * The page the link is written in; the link is relative to this page's file.
+ */
+page: string, 
+/**
+ * The path of a file on this computer (the desktop app); read by the app.
+ */
+path: string | null, 
+/**
+ * The file's bytes, base64 encoded, when there is no path (a browser).
+ */
+data: string | null, 
+/**
+ * The file's name when it comes as bytes.
+ */
+name: string | null, };
 export type SavedAsset = { 
 /**
  * Graph-relative path of the stored file, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
@@ -1799,6 +1816,60 @@ items: number,
  * It holds a Notatnik graph.
  */
 has_graph: boolean, };
+export type FileSourceView = { 
+/**
+ * `graph` for the server the open graph is synced with, else the ID made when it was saved.
+ */
+id: string, 
+/**
+ * The name shown in the picker.
+ */
+name: string, server: string, user: string, 
+/**
+ * The server of the open graph's own sync: it cannot be edited or removed here.
+ */
+graph: boolean, };
+export type FileSourceArgs = { 
+/**
+ * The source to change; absent for a new one.
+ */
+id: string | null, name: string, 
+/**
+ * `https://cloud.example.org`, or the full WebDAV address up to `…/remote.php/dav/files/<user>`.
+ */
+server: string, user: string, 
+/**
+ * Left empty when changing a source, the stored password stays.
+ */
+password: string, };
+export type FileSourceIdArgs = { id: string, };
+export type FileBrowseArgs = { 
+/**
+ * A source ID (`file_sources`).
+ */
+source: string, 
+/**
+ * The folder below the account's files; empty for the top.
+ */
+path: string, };
+export type FileItem = { name: string, size: number, 
+/**
+ * `<server>/f/<id>` on Nextcloud (survives a rename or move), else the file's own address.
+ */
+link: string, 
+/**
+ * The link is the file's address, which breaks when the file is renamed or moved.
+ */
+by_path: boolean, };
+export type FileBrowse = { 
+/**
+ * The folder that was listed, cleaned (`Notes/Work`).
+ */
+path: string, exists: boolean, 
+/**
+ * Sorted without regard to case; hidden ones left out.
+ */
+folders: Array<string>, files: Array<FileItem>, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1867,6 +1938,7 @@ export type Commands = {
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
   asset_link: { args: AssetLinkArgs; result: StringValue };
   save_asset: { args: SaveAssetArgs; result: SavedAsset };
+  attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };
   sync_status: { args: NoArgs; result: SyncStatus };
@@ -1874,6 +1946,10 @@ export type Commands = {
   sync_now: { args: SyncNowArgs; result: SyncStatus };
   sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };
   webdav_browse: { args: WebdavArgs; result: WebdavFolders };
+  file_sources: { args: NoArgs; result: FileSourceView[] };
+  file_source_save: { args: FileSourceArgs; result: FileSourceView };
+  file_source_delete: { args: FileSourceIdArgs; result: FileSourceView[] };
+  file_browse: { args: FileBrowseArgs; result: FileBrowse };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };
   disconnect_remote: { args: NoArgs; result: GraphInfo };

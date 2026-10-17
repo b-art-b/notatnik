@@ -11,6 +11,9 @@ pub struct Entry {
     pub etag: String,
     /// Size in bytes (0 for folders).
     pub size: u64,
+    /// Nextcloud's number for the item (`oc:fileid`): `<server>/f/<id>` opens it and keeps working when it is renamed
+    /// or moved. Empty on a server that has none.
+    pub file_id: String,
 }
 
 /// A folder on the server.

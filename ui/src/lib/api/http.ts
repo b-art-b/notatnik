@@ -68,5 +68,12 @@ export function createHttpBackend(): Backend {
     openExternal: (url) => {
       window.open(url, '_blank', 'noopener,noreferrer')
     },
+    openAsset: (path) => {
+      window.open(
+        `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}`,
+        '_blank',
+        'noopener,noreferrer',
+      )
+    },
   }
 }

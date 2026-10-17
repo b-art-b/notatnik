@@ -404,6 +404,19 @@ fn yes() -> bool {
     true
 }
 
+/// A server the "link a file" picker can browse (a device setting; the password is in the system's keyring).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileSource {
+    /// Stable ID, the keyring entry is named after it.
+    pub id: String,
+    /// The name shown in the picker.
+    pub name: String,
+    /// The server (`https://cloud.example.org`) or the full WebDAV address up to `…/remote.php/dav/files/<user>`.
+    pub server: String,
+    /// The login name.
+    pub user: String,
+}
+
 /// Per-device appearance settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiSettings {
@@ -515,6 +528,9 @@ pub struct DeviceSettings {
     /// Appearance.
     #[serde(default)]
     pub ui: UiSettings,
+    /// Servers to link files from (besides the one the open graph is synced with).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub file_sources: Vec<FileSource>,
 }
 
 impl DeviceSettings {

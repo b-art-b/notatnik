@@ -1296,6 +1296,19 @@ pub struct SaveAssetArgs {
     pub name: Option<String>,
 }
 
+/// `attach_file`: a file of this computer, or one picked in a browser, copied into the graph and linked from `page`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AttachFileArgs {
+    /// The page the link is written in; the link is relative to this page's file.
+    pub page: String,
+    /// The path of a file on this computer (the desktop app); read by the app.
+    pub path: Option<String>,
+    /// The file's bytes, base64 encoded, when there is no path (a browser).
+    pub data: Option<String>,
+    /// The file's name when it comes as bytes.
+    pub name: Option<String>,
+}
+
 /// `asset_link`: the Markdown that links the asset `path` from `page`.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AssetLinkArgs {
@@ -1436,6 +1449,69 @@ pub struct WebdavArgs {
     pub folder: String,
     /// Download the graph that is in the folder instead of starting a new one (`create_remote_graph`).
     pub attach: bool,
+}
+
+/// A server the "link a file" picker can browse.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct FileSourceView {
+    /// `graph` for the server the open graph is synced with, else the ID made when it was saved.
+    pub id: String,
+    /// The name shown in the picker.
+    pub name: String,
+    pub server: String,
+    pub user: String,
+    /// The server of the open graph's own sync: it cannot be edited or removed here.
+    pub graph: bool,
+}
+
+/// `file_source_save`: adds a server, or changes the one with `id`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct FileSourceArgs {
+    /// The source to change; absent for a new one.
+    pub id: Option<String>,
+    pub name: String,
+    /// `https://cloud.example.org`, or the full WebDAV address up to `…/remote.php/dav/files/<user>`.
+    pub server: String,
+    pub user: String,
+    /// Left empty when changing a source, the stored password stays.
+    pub password: String,
+}
+
+/// `file_source_delete`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct FileSourceIdArgs {
+    pub id: String,
+}
+
+/// `file_browse`: a folder of a source.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct FileBrowseArgs {
+    /// A source ID (`file_sources`).
+    pub source: String,
+    /// The folder below the account's files; empty for the top.
+    pub path: String,
+}
+
+/// A file on a server, with the Markdown link target for it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct FileItem {
+    pub name: String,
+    pub size: f64,
+    /// `<server>/f/<id>` on Nextcloud (survives a rename or move), else the file's own address.
+    pub link: String,
+    /// The link is the file's address, which breaks when the file is renamed or moved.
+    pub by_path: bool,
+}
+
+/// `file_browse` result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct FileBrowse {
+    /// The folder that was listed, cleaned (`Notes/Work`).
+    pub path: String,
+    pub exists: bool,
+    /// Sorted without regard to case; hidden ones left out.
+    pub folders: Vec<String>,
+    pub files: Vec<FileItem>,
 }
 
 /// `webdav_browse` result: the folders directly inside a folder of the server.

@@ -291,6 +291,7 @@ export function wikiCompletions(
   onemoji: (at: number) => void,
   ontemplate: (name: string) => void = () => {},
   onfollowup: () => void = () => {},
+  onfile: (at: number) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -557,6 +558,12 @@ export function wikiCompletions(
                     const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
                     view.dispatch({ changes: { from: cut, to: t, insert: '' } })
                     ontemplate(c.template)
+                    return
+                  }
+                  if (c.file) {
+                    // the link goes where the command was; the space before it stays
+                    view.dispatch({ changes: { from: f, to: t, insert: '' } })
+                    onfile(f)
                     return
                   }
                   if (c.emoji) {

@@ -31,6 +31,7 @@
   import EmojiPicker from './EmojiPicker.svelte'
   import SettingRow from './settings/SettingRow.svelte'
   import SyncPane from './settings/SyncPane.svelte'
+  import FileSources from './settings/FileSources.svelte'
   import UnusedImages from './settings/UnusedImages.svelte'
   import Segmented from './settings/Segmented.svelte'
 
@@ -63,6 +64,7 @@
     { id: 'icons', label: 'Page icons', icon: '☺' },
     { id: 'templates', label: 'Templates', icon: '⎘' },
     { id: 'sync', label: 'Sync', icon: '☁' },
+    { id: 'files', label: 'Linked files', icon: '📎' },
     { id: 'backup', label: 'Backup', icon: '⤓' },
     { id: 'graph', label: 'Graph', icon: '▤' },
   ] as const
@@ -1043,6 +1045,8 @@
           </SettingRow>
         {:else if tab === 'sync'}
           <SyncPane />
+        {:else if tab === 'files'}
+          <FileSources />
         {:else if tab === 'backup'}
           <h2>Backup</h2>
           <p class="scope">

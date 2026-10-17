@@ -17,16 +17,64 @@ fn invoke_api(
     dispatch(&state, &name, args)
 }
 
-/// Opens an http(s)/mailto link in the system browser.
+/// Opens an http(s)/mailto link in the system browser, and a `file:///` link with the system's program for that
+/// file. Programs and scripts are not opened.
 #[tauri::command]
 fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let l = url.to_ascii_lowercase();
+    if l.starts_with("file:///") {
+        let path = percent_decode(&url["file://".len()..]);
+        return open_local(&app, std::path::Path::new(&path));
+    }
     if !(l.starts_with("http://") || l.starts_with("https://") || l.starts_with("mailto:")) {
-        return Err("only http, https and mailto links can be opened".into());
+        return Err("only http, https, mailto and file links can be opened".into());
     }
     tauri_plugin_opener::OpenerExt::opener(&app)
         .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+/// Opens a file of this computer with the program the system uses for it.
+fn open_local(app: &tauri::AppHandle, path: &std::path::Path) -> Result<(), String> {
+    let name = path
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    if notatnik_graph::is_risky_file(&name) {
+        return Err("programs and scripts are not opened from a note".into());
+    }
+    if !path.exists() {
+        return Err(format!(
+            "{} does not exist on this computer",
+            path.display()
+        ));
+    }
+    tauri_plugin_opener::OpenerExt::opener(app)
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// Opens a file that was copied into the graph (`../assets/2026/10/a.pdf` as a link writes it).
+#[tauri::command]
+fn open_asset(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    path: String,
+) -> Result<(), String> {
+    let file = state
+        .asset_file(&percent_decode(&path))
+        .map_err(|e| e.message)?;
+    open_local(&app, &file)
+}
+
+/// Shows the system's file chooser and returns the file, or `None` when the user cancels (for `/file`).
+#[tauri::command]
+async fn pick_file(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    app.dialog()
+        .file()
+        .set_title("Choose a file to link")
+        .blocking_pick_file()
+        .map(|p| p.to_string())
 }
 
 /// Shows the system's folder chooser and returns the folder, or `None` when the user cancels. Called from the start
@@ -154,6 +202,8 @@ fn main() {
             invoke_api,
             open_external,
             pick_folder,
+            pick_file,
+            open_asset,
             clipboard_image
         ])
         .build(tauri::generate_context!())

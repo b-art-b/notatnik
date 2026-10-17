@@ -32,6 +32,8 @@ export interface SlashCommand {
   log?: boolean
   /** `/emoji` opens the emoji picker under the cursor. */
   emoji?: boolean
+  /** `/file` opens the file picker: a server, this computer or an address; the link goes where the command was. */
+  file?: boolean
   /** `/followup`: marks the task done and creates the next one, linked with `follows::`. */
   followup?: boolean
   /** `/template-<name>` inserts the blocks of this template (a page type) after the block. */
@@ -452,6 +454,26 @@ function baseCommands(): SlashCommand[] {
       keywords: ['smiley', 'icon', 'face', 'symbol'],
       title: 'Pick an emoji',
       emoji: true,
+      insert: none,
+    },
+    {
+      name: 'file',
+      label: 'Link a file…',
+      icon: '📎',
+      group: 'Insert',
+      keywords: [
+        'link',
+        'attach',
+        'attachment',
+        'nextcloud',
+        'webdav',
+        'server',
+        'upload',
+        'document',
+        'pdf',
+      ],
+      title: 'Link a file from a server, this computer or an address',
+      file: true,
       insert: none,
     },
     {

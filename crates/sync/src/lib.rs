@@ -21,4 +21,4 @@ pub use error::{Error, Result};
 pub use plan::{Action, plan};
 pub use remote::{Cond, Entry, Listing, Remote, norm_etag};
 pub use state::{FileState, SyncState};
-pub use webdav::{Probe, WebDavRemote, check_url, folder_url, probe};
+pub use webdav::{Probe, WebDavRemote, check_url, folder_url, item_url, probe, web_base};

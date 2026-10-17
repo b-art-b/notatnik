@@ -15,15 +15,15 @@ pub mod synth;
 mod versions;
 mod watch;
 
-pub use assets::{MAX_ASSET_BYTES, relative_asset_path, sniff_image};
+pub use assets::{MAX_ASSET_BYTES, is_risky_file, relative_asset_path, sniff_image};
 pub use backup::{
     BackupFile, BackupOptions, ChangeStatus, DEVICE_DIR, DiffOp, Extra, FileChange, FileDiff,
     diff_lines, read_entry, seal_existing, sync_mirror,
 };
 pub use config::{
-    CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, GraphEntry, GraphSection,
-    NamespaceSection, PageIconRule, PropertiesSection, RemoteConfig, SavedQuery, TasksSection,
-    default_priorities, new_graph_id, validate_priorities,
+    CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, FileSource, GraphEntry,
+    GraphSection, NamespaceSection, PageIconRule, PropertiesSection, RemoteConfig, SavedQuery,
+    TasksSection, default_priorities, new_graph_id, validate_priorities,
 };
 pub use error::{Error, Result};
 pub use rename::{FileEdit, RenamePlan, RenameReport};

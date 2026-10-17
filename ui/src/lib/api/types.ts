@@ -11,12 +11,16 @@ export interface Backend {
   assetUrl(path: string): string
   /** Opens a URL in the system browser. */
   openExternal(url: string): void
+  /** Opens a file that was copied into the graph (the path as a link writes it: `../assets/…`). */
+  openAsset(path: string): void
   /** The system's folder chooser (the desktop app only): the folder picked, `null` when cancelled. Absent in the
    * browser, where the path has to be typed. */
   /** The picture on the system clipboard as base64 PNG (the desktop app only), for a paste that the webview
    * delivers without the image. `null` when there is none. */
   clipboardImage?: () => Promise<string | null>
   pickFolder?: () => Promise<string | null>
+  /** The system's file chooser (the desktop app only): the file picked, `null` when cancelled. */
+  pickFile?: () => Promise<string | null>
 }
 
 /** The error every failed command rejects with. */
