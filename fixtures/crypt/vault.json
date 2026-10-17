@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "key_id": "10849e8b9ccf92898ff85254a7c9646d",
+  "public_key": "2f7d91ab7b22ff9858231e8b62c901afa53bc896daac70efbf75bf237b73901c",
+  "kdf": {
+    "m_kib": 8,
+    "t": 1,
+    "p": 1
+  },
+  "slots": [
+    {
+      "kind": "password",
+      "salt": "df94bb12f1e5baec0a455a3435361235",
+      "nonce": "f64fc386f931e0ffbee244a626821275bd1daf75554b73ca",
+      "wrapped": "5b9e9434a63bea3429d1a5d89be8343258b29f1e78eaf7f021974222c141f5ad24bfb1ed4484a1f1aef381d163db148bd109654a9c2f6a8a2d826c7903e5699a71692c3462bb5fdece29a785eef3484a6b"
+    },
+    {
+      "kind": "recovery",
+      "salt": "",
+      "nonce": "36651be67c05da1b0a3b5beabd28af767dbd7e6f2e11c36f",
+      "wrapped": "3846f608474330326172bc33677eba0156c03d1f18c4dc1802d4f2460134df321b673ad8775ad22c23c7d5e8222a3e0afb0b000dfb86f5eb0a4794aec7780310e39d1806ee939b7004c750b7f575b71aed"
+    }
+  ]
+}

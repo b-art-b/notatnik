@@ -1,0 +1,21 @@
+[package]
+name = "notatnik-crypt"
+description = "Encryption: password and recovery key slots around a data key, chunked authenticated file encryption, backups sealed to a public key. No file or network access of its own."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+argon2 = "0.5"
+blake3 = "1.8.7"
+chacha20poly1305 = { version = "0.10", features = ["stream"] }
+getrandom = "0.3"
+unicode-normalization = "0.1.25"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+zeroize = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true
