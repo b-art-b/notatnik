@@ -47,7 +47,7 @@ A **graph** is a folder of notes.
 | ST-5 | Detect external changes (Nextcloud client, text editor, git) and reindex them within ~1 s. | MVP |
 | ST-6 | Detect Nextcloud conflict files (`* (conflicted copy *).md`) and show them in a "Conflicts" view with a side-by-side diff and merge helper. | V1 |
 | ST-7 | Multiple graphs, switchable from the UI. | V1 |
-| ST-8 | Assets (images, attachments) are stored in `assets/` and referenced by relative path. Supports paste and drag-and-drop. | V1 |
+| ST-8 | Assets (images, attachments) are stored in `assets/` and referenced by relative path. Paste and drop of images (png, jpeg, gif, webp, up to 25 MB) store `assets/YYYY/MM/<name>-<hash8>.<ext>` once per content and insert `![](relative/path)`; the extension comes from the bytes, never from the claimed name; moving a page keeps its relative paths working. Attachments other than images and the orphan list are open. | V1 |
 | ST-9 | Full reindex command plus an integrity check (broken links, duplicate block IDs, orphan assets). | V1 |
 | ST-10 | Graph config is stored as a text file inside the graph (synced). Device-specific settings are stored outside it. | MVP |
 | BK-1 | A snapshot is one zip file of the graph folder (all files except `.notatnik/tmp/`), written next to nothing else of the graph: in a backup folder outside it. A snapshot restores to a folder that opens as a graph; the index is rebuilt. | V1 |

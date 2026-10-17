@@ -239,14 +239,36 @@ impl Graph {
                 patches,
             });
         }
-        // a moved page that changes folder depth breaks relative paths (`../assets/x.png`): not rewritten
-        for (from, _) in &file_moves {
-            if let Ok(f) = self.read_page(from) {
-                if f.text.contains("](../") || f.text.contains("](./") {
-                    warnings.push(format!(
-                        "{from}: contains relative links or images; check them after the move"
-                    ));
+        // a page that moves to another folder keeps its relative links and images (`../assets/x.png`) working
+        for (from, to) in &file_moves {
+            let existing = edits.iter().position(|e: &FileEdit| &e.path == from);
+            let (old_text, base_hash, mut patches) = match existing {
+                Some(i) => {
+                    let e = &edits[i];
+                    (e.old_text.clone(), e.base_hash.clone(), e.patches.clone())
                 }
+                None => match self.read_page(from) {
+                    Ok(f) => (f.text, f.hash, Vec::new()),
+                    Err(_) => continue,
+                },
+            };
+            let relinks = relink_patches(&old_text, from, to);
+            if relinks.is_empty() {
+                continue;
+            }
+            patches.extend(relinks);
+            patches.sort_by_key(|p| p.range.start);
+            let new_text = apply_patches(&old_text, &patches);
+            let edit = FileEdit {
+                path: from.clone(),
+                base_hash,
+                old_text,
+                new_text,
+                patches,
+            };
+            match existing {
+                Some(i) => edits[i] = edit,
+                None => edits.push(edit),
             }
         }
         Ok(RenamePlan {
@@ -349,4 +371,93 @@ impl Graph {
         }
         Ok(report)
     }
+}
+
+/// The patches that keep the relative link and image paths of a page file working when the file moves from
+/// `from` to `to` (graph-relative paths): `../assets/x.png` in `pages/a.md` becomes `../../assets/x.png` in
+/// `pages/ns/a.md`. Absolute paths, URLs, anchors and anything inside code are left alone.
+fn relink_patches(text: &str, from: &str, to: &str) -> Vec<TextPatch> {
+    let dir = |p: &str| -> Vec<String> {
+        let mut v: Vec<String> = p.split('/').map(String::from).collect();
+        v.pop();
+        v
+    };
+    let (from_dir, to_dir) = (dir(from), dir(to));
+    if from_dir == to_dir {
+        return Vec::new();
+    }
+    let mut patches = Vec::new();
+    let mut offset = 0;
+    let mut fenced = false;
+    for line in text.split_inclusive('\n') {
+        let start = offset;
+        offset += line.len();
+        if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        let mut at = 0;
+        while let Some(k) = line[at..].find("](") {
+            let dest_start = at + k + 2;
+            at = dest_start;
+            // inside an inline code span: an odd number of backticks before
+            if line[..dest_start].matches('`').count() % 2 == 1 {
+                continue;
+            }
+            let dest_len = line[dest_start..]
+                .find([')', ' ', '\t', '\n'])
+                .unwrap_or(line.len() - dest_start);
+            let dest = &line[dest_start..dest_start + dest_len];
+            if let Some(new) = relinked(dest, &from_dir, &to_dir) {
+                let range = notatnik_core::Span {
+                    start: start + dest_start,
+                    end: start + dest_start + dest_len,
+                };
+                patches.push(TextPatch {
+                    range,
+                    old_text: dest.to_string(),
+                    new_text: new,
+                });
+            }
+            at = dest_start + dest_len;
+        }
+    }
+    patches
+}
+
+/// `dest` (a link target written in a file in `from_dir`) as it must be written in a file in `to_dir`; `None`
+/// when it is not a relative path to somewhere inside the graph, or is the same.
+fn relinked(dest: &str, from_dir: &[String], to_dir: &[String]) -> Option<String> {
+    let first = dest.chars().next()?;
+    let scheme = dest.split_once(':').is_some_and(|(s, _)| {
+        s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
+    });
+    if first == '#' || first == '/' || first == '?' || scheme {
+        return None;
+    }
+    let cut = dest.find(['#', '?']).unwrap_or(dest.len());
+    let (path, suffix) = dest.split_at(cut);
+    let mut target: Vec<&str> = from_dir.iter().map(String::as_str).collect();
+    for part in path.split('/') {
+        match part {
+            "." | "" => {}
+            ".." => {
+                target.pop()?;
+            }
+            p => target.push(p),
+        }
+    }
+    let common = to_dir
+        .iter()
+        .zip(&target)
+        .take_while(|(a, b)| a.as_str() == **b)
+        .count();
+    let mut out = "../".repeat(to_dir.len() - common);
+    out.push_str(&target[common..].join("/"));
+    out.push_str(suffix);
+    (out != dest).then_some(out)
 }

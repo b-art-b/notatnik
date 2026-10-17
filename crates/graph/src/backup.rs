@@ -345,7 +345,13 @@ fn write_zip(
         let Ok(buf) = std::fs::read(abs) else {
             continue;
         };
-        z.start_file(rel.as_str(), zopts).map_err(zip_err)?;
+        // pictures are compressed already: deflating them costs time and saves nothing (ST-8)
+        let opts = if crate::sniff_image(&buf).is_some() {
+            zopts.compression_method(zip::CompressionMethod::Stored)
+        } else {
+            zopts
+        };
+        z.start_file(rel.as_str(), opts).map_err(zip_err)?;
         z.write_all(&buf)?;
         count += 1;
     }

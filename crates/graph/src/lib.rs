@@ -5,6 +5,7 @@
 //! still has the content the caller based its edit on; nothing but synced content lives inside the
 //! graph folder except `.notatnik/` (config and temp files).
 
+mod assets;
 pub mod backup;
 mod config;
 mod error;
@@ -14,6 +15,7 @@ pub mod synth;
 mod versions;
 mod watch;
 
+pub use assets::{MAX_ASSET_BYTES, relative_asset_path, sniff_image};
 pub use backup::{
     BackupFile, BackupOptions, ChangeStatus, DEVICE_DIR, DiffOp, Extra, FileChange, FileDiff,
     diff_lines, read_entry, seal_existing, sync_mirror,

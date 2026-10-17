@@ -40,7 +40,7 @@ Done while using the app, each with requirement IDs in [requirements.md](require
 - Pages: Hierarchy, page Tasks section, Recent list, All pages, page properties (edit, group the sidebar by a property, click a property to list its pages), page icons, unlinked references, namespace move/rename (with revert), path segments as implicit tags (`path:`). Renaming a middle path segment renames the namespace (NS-19). Linked references show the block with its sub-bullets (LN-10); links and tags apply to the subtree in queries, `direct: yes` opts out (LN-11, D31). Agenda has a Later section.
 - Settings: four panes (device vs graph), date language/format/custom pattern, link brackets.
 - Encryption: [encryption.md](encryption.md) (EN-1..EN-10). Encrypted backups are built (P0 to P2); encrypted sync (P3 to P7) is planned and waits for review.
-- Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image paste (P5.5).
+- Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image attachments other than pictures and the orphan list (P5.5; paste and drop of images are built).
 
 ## Known issues
 

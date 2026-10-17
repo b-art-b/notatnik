@@ -62,14 +62,14 @@ JR-4, JR-6, ED-10, ED-11, ED-14, NF-10 (string externalisation).
 - [ ] Two graphs with identical page names don't share cache or search results
 
 ### P5.5 Assets (ST-8)
-- [ ] Paste an image or drag-drop a file → copied to `assets/YYYY/MM/<name>-<short-hash>.<ext>` → `![](../assets/…)` inserted (path relative to the page file so other Markdown tools render it)
-- [ ] Image rendering in blocks; non-images as attachment chips (open with the system app)
+- [x] Paste an image or drag-drop an image file (png, jpeg, gif, webp; 25 MB) → copied to `assets/YYYY/MM/<name>-<short-hash>.<ext>` → `![](../assets/…)` inserted (path relative to the page file so other Markdown tools render it)
+- [x] Image rendering in blocks (the desktop shell serves `asset://localhost/…` from `read_asset`); non-images as attachment chips are not built
 - [ ] Orphan asset detection in the health screen (P5.3)
 
 **Verify**
-- [ ] Paste a screenshot → the file exists in `assets/`, the link renders, and the same link works in the Nextcloud web Markdown viewer
-- [ ] Pasting the same image twice → one file (hash dedupe)
-- [ ] Renaming or moving a page (P5.10) rewrites its relative asset paths correctly
+- [x] Paste a screenshot → the file exists in `assets/`, the link renders, and the same link works in the Nextcloud web Markdown viewer
+- [x] Pasting the same image twice → one file (hash dedupe)
+- [x] Renaming or moving a page (P5.10) rewrites its relative asset paths correctly
 
 ### P5.6 Trash
 - [ ] Deleted pages and resolved conflict files go to `.notatnik/trash/` (synced) with a restore UI; auto-purge after N days (default 30)
@@ -106,7 +106,7 @@ Namespace-aware autocomplete ranking (NS-7, phase 2) covers the convenience part
 - [x] Fixture `namespaces`: move `work/projects` → `archive/2026/projects` → `notatnik check` reports 0 broken links; the folder structure matches; unaffected files are byte-identical
 - [x] Moving into its own descendant → rejected ("can't move `x` into itself")
 - [x] Simulated write conflict (test: file 2 of 2) → the error lists the files already written; "Revert" in the dialog (`rename_revert`) restores them byte-identically; pressing Preview/Rename again finishes the move
-- Not done: relative asset paths inside moved pages are not rewritten (assets are P5.5); a warning is shown for pages that contain relative links
+- Relative link and image paths inside a moved page are rewritten so they still resolve (test `moving_a_page_rewrites_its_relative_image_paths`; code, URLs, absolute paths and anchors are left alone). Links *to* a moved page written as relative Markdown paths in other pages are not rewritten
 
 ## 5D: Templates and journals
 

@@ -1202,3 +1202,23 @@ pub struct BackupPasswordArgs {
     /// The current password (or the recovery key).
     pub password: String,
 }
+
+/// `save_asset`: an image pasted or dropped into a block of `page` (ST-8).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SaveAssetArgs {
+    /// The page the image is added to; the link is written relative to this page's file.
+    pub page: String,
+    /// The image bytes, base64 encoded.
+    pub data: String,
+    /// The name of a dropped file; its cleaned stem is kept in the stored name.
+    pub name: Option<String>,
+}
+
+/// `save_asset` result.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SavedAsset {
+    /// Graph-relative path of the stored file, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+    pub path: String,
+    /// The Markdown to insert: `![](../../assets/2026/10/pasted-a1b2c3d4.png)`.
+    pub markdown: String,
+}

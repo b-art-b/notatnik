@@ -1535,6 +1535,28 @@ export type BackupPasswordArgs = {
  * The current password (or the recovery key).
  */
 password: string, };
+export type SaveAssetArgs = { 
+/**
+ * The page the image is added to; the link is written relative to this page's file.
+ */
+page: string, 
+/**
+ * The image bytes, base64 encoded.
+ */
+data: string, 
+/**
+ * The name of a dropped file; its cleaned stem is kept in the stored name.
+ */
+name: string | null, };
+export type SavedAsset = { 
+/**
+ * Graph-relative path of the stored file, e.g. `assets/2026/10/pasted-a1b2c3d4.png`.
+ */
+path: string, 
+/**
+ * The Markdown to insert: `![](../../assets/2026/10/pasted-a1b2c3d4.png)`.
+ */
+markdown: string, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1599,6 +1621,7 @@ export type Commands = {
   backup_encryption_setup: { args: BackupSetupArgs; result: RecoveryKeyResult };
   backup_encryption_confirm: { args: NoArgs; result: BackupEncryption };
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
+  save_asset: { args: SaveAssetArgs; result: SavedAsset };
   backup_lock: { args: NoArgs; result: BackupEncryption };
   backup_encryption_change_password: { args: BackupChangePasswordArgs; result: BackupEncryption };
   backup_encryption_new_recovery_key: { args: BackupPasswordArgs; result: RecoveryKeyResult };

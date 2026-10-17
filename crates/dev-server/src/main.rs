@@ -102,17 +102,6 @@ fn json_response(status: u16, v: &Value) -> Response<std::io::Cursor<Vec<u8>>> {
     )
 }
 
-fn content_type(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("") {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "svg" => "image/svg+xml",
-        "webp" => "image/webp",
-        _ => "application/octet-stream",
-    }
-}
-
 fn handle(app: &AppState, events: &Events, mut req: Request) {
     let url = req.url().to_string();
     let method = req.method().clone();
@@ -134,10 +123,10 @@ fn handle(app: &AppState, events: &Events, mut req: Request) {
         let path = url.split_once("path=").map(|x| x.1).unwrap_or("");
         let decoded: String = path.replace("%2F", "/").replace("%20", " ");
         let resp = match app.read_asset(&decoded) {
-            Ok(bytes) => cors(
-                Response::from_data(bytes)
-                    .with_header(header("Content-Type", content_type(&decoded))),
-            ),
+            Ok(bytes) => cors(Response::from_data(bytes).with_header(header(
+                "Content-Type",
+                notatnik_app::asset_content_type(&decoded),
+            ))),
             Err(_) => cors(Response::from_data(Vec::new()).with_status_code(StatusCode(404))),
         };
         let _ = req.respond(resp);

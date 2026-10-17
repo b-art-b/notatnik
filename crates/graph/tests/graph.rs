@@ -1766,3 +1766,40 @@ fn a_restore_right_after_an_edit_keeps_the_text_it_replaces() {
         .collect();
     assert!(texts.contains(&edited), "the replaced text is a version");
 }
+
+/// ST-8, P5.10: a page that changes folder depth keeps its relative image paths working.
+#[test]
+fn moving_a_page_rewrites_its_relative_image_paths() {
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let old = "- ![a](../assets/2026/10/a.png) and [file](../assets/doc.pdf#p2) and [site](https://x.y/z)\n\
+               - ![same folder](pic.png) and [top](/abs/x) and [anchor](#here) and `![code](../assets/c.png)`\n\
+               ```\n![fenced](../assets/f.png)\n```\n\
+               - see [[people/anna]]\n";
+    g.write_page("pages/gallery.md", old, None).unwrap();
+
+    let plan = g.plan_rename("gallery", "photos/trip/gallery").unwrap();
+    let edit = plan
+        .edits
+        .iter()
+        .find(|x| x.path == "pages/gallery.md")
+        .expect("the moved page is rewritten before it moves");
+    let new = &edit.new_text;
+    assert!(new.contains("![a](../../../assets/2026/10/a.png)"), "{new}");
+    assert!(new.contains("[file](../../../assets/doc.pdf#p2)"), "{new}");
+    assert!(new.contains("![same folder](../../pic.png)"), "{new}");
+    // untouched: URLs, absolute paths, anchors, code
+    for kept in [
+        "[site](https://x.y/z)",
+        "[top](/abs/x)",
+        "[anchor](#here)",
+        "`![code](../assets/c.png)`",
+        "![fenced](../assets/f.png)",
+    ] {
+        assert!(new.contains(kept), "{kept} in {new}");
+    }
+
+    g.apply_rename(&plan).unwrap();
+    let moved = g.read_page("pages/photos/trip/gallery.md").unwrap().text;
+    assert_eq!(&moved, new);
+}

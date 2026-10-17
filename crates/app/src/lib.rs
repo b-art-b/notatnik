@@ -8,7 +8,7 @@ mod templates;
 mod ts;
 pub mod views;
 
-pub use state::{ApiError, ApiResult, AppOptions, AppState, Emitter};
+pub use state::{ApiError, ApiResult, AppOptions, AppState, Emitter, asset_content_type};
 pub use ts::typescript_bindings;
 
 use dto::*;
@@ -102,6 +102,7 @@ commands! {
     backup_encryption_setup(BackupSetupArgs) -> RecoveryKeyResult => backup_encryption_setup,
     backup_encryption_confirm(NoArgs) -> BackupEncryption => backup_encryption_confirm,
     backup_unlock(BackupUnlockArgs) -> BackupEncryption => backup_unlock,
+    save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
     backup_lock(NoArgs) -> BackupEncryption => backup_lock,
     backup_encryption_change_password(BackupChangePasswordArgs) -> BackupEncryption => backup_encryption_change_password,
     backup_encryption_new_recovery_key(BackupPasswordArgs) -> RecoveryKeyResult => backup_encryption_new_recovery_key,

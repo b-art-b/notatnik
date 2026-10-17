@@ -2876,3 +2876,68 @@ fn search_syntax_errors_are_explained() {
     assert_eq!(e.code, "invalid");
     assert!(e.message.contains("not closed"), "{}", e.message);
 }
+
+/// ST-8: a pasted image is stored once below `assets/YYYY/MM/`, linked relative to the page file, and read back.
+#[test]
+fn pasted_images_are_stored_once_and_linked_relative_to_the_page() {
+    use base64::Engine as _;
+    let t = start("basic");
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    png.extend_from_slice(b"not really a picture, only the signature matters");
+    let data = base64::engine::general_purpose::STANDARD.encode(&png);
+
+    let a = t.ok(
+        "save_asset",
+        json!({"page": "inbox", "data": data, "name": null}),
+    );
+    let path = a["path"].as_str().unwrap();
+    assert!(
+        path.starts_with("assets/2026/10/pasted-") && path.ends_with(".png"),
+        "{path}"
+    );
+    assert_eq!(a["markdown"], format!("![](../{path})"));
+    assert_eq!(
+        std::fs::read(t.tmp.path().join("graph").join(path)).unwrap(),
+        png
+    );
+
+    // the same picture again: one file, named after a dropped file's cleaned stem when it has one
+    let b = t.ok(
+        "save_asset",
+        json!({"page": "inbox", "data": data, "name": null}),
+    );
+    assert_eq!(b["path"], a["path"]);
+    let c = t.ok(
+        "save_asset",
+        json!({"page": "2026-10-03", "data": data, "name": "My holiday (1).PNG"}),
+    );
+    let cpath = c["path"].as_str().unwrap();
+    assert!(cpath.starts_with("assets/2026/10/My-holiday-1-"), "{cpath}");
+    // a journal file is one folder deeper: journals/2026/2026-10-03.md
+    assert_eq!(c["markdown"], format!("![](../../{cpath})"));
+    let count = std::fs::read_dir(t.tmp.path().join("graph/assets/2026/10"))
+        .unwrap()
+        .count();
+    assert_eq!(count, 2);
+
+    // what the editor shows is what the app serves
+    assert_eq!(t.app.read_asset(&format!("../{path}")).unwrap(), png);
+
+    // refused: not an image (the claimed name does not matter), empty, not base64
+    for (data, name) in [
+        (
+            base64::engine::general_purpose::STANDARD.encode("<script>alert(1)</script>"),
+            "x.png",
+        ),
+        (String::new(), "x.png"),
+        ("***".to_string(), "x.png"),
+    ] {
+        let e = t
+            .call(
+                "save_asset",
+                json!({"page": "inbox", "data": data, "name": name}),
+            )
+            .unwrap_err();
+        assert_eq!(e.code, "invalid");
+    }
+}

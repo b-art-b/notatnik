@@ -12,6 +12,7 @@ notatnik-core = { workspace = true, features = ["ts"] }
 notatnik-index = { workspace = true }
 notatnik-crypt = { workspace = true }
 notatnik-graph = { workspace = true }
+base64 = "0.22"
 chrono = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }

@@ -33,6 +33,9 @@
   import type { Cursor } from '../tree'
   import type { EditorAction } from '../commands/exec'
   import { wikiCompletions } from '../completion'
+  import { backend } from '../api'
+  import { toast } from '../stores/app.svelte'
+  import { hasFiles, imageFiles, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
@@ -58,6 +61,39 @@
   let lastSent = untrack(() => text)
   /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
   let picker = $state<{ kind: DateKind | 'emoji'; at: number; x: number; y: number } | null>(null)
+
+  /** Stores pasted or dropped images as assets (ST-8) and writes their links into the text: replacing the
+   * selection, or at `at` for a drop. The editor may be gone when the backend answers; then only the files remain. */
+  async function addImages(files: File[], at?: number) {
+    const v = view
+    if (!v) return
+    const links: string[] = []
+    for (const f of files) {
+      try {
+        const saved = await backend.call('save_asset', {
+          page: pageName,
+          data: await toBase64(f),
+          name: usefulName(f),
+        })
+        links.push(saved.markdown)
+      } catch (e) {
+        toast(e instanceof Error ? e.message : String(e), 'error')
+      }
+    }
+    if (view !== v || links.length === 0) return
+    const sel = v.state.selection.main
+    const from = at ?? sel.from
+    const to = at ?? sel.to
+    // a space before the link when it would stick to the word in front (`#tag![](...)` is not an image)
+    const glued = from > 0 && !/\s/.test(v.state.sliceDoc(from - 1, from))
+    const insert = (glued ? ' ' : '') + links.join('\n')
+    v.dispatch({
+      changes: { from, to, insert },
+      selection: { anchor: from + insert.length },
+      userEvent: 'input.paste',
+    })
+    v.focus()
+  }
 
   function openPicker(kind: DateKind | 'emoji', at: number) {
     if (!view) return
@@ -363,7 +399,26 @@
               })
               return false
             },
+            dragover: (e) => {
+              if (!hasFiles(e.dataTransfer)) return false
+              e.preventDefault()
+              return true
+            },
+            drop: (e, v) => {
+              const images = imageFiles(e.dataTransfer)
+              if (images.length === 0) return false
+              e.preventDefault()
+              void addImages(images, v.posAtCoords({ x: e.clientX, y: e.clientY }) ?? undefined)
+              return true
+            },
             paste: (e, v) => {
+              // a picture without text (a screenshot) becomes an asset; a copied web page brings text too
+              const images = imageFiles(e.clipboardData)
+              if (images.length > 0 && !e.clipboardData?.getData('text/plain')) {
+                e.preventDefault()
+                void addImages(images)
+                return true
+              }
               const data = e.clipboardData?.getData('text/plain') ?? ''
               if (!/\n/.test(data.trim())) return false
               e.preventDefault()

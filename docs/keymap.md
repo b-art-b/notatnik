@@ -77,6 +77,13 @@ The zoom level is remembered per device (browser/webview storage), not in the gr
 The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" in the palette) hides and shows the left sidebar; drag its right edge to resize it
 (180 to 560 px; with the edge focused, ←/→ move it by 10 px, Shift by 40 px, Home or a double click resets to 240 px). Both are remembered on this device. The width can also be set in Settings → Appearance → *Sidebar width* (slider, Reset).
 
+## Images
+
+- **Paste** a picture (a screenshot) while editing a block: the link `![](../assets/2026/10/pasted-1a2b3c4d.png)` is inserted at the cursor and the file is stored in the graph's `assets/` folder. A clipboard that also holds text pastes the text.
+- **Drop** an image file on a block that is being edited: the link goes where it is dropped, and the file name is kept in the stored name.
+- The same picture twice is stored once. Only png, jpeg, gif and webp are accepted, up to 25 MB.
+- Images are never deleted by the app, not even when their block is.
+
 ## Slash commands
 
 Type `/` after a space, at the start of a line, or after punctuation (`(/todo`). With nothing typed the menu is grouped (Tasks, Dates, Task details, Blocks); as soon as you type it is

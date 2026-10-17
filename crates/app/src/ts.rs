@@ -136,6 +136,8 @@ pub fn typescript_bindings() -> String {
         BackupUnlockArgs,
         BackupChangePasswordArgs,
         BackupPasswordArgs,
+        SaveAssetArgs,
+        SavedAsset,
     );
     out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };\n\n");
     out.push_str(&crate::commands_ts());

@@ -69,6 +69,7 @@ impl From<GraphError> for ApiError {
             GraphError::Edit(_)
             | GraphError::InvalidPath(_)
             | GraphError::Rename(_)
+            | GraphError::Asset(_)
             | GraphError::Config(_) => "invalid",
             _ => "internal",
         };
@@ -1832,6 +1833,32 @@ impl AppState {
         self.lock().as_ref().map(|o| o.graph.root().to_path_buf())
     }
 
+    /// `save_asset`: stores a pasted or dropped image and returns the Markdown that links it from `page` (ST-8).
+    pub fn save_asset(&self, a: SaveAssetArgs) -> ApiResult<SavedAsset> {
+        use base64::Engine as _;
+        let name = Self::parse_name(&a.page)?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(a.data.trim())
+            .map_err(|_| ApiError::new("invalid", "the image data is not valid base64"))?;
+        let today = self.today();
+        self.with_open(|o| {
+            let info = o.graph.with_index(|i| i.page_info(name.as_str()))?;
+            let canonical = info
+                .as_ref()
+                .and_then(|i| PageName::parse(&i.name).ok())
+                .unwrap_or_else(|| name.clone());
+            let page_rel = info
+                .and_then(|i| i.file_path)
+                .unwrap_or_else(|| page_to_path(&canonical));
+            let path = o.graph.save_asset(&bytes, a.name.as_deref(), today)?;
+            let markdown = format!(
+                "![]({})",
+                notatnik_graph::relative_asset_path(&page_rel, &path)
+            );
+            Ok(SavedAsset { path, markdown })
+        })
+    }
+
     /// Reads a file below `assets/` (images).
     pub fn read_asset(&self, rel: &str) -> ApiResult<Vec<u8>> {
         self.with_open(|o| {
@@ -3081,5 +3108,23 @@ impl AppState {
                 items: vec![name.to_string()],
             })
         })
+    }
+}
+
+/// The MIME type of an asset file, from its extension. The shell and the dev server serve assets with it.
+pub fn asset_content_type(path: &str) -> &'static str {
+    match path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
     }
 }

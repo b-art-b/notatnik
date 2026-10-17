@@ -26,6 +26,8 @@ pub enum Error {
     Locked(String),
     /// Encryption or decryption failed: wrong keys, a damaged or changed file.
     Crypt(String),
+    /// An asset (pasted image) was refused: empty, too large or not an image.
+    Asset(String),
     /// A rename was interrupted by a conflict after some files were already written.
     PartialRename {
         /// Files already written.
@@ -51,7 +53,9 @@ impl fmt::Display for Error {
             Error::Edit(e) => write!(f, "edit rejected: {e}"),
             Error::NotFound(p) => write!(f, "not found: {p}"),
             Error::InvalidPath(p) => write!(f, "not a page file path: {p}"),
-            Error::Rename(m) | Error::Locked(m) | Error::Crypt(m) => write!(f, "{m}"),
+            Error::Rename(m) | Error::Locked(m) | Error::Crypt(m) | Error::Asset(m) => {
+                write!(f, "{m}")
+            }
             Error::PartialRename { done, failed } => {
                 write!(
                     f,

@@ -42,8 +42,44 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
         .map(|p| p.to_string())
 }
 
+/// Decodes `%XX` escapes (the UI sends the asset path as one `encodeURIComponent` segment).
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        if b[i] == b'%' && i + 2 < b.len() && hex(b[i + 1]).is_some() && hex(b[i + 2]).is_some() {
+            out.push((hex(b[i + 1]).unwrap() * 16 + hex(b[i + 2]).unwrap()) as u8);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 fn main() {
     tauri::Builder::default()
+        // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
+        .register_uri_scheme_protocol("asset", |ctx, req| {
+            let path = percent_decode(req.uri().path().trim_start_matches('/'));
+            let bytes = ctx
+                .app_handle()
+                .try_state::<Arc<AppState>>()
+                .and_then(|s| s.read_asset(&path).ok());
+            match bytes {
+                Some(b) => tauri::http::Response::builder()
+                    .header("Content-Type", notatnik_app::asset_content_type(&path))
+                    .body(b)
+                    .unwrap(),
+                None => tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::new())
+                    .unwrap(),
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {

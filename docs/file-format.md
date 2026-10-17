@@ -25,7 +25,7 @@ Design goals:
 │       └── projects/
 │           └── alpha.md         # page "work/projects/alpha"
 ├── assets/
-│   └── 2026/10/diagram-a1b2.png
+│   └── 2026/10/diagram-a1b2c3d4.png   # <name>-<first 8 hex of the blake3 of the content>.<ext>; pasted: pasted-<hash8>.png
 └── .notatnik/                   # synced graph config
     ├── config.toml
     ├── templates/               # page/block templates (Markdown)
