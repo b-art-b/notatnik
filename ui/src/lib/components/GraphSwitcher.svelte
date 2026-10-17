@@ -81,6 +81,8 @@
   .switcher {
     position: relative;
     margin-bottom: 0.4em;
+    /* the button that hides the sidebar sits at this corner */
+    margin-right: 32px;
   }
   .current {
     display: flex;

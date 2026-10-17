@@ -226,11 +226,41 @@ main > .column {
   margin-inline: auto;
 }
 .right {
-  width: 360px;
+  width: var(--right-w, 380px);
   border-left: 1px solid var(--border);
-  padding: 0.8em;
+  padding: 2.6em 0.8em 0.8em;
   overflow-y: auto;
   background: var(--panel);
+}
+/* the button for the right panel: on the panel's edge while it is open, in the top right corner when closed */
+.right-toggle {
+  position: absolute;
+  z-index: 30;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.right-toggle.open {
+  right: calc(var(--right-w, 380px) - 36px);
+}
+.right-toggle:hover {
+  background: var(--chip);
+  color: var(--text);
+}
+.resizer-right {
+  left: auto;
+  right: calc(var(--right-w, 380px) - 5px);
+}
+.right .context {
+  margin-bottom: 1em;
 }
 .panel header {
   display: flex;

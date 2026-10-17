@@ -6,8 +6,12 @@
     bootstrap,
     dismissToast,
     LEFT_DEFAULT,
+    onSide,
+    RIGHT_DEFAULT,
     setLeftWidth,
+    setRightWidth,
     toggleLeft,
+    toggleRight,
   } from './lib/stores/app.svelte'
   import { watchArchived } from './lib/stores/archived.svelte'
   import { editing, isEditingDoc, stopEditing } from './lib/stores/editing.svelte'
@@ -40,6 +44,8 @@
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
   import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
+  import PageTasks from './lib/components/PageTasks.svelte'
+  import Backlinks from './lib/components/Backlinks.svelte'
   import SyncIndicator from './lib/components/SyncIndicator.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
@@ -63,6 +69,10 @@
   import { installNavigation } from './lib/mouse'
 
   const route = $derived(app.route)
+  // The right panel: this page's references and tasks (when Settings put them there), and the pages opened beside it
+  const hasContext = $derived(route.kind === 'page' && (onSide('refs') || onSide('tasks')))
+  const rightExists = $derived(hasContext || app.rightPanels.length > 0)
+  const rightShown = $derived(rightExists && app.rightOpen)
   let saved = $state<SavedQueryView[]>([])
   $effect(() => {
     void app.savedVersion
@@ -153,9 +163,43 @@
     e.preventDefault()
   }
 
+  // Dragging the right panel's edge (the mirror of the sidebar's)
+  let resizingRight = $state(false)
+  function startResizeRight(e: PointerEvent) {
+    e.preventDefault()
+    const handle = e.currentTarget as HTMLElement
+    handle.setPointerCapture(e.pointerId)
+    resizingRight = true
+    const move = (m: PointerEvent) => setRightWidth(window.innerWidth - m.clientX, false)
+    const stop = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', stop)
+      handle.removeEventListener('pointercancel', stop)
+      resizingRight = false
+      setRightWidth(app.rightWidth) // remember where it ended
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', stop)
+    handle.addEventListener('pointercancel', stop)
+  }
+  function resizeKeyRight(e: KeyboardEvent) {
+    const step = e.shiftKey ? 40 : 10
+    // the handle is on the panel's left edge: moving it left makes the panel wider
+    if (e.key === 'ArrowLeft') setRightWidth(app.rightWidth + step)
+    else if (e.key === 'ArrowRight') setRightWidth(app.rightWidth - step)
+    else if (e.key === 'Home') setRightWidth(RIGHT_DEFAULT)
+    else return
+    e.preventDefault()
+  }
+
   async function globalKey(e: KeyboardEvent) {
     if (zoomKey(e)) return
     const mod = e.ctrlKey || e.metaKey
+    if (mod && e.shiftKey && e.code === 'Backslash') {
+      e.preventDefault()
+      toggleRight()
+      return
+    }
     if (mod && e.key === '\\') {
       e.preventDefault()
       toggleLeft()
@@ -254,7 +298,13 @@
 {#if app.needsGraph}
   <Welcome />
 {:else}
-  <div class="app" class:left-closed={!app.leftOpen} class:resizing style:--left-w="{app.leftWidth}px">
+  <div
+    class="app"
+    class:left-closed={!app.leftOpen}
+    class:resizing={resizing || resizingRight}
+    style:--left-w="{app.leftWidth}px"
+    style:--right-w="{app.rightWidth}px"
+  >
     <!-- one button for both states: it sits on the sidebar's edge while open and in the corner when closed -->
     <button
       class="left-toggle"
@@ -358,8 +408,56 @@
         {/if}
       </div>
     </main>
-    {#if app.rightPanels.length}
-      <aside class="right" aria-label="Side panels">
+    {#if rightExists}
+      <button
+        class="right-toggle"
+        class:open={rightShown}
+        aria-label={rightShown ? 'Hide side panel' : 'Show side panel'}
+        aria-expanded={rightShown}
+        title={`${rightShown ? 'Hide' : 'Show'} the side panel (Ctrl+Shift+\\)`}
+        onclick={toggleRight}
+        data-testid="right-toggle"
+        ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
+          ><rect
+            x="1.75"
+            y="2.75"
+            width="12.5"
+            height="10.5"
+            rx="2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          /><path d="M10 3v10" stroke="currentColor" stroke-width="1.5" /></svg
+        ></button
+      >
+    {/if}
+    {#if rightShown}
+      <!-- a focusable separator on the panel's left edge, like the sidebar's -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <div
+        class="resizer resizer-right"
+        class:active={resizingRight}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize side panel"
+        aria-valuemin={280}
+        aria-valuemax={720}
+        aria-valuenow={app.rightWidth}
+        tabindex="0"
+        data-testid="right-resizer"
+        onpointerdown={startResizeRight}
+        onkeydown={resizeKeyRight}
+        ondblclick={() => setRightWidth(RIGHT_DEFAULT)}
+      ></div>
+      <aside class="right" aria-label="Side panels" data-testid="side-panel">
+        {#if hasContext}
+          {#key route.kind === 'page' ? route.name : ''}
+            <section class="context" aria-label="About this page">
+              {#if onSide('tasks')}<PageTasks page={route.kind === 'page' ? route.name : ''} />{/if}
+              {#if onSide('refs')}<Backlinks page={route.kind === 'page' ? route.name : ''} />{/if}
+            </section>
+          {/key}
+        {/if}
         {#each app.rightPanels as p (p)}
           <section class="panel">
             <header>

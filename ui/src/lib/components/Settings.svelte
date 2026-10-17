@@ -20,6 +20,7 @@
     LEFT_DEFAULT,
     openGraph,
     setLeftWidth,
+    setPlacement,
     toast,
     type Theme,
   } from '../stores/app.svelte'
@@ -590,6 +591,36 @@
               role="switch"
               checked={s.link_brackets}
               onchange={(e) => save({ link_brackets: (e.currentTarget as HTMLInputElement).checked })}
+            />
+          </SettingRow>
+          <SettingRow
+            title="References"
+            description="Where a page's linked and unlinked references go: below the page, or in a panel at the right (Ctrl+Shift+\\ hides it). Shown below the page when the window is narrower than about 1180 px. This device."
+          >
+            <Segmented
+              name="place-refs"
+              legend="References"
+              value={app.placement.refs}
+              options={[
+                { value: 'bottom', label: 'Below the page' },
+                { value: 'side', label: 'Side panel' },
+              ]}
+              onchange={(v) => setPlacement('refs', v === 'side' ? 'side' : 'bottom')}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Page tasks"
+            description="Where the tasks of a page (and of the pages below it) go. Same choices as for references; the two can be in different places."
+          >
+            <Segmented
+              name="place-tasks"
+              legend="Page tasks"
+              value={app.placement.tasks}
+              options={[
+                { value: 'bottom', label: 'Below the page' },
+                { value: 'side', label: 'Side panel' },
+              ]}
+              onchange={(v) => setPlacement('tasks', v === 'side' ? 'side' : 'bottom')}
             />
           </SettingRow>
           <SettingRow

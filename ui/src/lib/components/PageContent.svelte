@@ -1,7 +1,7 @@
 <script lang="ts">
   import { setContext, untrack } from 'svelte'
   import { backend, CommandError } from '../api'
-  import { app, toast, errorMessage } from '../stores/app.svelte'
+  import { app, onSide, toast, errorMessage } from '../stores/app.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
   import { startEditing, stopEditing } from '../stores/editing.svelte'
@@ -512,9 +512,12 @@
         >
       {/if}
     </div>
-    {#if showBacklinks && !compact}<Hierarchy page={view.name} /><PageTasks page={view.name} /><Backlinks
-        page={view.name}
-      />{/if}
+    <!-- tasks and references go to the right panel when Settings → Appearance says so and the window is wide -->
+    {#if showBacklinks && !compact}
+      <Hierarchy page={view.name} />
+      {#if !onSide('tasks')}<PageTasks page={view.name} />{/if}
+      {#if !onSide('refs')}<Backlinks page={view.name} />{/if}
+    {/if}
   </article>
 {/if}
 

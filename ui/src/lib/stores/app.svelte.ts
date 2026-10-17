@@ -36,7 +36,48 @@ function loadLeftOpen(): boolean {
   }
 }
 
+const RIGHT_MIN = 280
+const RIGHT_MAX = 720
+export const RIGHT_DEFAULT = 380
+/** The window is wide enough for a side panel next to the page; below this the panels fall back to the bottom. */
+const WIDE_PX = 1180
+
+function loadRight(): { open: boolean; width: number } {
+  try {
+    const n = Number(localStorage.getItem('notatnik-right-width'))
+    return {
+      open: localStorage.getItem('notatnik-right-open') !== 'no',
+      width: Number.isFinite(n) && n >= RIGHT_MIN && n <= RIGHT_MAX ? n : RIGHT_DEFAULT,
+    }
+  } catch {
+    return { open: true, width: RIGHT_DEFAULT }
+  }
+}
+
+export type Place = 'bottom' | 'side'
+/** Where the references and the tasks of a page are shown (device setting). */
+export type Placement = { refs: Place; tasks: Place }
+
+function loadPlacement(): Placement {
+  try {
+    const v = JSON.parse(localStorage.getItem('notatnik-placement') ?? '{}')
+    return { refs: v.refs === 'side' ? 'side' : 'bottom', tasks: v.tasks === 'side' ? 'side' : 'bottom' }
+  } catch {
+    return { refs: 'bottom', tasks: 'bottom' }
+  }
+}
+
+const wideQuery =
+  typeof window.matchMedia === 'function' ? window.matchMedia(`(min-width: ${WIDE_PX}px)`) : null
+
 export const app = $state({
+  /** Width of the right panel in px, and whether it is shown; remembered on this device. */
+  rightWidth: loadRight().width,
+  rightOpen: loadRight().open,
+  /** Where the references and the tasks of a page go. */
+  placement: loadPlacement(),
+  /** The window is wide enough for a side panel. */
+  wide: wideQuery?.matches ?? true,
   graph: null as GraphInfo | null,
   needsGraph: false,
   today: '',
@@ -69,6 +110,45 @@ export function setLeftWidth(px: number, save = true) {
   if (!save) return
   try {
     localStorage.setItem('notatnik-left-width', String(app.leftWidth))
+  } catch {
+    /* not remembered */
+  }
+}
+
+wideQuery?.addEventListener('change', (e) => {
+  app.wide = e.matches
+})
+
+/** A page's `refs` (linked and unlinked references) or `tasks` are in the right panel: chosen so, and room for it. */
+export function onSide(kind: keyof Placement): boolean {
+  return app.wide && app.placement[kind] === 'side'
+}
+
+export function setPlacement(kind: keyof Placement, place: Place) {
+  app.placement[kind] = place
+  try {
+    localStorage.setItem('notatnik-placement', JSON.stringify(app.placement))
+  } catch {
+    /* not remembered */
+  }
+}
+
+/** Sets the right panel's width in px (clamped); `save` remembers it (done when a drag ends). */
+export function setRightWidth(px: number, save = true) {
+  app.rightWidth = Math.round(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, px)))
+  if (!save) return
+  try {
+    localStorage.setItem('notatnik-right-width', String(app.rightWidth))
+  } catch {
+    /* not remembered */
+  }
+}
+
+/** Shows or hides the right panel (Ctrl+Shift+\\ and the button in the corner). */
+export function toggleRight() {
+  app.rightOpen = !app.rightOpen
+  try {
+    localStorage.setItem('notatnik-right-open', app.rightOpen ? 'yes' : 'no')
   } catch {
     /* not remembered */
   }
