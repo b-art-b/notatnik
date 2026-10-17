@@ -46,3 +46,23 @@ test('all pages: list with filter, sorting and toggles; namespaces mode; sidebar
   await page.getByTestId('pages-tree').locator('a[data-ns="zeta"]').click()
   await expect(page).toHaveURL(/#\/page\/zeta/)
 })
+
+// Collapse all / Expand all of the namespace tree in the left panel
+test('the Pages panel starts collapsed and opens or closes every branch with its buttons', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/A/B/C.md', '- deep\n')
+  backend.write('pages/A/X.md', '- x\n')
+  await backend.open('/page/A%2FX')
+  const tree = page.getByRole('tree', { name: 'Namespaces' })
+  await expect(tree.locator('a[data-ns="A"]')).toBeVisible()
+  await expect(tree.locator('a[data-ns="A/B"]')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Expand all' }).click()
+  await expect(tree.locator('a[data-ns="A/B/C"]')).toBeVisible()
+  await page.reload()
+  await expect(tree.locator('a[data-ns="A/B/C"]')).toBeVisible() // remembered
+  await page.getByRole('button', { name: 'Collapse all' }).click()
+  await expect(tree.locator('a[data-ns="A/B"]')).toHaveCount(0)
+  await expect(tree.locator('a[data-ns="A"]')).toBeVisible()
+})

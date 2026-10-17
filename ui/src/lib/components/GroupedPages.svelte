@@ -4,6 +4,7 @@
   import { bus } from '../stores/events.svelte'
   import { pageHash } from '../route'
   import { archived, isArchived } from '../stores/archived.svelte'
+  import { pagesFold } from '../stores/pagesFold.svelte'
 
   let { key }: { key: string } = $props()
   let loadedGroups = $state<PageGroupView[]>([])
@@ -15,16 +16,36 @@
       .filter((g) => g.pages.length > 0)),
   )
   let loaded = $state(false)
+  // groups folded or opened by hand; the others follow `foldedByDefault` (Collapse all / Expand all)
   let folded = $state<Record<string, boolean>>({})
+  let foldedByDefault = $state(true)
   const NONE = '\u0000none'
 
   const storeKey = (k: string) => `notatnik-pages-folded-${k}`
+  const defaultKey = (k: string) => `notatnik-pages-folded-default-${k}`
   $effect(() => {
     // another property chosen: read its folds
     try {
       folded = JSON.parse(localStorage.getItem(storeKey(key)) ?? '{}')
+      foldedByDefault = localStorage.getItem(defaultKey(key)) !== '0'
     } catch {
       folded = {}
+      foldedByDefault = true
+    }
+  })
+
+  // the buttons of the panel (requests made before this list existed are not repeated)
+  let seen = pagesFold.n
+  $effect(() => {
+    if (pagesFold.n === seen) return
+    seen = pagesFold.n
+    foldedByDefault = pagesFold.collapsed
+    folded = {}
+    try {
+      localStorage.setItem(storeKey(key), '{}')
+      localStorage.setItem(defaultKey(key), foldedByDefault ? '1' : '0')
+    } catch {
+      /* not remembered */
     }
   })
 
@@ -44,8 +65,7 @@
   })
 
   const id = (g: PageGroupView) => g.value ?? NONE
-  // the pages without a value start folded: they are usually the long tail
-  const isFolded = (g: PageGroupView) => folded[id(g)] ?? g.value === null
+  const isFolded = (g: PageGroupView) => folded[id(g)] ?? foldedByDefault
   function toggle(g: PageGroupView) {
     folded[id(g)] = !isFolded(g)
     try {

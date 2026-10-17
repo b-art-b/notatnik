@@ -10,17 +10,24 @@ test('the left panel groups pages by a page property chosen in the picker', asyn
   await expect(groups).toHaveCount(0) // the namespace tree is the default
   await page.getByLabel('Group pages by').selectOption('type')
   await expect(groups).toBeVisible()
+  // the groups start folded; the buttons of the panel open and close all of them
+  await expect(groups.locator('a[data-page]')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Expand all' }).click()
   const person = groups.locator('section[data-group="person"]')
   await expect(person.locator('.count')).toHaveText('2')
   await expect(person.locator('a[data-page="Ann"]')).toBeVisible()
   await expect(person.locator('a[data-page="Bob"]')).toBeVisible()
   await expect(groups.locator('section[data-group="client"] a[data-page="Acme"]')).toBeVisible()
-  // pages without the property are in a folded group at the end
+  // pages without the property are in a group at the end
   const none = groups.locator('section[data-group=""]')
   await expect(none).toContainText('no type')
-  await expect(none.locator('a[data-page="Misc"]')).toHaveCount(0)
+  await expect(none.locator('a[data-page="Misc"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Collapse all' }).click()
+  await expect(groups.locator('a[data-page]')).toHaveCount(0)
   await none.getByRole('button').click()
   await expect(none.locator('a[data-page="Misc"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Expand all' }).click()
+  await expect(person.locator('a[data-page="Ann"]')).toBeVisible()
   // folding a group hides its pages; the choice survives a reload
   await person.getByRole('button').click()
   await expect(person.locator('a[data-page="Ann"]')).toHaveCount(0)
@@ -40,6 +47,7 @@ test('adding, changing and removing a page property from the page header updates
   backend.write('pages/Misc.md', '- no type here\n')
   await backend.open('/page/Misc')
   await page.getByLabel('Group pages by').selectOption('type')
+  await page.getByRole('button', { name: 'Expand all' }).click()
   await page.getByTestId('props-toggle').click()
   // the form must really be visible (Playwright counts `opacity: 0` as visible, so check the style)
   const form = page.locator('form.newprop')

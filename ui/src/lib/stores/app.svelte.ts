@@ -186,15 +186,15 @@ export async function openGraph(path: string, create: boolean) {
 /** Makes `info` (a graph the backend has just opened) the graph shown. Used after `open_graph` and after
  * `create_remote_graph`, which opens the new graph itself. */
 export async function adoptGraph(info: GraphInfo) {
-  const switching = !!app.graph
-  app.graph = info
-  app.needsGraph = false
-  if (switching) {
-    // another graph: nothing of the pages loaded so far applies, so start the page over
+  if (app.graph) {
+    // another graph: nothing of the pages loaded so far applies, so start the page over. Until the reload
+    // finishes the screen stays as it is, so nothing of the new graph is shown with the old pages.
     window.location.hash = '#/journals'
     window.location.reload()
     return
   }
+  app.graph = info
+  app.needsGraph = false
   useRecentFor(info.id)
   app.today = (await backend.call('today', {})).value
   await refreshConflicts()

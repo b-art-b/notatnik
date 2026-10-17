@@ -1,15 +1,39 @@
+<script module lang="ts">
+  // shared by every level of the tree
+  const KEY = 'notatnik-ns-open'
+  function read(): { all: boolean; open: Record<string, boolean> } {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY) ?? '{}')
+      // before "Expand all" the value was the map of open branches itself
+      return 'open' in v ? { all: !!v.all, open: v.open ?? {} } : { all: false, open: v }
+    } catch {
+      return { all: false, open: {} }
+    }
+  }
+  export const ns = $state(read())
+  export function saveNs() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ all: ns.all, open: ns.open }))
+    } catch {
+      /* not remembered */
+    }
+  }
+</script>
+
 <script lang="ts">
   import { bus } from '../stores/events.svelte'
   import { backend, type NamespaceEntry } from '../api'
   import { pageHash } from '../route'
   import Self from './NamespaceTree.svelte'
   import { archived, isArchived } from '../stores/archived.svelte'
+  import { pagesFold } from '../stores/pagesFold.svelte'
 
   let { parent = null }: { parent?: string | null } = $props()
   let all = $state<NamespaceEntry[]>([])
   // archived pages (and what is below them) are not in the tree
   const entries = $derived((void archived.names, all.filter((e) => !isArchived(e.name))))
-  let open = $state<Record<string, boolean>>({})
+  // What was opened or closed by hand; every other branch follows `ns.all` (Collapse all / Expand all).
+  // The state is shared by all levels of the tree, so it is read once and saved by whichever level changes it.
 
   $effect(() => {
     void bus.version
@@ -21,22 +45,20 @@
       cancelled = true
     }
   })
-  $effect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('notatnik-ns-open') ?? '{}')
-      if (parent === null) open = saved
-    } catch {
-      /* not remembered */
-    }
-  })
+  const isOpen = (name: string) => ns.open[name] ?? ns.all
   function toggle(name: string) {
-    open[name] = !open[name]
-    try {
-      localStorage.setItem('notatnik-ns-open', JSON.stringify(open))
-    } catch {
-      /* not remembered */
-    }
+    ns.open[name] = !isOpen(name)
+    saveNs()
   }
+  // the root level answers the buttons of the panel (the requests made before this tree existed are not repeated)
+  let seen = pagesFold.n
+  $effect(() => {
+    if (parent !== null || pagesFold.n === seen) return
+    seen = pagesFold.n
+    ns.all = !pagesFold.collapsed
+    ns.open = {}
+    saveNs()
+  })
   import PageIcon from './PageIcon.svelte'
 </script>
 
@@ -46,19 +68,19 @@
   aria-label={parent === null ? 'Namespaces' : undefined}
 >
   {#each entries as e (e.name)}
-    <li role="treeitem" aria-selected="false" aria-expanded={e.has_children ? !!open[e.name] : undefined}>
+    <li role="treeitem" aria-selected="false" aria-expanded={e.has_children ? isOpen(e.name) : undefined}>
       <span class="line">
         {#if e.has_children}<button
             class="tog"
-            aria-label={open[e.name] ? 'Collapse' : 'Expand'}
-            onclick={() => toggle(e.name)}>{open[e.name] ? '▾' : '▸'}</button
+            aria-label={isOpen(e.name) ? 'Collapse' : 'Expand'}
+            onclick={() => toggle(e.name)}>{isOpen(e.name) ? '▾' : '▸'}</button
           >{:else}<span class="tog"></span>{/if}
         <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}
           ><PageIcon name={e.name} />{e.leaf}</a
         >
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
       </span>
-      {#if e.has_children && open[e.name]}<Self parent={e.name} />{/if}
+      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} />{/if}
     </li>
   {/each}
 </ul>

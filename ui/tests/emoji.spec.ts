@@ -37,6 +37,7 @@ test('page icons: a rule in Settings puts the emoji next to the pages everywhere
   await expect(page.getByRole('heading', { level: 1 })).toContainText('🏢')
   await expect(page.locator('a.page-ref[data-page="Ann"]')).toContainText('👤')
   await page.getByLabel('Group pages by').selectOption('type')
+  await page.getByRole('button', { name: 'Expand all' }).click()
   await expect(page.locator('[data-testid="grouped-pages"] a[data-page="Ann"]')).toContainText('👤')
   // Bob's own `icon:` wins over the `type: Person` rule
   await expect(page.locator('[data-testid="grouped-pages"] a[data-page="Bob"]')).toContainText('🧑‍🔧')

@@ -158,7 +158,7 @@ test('collapsed state survives reload and leaves the file alone', async ({ backe
   const before = backend.read('pages/inbox.md')
   // the page's own tree: the Tasks section below lists open tasks even under collapsed blocks
   const blocks = page.getByRole('tree', { name: 'Blocks' })
-  await page.getByRole('button', { name: 'Collapse' }).first().click()
+  await page.getByRole('button', { name: 'Collapse', exact: true }).first().click()
   await expect(blocks.getByText('Renew passport')).toBeHidden()
   await page.waitForTimeout(300)
   await page.reload()
@@ -483,12 +483,12 @@ test('bullets in a linked reference can be collapsed and expanded', async ({ bac
   await item.getByRole('button', { name: 'Collapse' }).nth(1).click()
   await expect(item).not.toContainText('deeper note')
   await expect(item).toContainText('discussion point')
-  await item.getByRole('button', { name: 'Collapse' }).first().click()
+  await item.getByRole('button', { name: 'Collapse', exact: true }).first().click()
   await expect(item).not.toContainText('discussion point')
-  await item.getByRole('button', { name: 'Expand' }).first().click()
+  await item.getByRole('button', { name: 'Expand', exact: true }).first().click()
   await expect(item).toContainText('discussion point')
   await expect(item).not.toContainText('deeper note') // still collapsed
-  await item.getByRole('button', { name: 'Expand' }).click()
+  await item.getByRole('button', { name: 'Expand', exact: true }).click()
   await expect(item).toContainText('deeper note')
 })
 

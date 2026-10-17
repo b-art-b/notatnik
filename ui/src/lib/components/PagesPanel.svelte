@@ -5,6 +5,7 @@
   import { bus } from '../stores/events.svelte'
   import NamespaceTree from './NamespaceTree.svelte'
   import GroupedPages from './GroupedPages.svelte'
+  import { foldAll } from '../stores/pagesFold.svelte'
 
   const STORE = 'notatnik-pages-group-by'
   let groupBy = $state('') // '' = the namespace tree
@@ -42,6 +43,12 @@
 
 <div class="head">
   <h3>Pages</h3>
+  <span class="fold">
+    <button type="button" aria-label="Collapse all" title="Collapse all" onclick={() => foldAll(true)}
+      >⊟</button
+    >
+    <button type="button" aria-label="Expand all" title="Expand all" onclick={() => foldAll(false)}>⊞</button>
+  </span>
   <select aria-label="Group pages by" bind:value={groupBy} title="Group pages by">
     <option value="">by namespace</option>
     {#each options as k (k.key)}<option value={k.key}>by {k.key} ({k.pages})</option>{/each}
@@ -62,6 +69,21 @@
   }
   .head h3 {
     margin: 0.6em 0;
+  }
+  .fold {
+    display: flex;
+    flex: 1;
+  }
+  .fold button {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 0.25em;
+    font-size: 1.05em;
+  }
+  .fold button:hover {
+    color: var(--link);
   }
   select {
     max-width: 55%;

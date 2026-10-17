@@ -248,8 +248,8 @@ A rename (with the links it rewrites), a namespace move and a delete of several 
 
 The **Pages** part of the left panel has a picker: *by namespace* (the tree) or *by `<property>`* for every page property in use. With
 `type: person` / `type: client` in the pages' frontmatter you get a **person** and a **client** group with their pages. A page with a list
-(`teams: [red, blue]`) is in each of its groups; values that differ only in case are one group; pages without the property are in a folded
-group at the end. Open a page's properties section (the `▸ properties` line under the page title; it is available on journal pages too, but
+(`teams: [red, blue]`) is in each of its groups; values that differ only in case are one group; pages without the property are in a group
+at the end. The tree and the groups **start collapsed**; the **⊟ Collapse all** and **⊞ Expand all** buttons next to the *Pages* title fold or open every branch or group (what you opened by hand afterwards is remembered, per device). Open a page's properties section (the `▸ properties` line under the page title; it is available on journal pages too, but
 not on the journals landing page, neither in today's entry nor in the compact day entries: click a day's title to open it as a page first) to add, change or remove properties; a value that YAML could
 misread (`a: b`) is quoted automatically.
 
