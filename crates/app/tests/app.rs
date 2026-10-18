@@ -4045,15 +4045,11 @@ fn a_task_that_leaves_the_notes_leaves_the_calendar_after_two_syncs() {
             ]}),
         );
         let gone = |title: &str| {
+            let now = remote_status(&server, &tasks, title);
             match policy {
-                "delete" => None,
-                _ => Some(format!("COMPLETED")),
+                "delete" => now.is_none(),
+                _ => now.as_deref() == Some("COMPLETED"),
             }
-            .filter(|_| true)
-            .map_or_else(
-                || remote_status(&server, &tasks, title).is_none(),
-                |s| remote_status(&server, &tasks, title) == Some(s),
-            )
         };
         let r = t.ok("calendar_sync", json!({}));
         assert_eq!(
