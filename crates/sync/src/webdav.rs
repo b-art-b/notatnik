@@ -363,6 +363,11 @@ fn now_secs() -> i64 {
         .map_or(0, |d| d.as_secs() as i64)
 }
 
+/// The `Authorization` header value for a login (HTTP Basic); the calendar client sends the same one.
+pub fn basic_auth(user: &str, password: &str) -> String {
+    format!("Basic {}", b64(format!("{user}:{password}").as_bytes()))
+}
+
 fn b64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();

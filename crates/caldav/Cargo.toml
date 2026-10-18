@@ -8,6 +8,8 @@ rust-version.workspace = true
 
 [dependencies]
 chrono = "0.4.45"
+quick-xml = "0.38"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
 notatnik-core = { workspace = true }
 notatnik-sync = { workspace = true }
 

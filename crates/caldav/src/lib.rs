@@ -8,6 +8,9 @@ pub mod ical;
 pub mod map;
 
 mod client;
+mod http;
+mod xml;
 
 pub use client::{CalDavClient, Calendar, Cond, ItemRef, ServerItem, SyncResult};
+pub use http::{HttpCalDav, calendar_home_url};
 pub use notatnik_sync::{Error, Result};

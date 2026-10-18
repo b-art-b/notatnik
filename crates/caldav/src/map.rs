@@ -282,9 +282,7 @@ mod tests {
             ("CANCELED", "STATUS:CANCELLED", None),
         ];
         for (marker, status, extra) in table {
-            let ics = &ics_of(&format!(
-                "- {marker} t ^abc123\n  deadline:: 2026-10-21\n"
-            ))[0];
+            let ics = &ics_of(&format!("- {marker} t ^abc123\n  deadline:: 2026-10-21\n"))[0];
             assert!(ics.contains(status), "{marker}: {ics}");
             assert_eq!(
                 ics.contains("X-NOTATNIK-STATE"),

@@ -2868,6 +2868,8 @@ dependencies = [
  "insta",
  "notatnik-core",
  "notatnik-sync",
+ "quick-xml 0.38.4",
+ "ureq",
 ]
 
 [[package]]
