@@ -206,6 +206,28 @@ describe('markdown', () => {
     expect(parsePasted('1. one\n2. two').map((x) => x.text)).toEqual(['one', 'two'])
     expect(parsePasted('- a\n\tnested with tab\n').length).toBeGreaterThan(0)
   })
+  it('keeps a fenced code block in one block, as written', () => {
+    const diagram =
+      '- ```mermaid\n  flowchart TD\n    A[Start] --> B{Choose}\n\n    B --> C[End]\n  ```\n- next'
+    const p = parsePasted(diagram)
+    expect(p.map((x) => x.text)).toEqual([
+      '```mermaid\nflowchart TD\n  A[Start] --> B{Choose}\n\n  B --> C[End]\n```',
+      'next',
+    ])
+    // without a bullet, lines that are not indented stay in the fence
+    expect(parsePasted('```js\nlet a = 1\n- not a bullet\n```\n- after').map((x) => x.text)).toEqual([
+      '```js\nlet a = 1\n- not a bullet\n```',
+      'after',
+    ])
+    // a fence under the text of an item belongs to that item
+    const item = parsePasted('- intro\n  ```sh\n  ls\n\n  pwd\n  ```\n- b')
+    expect(item.map((x) => x.text)).toEqual(['intro\n```sh\nls\n\npwd\n```', 'b'])
+    // an unclosed fence takes the rest; tildes work too
+    expect(parsePasted('~~~\none\ntwo').map((x) => x.text)).toEqual(['~~~\none\ntwo'])
+    // nested: a fenced block under a bullet keeps its place in the outline
+    const nested = parsePasted('- a\n  - ```text\n    x\n    ```\n  - c')
+    expect(nested[0].children.map((x) => x.text)).toEqual(['```text\nx\n```', 'c'])
+  })
 })
 
 describe('dropMove (drag and drop)', () => {

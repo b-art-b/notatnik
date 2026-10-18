@@ -4252,6 +4252,65 @@ fn calendar_sync_can_be_paused_and_resumed() {
     assert_eq!(server.names(&tasks).len(), 2);
 }
 
+/// An import into an inbox page that already has blocks keeps each task's dates on lines of their own.
+#[test]
+fn imports_into_an_existing_inbox_keep_properties_on_their_own_lines() {
+    use notatnik_caldav::{CalDavClient, Cond};
+    let (t, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    std::fs::create_dir_all(graph.join("pages")).unwrap();
+    std::fs::write(
+        graph.join("pages/inbox.md"),
+        "- TODO already here ^zzz111\n  deadline:: 2026-10-20\n",
+    )
+    .unwrap();
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true}),
+    );
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:theirs\r\nSUMMARY:From elsewhere\r\nSTATUS:NEEDS-ACTION\r\nDUE;VALUE=DATE:20261030\r\nPRIORITY:1\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
+    server
+        .put(&tasks, "R4ND0M.ics", ics, &Cond::Create)
+        .unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 1, "{r}");
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    println!("{inbox:?}");
+    let block = inbox
+        .split("- TODO From elsewhere")
+        .nth(1)
+        .unwrap_or_else(|| panic!("{inbox}"));
+    assert!(block.contains("\n  deadline:: 2026-10-30\n"), "{inbox:?}");
+    assert!(block.contains("\n  priority:: A"), "{inbox:?}");
+    // the title is changed in the calendar later: still on lines of their own
+    let item = server
+        .get(&tasks, &server.names(&tasks))
+        .unwrap()
+        .into_iter()
+        .find(|i| i.ics.contains("SUMMARY:From elsewhere"))
+        .unwrap();
+    server
+        .put(
+            &tasks,
+            &item.name,
+            &item
+                .ics
+                .replace("SUMMARY:From elsewhere", "SUMMARY:Renamed there"),
+            &Cond::IfMatch(item.etag),
+        )
+        .unwrap();
+    t.ok("calendar_sync", json!({}));
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    println!("{inbox:?}");
+    assert!(inbox.contains("TODO Renamed there ^"), "{inbox:?}");
+    assert!(!inbox.contains("^ deadline"), "{inbox:?}");
+    assert!(
+        !inbox
+            .lines()
+            .any(|l| l.contains("::") && l.contains("TODO")),
+        "{inbox:?}"
+    );
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]

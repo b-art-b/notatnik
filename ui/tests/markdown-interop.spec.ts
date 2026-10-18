@@ -163,3 +163,29 @@ test('a diagram with a syntax error shows its text and a note, and leaves nothin
   await expect(page.getByText('Syntax error in text')).toHaveCount(0)
   await expect(page.locator('body > [id^="dmmd-"], body > svg[id^="mmd-"]')).toHaveCount(0)
 })
+
+test('pasting several lines with a fenced diagram keeps the diagram in one block', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Paste.md', '- start\n')
+  await backend.open('/page/Paste')
+  await page.getByRole('tree', { name: 'Blocks' }).getByText('start', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  const pasted =
+    '- intro\n- ```mermaid\n  flowchart TD\n    A[Start] --> B[End]\n\n    B --> C[More]\n  ```\n- last'
+  await page.evaluate((text) => {
+    const dt = new DataTransfer()
+    dt.setData('text/plain', text)
+    document
+      .querySelector('[data-testid="block-editor"]')!
+      .dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }))
+  }, pasted)
+  await page.keyboard.press('Escape')
+  // the diagram is one bullet with its lines under it, not one bullet per line
+  await expect
+    .poll(() => backend.read('pages/Paste.md'))
+    .toContain('- ```mermaid\n  flowchart TD\n    A[Start] --> B[End]\n\n    B --> C[More]\n  ```\n- last')
+  expect(backend.read('pages/Paste.md')).not.toContain('- flowchart')
+  await expect(page.getByRole('tree', { name: 'Blocks' }).locator('img.mermaid')).toHaveCount(1)
+})

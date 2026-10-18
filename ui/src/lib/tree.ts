@@ -340,22 +340,48 @@ export interface PastedBlock {
   children: PastedBlock[]
 }
 
+/** A fenced code block (```` ``` ```` or `~~~`) is one block however many lines it has: its lines are kept as
+ * written, blank ones and unindented ones too, and are not read as bullets. Returns the lines of the block with
+ * `strip` leading spaces taken off the following ones, and the index of the line that closes the fence. */
+function fencedLines(lines: string[], from: number, first: string, strip: number): [string[], number] {
+  const marker = first.slice(0, 3)
+  const out = [first]
+  let i = from + 1
+  for (; i < lines.length; i++) {
+    const line = lines[i].replace(/\t/g, '    ')
+    const lead = /^ */.exec(line)?.[0].length ?? 0
+    out.push(line.slice(Math.min(strip, lead)))
+    if (line.trim().startsWith(marker)) break // the closing fence
+  }
+  return [out, i]
+}
+
 export function parsePasted(text: string): PastedBlock[] {
   const lines = text.replace(/\r\n/g, '\n').split('\n')
   const root: PastedBlock = { text: '', children: [] }
   const stack: { indent: number; node: PastedBlock }[] = [{ indent: -1, node: root }]
   let current: PastedBlock | null = null
-  for (const raw of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
     if (raw.trim() === '') continue
     const m = /^(\s*)([-*+]\s+|\d+\.\s+)?(.*)$/.exec(raw)
     if (!m) continue
     const indent = m[1].replace(/\t/g, '    ').length
     const bullet = m[2]
-    if (!bullet && current && indent > 0 && stack.length > 1) {
-      current.text += '\n' + raw.trim()
+    const continues = !bullet && !!current && indent > 0 && stack.length > 1
+    const isFence = /^(`{3,}|~{3,})/.test(m[3])
+    // the text of a fenced block, or of a plain line
+    let block = m[3]
+    if (isFence) {
+      const [fenced, end] = fencedLines(lines, i, m[3], indent + (bullet ? bullet.length : 0))
+      block = fenced.join('\n')
+      i = end
+    }
+    if (continues) {
+      current!.text += '\n' + (isFence ? block : raw.trim())
       continue
     }
-    const node: PastedBlock = { text: m[3], children: [] }
+    const node: PastedBlock = { text: block, children: [] }
     while (stack.length > 1 && stack[stack.length - 1].indent >= indent) stack.pop()
     stack[stack.length - 1].node.children.push(node)
     stack.push({ indent, node })
