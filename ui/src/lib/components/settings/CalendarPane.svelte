@@ -126,6 +126,23 @@
     await loadLog()
   }
 
+  /** A conflict can be turned around only while it is the latest word about that task and field. */
+  function canTurnAround(e: CalendarLogEntry, i: number): boolean {
+    return e.kind === 'conflict' && !log.slice(0, i).some((n) => n.uid === e.uid && n.field === e.field)
+  }
+
+  async function turnAround(e: CalendarLogEntry) {
+    syncing = true
+    try {
+      const r = await backend.call('calendar_use_other_value', { uid: e.uid, field: e.field ?? '' })
+      lastSync = describeCalendarSync(r)
+    } catch (err) {
+      toast(errorMessage(err), 'error')
+    }
+    syncing = false
+    await loadLog()
+  }
+
   async function forget() {
     try {
       status = await backend.call('calendar_forget', {})
@@ -299,6 +316,11 @@
             <li>
               <span class="muted">{e.at.replace('T', ' ')}</span>
               <strong>{e.title}</strong> <span class="muted">({e.page})</span>: {describeLog(e)}
+              {#if canTurnAround(e, i)}
+                <button class="link" disabled={syncing} onclick={() => turnAround(e)}>
+                  Use {e.winner === 'remote' ? 'the notes' : 'the calendar'} value instead
+                </button>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -346,6 +368,15 @@
   }
   .log li {
     padding: 0.2em 0;
+  }
+  .link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
   }
   .buttons {
     display: flex;

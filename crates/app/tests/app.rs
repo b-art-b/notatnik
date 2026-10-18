@@ -3951,6 +3951,99 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     assert_eq!(walk_md(&graph), files);
 }
 
+/// A conflict in the sync log can be turned around: the value that lost is written into the block and the
+/// calendar gets it too (CA-8).
+#[test]
+fn a_conflict_in_the_sync_log_can_be_turned_around() {
+    use notatnik_caldav::fake::FakeServer;
+    use notatnik_caldav::{CalDavClient, Cond};
+    let server = Arc::new(FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    std::fs::create_dir_all(graph.join("pages")).unwrap();
+    std::fs::write(
+        graph.join("pages/work.md"),
+        "- TODO Pay rent\n  deadline:: 2026-10-21\n",
+    )
+    .unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false}),
+    );
+    t.ok("calendar_sync", json!({}));
+
+    // the notes move the date, and the calendar moves it elsewhere later (a far future change time)
+    let p = t.ok("get_page", json!({"name": "work"}));
+    t.ok("apply_ops", json!({"page": "work", "base_hash": p["hash"], "ops": [{"op": "set_property", "block": {"path": [0]}, "key": "deadline", "value": "2026-10-25"}]}));
+    let item = server.get(&tasks, &server.names(&tasks)).unwrap().remove(0);
+    let ics = item
+        .ics
+        .replace("DUE;VALUE=DATE:20261021", "DUE;VALUE=DATE:20261030")
+        .replace(
+            "SUMMARY:Pay rent",
+            "SUMMARY:Pay rent\r\nLAST-MODIFIED:20991231T000000Z",
+        );
+    server
+        .put(&tasks, &item.name, &ics, &Cond::IfMatch(item.etag))
+        .unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["pulled"], 1, "{r}");
+    let page = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+    assert!(page.contains("deadline:: 2026-10-30"), "{page}");
+
+    // the calendar won; use the notes' value after all
+    let r = t.ok(
+        "calendar_use_other_value",
+        json!({"uid": item.name.trim_end_matches(".ics"), "field": "deadline"}),
+    );
+    assert_eq!(r["updated"], 1, "{r}");
+    let page = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+    assert!(page.contains("deadline:: 2026-10-25"), "{page}");
+    let sent = server.get(&tasks, &server.names(&tasks)).unwrap().remove(0);
+    assert!(sent.ics.contains("DUE;VALUE=DATE:20261025"), "{}", sent.ics);
+    let log = t.ok("calendar_log", json!({}));
+    assert_eq!(log[0]["kind"], "conflict");
+    assert_eq!(log[0]["winner"], "local", "{log}");
+
+    // and back to the calendar's value
+    t.ok(
+        "calendar_use_other_value",
+        json!({"uid": item.name.trim_end_matches(".ics"), "field": "deadline"}),
+    );
+    let page = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+    assert!(page.contains("deadline:: 2026-10-30"), "{page}");
+
+    // nothing to turn around
+    let e = t
+        .call(
+            "calendar_use_other_value",
+            json!({"uid": "nope", "field": "deadline"}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "not_found");
+}
+
 /// Events of the chosen calendars are read, kept and shown by day; nothing is written into the notes (CA-3, JR-5).
 #[test]
 fn events_are_read_from_the_chosen_calendars_and_never_written_into_the_notes() {

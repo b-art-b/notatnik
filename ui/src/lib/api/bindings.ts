@@ -2017,6 +2017,11 @@ field: string | null, local: string | null, remote: string | null,
  */
 winner: string | null, };
 export type CalendarEventsArgs = { from: string, to: string, };
+export type CalendarUseOtherArgs = { uid: string, 
+/**
+ * The log entry's field (`status`, `scheduled`, `deadline`, `priority`, `title`, `repeat`).
+ */
+field: string, };
 export type CalendarEventView = { uid: string, title: string, 
 /**
  * First day, `YYYY-MM-DD`, in local time.
@@ -2120,6 +2125,7 @@ export type Commands = {
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
   calendar_events: { args: CalendarEventsArgs; result: CalendarEventView[] };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
+  calendar_use_other_value: { args: CalendarUseOtherArgs; result: CalendarSyncReport };
   calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };

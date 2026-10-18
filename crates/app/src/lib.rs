@@ -126,6 +126,7 @@ commands! {
     calendar_sync(NoArgs) -> CalendarSyncReport => calendar_sync,
     calendar_events(CalendarEventsArgs) -> Vec<CalendarEventView> => calendar_events,
     calendar_log(NoArgs) -> Vec<CalendarLogEntry> => calendar_log,
+    calendar_use_other_value(CalendarUseOtherArgs) -> CalendarSyncReport => calendar_use_other_value,
     calendar_forget(NoArgs) -> CalendarStatus => calendar_forget,
     webdav_test(WebdavArgs) -> WebdavTest => webdav_test,
     create_remote_graph(WebdavArgs) -> GraphInfo => create_remote_graph,

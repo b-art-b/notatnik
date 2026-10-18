@@ -1680,6 +1680,14 @@ pub struct CalendarLogEntry {
     pub winner: Option<String>,
 }
 
+/// `calendar_use_other_value` arguments: the conflict in the sync log to turn around.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarUseOtherArgs {
+    pub uid: String,
+    /// The log entry's field (`status`, `scheduled`, `deadline`, `priority`, `title`, `repeat`).
+    pub field: String,
+}
+
 /// `calendar_sync` result.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CalendarSyncReport {

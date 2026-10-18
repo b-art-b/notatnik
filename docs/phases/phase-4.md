@@ -157,12 +157,12 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4G: Conflicts, deletion, logging
 
 ### P4.12 Conflict policy and sync log (CA-8)
-- [ ] Same-field conflicts: the most recent change wins (local: file mtime of the change, remote: `LAST-MODIFIED`/`DTSTAMP`); ties → local wins
-- [ ] Sync log view: time, item, direction, fields changed, conflicts with both values and a "use the other value" action
+- [x] Same-field conflicts: the most recent change wins (local: file mtime of the change, remote: `LAST-MODIFIED`/`DTSTAMP`); ties → local wins
+- [x] Sync log view: time, item, direction, fields changed, conflicts with both values and a "use the other value" action
 
 **Verify**
 - [ ] Fake-server scenario table (≥ 10 rows: local newer / remote newer / tie, per field type) → expected winner
-- [ ] Each conflict appears in the sync log with both values; "use the other value" applies it and syncs
+- [x] Each conflict appears in the sync log with both values; "use the other value" applies it and syncs
 
 ### P4.13 Deletion and un-dating (CA-9)
 - [ ] Block deleted, task un-dated, or `cal:: no` added → `on_delete` policy (`complete` default, or `delete`), subject to the deletion-safety rule

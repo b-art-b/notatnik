@@ -567,6 +567,72 @@ impl AppState {
     }
 
     /// `calendar_log`: what the sync did to the notes and what it could not decide, newest first.
+    /// `calendar_use_other_value`: turns a conflict of the sync log around. The value that lost is written into
+    /// the block, then the sync sends it to the calendar (CA-8).
+    pub fn calendar_use_other_value(
+        &self,
+        a: CalendarUseOtherArgs,
+    ) -> ApiResult<CalendarSyncReport> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let field = pull::Field::from_name(&a.field)
+            .ok_or_else(|| ApiError::new("invalid", format!("unknown field {}", a.field)))?;
+        let entry = self
+            .read_calendar_log(&id)
+            .into_iter()
+            .rev()
+            .find(|e| {
+                e.kind == "conflict" && e.uid == a.uid && e.field.as_deref() == Some(&a.field)
+            })
+            .ok_or_else(|| ApiError::new("not_found", "no such conflict in the sync log"))?;
+        let (take, now_kept) = match entry.winner.as_deref() {
+            Some("remote") => (entry.local.clone(), "local"),
+            _ => (entry.remote.clone(), "remote"),
+        };
+        let change = pull::change_from_text(field, &take.unwrap_or_default())
+            .ok_or_else(|| ApiError::new("invalid", "the value cannot be written"))?;
+        let priorities = self.with_open(|o| Ok(o.graph.config().tasks.priorities.clone()))?;
+        let applied = self.with_open(|o| {
+            let collected = collect_todos(o, &id)?;
+            if !collected.places.contains_key(&a.uid) {
+                return Err(ApiError::new(
+                    "not_found",
+                    "the task is no longer in the notes",
+                ));
+            }
+            let plan = pull::Plan {
+                items: vec![pull::Pulled {
+                    uid: a.uid.clone(),
+                    changes: vec![change],
+                    conflicts: Vec::new(),
+                }],
+                removed: Vec::new(),
+            };
+            Ok(apply_pulled(o, &id, &collected, &plan, &priorities))
+        })?;
+        if !applied.failed.is_empty() {
+            return Err(ApiError::new(
+                "conflict",
+                "the page changed meanwhile; try again",
+            ));
+        }
+        // the title may be kept as it is (markup in it): then nothing was written and nothing is to be reported
+        if applied.pulled == 0 {
+            return Err(ApiError::new(
+                "invalid",
+                "the value cannot be written into this block",
+            ));
+        }
+        self.append_calendar_log(
+            &id,
+            vec![CalendarLogEntry {
+                at: now_local(),
+                winner: Some(now_kept.into()),
+                ..entry
+            }],
+        );
+        self.calendar_sync(NoArgs {})
+    }
+
     pub fn calendar_log(&self, _: NoArgs) -> ApiResult<Vec<CalendarLogEntry>> {
         let id = self.with_open(|o| Ok(o.graph.id()))?;
         let mut all = self.read_calendar_log(&id);

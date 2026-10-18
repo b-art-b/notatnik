@@ -41,6 +41,51 @@ impl Field {
     }
 }
 
+impl Field {
+    /// The field with this name (as the sync log keeps it).
+    pub fn from_name(name: &str) -> Option<Field> {
+        FIELDS.into_iter().find(|f| f.name() == name)
+    }
+}
+
+/// The change that sets `field` to a value as the sync log shows it (`when_text`, `status_text`, a number, the
+/// title, the rule). `None` when the text is not such a value.
+pub fn change_from_text(field: Field, text: &str) -> Option<Change> {
+    let text = text.trim();
+    let when = || -> Option<Option<When>> {
+        if text.is_empty() {
+            return Some(None);
+        }
+        if let Ok(at) = NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M") {
+            return Some(Some(When::Local { at, tzid: None }));
+        }
+        let d = chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d").ok()?;
+        Some(Some(When::Date(d)))
+    };
+    Some(match field {
+        Field::Status => Change::Status {
+            status: match text {
+                "to do" => Status::NeedsAction,
+                "in process" => Status::InProcess,
+                "done" => Status::Completed,
+                "canceled" => Status::Cancelled,
+                _ => return None,
+            },
+            word: None,
+            completed: None,
+        },
+        Field::Start => Change::Start(when()?),
+        Field::Due => Change::Due(when()?),
+        Field::Priority => Change::Priority(if text.is_empty() {
+            None
+        } else {
+            Some(text.parse().ok()?)
+        }),
+        Field::Summary => Change::Summary(text.to_string()),
+        Field::Repeat => Change::Repeat((!text.is_empty()).then(|| text.to_string())),
+    })
+}
+
 /// A new value for a field of a block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Change {
@@ -709,5 +754,36 @@ mod tests {
         assert_eq!(f.foreign[0].name, "abc-123.ics");
         assert!(f.changed.is_empty());
         let _ = &mut st;
+    }
+
+    #[test]
+    fn values_shown_in_the_log_can_be_read_back() {
+        let day = |d| {
+            Some(When::Date(
+                chrono::NaiveDate::from_ymd_opt(2026, 10, d).unwrap(),
+            ))
+        };
+        for (field, text) in [
+            (Field::Due, "2026-10-25"),
+            (Field::Start, "2026-10-25 09:30"),
+            (Field::Due, ""),
+            (Field::Priority, "5"),
+            (Field::Priority, ""),
+            (Field::Status, "done"),
+            (Field::Status, "in process"),
+            (Field::Summary, "Pay the rent"),
+            (Field::Repeat, "FREQ=WEEKLY"),
+        ] {
+            let c = change_from_text(field, text).unwrap_or_else(|| panic!("{text}"));
+            assert_eq!(c.field(), field);
+        }
+        assert_eq!(
+            change_from_text(Field::Due, "2026-10-25"),
+            Some(Change::Due(day(25)))
+        );
+        assert_eq!(change_from_text(Field::Due, "soon"), None);
+        assert_eq!(change_from_text(Field::Status, "maybe"), None);
+        assert_eq!(Field::from_name("deadline"), Some(Field::Due));
+        assert_eq!(Field::from_name("x"), None);
     }
 }
