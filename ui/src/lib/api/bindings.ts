@@ -1892,6 +1892,48 @@ folders: Array<FolderItem>, files: Array<FileItem>,
  * The link for the top of the source ("All files").
  */
 root: FolderItem, };
+export type CalendarView = { 
+/**
+ * Its address on the server; the key the settings keep.
+ */
+href: string, name: string, 
+/**
+ * It takes tasks (VTODO).
+ */
+tasks: boolean, 
+/**
+ * It takes events (VEVENT).
+ */
+events: boolean, };
+export type CalendarAccountView = { server: string, user: string, 
+/**
+ * A login of its own; false means the login of the graph's sync.
+ */
+own: boolean, };
+export type CalendarStatus = { 
+/**
+ * The login that would be used; none when the graph has no sync and no login of its own was given.
+ */
+account: CalendarAccountView | null, enabled: boolean, 
+/**
+ * Calendars to read events from.
+ */
+read: Array<string>, 
+/**
+ * The calendar that receives the tasks.
+ */
+tasks: string | null, 
+/**
+ * `vtodo` or `vevent` (the graph's `[calendar]` section).
+ */
+tasks_as: string, 
+/**
+ * `complete` or `delete` (the graph's `[calendar]` section).
+ */
+on_delete: string, };
+export type CalendarConnectArgs = { server: string | null, user: string | null, password: string | null, };
+export type CalendarList = { account: CalendarAccountView, calendars: Array<CalendarView>, };
+export type CalendarSaveArgs = { enabled: boolean, read: Array<string>, tasks: string | null, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -1972,6 +2014,10 @@ export type Commands = {
   file_source_save: { args: FileSourceArgs; result: FileSourceView };
   file_source_delete: { args: FileSourceIdArgs; result: FileSourceView[] };
   file_browse: { args: FileBrowseArgs; result: FileBrowse };
+  calendar_status: { args: NoArgs; result: CalendarStatus };
+  calendar_connect: { args: CalendarConnectArgs; result: CalendarList };
+  calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
+  calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };
   disconnect_remote: { args: NoArgs; result: GraphInfo };

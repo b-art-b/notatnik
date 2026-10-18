@@ -1570,3 +1570,63 @@ pub struct WebdavTest {
     /// It holds a Notatnik graph (a `.notatnik`, `pages` or `journals` folder).
     pub has_graph: bool,
 }
+
+/// A calendar of the account.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarView {
+    /// Its address on the server; the key the settings keep.
+    pub href: String,
+    pub name: String,
+    /// It takes tasks (VTODO).
+    pub tasks: bool,
+    /// It takes events (VEVENT).
+    pub events: bool,
+}
+
+/// The login the calendar sync uses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarAccountView {
+    pub server: String,
+    pub user: String,
+    /// A login of its own; false means the login of the graph's sync.
+    pub own: bool,
+}
+
+/// `calendar_status` result: the calendar settings of the open graph.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarStatus {
+    /// The login that would be used; none when the graph has no sync and no login of its own was given.
+    pub account: Option<CalendarAccountView>,
+    pub enabled: bool,
+    /// Calendars to read events from.
+    pub read: Vec<String>,
+    /// The calendar that receives the tasks.
+    pub tasks: Option<String>,
+    /// `vtodo` or `vevent` (the graph's `[calendar]` section).
+    pub tasks_as: String,
+    /// `complete` or `delete` (the graph's `[calendar]` section).
+    pub on_delete: String,
+}
+
+/// `calendar_connect` arguments: all empty uses the login of the graph's sync.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarConnectArgs {
+    pub server: Option<String>,
+    pub user: Option<String>,
+    pub password: Option<String>,
+}
+
+/// `calendar_connect` result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarList {
+    pub account: CalendarAccountView,
+    pub calendars: Vec<CalendarView>,
+}
+
+/// `calendar_save` arguments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarSaveArgs {
+    pub enabled: bool,
+    pub read: Vec<String>,
+    pub tasks: Option<String>,
+}

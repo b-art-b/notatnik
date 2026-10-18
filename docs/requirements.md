@@ -237,7 +237,7 @@ A **graph** is a folder of notes.
 
 | ID | Requirement | Priority |
 |---|---|---|
-| CA-1 | Connect to a CalDAV server (Nextcloud) with URL, user and app password. The password is stored in the OS keyring. | V1 |
+| CA-1 | Connect to a CalDAV server (Nextcloud) with URL, user and app password. The password is stored in the OS keyring. By default the login of the graph's sync is used (the calendar address is derived from the sync address); a graph can be given a login of its own in Settings → Calendar. | V1 |
 | CA-2 | Choose which calendars to read events from and which calendar receives tasks. | V1 |
 | CA-3 | Read events into the local cache; show them in the journal (JR-5) and timeline views. | V1 |
 | CA-4 | Tasks with `scheduled` or `deadline` are pushed as VTODO (configurable: VTODO or VEVENT). | V1 |

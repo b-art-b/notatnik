@@ -282,6 +282,12 @@ Drag a block's **bullet**. The block moves together with all its sub-bullets. Th
 - Clicking such a link opens it in the system browser (a web address) or with the system's program for the file (`file:///…` and copied files). Programs and scripts are never opened from a note.
 - Settings → **Linked files** lists the servers (this device only; the password is in the system keyring) with *Edit*, *Remove…* and *Add a server…*.
 
+## Calendar (Settings → Calendar)
+
+- **Login:** a graph that is synced with a Nextcloud uses the same login for its calendars (*Connect and list calendars*). *Use another login…* (or a graph with no sync) asks for the server, user name and an app password; it is checked before it is kept, and the password is stored in the system keyring, never in a file.
+- **Calendars:** after connecting, each calendar of the account is listed. Choose the one that *receives tasks* (only calendars that take tasks can be chosen) and the calendars whose events are shown. *Calendar sync is on* and *Save* keep the choice (this device). Whether tasks are tasks or events and what happens to a deleted task is the graph's `[calendar]` section.
+- *Remove…* forgets a login of its own and turns the sync off. The sync itself (pushing dated tasks, reading changes back, events in the journal) is built in later steps of phase 4.
+
 ## Emojis
 
 - Type `:` and a word (`:rocket`, `:check`, `:fire`) for suggestions; Enter inserts the emoji itself. Times like `12:30` and `key::` properties are not affected.

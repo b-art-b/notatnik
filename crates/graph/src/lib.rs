@@ -21,9 +21,9 @@ pub use backup::{
     diff_lines, read_entry, seal_existing, sync_mirror,
 };
 pub use config::{
-    CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs, FileSource, GraphEntry,
-    GraphSection, NamespaceSection, PageIconRule, PropertiesSection, RemoteConfig, SavedQuery,
-    TasksSection, default_priorities, new_graph_id, validate_priorities,
+    CalendarAccount, CalendarConfig, CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs,
+    FileSource, GraphEntry, GraphSection, NamespaceSection, PageIconRule, PropertiesSection,
+    RemoteConfig, SavedQuery, TasksSection, default_priorities, new_graph_id, validate_priorities,
 };
 pub use error::{Error, Result};
 pub use rename::{FileEdit, RenamePlan, RenameReport};

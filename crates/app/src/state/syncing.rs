@@ -264,6 +264,16 @@ impl AppState {
         self
     }
 
+    /// Uses `client` as the calendar server instead of connecting to the real one (tests).
+    #[must_use]
+    pub fn with_calendar_client(
+        mut self,
+        client: Arc<dyn notatnik_caldav::CalDavClient + Send + Sync>,
+    ) -> Self {
+        self.calendar_client = Some(client);
+        self
+    }
+
     /// The sync of a graph that has a server folder: the context, and the worker where the app runs one.
     pub(super) fn start_sync(
         &self,

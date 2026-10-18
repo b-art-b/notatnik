@@ -78,7 +78,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4B: Account and discovery
 
 ### P4.4 Account setup (CA-1)
-- [ ] Settings → Calendar: server URL, username, app password; "Test connection" button
+- [x] Settings → Calendar: server URL, username, app password (the graph's sync login by default); connecting is the connection test
 - [ ] The password is stored in the OS keyring (`keyring` crate; Secret Service on Linux); only a reference is kept in device settings. Calendar settings are per device (not in the synced graph config), because credentials are per device
 
 **Verify**
@@ -87,8 +87,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [ ] The password is visible in "Passwords and Keys" (Seahorse) under the Notatnik entry
 
 ### P4.5 Calendar discovery and selection (CA-2)
-- [ ] Discover via `current-user-principal` → `calendar-home-set` → list calendars with supported component types (VEVENT/VTODO)
-- [ ] Select: calendars to *read events* from (multi-select); one calendar to *write tasks* into (must support VTODO, or VEVENT if `tasks_as = vevent`)
+- [x] Discover via the principal's `calendar-home-set` (falling back to `…/calendars/<user>/`) → list calendars with supported component types (VEVENT/VTODO)
+- [x] Select: calendars to *read events* from (multi-select); one calendar to *write tasks* into (must support VTODO, or VEVENT if `tasks_as = vevent`)
 
 **Verify**
 - [ ] Against Docker Nextcloud: the list matches the calendars visible in the web UI, with correct VTODO support flags

@@ -35,6 +35,9 @@ struct Args {
     /// Don't watch the graph folder for external changes
     #[arg(long)]
     no_watch: bool,
+    /// Use an in-memory calendar server (calendars Tasks, Birthdays, Personal) instead of connecting to one
+    #[arg(long)]
+    fake_calendar: bool,
 }
 
 /// Recent events for long-polling clients: `(id, name, payload)`.
@@ -170,7 +173,7 @@ fn main() {
         .map(|t| NaiveDate::parse_from_str(t, "%Y-%m-%d").expect("--today must be YYYY-MM-DD"));
     let ev = events.clone();
     let emit: notatnik_app::Emitter = Arc::new(move |name, payload| ev.push(name, payload));
-    let app = Arc::new(AppState::new(AppOptions {
+    let mut state = AppState::new(AppOptions {
         dirs: Dirs::under(&device),
         emit,
         today: match today {
@@ -178,7 +181,15 @@ fn main() {
             None => Arc::new(|| chrono::Local::now().date_naive()),
         },
         watch: !args.no_watch,
-    }));
+    });
+    if args.fake_calendar {
+        let cal = notatnik_caldav::fake::FakeServer::new();
+        cal.add_calendar("Tasks", &["VTODO"]);
+        cal.add_calendar("Birthdays", &["VEVENT"]);
+        cal.add_calendar("Personal", &["VEVENT", "VTODO"]);
+        state = state.with_calendar_client(Arc::new(cal));
+    }
+    let app = Arc::new(state);
     let graph = args.graph.to_string_lossy().into_owned();
     if let Err(e) = dispatch(
         &app,

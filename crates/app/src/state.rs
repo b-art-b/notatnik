@@ -279,6 +279,7 @@ impl Drop for BackupTask {
     }
 }
 
+mod calendar;
 mod conflicts;
 mod filesources;
 mod syncing;
@@ -311,6 +312,8 @@ pub struct AppState {
     backup_keys: Mutex<Option<Unlocked>>,
     /// Passwords of server logins.
     secrets: Arc<dyn Secrets>,
+    /// A calendar server to use instead of the real one (tests).
+    calendar_client: Option<Arc<dyn notatnik_caldav::CalDavClient + Send + Sync>>,
 }
 
 /// Options for [`AppState::new`].
@@ -365,6 +368,7 @@ impl AppState {
             last_rename: Mutex::new(None),
             backup_keys: Mutex::new(None),
             secrets: Arc::new(MemorySecrets::default()),
+            calendar_client: None,
         }
     }
 

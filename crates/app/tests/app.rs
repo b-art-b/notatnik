@@ -3594,3 +3594,122 @@ fn a_graph_in_a_real_nextcloud_folder_reaches_a_second_device() {
         .delete("", None)
         .unwrap();
 }
+
+/// Calendar settings (CA-1, CA-2): connecting, choosing calendars, and where the login is kept.
+#[test]
+fn calendar_settings_connect_choose_calendars_and_keep_the_password_out_of_the_settings() {
+    use notatnik_caldav::fake::FakeServer;
+    let server = Arc::new(FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+    let events = server.add_calendar("Birthdays", &["VEVENT"]);
+    let both = server.add_calendar("Personal", &["VEVENT", "VTODO"]);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    copy_dir(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/basic"),
+        &graph,
+    );
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 3).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": false}),
+    );
+
+    // nothing yet; a graph without a sync has no login to borrow
+    let st = t.ok("calendar_status", json!({}));
+    assert_eq!(
+        (st["enabled"].clone(), st["account"].clone()),
+        (json!(false), json!(null))
+    );
+    assert_eq!(st["tasks_as"], "vtodo");
+    assert_eq!(
+        t.call(
+            "calendar_connect",
+            json!({"server": null, "user": null, "password": null})
+        )
+        .unwrap_err()
+        .code,
+        "invalid"
+    );
+    assert_eq!(
+        t.call(
+            "calendar_connect",
+            json!({"server": "http://localhost:8080", "user": "me", "password": null})
+        )
+        .unwrap_err()
+        .code,
+        "invalid"
+    );
+
+    let list = t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "secret-pw"}),
+    );
+    assert_eq!(list["account"]["own"], true);
+    let cals = list["calendars"].as_array().unwrap();
+    assert_eq!(cals.len(), 3);
+    let by = |n: &str| cals.iter().find(|c| c["name"] == n).unwrap();
+    assert_eq!(
+        (
+            by("Tasks")["tasks"].clone(),
+            by("Birthdays")["tasks"].clone()
+        ),
+        (json!(true), json!(false))
+    );
+    let settings =
+        std::fs::read_to_string(t.tmp.path().join("device/config/settings.toml")).unwrap();
+    assert!(
+        settings.contains("localhost:8080") && !settings.contains("secret-pw"),
+        "{settings}"
+    );
+
+    // a calendar without tasks cannot receive them; nothing is turned on by a refused save
+    let refused = t
+        .call(
+            "calendar_save",
+            json!({"enabled": true, "read": [], "tasks": events}),
+        )
+        .unwrap_err();
+    assert_eq!(refused.code, "invalid");
+    assert!(refused.message.contains("Birthdays"), "{}", refused.message);
+    assert_eq!(t.ok("calendar_status", json!({}))["enabled"], false);
+    assert_eq!(
+        t.call(
+            "calendar_save",
+            json!({"enabled": true, "read": [], "tasks": null})
+        )
+        .unwrap_err()
+        .code,
+        "invalid"
+    );
+
+    let st = t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [events, both], "tasks": tasks}),
+    );
+    assert_eq!(
+        (st["enabled"].clone(), st["tasks"].clone()),
+        (json!(true), json!(tasks))
+    );
+    assert_eq!(st["read"], json!([events, both]));
+    assert_eq!(st["account"]["user"], "me");
+
+    // forgetting the login turns the sync off
+    let st = t.ok("calendar_forget", json!({}));
+    assert_eq!(
+        (st["enabled"].clone(), st["account"].clone()),
+        (json!(false), json!(null))
+    );
+}

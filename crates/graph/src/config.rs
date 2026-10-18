@@ -383,6 +383,36 @@ pub struct GraphEntry {
     /// system's keyring.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<RemoteConfig>,
+    /// Calendar sync of this graph's dated tasks (phase 4), if set up.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar: Option<CalendarConfig>,
+}
+
+/// The calendar server login of a graph that has its own (the default is the login of the graph's sync).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalendarAccount {
+    /// The server, e.g. `https://cloud.example.org`.
+    pub server: String,
+    /// The login name; the password is in the system's keyring.
+    pub user: String,
+}
+
+/// Calendar sync settings of a graph on this device (CA-1, CA-2). What a deleted task does and whether tasks are
+/// VTODO or VEVENT is the graph's `[calendar]` section, which syncs with the graph.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalendarConfig {
+    /// Sync is on.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Calendars (their `href`) to read events from.
+    #[serde(default)]
+    pub read: Vec<String>,
+    /// The calendar (its `href`) that receives the tasks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<String>,
+    /// A login of its own; none means the login of the graph's sync.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account: Option<CalendarAccount>,
 }
 
 /// A WebDAV folder a graph is synced with.
@@ -565,11 +595,13 @@ impl DeviceSettings {
     pub fn register(&mut self, id: &str, path: &Path) {
         let path = path.to_string_lossy().into_owned();
         let remote = self.remote_of(id);
+        let calendar = self.calendar_of(id);
         self.graphs.retain(|g| g.id != id);
         self.graphs.push(GraphEntry {
             id: id.to_string(),
             path,
             remote,
+            calendar,
         });
         self.last_graph = Some(id.to_string());
     }
@@ -580,6 +612,21 @@ impl DeviceSettings {
             .iter()
             .find(|g| g.id == id)
             .and_then(|g| g.remote.clone())
+    }
+
+    /// The calendar settings of a graph, if it has any.
+    pub fn calendar_of(&self, id: &str) -> Option<CalendarConfig> {
+        self.graphs
+            .iter()
+            .find(|g| g.id == id)
+            .and_then(|g| g.calendar.clone())
+    }
+
+    /// Sets the calendar settings of a graph that is in the history.
+    pub fn set_calendar(&mut self, id: &str, calendar: Option<CalendarConfig>) {
+        if let Some(g) = self.graphs.iter_mut().find(|g| g.id == id) {
+            g.calendar = calendar;
+        }
     }
 
     /// Sets or removes the server folder of a graph that is in the history.

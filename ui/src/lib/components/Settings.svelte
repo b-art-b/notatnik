@@ -32,6 +32,7 @@
   import SettingRow from './settings/SettingRow.svelte'
   import SyncPane from './settings/SyncPane.svelte'
   import FileSources from './settings/FileSources.svelte'
+  import CalendarPane from './settings/CalendarPane.svelte'
   import UnusedImages from './settings/UnusedImages.svelte'
   import Segmented from './settings/Segmented.svelte'
 
@@ -64,6 +65,7 @@
     { id: 'icons', label: 'Page icons', icon: '☺' },
     { id: 'templates', label: 'Templates', icon: '⎘' },
     { id: 'sync', label: 'Sync', icon: '☁' },
+    { id: 'calendar', label: 'Calendar', icon: '📅' },
     { id: 'files', label: 'Linked files', icon: '📎' },
     { id: 'backup', label: 'Backup', icon: '⤓' },
     { id: 'graph', label: 'Graph', icon: '▤' },
@@ -1045,6 +1047,8 @@
           </SettingRow>
         {:else if tab === 'sync'}
           <SyncPane />
+        {:else if tab === 'calendar'}
+          <CalendarPane />
         {:else if tab === 'files'}
           <FileSources />
         {:else if tab === 'backup'}

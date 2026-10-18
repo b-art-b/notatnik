@@ -2848,6 +2848,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "notatnik-caldav",
  "notatnik-core",
  "notatnik-crypt",
  "notatnik-graph",
@@ -2955,6 +2956,7 @@ dependencies = [
  "chrono",
  "clap",
  "notatnik-app",
+ "notatnik-caldav",
  "notatnik-graph",
  "serde_json",
  "tiny_http",

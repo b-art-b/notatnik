@@ -32,13 +32,14 @@ async function startBackend(
   fixture: string,
   today: string,
   page: Page,
+  extra: string[] = [],
 ): Promise<{ b: Backend; stop: () => void }> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'notatnik-e2e-'))
   const dir = path.join(tmp, 'graph')
   copyDir(path.join(root, 'fixtures/graphs', fixture), dir)
   const proc: ChildProcess = spawn(
     bin,
-    ['--graph', dir, '--today', today, '--device-dir', path.join(tmp, 'device')],
+    ['--graph', dir, '--today', today, '--device-dir', path.join(tmp, 'device'), ...extra],
     { stdio: ['ignore', 'pipe', 'inherit'] },
   )
   const api = await new Promise<string>((resolve, reject) => {
@@ -78,12 +79,13 @@ async function startBackend(
   }
 }
 
-type Opts = { fixture: string; today: string }
+type Opts = { fixture: string; today: string; fakeCalendar: boolean }
 export const test = base.extend<{ backend: Backend } & Opts>({
   fixture: ['basic', { option: true }],
   today: ['2026-10-03', { option: true }],
-  backend: async ({ page, fixture, today }, use) => {
-    const { b, stop } = await startBackend(fixture, today, page)
+  fakeCalendar: [false, { option: true }],
+  backend: async ({ page, fixture, today, fakeCalendar }, use) => {
+    const { b, stop } = await startBackend(fixture, today, page, fakeCalendar ? ['--fake-calendar'] : [])
     await use(b)
     stop()
   },
