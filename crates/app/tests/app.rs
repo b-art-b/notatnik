@@ -3713,3 +3713,129 @@ fn calendar_settings_connect_choose_calendars_and_keep_the_password_out_of_the_s
         (json!(false), json!(null))
     );
 }
+
+/// The push of dated tasks (CA-4, CA-6): block IDs are added where missing and nothing else in the files changes,
+/// a second sync sends nothing, and a changed date sends one item.
+#[test]
+fn dated_tasks_are_sent_to_the_calendar_with_block_ids_and_a_second_sync_sends_nothing() {
+    use notatnik_caldav::fake::FakeServer;
+    let server = Arc::new(FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    copy_dir(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/tasks"),
+        &graph,
+    );
+    let before: std::collections::BTreeMap<String, String> = walk_md(&graph);
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 3).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": false}),
+    );
+    // off until set up
+    assert_eq!(
+        t.call("calendar_sync", json!({})).unwrap_err().code,
+        "invalid"
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks}),
+    );
+
+    let r = t.ok("calendar_sync", json!({}));
+    let sent = server.names(&tasks).len();
+    assert!(sent > 3, "the tasks fixture has dated tasks: {sent}");
+    assert_eq!(r["created"], sent);
+    assert!(r["ids_added"].as_u64().unwrap() > 0);
+
+    // the files only gained ` ^id` at the end of task lines
+    let id = regex_lite_strip_ids;
+    let after = walk_md(&graph);
+    for (path, text) in &before {
+        assert_eq!(
+            &id(&after[path]),
+            text,
+            "{path} changed in more than its block IDs"
+        );
+    }
+
+    // nothing changed: no request, no new ID
+    let requests = server.requests();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            r["created"].clone(),
+            r["updated"].clone(),
+            r["ids_added"].clone()
+        ),
+        (json!(0), json!(0), json!(0))
+    );
+    assert_eq!(r["unchanged"], sent);
+    assert_eq!(server.requests(), requests);
+
+    // one date changes in a file: one item is sent
+    let rel = "pages/dates.md";
+    let text = &after[rel];
+    let changed = text.replacen("deadline:: 2026-10-03", "deadline:: 2026-10-30", 1);
+    assert_ne!(&changed, text);
+    std::fs::write(graph.join(rel), changed).unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (r["updated"].clone(), r["created"].clone()),
+        (json!(1), json!(0)),
+        "{r}"
+    );
+    assert_eq!(server.requests(), requests + 1);
+}
+
+/// Every Markdown file below `root` by relative path.
+fn walk_md(root: &Path) -> std::collections::BTreeMap<String, String> {
+    fn go(dir: &Path, root: &Path, out: &mut std::collections::BTreeMap<String, String>) {
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n != ".notatnik") {
+                    go(&p, root, out);
+                }
+            } else if p.extension().is_some_and(|x| x == "md") {
+                out.insert(
+                    p.strip_prefix(root).unwrap().to_string_lossy().into_owned(),
+                    std::fs::read_to_string(&p).unwrap(),
+                );
+            }
+        }
+    }
+    let mut out = Default::default();
+    go(root, root, &mut out);
+    out
+}
+
+/// The text without the block IDs the calendar sync added (` ^` and six characters at the end of a line).
+fn regex_lite_strip_ids(text: &str) -> String {
+    text.split('\n')
+        .map(|l| match l.rsplit_once(" ^") {
+            Some((head, id)) if id.len() == 6 && id.chars().all(|c| c.is_ascii_alphanumeric()) => {
+                head.to_string()
+            }
+            _ => l.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}

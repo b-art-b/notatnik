@@ -1630,3 +1630,22 @@ pub struct CalendarSaveArgs {
     pub read: Vec<String>,
     pub tasks: Option<String>,
 }
+
+/// `calendar_sync` result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarSyncReport {
+    /// Tasks sent for the first time.
+    pub created: u32,
+    /// Tasks whose calendar item was changed.
+    pub updated: u32,
+    /// Tasks that were already in the calendar as they are.
+    pub unchanged: u32,
+    /// Items marked completed because their task is gone.
+    pub retired: u32,
+    /// Items deleted because their task is gone.
+    pub deleted: u32,
+    /// Tasks whose calendar item was changed elsewhere and was not overwritten.
+    pub conflicts: Vec<String>,
+    /// Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
+    pub ids_added: u32,
+}

@@ -1,7 +1,10 @@
 //! Calendar sync settings (CA-1, CA-2): which login and which calendars. The login is the one of the graph's
 //! sync unless the graph is given one of its own. The sync engine itself is in `notatnik-caldav`.
 
+use notatnik_caldav::map::{Context, todo_from_block};
+use notatnik_caldav::push::{OnDelete, Options, PushState, push};
 use notatnik_caldav::{CalDavClient, HttpCalDav};
+use notatnik_core::{Block, BlockOp, BlockRef};
 use notatnik_graph::{CalendarAccount, CalendarConfig};
 
 use super::syncing::{api_err, secret_key};
@@ -243,5 +246,166 @@ impl AppState {
         self.secrets.delete(&password_key(&id));
         self.store_calendar_settings(&id, cfg)?;
         self.calendar_status_of(&id)
+    }
+
+    /// Where what the last push left on the server is kept: with the graph's cache, never in the graph.
+    fn calendar_state_file(&self, graph: &str) -> PathBuf {
+        self.dirs
+            .data
+            .join("graphs")
+            .join(graph)
+            .join("calendar-push.json")
+    }
+
+    /// `calendar_sync`: sends the dated tasks of the open graph to the task calendar. A dated task with no block
+    /// ID is given one first (the calendar item is named after it).
+    pub fn calendar_sync(&self, _: NoArgs) -> ApiResult<CalendarSyncReport> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let cfg = self.calendar_settings(&id);
+        let section = self.with_open(|o| Ok(o.graph.config().calendar.clone()))?;
+        let Some(calendar) = cfg.tasks.clone().filter(|_| cfg.enabled) else {
+            return Err(ApiError::new(
+                "invalid",
+                "calendar sync is off or has no calendar for tasks (Settings → Calendar)",
+            ));
+        };
+        if section.tasks_as == "vevent" {
+            return Err(ApiError::new(
+                "invalid",
+                "tasks as calendar events (`[calendar] tasks_as = \"vevent\"`) are not supported yet",
+            ));
+        }
+        let account = self
+            .calendar_account(&id, &cfg)?
+            .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
+        let client = self.calendar_client_for(&account)?;
+
+        let (todos, ids_added, pages) = self.with_open(|o| collect_todos(o, &id))?;
+        let file = self.calendar_state_file(&id);
+        let mut state: PushState = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default();
+        let opts = Options {
+            now: chrono::Utc::now().naive_utc(),
+            on_delete: if section.on_delete == "delete" {
+                OnDelete::Delete
+            } else {
+                OnDelete::Complete
+            },
+            // a graph whose index lists no page at all is not read yet: nothing may be removed because of it
+            settled: pages > 0,
+        };
+        let result = push(&*client, &calendar, &todos, &mut state, &opts);
+        // what was done is kept even when the push stopped half way
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&file, serde_json::to_string(&state).unwrap_or_default());
+        let r = result.map_err(|e| api_err(&e))?;
+        Ok(CalendarSyncReport {
+            created: r.created as u32,
+            updated: r.updated as u32,
+            unchanged: r.unchanged as u32,
+            retired: r.retired as u32,
+            deleted: r.deleted as u32,
+            conflicts: r.conflicts,
+            ids_added,
+        })
+    }
+}
+
+/// The calendar tasks of every page, after giving the dated tasks that lack one a block ID. Returns the tasks,
+/// how many IDs were added and how many pages were read.
+fn collect_todos(
+    o: &Open,
+    graph_id: &str,
+) -> ApiResult<(Vec<notatnik_caldav::ical::Todo>, u32, usize)> {
+    let files = o.graph.with_index(|i| i.page_files())?;
+    let opts = o.graph.config().parse_options();
+    let priorities = o.graph.config().tasks.priorities.clone();
+    let mut used = o.graph.with_index(|i| i.all_block_uids())?;
+    let mut rng_state = now_seed();
+    let mut rng = move || {
+        rng_state ^= rng_state << 13;
+        rng_state ^= rng_state >> 7;
+        rng_state ^= rng_state << 17;
+        rng_state
+    };
+    let now = chrono::Utc::now().naive_utc();
+    let (mut todos, mut added) = (Vec::new(), 0u32);
+    for (page, rel) in &files {
+        let Ok(mut file) = o.graph.read_page(rel) else {
+            continue;
+        };
+        let mut parsed = notatnik_core::parse_page_with(&file.text, &opts);
+        // dated tasks without an ID get one, all of a page in one edit
+        let mut ops = Vec::new();
+        ids_for_dated_tasks(
+            &parsed.blocks,
+            &mut Vec::new(),
+            &mut ops,
+            &mut used,
+            &mut rng,
+        );
+        if !ops.is_empty() {
+            let n = ops.len() as u32;
+            // a page that changed meanwhile is simply skipped this time; the next run adds the IDs
+            if o.graph.edit_page(rel, Some(&file.hash), &ops).is_ok() {
+                added += n;
+                if let Ok(f) = o.graph.read_page(rel) {
+                    file = f;
+                    parsed = notatnik_core::parse_page_with(&file.text, &opts);
+                }
+            }
+        }
+        let ctx = Context {
+            graph_id,
+            page,
+            source: &file.text,
+            stamp: now,
+            priorities: &priorities,
+        };
+        fn gather(ctx: &Context, blocks: &[Block], out: &mut Vec<notatnik_caldav::ical::Todo>) {
+            for b in blocks {
+                if let Some(t) = todo_from_block(ctx, b) {
+                    out.push(t);
+                }
+                gather(ctx, &b.children, out);
+            }
+        }
+        gather(&ctx, &parsed.blocks, &mut todos);
+    }
+    Ok((todos, added, files.len()))
+}
+
+/// An `EnsureBlockId` op for every dated task (not marked `cal:: no`) that has no block ID.
+fn ids_for_dated_tasks<R: FnMut() -> u64>(
+    blocks: &[Block],
+    path: &mut Vec<usize>,
+    ops: &mut Vec<BlockOp>,
+    used: &mut std::collections::HashSet<String>,
+    rng: &mut R,
+) {
+    for (i, b) in blocks.iter().enumerate() {
+        path.push(i);
+        let dated = b
+            .task
+            .as_ref()
+            .is_some_and(|t| t.scheduled.is_some() || t.deadline.is_some());
+        let private = b
+            .properties
+            .iter()
+            .any(|p| p.key.eq_ignore_ascii_case("cal") && p.raw.trim().eq_ignore_ascii_case("no"));
+        if dated && !private && b.block_id.is_none() {
+            let id = notatnik_core::ids::generate_block_id(used, &mut *rng);
+            used.insert(id.clone());
+            ops.push(BlockOp::EnsureBlockId {
+                block: BlockRef::at(path),
+                id,
+            });
+        }
+        ids_for_dated_tasks(&b.children, path, ops, used, rng);
+        path.pop();
     }
 }

@@ -115,8 +115,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [ ] Every generated ICS validates (parse it back with the `icalendar` crate; optionally run it through an external validator once)
 
 ### P4.8 Push engine (CA-4, CA-6)
-- [ ] Collect dated task blocks (excluding `cal:: no`); `EnsureBlockId` where missing (batched per file, guarded writes)
-- [ ] Compare with the base state → PUT new or changed items with `If-None-Match: *` (new) or `If-Match: <etag>` (update)
+- [x] Collect dated task blocks (excluding `cal:: no`); `EnsureBlockId` where missing (batched per file, guarded by the page hash) — manual "Send tasks to the calendar now" only; triggers are P4.11
+- [x] Compare with the base state → PUT new or changed items with `If-None-Match: *` (new) or `If-Match: <etag>` (update) (`push.rs`; state in the device cache, `calendar-push.json`)
 
 **Verify**
 - [ ] Radicale: 10 new dated tasks → 10 items with the expected UIDs; a second sync → 0 requests (idempotent)

@@ -123,6 +123,7 @@ commands! {
     calendar_status(NoArgs) -> CalendarStatus => calendar_status,
     calendar_connect(CalendarConnectArgs) -> CalendarList => calendar_connect,
     calendar_save(CalendarSaveArgs) -> CalendarStatus => calendar_save,
+    calendar_sync(NoArgs) -> CalendarSyncReport => calendar_sync,
     calendar_forget(NoArgs) -> CalendarStatus => calendar_forget,
     webdav_test(WebdavArgs) -> WebdavTest => webdav_test,
     create_remote_graph(WebdavArgs) -> GraphInfo => create_remote_graph,

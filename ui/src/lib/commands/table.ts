@@ -11,6 +11,7 @@ import {
 import { openDocs } from '../stores/pages.svelte'
 import { globalUndo } from './exec'
 import { syncNow } from '../stores/sync.svelte'
+import { calendarSyncNow } from '../calendar'
 
 export interface Command {
   id: string
@@ -38,6 +39,12 @@ export const commands: Command[] = [
       if (app.graph?.remote) void syncNow()
       else toast('This graph is not kept on a server.', 'info')
     },
+  },
+  {
+    id: 'calendar-sync',
+    title: 'Sync tasks to calendar',
+    keys: '',
+    run: () => void calendarSyncNow(),
   },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },

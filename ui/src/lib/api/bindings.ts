@@ -1934,6 +1934,35 @@ on_delete: string, };
 export type CalendarConnectArgs = { server: string | null, user: string | null, password: string | null, };
 export type CalendarList = { account: CalendarAccountView, calendars: Array<CalendarView>, };
 export type CalendarSaveArgs = { enabled: boolean, read: Array<string>, tasks: string | null, };
+export type CalendarSyncReport = { 
+/**
+ * Tasks sent for the first time.
+ */
+created: number, 
+/**
+ * Tasks whose calendar item was changed.
+ */
+updated: number, 
+/**
+ * Tasks that were already in the calendar as they are.
+ */
+unchanged: number, 
+/**
+ * Items marked completed because their task is gone.
+ */
+retired: number, 
+/**
+ * Items deleted because their task is gone.
+ */
+deleted: number, 
+/**
+ * Tasks whose calendar item was changed elsewhere and was not overwritten.
+ */
+conflicts: Array<string>, 
+/**
+ * Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
+ */
+ids_added: number, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -2017,6 +2046,7 @@ export type Commands = {
   calendar_status: { args: NoArgs; result: CalendarStatus };
   calendar_connect: { args: CalendarConnectArgs; result: CalendarList };
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
+  calendar_sync: { args: NoArgs; result: CalendarSyncReport };
   calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };

@@ -5,11 +5,14 @@
   import { onMount } from 'svelte'
   import { backend, type CalendarList, type CalendarStatus } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
+  import { calendarSyncNow, describeCalendarSync } from '../../calendar'
 
   let status = $state<CalendarStatus | null>(null)
   let list = $state<CalendarList | null>(null)
   let busy = $state(false)
   let error = $state('')
+  let syncing = $state(false)
+  let lastSync = $state('')
 
   // the form for a login of its own
   let own = $state(false)
@@ -64,6 +67,13 @@
     } finally {
       busy = false
     }
+  }
+
+  async function syncTasks() {
+    syncing = true
+    const r = await calendarSyncNow()
+    if (r) lastSync = describeCalendarSync(r)
+    syncing = false
   }
 
   async function forget() {
@@ -193,6 +203,22 @@
     </section>
   {:else if status.enabled}
     <p class="muted">Calendar sync is on. Connect to change the calendars.</p>
+  {/if}
+
+  {#if status.enabled && status.tasks}
+    <section aria-label="Tasks">
+      <h3>Tasks</h3>
+      <p class="muted">
+        Tasks with a <code>scheduled::</code> or <code>deadline::</code> date go to the calendar; a task gets
+        a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep one out.
+      </p>
+      <div class="buttons">
+        <button type="button" data-testid="calendar-sync" disabled={syncing} onclick={syncTasks}
+          >{syncing ? 'Sending…' : 'Send tasks to the calendar now'}</button
+        >
+      </div>
+      {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
+    </section>
   {/if}
 {/if}
 

@@ -33,4 +33,10 @@ test('connect with a login of its own, choose calendars, and save', async ({ bac
   expect(st.tasks).toContain('tasks')
   expect(st.read).toHaveLength(1)
   expect(st.account.user).toBe('me')
+
+  // dated tasks are sent; the fixture's first sync gives them block IDs
+  await dialog.getByTestId('calendar-sync').click()
+  await expect(dialog.getByTestId('calendar-sync-result')).toContainText('sent')
+  await dialog.getByTestId('calendar-sync').click()
+  await expect(dialog.getByTestId('calendar-sync-result')).toContainText('up to date')
 })
