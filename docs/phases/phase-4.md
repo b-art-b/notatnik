@@ -62,6 +62,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [x] `cargo test -p notatnik-caldav --features integration` starts Radicale, creates a calendar, runs a PUT/GET, and stops Radicale (no leftover process: `pgrep radicale` is empty afterwards)
 
 ### P4.2 Nextcloud in Docker for compatibility tests
+
+**Not needed (decided with the user, 2026-10-18):** a Nextcloud test instance already runs in Docker on the development machine (`localhost:8080`, user `notatkiA`) and is used for the real-server checks (`crates/caldav/examples/live.rs`, `crates/app/tests/nextcloud.rs`). A repeatable compose file would only matter for other people or a fresh machine. The items below are left open on purpose.
 - [ ] `docker compose` file in `dev/nextcloud/` (Nextcloud + DB), a script that creates a test user, calendars and an app password
 - [ ] Your real Nextcloud is used only after this passes, with a dedicated test calendar first
 
@@ -73,7 +75,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [x] An in-memory implementation of the `CalDavClient` trait with ETags, sync-tokens, conditional writes (`Error::Changed`, the 412) and fault injection (offline, 500; `crates/caldav/src/fake.rs`)
 
 **Verify**
-- [ ] The fake passes the same contract tests as Radicale (one shared test suite run against both)
+- [x] The fake passes the same contract tests as Radicale (one shared test suite run against both)
 
 ## 4B: Account and discovery
 
