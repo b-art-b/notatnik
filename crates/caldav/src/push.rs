@@ -62,6 +62,11 @@ pub struct PushState {
     pub calendar: String,
     /// By UID.
     pub items: BTreeMap<String, Pushed>,
+    /// Tasks made in other apps that were copied into the notes: their UID there, the block ID here. The original
+    /// is deleted from the calendar once the copy is in it; an undated copy is not sent, so its original stays
+    /// and this list keeps it from being copied again.
+    #[serde(default)]
+    pub imported: BTreeMap<String, String>,
 }
 
 /// What a push did.
@@ -102,7 +107,7 @@ pub fn push(
     if state.calendar != calendar {
         *state = PushState {
             calendar: calendar.to_string(),
-            items: BTreeMap::new(),
+            ..PushState::default()
         };
     }
     let mut report = Report::default();

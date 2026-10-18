@@ -1930,10 +1930,22 @@ tasks_as: string,
 /**
  * `complete` or `delete` (the graph's `[calendar]` section).
  */
-on_delete: string, };
+on_delete: string, 
+/**
+ * Tasks created in other apps are copied into the inbox page (`[calendar] import = "inbox"`).
+ */
+import_tasks: boolean, 
+/**
+ * The page they go to.
+ */
+inbox: string, };
 export type CalendarConnectArgs = { server: string | null, user: string | null, password: string | null, };
 export type CalendarList = { account: CalendarAccountView, calendars: Array<CalendarView>, };
-export type CalendarSaveArgs = { enabled: boolean, read: Array<string>, tasks: string | null, };
+export type CalendarSaveArgs = { enabled: boolean, read: Array<string>, tasks: string | null, 
+/**
+ * Copy tasks created in other apps into the inbox page.
+ */
+import_tasks: boolean, };
 export type CalendarSyncReport = { 
 /**
  * Tasks sent for the first time.
@@ -1963,6 +1975,10 @@ conflicts: Array<string>,
  * Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
  */
 ids_added: number, 
+/**
+ * Tasks created in other apps that were copied into the inbox page.
+ */
+imported: number, 
 /**
  * Tasks of the notes that took a change from the calendar.
  */

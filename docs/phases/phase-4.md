@@ -137,7 +137,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [ ] Local and remote change the *same* field → resolved per CA-8, and logged
 
 ### P4.10 Externally created tasks
-- [ ] Import into the inbox page as described in the decisions; mapping fields as in the table
+- [x] Import into the inbox page as described in the decisions; mapping fields as in the table. Off by default (`[calendar] import = "inbox"`, page `inbox = "inbox"`, or the switch in Settings → Calendar). Only open tasks are copied; a copy with a date is sent under its notatnik UID and the original is deleted after that; an undated copy is not sent, so its original stays and `PushState.imported` keeps it from being copied again
 
 **Verify**
 - [ ] Create a task in Nextcloud Tasks → after sync, it appears in `inbox` as a TODO block with an ID; the calendar contains it under the notatnik UID only (the original removed), so there are no duplicates

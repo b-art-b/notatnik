@@ -184,6 +184,12 @@ pub struct CalendarSection {
     /// `complete` or `delete`.
     #[serde(default = "default_on_delete")]
     pub on_delete: String,
+    /// `off` (default) or `inbox`: tasks created in other apps become blocks on the inbox page (CA-5).
+    #[serde(default = "default_import")]
+    pub import: String,
+    /// The page those tasks go to.
+    #[serde(default = "default_inbox")]
+    pub inbox: String,
 }
 
 fn default_tasks_as() -> String {
@@ -192,12 +198,20 @@ fn default_tasks_as() -> String {
 fn default_on_delete() -> String {
     "complete".into()
 }
+fn default_import() -> String {
+    "off".into()
+}
+fn default_inbox() -> String {
+    "inbox".into()
+}
 
 impl Default for CalendarSection {
     fn default() -> Self {
         CalendarSection {
             tasks_as: default_tasks_as(),
             on_delete: default_on_delete(),
+            import: default_import(),
+            inbox: default_inbox(),
         }
     }
 }
@@ -206,7 +220,7 @@ const KNOWN: &[(&str, &[&str])] = &[
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
     ("tasks", &["completed_log_limit", "priorities"]),
-    ("calendar", &["tasks_as", "on_delete"]),
+    ("calendar", &["tasks_as", "on_delete", "import", "inbox"]),
 ];
 
 impl Config {

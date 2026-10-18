@@ -25,6 +25,24 @@
   let enabled = $state(false)
   let tasks = $state<string | null>(null)
   let read = $state<string[]>([])
+  let importTasks = $state(false)
+
+  /** Turns the copy of tasks made in other apps on or off; it is saved at once, like a switch. */
+  async function setImport(on: boolean) {
+    if (!status) return
+    try {
+      status = await backend.call('calendar_save', {
+        enabled: status.enabled,
+        read: status.read,
+        tasks: status.tasks,
+        import_tasks: on,
+      })
+      importTasks = status.import_tasks
+    } catch (e) {
+      importTasks = !on
+      toast(errorMessage(e), 'error')
+    }
+  }
 
   async function loadLog() {
     try {
@@ -57,6 +75,7 @@
       enabled = status.enabled
       tasks = status.tasks
       read = [...status.read]
+      importTasks = status.import_tasks
       own = !status.account
     } catch (e) {
       error = errorMessage(e)
@@ -89,7 +108,7 @@
     busy = true
     error = ''
     try {
-      status = await backend.call('calendar_save', { enabled, read, tasks })
+      status = await backend.call('calendar_save', { enabled, read, tasks, import_tasks: importTasks })
       toast('Calendar settings saved')
     } catch (e) {
       error = errorMessage(e)
@@ -241,6 +260,19 @@
       <p class="muted">
         Tasks with a <code>scheduled::</code> or <code>deadline::</code> date go to the calendar; a task gets
         a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep one out.
+      </p>
+      <label class="on">
+        <input
+          type="checkbox"
+          data-testid="calendar-import"
+          checked={importTasks}
+          onchange={(e) => setImport(e.currentTarget.checked)}
+        />
+        Copy tasks made in other apps into the page <code>{status.inbox}</code>
+      </label>
+      <p class="muted">
+        Each copy gets a block ID and is sent back under its own item; the original is then removed from the
+        calendar. A task with no date stays where it is, so it is not copied again.
       </p>
       <div class="buttons">
         <button type="button" data-testid="calendar-sync" disabled={syncing} onclick={syncTasks}

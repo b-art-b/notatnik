@@ -40,3 +40,29 @@ test('connect with a login of its own, choose calendars, and save', async ({ bac
   await dialog.getByTestId('calendar-sync').click()
   await expect(dialog.getByTestId('calendar-sync-result')).toContainText('up to date')
 })
+
+test('the import of tasks made in other apps is a switch that is saved at once', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: 'Calendar' }).click()
+  const form = page.getByTestId('calendar-login')
+  await form.getByLabel('Server').fill('http://localhost:8080')
+  await form.getByLabel('User name').fill('me')
+  await form.getByLabel(/^Password/).fill('secret')
+  await form.getByRole('button', { name: 'Connect' }).click()
+  await page.getByLabel('Tasks go to Tasks').check()
+  await page.getByLabel('Calendar sync is on').check()
+  await page.getByTestId('calendar-save').click()
+  const box = page.getByTestId('calendar-import')
+  await expect(box).not.toBeChecked()
+  await box.check()
+  await expect
+    .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
+    .toBe(true)
+  await box.uncheck()
+  await expect
+    .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
+    .toBe(false)
+})

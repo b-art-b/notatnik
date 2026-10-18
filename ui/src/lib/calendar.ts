@@ -5,6 +5,7 @@ import { errorMessage, toast } from './stores/app.svelte'
 /** One sentence for what a calendar sync did. */
 export function describeCalendarSync(r: CalendarSyncReport): string {
   const parts: string[] = []
+  if (r.imported) parts.push(`${r.imported} copied into your notes`)
   if (r.pulled) parts.push(`${r.pulled} changed from the calendar`)
   if (r.removed_in_calendar)
     parts.push(`${r.removed_in_calendar} deleted in the calendar (kept in your notes)`)

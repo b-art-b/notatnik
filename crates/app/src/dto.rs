@@ -1606,6 +1606,10 @@ pub struct CalendarStatus {
     pub tasks_as: String,
     /// `complete` or `delete` (the graph's `[calendar]` section).
     pub on_delete: String,
+    /// Tasks created in other apps are copied into the inbox page (`[calendar] import = "inbox"`).
+    pub import_tasks: bool,
+    /// The page they go to.
+    pub inbox: String,
 }
 
 /// `calendar_connect` arguments: all empty uses the login of the graph's sync.
@@ -1629,6 +1633,8 @@ pub struct CalendarSaveArgs {
     pub enabled: bool,
     pub read: Vec<String>,
     pub tasks: Option<String>,
+    /// Copy tasks created in other apps into the inbox page.
+    pub import_tasks: bool,
 }
 
 /// One line of the calendar sync log (CA-8).
@@ -1667,6 +1673,8 @@ pub struct CalendarSyncReport {
     pub conflicts: Vec<String>,
     /// Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
     pub ids_added: u32,
+    /// Tasks created in other apps that were copied into the inbox page.
+    pub imported: u32,
     /// Tasks of the notes that took a change from the calendar.
     pub pulled: u32,
     /// Tasks that were deleted in the calendar; their blocks stay.

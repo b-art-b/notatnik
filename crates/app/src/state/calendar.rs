@@ -129,6 +129,8 @@ impl AppState {
             tasks: cfg.tasks,
             tasks_as: section.tasks_as,
             on_delete: section.on_delete,
+            import_tasks: section.import == "inbox",
+            inbox: section.inbox,
         })
     }
 
@@ -237,6 +239,14 @@ impl AppState {
         cfg.read = a.read;
         cfg.tasks = a.tasks;
         self.store_calendar_settings(&id, cfg)?;
+        let import = if a.import_tasks { "inbox" } else { "off" };
+        if status.import_tasks != a.import_tasks {
+            self.with_open(|o| {
+                o.graph
+                    .update_config(|c| c.calendar.import = import.into())?;
+                Ok(())
+            })?;
+        }
         self.calendar_status_of(&id)
     }
 
@@ -364,8 +374,26 @@ impl AppState {
         }
         save(&state);
 
+        // tasks made in other apps are copied into the inbox page
+        let mut imported_now = 0u32;
+        if section.import == "inbox" {
+            let n = self.with_open(|o| {
+                Ok(import_foreign(
+                    o,
+                    &fetched.foreign,
+                    &mut state,
+                    &section.inbox,
+                ))
+            })?;
+            imported_now = n.len() as u32;
+            if !n.is_empty() {
+                self.append_calendar_log(&id, n);
+                save(&state);
+            }
+        }
+
         // 2. the notes as they are now go to the calendar
-        let todos = if applied.pulled > 0 {
+        let todos = if applied.pulled > 0 || imported_now > 0 {
             let again = self.with_open(|o| collect_todos(o, &id))?;
             ids_added += again.added;
             again.todos
@@ -373,6 +401,10 @@ impl AppState {
             collected.todos
         };
         let result = push(&*client, &calendar, &todos, &mut state, &opts);
+        // the copy of an imported task is in the calendar under our UID: the original can go
+        if result.is_ok() {
+            remove_imported_originals(&*client, &calendar, &id, &fetched.foreign, &mut state);
+        }
         // what was done is kept even when the push stopped half way
         save(&state);
         let r = result.map_err(|e| api_err(&e))?;
@@ -384,6 +416,7 @@ impl AppState {
             deleted: r.deleted as u32,
             conflicts: r.conflicts,
             ids_added,
+            imported: imported_now,
             pulled: applied.pulled,
             removed_in_calendar,
             logged,
@@ -424,6 +457,161 @@ impl AppState {
         let mut all = self.read_calendar_log(&id);
         all.reverse();
         Ok(all)
+    }
+}
+
+/// Copies the open tasks other apps made into the inbox page (one block each, with a block ID and the task's
+/// dates, priority and repeat) and remembers them, so each is copied once.
+fn import_foreign(
+    o: &Open,
+    foreign: &[notatnik_caldav::ServerItem],
+    state: &mut PushState,
+    inbox: &str,
+) -> Vec<CalendarLogEntry> {
+    let priorities = o.graph.config().tasks.priorities.clone();
+    let Ok(used) = o.graph.with_index(|i| i.all_block_uids()) else {
+        return Vec::new();
+    };
+    let mut used = used;
+    let mut rng_state = now_seed();
+    let mut rng = move || {
+        rng_state ^= rng_state << 13;
+        rng_state ^= rng_state >> 7;
+        rng_state ^= rng_state << 17;
+        rng_state
+    };
+    let mut blocks: Vec<(String, String, String)> = Vec::new(); // foreign uid, block id, text
+    for item in foreign {
+        let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
+            continue;
+        };
+        if state.imported.contains_key(&t.uid)
+            || t.summary.trim().is_empty()
+            || matches!(t.status, Some(Status::Completed | Status::Cancelled))
+        {
+            continue;
+        }
+        let id = notatnik_core::ids::generate_block_id(&used, &mut rng);
+        used.insert(id.clone());
+        let marker = match (t.status, t.state.as_deref()) {
+            (Some(Status::InProcess), _) => "DOING",
+            (_, Some("WAITING")) => "WAITING",
+            _ => "TODO",
+        };
+        let title = t.summary.split_whitespace().collect::<Vec<_>>().join(" ");
+        let mut text = format!("{marker} {title} ^{id}");
+        if let Some(w) = &t.start {
+            text.push_str(&format!("\nscheduled:: {}", moment_text(w)));
+        }
+        if let Some(w) = &t.due {
+            text.push_str(&format!("\ndeadline:: {}", moment_text(w)));
+        }
+        if let Some(p) = t.priority.filter(|p| *p > 0) {
+            let defaults = ["A".to_string(), "B".to_string(), "C".to_string()];
+            let labels = if priorities.is_empty() {
+                &defaults[..]
+            } else {
+                &priorities[..]
+            };
+            let n = labels.len();
+            let rank = ((n - 1) * (usize::from(p).clamp(1, 9) - 1) + 4) / 8;
+            text.push_str(&format!("\npriority:: {}", labels[rank.min(n - 1)]));
+        }
+        if let Some(r) = &t.rrule {
+            text.push_str(&format!("\nrepeat:: {}", repeat_from_rrule(r)));
+        }
+        if let Some(d) = t.description.as_deref().filter(|d| !d.trim().is_empty()) {
+            for line in d.lines() {
+                text.push('\n');
+                text.push_str(line.trim_end());
+            }
+        }
+        blocks.push((t.uid.clone(), id, text));
+    }
+    if blocks.is_empty() {
+        return Vec::new();
+    }
+    let Ok(rel) = AppState::page_rel(o, inbox) else {
+        return Vec::new();
+    };
+    let written = match o.graph.read_page(&rel) {
+        Ok(file) => {
+            let opts = o.graph.config().parse_options();
+            let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+            let ops: Vec<BlockOp> = blocks
+                .iter()
+                .enumerate()
+                .map(|(i, (_, _, text))| BlockOp::Insert {
+                    parent: Vec::new(),
+                    index: parsed.blocks.len() + i,
+                    text: text.clone(),
+                })
+                .collect();
+            o.graph.edit_page(&rel, Some(&file.hash), &ops).is_ok()
+        }
+        Err(notatnik_graph::Error::NotFound(_)) => {
+            let mut text = String::new();
+            for (_, _, b) in &blocks {
+                let mut lines = b.split('\n');
+                text.push_str(&format!("- {}\n", lines.next().unwrap_or("")));
+                for l in lines {
+                    text.push_str(&format!("  {l}\n"));
+                }
+            }
+            o.graph.write_page(&rel, &text, None).is_ok()
+        }
+        Err(_) => false,
+    };
+    if !written {
+        return Vec::new(); // read again next time
+    }
+    let at = now_local();
+    blocks
+        .into_iter()
+        .map(|(uid, id, text)| {
+            state.imported.insert(uid.clone(), id);
+            CalendarLogEntry {
+                at: at.clone(),
+                kind: "imported".into(),
+                uid,
+                title: text.lines().next().unwrap_or("").to_string(),
+                page: inbox.to_string(),
+                field: None,
+                local: None,
+                remote: None,
+                winner: None,
+            }
+        })
+        .collect()
+}
+
+/// Deletes the original of every imported task whose copy has been sent; forgets originals that are gone.
+fn remove_imported_originals(
+    client: &dyn CalDavClient,
+    calendar: &str,
+    graph_id: &str,
+    foreign: &[notatnik_caldav::ServerItem],
+    state: &mut PushState,
+) {
+    let entries: Vec<(String, String)> = state
+        .imported
+        .iter()
+        .map(|(u, b)| (u.clone(), b.clone()))
+        .collect();
+    for (uid, block) in entries {
+        let Some(orig) = foreign.iter().find(|i| i.name == format!("{uid}.ics")) else {
+            state.imported.remove(&uid); // the original is gone
+            continue;
+        };
+        let ours = notatnik_caldav::map::uid(graph_id, &block);
+        if state.items.contains_key(&ours)
+            && matches!(
+                client.delete(calendar, &orig.name, Some(&orig.etag)),
+                Ok(()) | Err(notatnik_caldav::Error::NotFound(_))
+            )
+        {
+            state.imported.remove(&uid);
+        }
     }
 }
 

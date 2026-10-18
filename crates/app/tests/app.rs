@@ -3679,7 +3679,7 @@ fn calendar_settings_connect_choose_calendars_and_keep_the_password_out_of_the_s
     let refused = t
         .call(
             "calendar_save",
-            json!({"enabled": true, "read": [], "tasks": events}),
+            json!({"enabled": true, "read": [], "tasks": events, "import_tasks": false}),
         )
         .unwrap_err();
     assert_eq!(refused.code, "invalid");
@@ -3688,7 +3688,7 @@ fn calendar_settings_connect_choose_calendars_and_keep_the_password_out_of_the_s
     assert_eq!(
         t.call(
             "calendar_save",
-            json!({"enabled": true, "read": [], "tasks": null})
+            json!({"enabled": true, "read": [], "tasks": null, "import_tasks": false})
         )
         .unwrap_err()
         .code,
@@ -3697,7 +3697,7 @@ fn calendar_settings_connect_choose_calendars_and_keep_the_password_out_of_the_s
 
     let st = t.ok(
         "calendar_save",
-        json!({"enabled": true, "read": [events, both], "tasks": tasks}),
+        json!({"enabled": true, "read": [events, both], "tasks": tasks, "import_tasks": false}),
     );
     assert_eq!(
         (st["enabled"].clone(), st["tasks"].clone()),
@@ -3756,7 +3756,7 @@ fn dated_tasks_are_sent_to_the_calendar_with_block_ids_and_a_second_sync_sends_n
     );
     t.ok(
         "calendar_save",
-        json!({"enabled": true, "read": [], "tasks": tasks}),
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false}),
     );
 
     let r = t.ok("calendar_sync", json!({}));
@@ -3845,7 +3845,7 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     );
     t.ok(
         "calendar_save",
-        json!({"enabled": true, "read": [], "tasks": tasks}),
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false}),
     );
     let r = t.ok("calendar_sync", json!({}));
     assert_eq!(r["created"], 4, "{r}");
@@ -3949,6 +3949,88 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     );
     assert_eq!(server.requests(), requests + 1);
     assert_eq!(walk_md(&graph), files);
+}
+
+/// Tasks other apps made are copied into the inbox page, once, and the original is removed after the copy is in
+/// the calendar (P4.10); with the import off they are left alone.
+#[test]
+fn tasks_made_in_other_apps_are_imported_into_the_inbox_and_the_original_removed() {
+    use notatnik_caldav::fake::FakeServer;
+    use notatnik_caldav::{CalDavClient, Cond};
+    let server = Arc::new(FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    let save = |import: bool| {
+        t.ok(
+            "calendar_save",
+            json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": import}),
+        )
+    };
+    let theirs = |uid: &str, extra: &str| {
+        server
+            .put(
+                &tasks,
+                &format!("{uid}.ics"),
+                &format!("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:{uid}\r\nSUMMARY:Buy milk {uid}\r\nSTATUS:NEEDS-ACTION\r\n{extra}END:VTODO\r\nEND:VCALENDAR\r\n"),
+                &Cond::Create,
+            )
+            .unwrap();
+    };
+    theirs("aaa-1", "DUE;VALUE=DATE:20261025\r\nPRIORITY:1\r\n");
+    theirs("bbb-2", "");
+
+    // off: ignored and never deleted
+    save(false);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    assert_eq!(server.names(&tasks).len(), 2);
+    assert!(!graph.join("pages/inbox.md").exists());
+
+    // on: both copied; the dated one is sent under our UID and its original removed, the undated one stays
+    save(true);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 2, "{r}");
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    assert!(inbox.contains("TODO Buy milk aaa-1 ^"), "{inbox}");
+    assert!(inbox.contains("deadline:: 2026-10-25"), "{inbox}");
+    assert!(inbox.contains("priority:: A"), "{inbox}");
+    assert!(inbox.contains("TODO Buy milk bbb-2 ^"), "{inbox}");
+    let names = server.names(&tasks);
+    assert!(!names.contains(&"aaa-1.ics".to_string()), "{names:?}");
+    assert!(names.contains(&"bbb-2.ics".to_string()), "{names:?}");
+    assert_eq!(
+        names.iter().filter(|n| n.starts_with("notatnik-")).count(),
+        1
+    );
+
+    // nothing is copied twice
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    assert_eq!(
+        std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap(),
+        inbox
+    );
 }
 
 /// Every Markdown file below `root` by relative path.
