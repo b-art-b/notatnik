@@ -1520,6 +1520,16 @@ pub struct FileItem {
     pub by_path: bool,
 }
 
+/// A folder on a server, with the Markdown link target for it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct FolderItem {
+    pub name: String,
+    /// `<server>/f/<id>` on Nextcloud (opens the folder in its Files app), else the folder's own address.
+    pub link: String,
+    /// The link is the folder's address, which breaks when the folder is renamed or moved.
+    pub by_path: bool,
+}
+
 /// `file_browse` result.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct FileBrowse {
@@ -1527,8 +1537,10 @@ pub struct FileBrowse {
     pub path: String,
     pub exists: bool,
     /// Sorted without regard to case; hidden ones left out.
-    pub folders: Vec<String>,
+    pub folders: Vec<FolderItem>,
     pub files: Vec<FileItem>,
+    /// The link for the top of the source ("All files").
+    pub root: FolderItem,
 }
 
 /// `webdav_browse` result: the folders directly inside a folder of the server.

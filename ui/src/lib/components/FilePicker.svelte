@@ -4,7 +4,7 @@
   // file. Nothing is downloaded: a link to a Nextcloud file is its `/f/<number>` address.
   // It takes the focus; the parent decides where the focus goes after `oninsert` / `oncancel`.
   import { onMount } from 'svelte'
-  import { backend, type FileBrowse, type FileSourceView } from '../api'
+  import { backend, type FileBrowse, type FileSourceView, type FolderItem } from '../api'
   import { errorMessage } from '../stores/app.svelte'
   import { toBase64 } from '../images'
   import { fileLink, fileUrl, humanSize, isLinkable, lastName, nameForAddress } from '../filelinks'
@@ -31,7 +31,9 @@
 
   // browsing
   let source = $state<FileSourceView | null>(null)
-  let path = $state<string[]>([])
+  // the folders entered so far; each keeps its link, so the folder you are in can be linked too
+  let trail = $state<FolderItem[]>([])
+  const path = $derived(trail.map((f) => f.name))
   let view = $state<FileBrowse | null>(null)
   let filter = $state('')
 
@@ -43,12 +45,20 @@
   let label = $state('')
 
   const LAST = 'notatnik-file-source'
+  const byPathHint =
+    'This server has no folder numbers: the link is the address of the folder and breaks if it is renamed or moved'
+  /** The folder being shown, as a link target (the top of the source when nothing was entered). */
+  const here = $derived(
+    trail.length > 0
+      ? trail[trail.length - 1]
+      : (view?.root ?? { name: 'All files', link: '', by_path: false }),
+  )
   const folder = $derived(path.join('/'))
   const shown = $derived.by(() => {
     const q = filter.trim().toLowerCase()
     const keep = (n: string) => !q || n.toLowerCase().includes(q)
     return {
-      folders: (view?.folders ?? []).filter(keep),
+      folders: (view?.folders ?? []).filter((f) => keep(f.name)),
       files: (view?.files ?? []).filter((f) => keep(f.name)),
     }
   })
@@ -86,9 +96,9 @@
     return [...list.filter((s) => s.id === id), ...list.filter((s) => s.id !== id)]
   }
 
-  async function open(s: FileSourceView, start: string[] = []) {
+  async function open(s: FileSourceView) {
     source = s
-    path = start
+    trail = []
     filter = ''
     view = null
     try {
@@ -114,8 +124,8 @@
     }
   }
 
-  async function enter(p: string[]) {
-    path = p
+  async function enter(t: FolderItem[]) {
+    trail = t
     filter = ''
     await load()
     focusFirst()
@@ -128,6 +138,17 @@
       const p = await backend.pickFile()
       if (p) localPath = p
       else go('start')
+    } catch (e) {
+      error = errorMessage(e)
+    }
+  }
+
+  /** Desktop: the system's folder chooser; the link opens the folder in the file manager. */
+  async function linkFolder() {
+    if (!backend.pickFolder) return
+    try {
+      const p = await backend.pickFolder()
+      if (p) oninsert(fileLink(lastName(p) || p, fileUrl(p)))
     } catch (e) {
       error = errorMessage(e)
     }
@@ -156,7 +177,7 @@
     if (e.key !== 'Escape') return
     e.preventDefault()
     if (step === 'start') oncancel()
-    else if (step === 'browse' && path.length) void enter(path.slice(0, -1))
+    else if (step === 'browse' && path.length) void enter(trail.slice(0, -1))
     else go('start')
   }
 </script>
@@ -165,7 +186,7 @@
 <div
   class="file-picker"
   role="dialog"
-  aria-label="Link a file"
+  aria-label="Link a file or folder"
   tabindex="-1"
   data-testid="file-picker"
   bind:this={root}
@@ -173,7 +194,7 @@
   onclick={(e) => e.stopPropagation()}
 >
   {#if step === 'start'}
-    <h3>Link a file from…</h3>
+    <h3>Link a file or folder from…</h3>
     {#if sources === null}
       <p class="muted">Looking…</p>
     {:else}
@@ -198,7 +219,8 @@
           <button type="button" data-testid="file-computer" onclick={computer}>
             <span class="ico" aria-hidden="true">🖥</span>
             <span class="what"
-              ><strong>This computer…</strong><small>Link to a file here, or copy it into the graph</small
+              ><strong>This computer…</strong><small
+                >Link to a file or folder here, or copy a file into the graph</small
               ></span
             >
           </button>
@@ -237,11 +259,20 @@
         <span aria-hidden="true">›</span>
         <button
           type="button"
-          onclick={() => enter(path.slice(0, i + 1))}
+          onclick={() => enter(trail.slice(0, i + 1))}
           aria-current={i === path.length - 1 ? 'location' : undefined}>{name}</button
         >
       {/each}
     </nav>
+    {#if view?.exists}
+      <button
+        type="button"
+        class="plain this-folder"
+        data-testid="folder-link-here"
+        title={here.by_path ? byPathHint : 'Link to this folder'}
+        onclick={() => oninsert(fileLink(here.name, here.link))}>🔗 Link this folder: {here.name}</button
+      >
+    {/if}
     <input
       class="filter"
       bind:value={filter}
@@ -266,13 +297,21 @@
       <ul class="entries" aria-label="Folders and files">
         {#if path.length}
           <li>
-            <button type="button" class="up" onclick={() => enter(path.slice(0, -1))}>↰ Up</button>
+            <button type="button" class="up" onclick={() => enter(trail.slice(0, -1))}>↰ Up</button>
           </li>
         {/if}
-        {#each shown.folders as name (name)}
-          <li>
-            <button type="button" class="dir" onclick={() => enter([...path, name])}
-              ><span aria-hidden="true">📁</span> {name}</button
+        {#each shown.folders as f (f.name)}
+          <li class="folder-row">
+            <button type="button" class="dir" onclick={() => enter([...trail, f])}
+              ><span aria-hidden="true">📁</span> {f.name}</button
+            >
+            <button
+              type="button"
+              class="link-folder"
+              data-testid="folder-link"
+              aria-label={`Link the folder ${f.name}`}
+              title={f.by_path ? byPathHint : 'Link to this folder'}
+              onclick={() => oninsert(fileLink(f.name, f.link))}>Link</button
             >
           </li>
         {/each}
@@ -330,6 +369,11 @@
       {:else}
         <p class="muted">Waiting for the file chooser…</p>
       {/if}
+      <div class="buttons">
+        <button type="button" class="plain" data-testid="file-local-folder" onclick={linkFolder}
+          >Link a folder instead…</button
+        >
+      </div>
     {:else}
       <label class="muted" for="file-upload">
         Choose a file to copy into the graph (up to 25 MB). A link to a file in place needs the desktop app.
@@ -447,6 +491,20 @@
     align-items: center;
     gap: 0.6em;
     margin-bottom: 0.3em;
+  }
+  .folder-row {
+    display: flex;
+    gap: 0.3em;
+  }
+  .folder-row .dir {
+    flex: 1;
+  }
+  .folder-row .link-folder {
+    flex: none;
+    width: auto;
+  }
+  .this-folder {
+    margin: 0.3em 0;
   }
   .crumbs {
     display: flex;

@@ -1870,6 +1870,15 @@ link: string,
  * The link is the file's address, which breaks when the file is renamed or moved.
  */
 by_path: boolean, };
+export type FolderItem = { name: string, 
+/**
+ * `<server>/f/<id>` on Nextcloud (opens the folder in its Files app), else the folder's own address.
+ */
+link: string, 
+/**
+ * The link is the folder's address, which breaks when the folder is renamed or moved.
+ */
+by_path: boolean, };
 export type FileBrowse = { 
 /**
  * The folder that was listed, cleaned (`Notes/Work`).
@@ -1878,7 +1887,11 @@ path: string, exists: boolean,
 /**
  * Sorted without regard to case; hidden ones left out.
  */
-folders: Array<string>, files: Array<FileItem>, };
+folders: Array<FolderItem>, files: Array<FileItem>, 
+/**
+ * The link for the top of the source ("All files").
+ */
+root: FolderItem, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 

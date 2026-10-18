@@ -89,7 +89,7 @@ test('/file adds a server, browses it and links a file by its Nextcloud number',
   await picker.getByRole('button', { name: 'Save' }).click()
 
   // the server opens; click through to the file
-  await picker.getByRole('button', { name: /Docs/ }).click()
+  await picker.getByRole('button', { name: 'Docs', exact: true }).click()
   await expect(picker.getByRole('navigation', { name: 'Where you are' })).toContainText('Docs')
   await expect(picker.getByTestId('file-entry')).toHaveCount(1)
   await picker.getByLabel('Filter by name').fill('zzz')
@@ -120,11 +120,11 @@ test('/file adds a server, browses it and links a file by its Nextcloud number',
   await page.waitForTimeout(150)
   await page.keyboard.press('Enter')
   await picker.getByTestId('file-source').click()
-  await picker.getByRole('button', { name: /Docs/ }).click()
+  await picker.getByRole('button', { name: 'Docs', exact: true }).click()
   await page.keyboard.press('Escape')
   await expect(picker.getByRole('navigation', { name: 'Where you are' })).not.toContainText('Docs')
   await page.keyboard.press('Escape')
-  await expect(picker.getByRole('heading', { name: /Link a file from/ })).toBeVisible()
+  await expect(picker.getByRole('heading', { name: /Link a file or folder from/ })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 })
@@ -197,4 +197,32 @@ test('servers are listed in Settings → Linked files and can be removed', async
   await list.getByRole('button', { name: 'Remove…' }).click()
   await list.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(list).toContainText('No servers yet.')
+})
+
+test('/file links a whole folder: a folder in the list, or the one you are in', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await put(dav, 'Docs/Old/notes.txt')
+  backend.write('pages/t.md', '- see the manual\n')
+  await typeFileCommand(page, backend)
+  const picker = page.getByTestId('file-picker')
+  await picker.getByTestId('file-add-server').click()
+  await picker.getByLabel('Name', { exact: true }).fill('Cloud')
+  await picker.getByLabel('Server', { exact: true }).fill(dav.server)
+  await picker.getByLabel('User name').fill(dav.user)
+  await picker.getByLabel(/^Password/).fill(dav.password)
+  await picker.getByRole('button', { name: 'Save' }).click()
+
+  // the top of the account opens the Files app
+  await expect(picker.getByTestId('folder-link-here')).toContainText('All files')
+  // go into Docs and link the folder you are in
+  await picker.getByRole('button', { name: 'Docs', exact: true }).click()
+  await picker.getByTestId('folder-link-here').click()
+  await expect(picker).toBeHidden()
+  const editor = page.getByTestId('block-editor')
+  await expect(editor).toContainText(`[Docs](${dav.server}/f/`)
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/t.md')).toMatch(/^- see the manual \[Docs\]\(.*\/f\/\d+\)\n$/)
 })

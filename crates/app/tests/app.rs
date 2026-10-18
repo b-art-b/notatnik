@@ -3350,11 +3350,38 @@ fn files_on_a_server_are_browsed_and_linked_by_their_id() {
     assert!(!settings.contains(&dav.password), "{settings}");
 
     let top = t.ok("file_browse", json!({"source": id, "path": ""}));
-    assert!(top["folders"].as_array().unwrap().contains(&json!("Docs")));
+    let names = |v: &serde_json::Value| -> Vec<String> {
+        v["folders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert!(names(&top).contains(&"Docs".to_string()));
+    // a folder links by its number like a file; the top of the account opens the Files app
+    let docs_link = top["folders"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "Docs")
+        .unwrap();
+    assert!(
+        docs_link["link"].as_str().unwrap().contains("/f/") && docs_link["by_path"] == false,
+        "{docs_link}"
+    );
+    assert!(
+        top["root"]["link"]
+            .as_str()
+            .unwrap()
+            .ends_with("/apps/files/"),
+        "{}",
+        top["root"]
+    );
     assert_eq!(top["files"][0]["name"], "top.md");
     let docs = t.ok("file_browse", json!({"source": id, "path": "/Docs/"}));
     assert_eq!(docs["path"], "Docs");
-    assert_eq!(docs["folders"], json!(["Sub"]));
+    assert_eq!(names(&docs), vec!["Sub".to_string()]);
     assert_eq!(docs["files"].as_array().unwrap().len(), 1); // the hidden file is left out
     let f = &docs["files"][0];
     assert_eq!(f["name"], "Manual v2.pdf");
@@ -3392,7 +3419,8 @@ fn files_on_a_server_are_browsed_and_linked_by_their_id() {
         t.ok("file_browse", json!({"source": id, "path": ""}))["folders"]
             .as_array()
             .unwrap()
-            .contains(&json!("Docs"))
+            .iter()
+            .any(|f| f["name"] == "Docs")
     );
 
     // removing forgets it

@@ -2,7 +2,7 @@
 //! the picker asks for a source ID and a folder, so another kind of server can be added behind the same commands.
 
 use notatnik_graph::FileSource;
-use notatnik_sync::{Remote, WebDavRemote, folder_url, item_url, web_base};
+use notatnik_sync::{Entry, Remote, WebDavRemote, folder_url, item_url, web_base};
 
 use super::syncing::{api_err, secret_key};
 use super::*;
@@ -190,21 +190,31 @@ impl AppState {
         let exists = listing.is_some();
         let entries = listing.map(|l| l.entries).unwrap_or_default();
         let web = web_base(&root);
-        let mut folders: Vec<String> = entries
+        let link_of = |e: &Entry| {
+            let id = Some(&e.file_id).filter(|i| !i.is_empty());
+            match (id, &web) {
+                (Some(id), Some(web)) => (format!("{web}/f/{id}"), false),
+                _ => (item_url(&root, &format!("{path}/{}", e.name)), true),
+            }
+        };
+        let mut folders: Vec<FolderItem> = entries
             .iter()
             .filter(|e| e.dir && !e.name.starts_with('.'))
-            .map(|e| e.name.clone())
+            .map(|e| {
+                let (link, by_path) = link_of(e);
+                FolderItem {
+                    name: e.name.clone(),
+                    link,
+                    by_path,
+                }
+            })
             .collect();
-        folders.sort_by_key(|n| n.to_lowercase());
+        folders.sort_by_key(|f| f.name.to_lowercase());
         let mut files: Vec<FileItem> = entries
             .iter()
             .filter(|e| !e.dir && !e.name.starts_with('.'))
             .map(|e| {
-                let id = Some(&e.file_id).filter(|i| !i.is_empty());
-                let (link, by_path) = match (id, &web) {
-                    (Some(id), Some(web)) => (format!("{web}/f/{id}"), false),
-                    _ => (item_url(&root, &format!("{path}/{}", e.name)), true),
-                };
+                let (link, by_path) = link_of(e);
                 FileItem {
                     name: e.name.clone(),
                     size: e.size as f64,
@@ -214,7 +224,20 @@ impl AppState {
             })
             .collect();
         files.sort_by_key(|f| f.name.to_lowercase());
+        let root_item = match &web {
+            Some(web) => FolderItem {
+                name: "All files".into(),
+                link: format!("{web}/apps/files/"),
+                by_path: false,
+            },
+            None => FolderItem {
+                name: "All files".into(),
+                link: item_url(&root, ""),
+                by_path: true,
+            },
+        };
         Ok(FileBrowse {
+            root: root_item,
             path,
             exists,
             folders,

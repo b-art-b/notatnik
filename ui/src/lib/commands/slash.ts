@@ -458,7 +458,7 @@ function baseCommands(): SlashCommand[] {
     },
     {
       name: 'file',
-      label: 'Link a file…',
+      label: 'Link a file or folder…',
       icon: '📎',
       group: 'Insert',
       keywords: [
@@ -471,8 +471,10 @@ function baseCommands(): SlashCommand[] {
         'upload',
         'document',
         'pdf',
+        'folder',
+        'directory',
       ],
-      title: 'Link a file from a server, this computer or an address',
+      title: 'Link a file or folder from a server, this computer or an address',
       file: true,
       insert: none,
     },

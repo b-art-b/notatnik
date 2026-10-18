@@ -161,6 +161,7 @@ pub fn typescript_bindings() -> String {
         FileSourceIdArgs,
         FileBrowseArgs,
         FileItem,
+        FolderItem,
         FileBrowse,
     );
     out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };\n\n");
