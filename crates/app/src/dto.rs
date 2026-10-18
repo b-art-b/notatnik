@@ -1614,6 +1614,10 @@ pub struct CalendarStatus {
     pub more_tasks: Vec<String>,
     /// The calendars a task can go to, the default first.
     pub task_calendars: Vec<TaskCalendarView>,
+    /// The names of the calendars in use (tasks and events), by `href`.
+    pub calendar_names: std::collections::BTreeMap<String, String>,
+    /// Colours chosen for calendars (`#rrggbb`), by `href`; a calendar without one gets a colour of its own.
+    pub calendar_colors: std::collections::BTreeMap<String, String>,
     /// The page they go to.
     pub inbox: String,
 }
@@ -1631,6 +1635,14 @@ pub struct CalendarConnectArgs {
 pub struct CalendarList {
     pub account: CalendarAccountView,
     pub calendars: Vec<CalendarView>,
+}
+
+/// `calendar_set_color` arguments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarColorArgs {
+    pub href: String,
+    /// `#rrggbb`; none removes the choice.
+    pub color: Option<String>,
 }
 
 /// A calendar tasks can go to.

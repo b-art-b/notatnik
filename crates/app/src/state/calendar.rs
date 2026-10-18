@@ -136,6 +136,8 @@ impl AppState {
             undated_tasks: section.undated == "open",
             more_tasks: cfg.more.clone(),
             task_calendars,
+            calendar_names: cfg.names.clone(),
+            calendar_colors: section.colors.clone(),
         })
     }
 
@@ -221,12 +223,12 @@ impl AppState {
             more.clear();
         }
         let mut names = std::collections::BTreeMap::new();
-        if let Some(default) = &a.tasks {
+        if a.tasks.is_some() || !a.read.is_empty() {
             let account = self
                 .calendar_account(&id, &cfg)?
                 .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
             let list = Self::calendar_list(&*self.calendar_client_for(&account)?)?;
-            for href in std::iter::once(default).chain(more.iter()) {
+            for href in a.tasks.iter().chain(more.iter()) {
                 let cal = list.iter().find(|c| &c.href == href).ok_or_else(|| {
                     ApiError::new("not_found", "that calendar is not on the server")
                 })?;
@@ -249,7 +251,16 @@ impl AppState {
                         ),
                     ));
                 }
-                names.insert(href.clone(), cal.name.clone());
+            }
+            for c in &list {
+                if a.tasks
+                    .iter()
+                    .chain(more.iter())
+                    .chain(a.read.iter())
+                    .any(|h| h == &c.href)
+                {
+                    names.insert(c.href.clone(), c.name.clone());
+                }
             }
         }
         cfg.enabled = a.enabled;
@@ -274,6 +285,31 @@ impl AppState {
                 Ok(())
             })?;
         }
+        self.calendar_status_of(&id)
+    }
+
+    /// `calendar_set_color`: the colour of a calendar in the calendar view (per graph, so it syncs with it).
+    pub fn calendar_set_color(&self, a: CalendarColorArgs) -> ApiResult<CalendarStatus> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        if let Some(c) = &a.color {
+            let ok = c.len() == 7
+                && c.starts_with('#')
+                && c[1..].chars().all(|ch| ch.is_ascii_hexdigit());
+            if !ok {
+                return Err(ApiError::new("invalid", "a colour is written #rrggbb"));
+            }
+        }
+        self.with_open(|o| {
+            o.graph.update_config(|c| match &a.color {
+                Some(v) => {
+                    c.calendar.colors.insert(a.href.clone(), v.to_lowercase());
+                }
+                None => {
+                    c.calendar.colors.remove(&a.href);
+                }
+            })?;
+            Ok(())
+        })?;
         self.calendar_status_of(&id)
     }
 
@@ -344,19 +380,26 @@ impl AppState {
             .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
         let client = self.calendar_client_for(&account)?;
         let mut report = CalendarSyncReport::default();
-        if let Some(mut routing) = Routing::new(&cfg) {
-            // the names `cal::` is matched against are kept when the calendars are chosen; older settings lack them
-            if routing.all.iter().any(|c| !cfg.names.contains_key(&c.href)) {
-                let list = Self::calendar_list(&*client)?;
-                let mut cfg = cfg.clone();
-                for c in &routing.all {
-                    if let Some(found) = list.iter().find(|l| l.href == c.href) {
-                        cfg.names.insert(c.href.clone(), found.name.clone());
-                    }
+        // the names `cal::` is matched against and the calendar view shows are kept when the calendars are chosen;
+        // older settings lack them
+        let mut cfg = cfg;
+        let in_use: Vec<String> = cfg
+            .tasks
+            .iter()
+            .chain(cfg.more.iter())
+            .chain(cfg.read.iter())
+            .cloned()
+            .collect();
+        if in_use.iter().any(|h| !cfg.names.contains_key(h)) {
+            let list = Self::calendar_list(&*client)?;
+            for h in &in_use {
+                if let Some(found) = list.iter().find(|l| &l.href == h) {
+                    cfg.names.insert(h.clone(), found.name.clone());
                 }
-                routing = Routing::new(&cfg).unwrap_or(routing);
-                self.store_calendar_settings(&id, cfg)?;
             }
+            self.store_calendar_settings(&id, cfg.clone())?;
+        }
+        if let Some(routing) = Routing::new(&cfg) {
             for c in routing.all.clone() {
                 let r = self.sync_tasks(&id, &client, c.href, &section, &routing)?;
                 report.add(r);

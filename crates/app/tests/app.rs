@@ -4174,6 +4174,39 @@ fn a_task_goes_to_the_calendar_it_names_and_moves_when_that_changes() {
     assert_eq!(r["imported"], 0, "{r}");
 }
 
+/// Calendar colours are kept per graph, in the graph's config; the names of every calendar in use are known to
+/// the UI (CV-5).
+#[test]
+fn calendar_colors_are_kept_in_the_graph_and_names_are_known() {
+    let (t, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    let events = server.add_calendar("Events", &["VEVENT"]);
+    let st = t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [events], "tasks": tasks, "import_tasks": false}),
+    );
+    assert_eq!(st["calendar_names"][&events], "Events", "{st}");
+    assert_eq!(st["calendar_names"][&tasks], "Tasks", "{st}");
+
+    let st = t.ok(
+        "calendar_set_color",
+        json!({"href": events, "color": "#A1B2C3"}),
+    );
+    assert_eq!(st["calendar_colors"][&events], "#a1b2c3", "{st}");
+    let cfg = std::fs::read_to_string(graph.join(".notatnik/config.toml")).unwrap();
+    assert!(cfg.contains("#a1b2c3"), "{cfg}");
+    for bad in ["red", "#12345", "#gggggg", "a1b2c3"] {
+        let e = t
+            .call("calendar_set_color", json!({"href": events, "color": bad}))
+            .unwrap_err();
+        assert_eq!(e.code, "invalid", "{bad}");
+    }
+    let st = t.ok("calendar_set_color", json!({"href": events, "color": null}));
+    assert!(
+        st["calendar_colors"].as_object().unwrap().is_empty(),
+        "{st}"
+    );
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]

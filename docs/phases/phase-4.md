@@ -192,6 +192,32 @@ Test each scenario with each client against your Docker Nextcloud, then against 
 
 ---
 
+## 4H: Calendar view in the Agenda (CV-1..CV-8)
+
+Tasks and events as a real calendar. The maths is in `ui/src/lib/calendarGrid.ts` (unit tests), the view is `CalendarView.svelte`.
+
+### P4.15 Day and week grid, read only (CV-1..CV-4)
+- [x] Agenda mode *calendar* with day, week (default) and month; 24-hour grid, all-day strip, current-time line, lengths (start–end, start only = 1 h, timed deadline = the hour before), overlaps side by side
+- [x] Events filled in their calendar's colour, tasks outlined with a checkbox; legend with a switch and a colour per calendar (kept per graph in `[calendar] colors`), Tasks/Events switches, *Placed by*
+
+**Verify**
+- [x] Unit tests: placement, lengths, events over midnight and over several days, overlap layout, colours (`calendarGrid.test.ts`)
+- [x] Browser test: a week with a range task, a short task, an all-day task, a timed deadline and the daily event: positions (`data-start`/`data-end`), strip, seven events, shared width, tray, now line
+- [x] A chosen colour is used at once and is in `.notatnik/config.toml`; hiding a calendar or a kind removes its items
+
+### P4.16 Moving, resizing, creating (CV-5..CV-7)
+- [x] Drag to move (length kept), drag the bottom edge, Alt+arrows, drop on the all-day strip, the tray of tasks without a date, click an empty slot to add a task to today's journal
+
+**Verify**
+- [x] Browser tests: the file shows `scheduled:: 2026-10-02 14:00-15:30` after a drag, `09:00-11:30` after a resize, the date only after a strip drop, `15:00-16:00` for a tray task; a created task is in `journals/2026/2026-10-03.md` with `scheduled:: … 10:00-11:00`
+
+### P4.17 Month and details (CV-3, CV-8)
+- [x] Month grid with chips and *+n more*, a day number opens the day; an event opens its details; the checkbox completes a task
+
+**Verify**
+- [x] Browser tests: the month shows the task and the event on 1 Oct and opens the day; the event window shows title, time and calendar; the checkbox writes `DONE`
+- [ ] Manual: use it for a week in the real app (feel of dragging, colours in dark mode, a long list of events)
+
 ## Manual acceptance checklist
 
 - [ ] Enable sync with a dedicated test calendar on your real Nextcloud; use it for 3 days

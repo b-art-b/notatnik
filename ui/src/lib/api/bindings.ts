@@ -1948,6 +1948,14 @@ more_tasks: Array<string>,
  */
 task_calendars: Array<TaskCalendarView>, 
 /**
+ * The names of the calendars in use (tasks and events), by `href`.
+ */
+calendar_names: { [key in string]: string }, 
+/**
+ * Colours chosen for calendars (`#rrggbb`), by `href`; a calendar without one gets a colour of its own.
+ */
+calendar_colors: { [key in string]: string }, 
+/**
  * The page they go to.
  */
 inbox: string, };
@@ -2051,6 +2059,11 @@ name: string,
  * Where tasks go that name no calendar.
  */
 default: boolean, };
+export type CalendarColorArgs = { href: string, 
+/**
+ * `#rrggbb`; none removes the choice.
+ */
+color: string | null, };
 export type CalendarEventView = { uid: string, title: string, 
 /**
  * First day, `YYYY-MM-DD`, in local time.
@@ -2153,6 +2166,7 @@ export type Commands = {
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
   calendar_events: { args: CalendarEventsArgs; result: CalendarEventView[] };
+  calendar_set_color: { args: CalendarColorArgs; result: CalendarStatus };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
   calendar_use_other_value: { args: CalendarUseOtherArgs; result: CalendarSyncReport };
   calendar_forget: { args: NoArgs; result: CalendarStatus };

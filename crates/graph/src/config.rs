@@ -193,6 +193,9 @@ pub struct CalendarSection {
     /// `open` (default `none`): open tasks without a date are sent too, so the calendar holds every open task.
     #[serde(default = "default_undated")]
     pub undated: String,
+    /// Colours of calendars in the calendar view, `#rrggbb` by calendar `href`.
+    #[serde(default)]
+    pub colors: std::collections::BTreeMap<String, String>,
 }
 
 fn default_tasks_as() -> String {
@@ -219,6 +222,7 @@ impl Default for CalendarSection {
             import: default_import(),
             inbox: default_inbox(),
             undated: default_undated(),
+            colors: Default::default(),
         }
     }
 }
@@ -229,7 +233,14 @@ const KNOWN: &[(&str, &[&str])] = &[
     ("tasks", &["completed_log_limit", "priorities"]),
     (
         "calendar",
-        &["tasks_as", "on_delete", "import", "inbox", "undated"],
+        &[
+            "tasks_as",
+            "on_delete",
+            "import",
+            "inbox",
+            "undated",
+            "colors",
+        ],
     ),
 ];
 

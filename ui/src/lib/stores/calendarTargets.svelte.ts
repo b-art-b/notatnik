@@ -9,6 +9,10 @@ export const calendarTargets = $state({
   undated: false,
   /** The calendars a task can go to, the default first. */
   calendars: [] as TaskCalendarView[],
+  /** The names of every calendar in use (tasks and events), by `href`. */
+  names: {} as Record<string, string>,
+  /** The colours chosen for calendars (`#rrggbb`), by `href`. */
+  colors: {} as Record<string, string>,
 })
 
 /** Takes over what the calendar settings say. */
@@ -16,6 +20,8 @@ export function setCalendarTargets(st: CalendarStatus | null) {
   calendarTargets.on = !!st && st.enabled && !!st.tasks
   calendarTargets.undated = !!st && st.undated_tasks
   calendarTargets.calendars = st ? st.task_calendars : []
+  calendarTargets.names = st ? st.calendar_names : {}
+  calendarTargets.colors = st ? st.calendar_colors : {}
 }
 
 /** Asks the backend (a graph was opened). */

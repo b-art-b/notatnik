@@ -207,6 +207,14 @@ A **graph** is a folder of notes.
 | QV-11 | A query block in a note is edited by clicking anywhere on it except its results: the header (with a visible hint), the frame or the shown query text open the block for editing; a click on a result keeps its own meaning. | V1 |
 | QV-12 | `{{page}}` in a query means the page the query block sits on, so one query (`type: page`, `prop.partner: {{page}}`) works unchanged on every partner page; `{{title}}`, `{{namespace}}` and `{{date}}` are filled in too. Outside a page (agenda, sidebar) `{{page}}`, `{{title}}` and `{{namespace}}` are an error. The empty link `[[]]` still means the page. | V1 |
 | QV-13 | The placeholders of templates and queries are documented (`docs/placeholders.md`), listed in Settings → Templates, and offered by completion after `{{` in a query block. | V1 |
+| CV-1 | The Agenda has a **calendar** mode with Day, Week (the default) and Month, previous/next and Today. It shows the tasks of the agenda's filters and the events of the calendars chosen in Settings → Calendar. | V1 |
+| CV-2 | Day and week are a 24-hour grid (scrollable, the current time marked) with a strip for all-day items. A scheduled start and end is a block of that length; a start without an end is one hour; a timed deadline is the hour that ends with it; a date without a time goes in the strip. Items that overlap share the width. | V1 |
+| CV-3 | Events are filled blocks in the colour of their calendar, read only, with details on click; tasks are outlined, have a checkbox that completes them, and open their note on click. Multi-day and all-day events and events over midnight are drawn on each day they touch. | V1 |
+| CV-4 | Each calendar has a colour (chosen in the legend, kept per graph in `[calendar] colors`); the legend, a Tasks switch and an Events switch hide what you do not want; *Placed by* chooses the earlier date, the scheduled date or the deadline. | V1 |
+| CV-5 | Dragging a task to another day or time writes `scheduled::` (or `deadline::`) and keeps the length; dragging its bottom edge changes the end; Alt+arrows move it by a day or 15 minutes; dropping it on the all-day strip removes the time. | V1 |
+| CV-6 | Tasks without a date wait in a tray beside the calendar; dragging one onto the grid gives it that day and an hour at that time, onto the strip or a month cell only the date. | V1 |
+| CV-7 | Clicking an empty slot asks for a title and adds a task of one hour at that time to today's journal. | V1 |
+| CV-8 | The month view shows each day's items as chips (four, then "+n more"), drags tasks between days and opens a day by its number. | V1 |
 
 ## 9. Properties
 

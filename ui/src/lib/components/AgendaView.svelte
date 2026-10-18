@@ -5,6 +5,7 @@
   import { shownDate } from '../stores/format.svelte'
   import SourcedTask from './SourcedTask.svelte'
   import QueryBlock from './QueryBlock.svelte'
+  import CalendarView from './CalendarView.svelte'
   import ValueInput from './ValueInput.svelte'
   import { GROUPS, SORTS, groupItems, sortItems } from '../agenda'
 
@@ -12,8 +13,8 @@
   let tag = $state('')
   let priority = $state('')
   // `sections` is the classic agenda; the others show the same tasks through the query views
-  type Mode = 'sections' | 'list' | 'table' | 'kanban' | 'timeline'
-  const MODES: Mode[] = ['sections', 'list', 'table', 'kanban', 'timeline']
+  type Mode = 'sections' | 'list' | 'table' | 'kanban' | 'timeline' | 'calendar'
+  const MODES: Mode[] = ['sections', 'list', 'table', 'kanban', 'timeline', 'calendar']
   let mode = $state<Mode>('sections')
   let showDone = $state(false)
   let group = $state('')
@@ -123,20 +124,24 @@
   {#if mode !== 'sections' && mode !== 'kanban'}
     <label><input type="checkbox" bind:checked={showDone} data-testid="agenda-done" /> Show done</label>
   {/if}
-  <label
-    >Group
-    <select bind:value={group} data-testid="agenda-group">
-      {#each GROUPS as g (g.value)}<option value={g.value}>{g.label}</option>{/each}
-    </select>
-  </label>
-  <label
-    >Sort
-    <select bind:value={sort} data-testid="agenda-sort">
-      {#each SORTS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
-    </select>
-  </label>
+  {#if mode !== 'calendar'}
+    <label
+      >Group
+      <select bind:value={group} data-testid="agenda-group">
+        {#each GROUPS as g (g.value)}<option value={g.value}>{g.label}</option>{/each}
+      </select>
+    </label>
+    <label
+      >Sort
+      <select bind:value={sort} data-testid="agenda-sort">
+        {#each SORTS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
+      </select>
+    </label>
+  {/if}
 </div>
-{#if mode !== 'sections'}
+{#if mode === 'calendar'}
+  <CalendarView {queryText} />
+{:else if mode !== 'sections'}
   <QueryBlock text={queryText} forcedView={mode} />
 {:else if data}
   <section data-section="overdue">
