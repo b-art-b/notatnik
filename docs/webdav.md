@@ -103,6 +103,13 @@ and folder address. It is not in `settings.toml`, so it is not in backups either
 cannot be stored and the graph cannot be created; the error says so. The browser test build keeps passwords in
 memory.
 
+## When another editor changes the files
+
+A page that another editor saves on the server may come back with its lines joined: Nextcloud's web *Text* editor
+turns `- TODO call ^abc123` + `  deadline:: 2026-10-21` into one line. The sync reports such a page after it is
+downloaded (the sidebar and Settings → Sync, SY-9); restore the earlier version from the page's History. Notatnik's
+own files should not be opened in that editor.
+
 ## Limits
 
 - The server and everything with access to it sees the notes in plain text. Encryption on the server (EN-7 to
