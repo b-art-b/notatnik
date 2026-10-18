@@ -3986,6 +3986,20 @@ fn imported_originals_are_found_by_their_own_file_name() {
             "round {round}: {r}"
         );
     }
+    // the open page is told like about a change from outside (the UI ignores our own writes)
+    assert!(
+        t.events
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(n, v)| n == "graph-changed"
+                && v["own"] == false
+                && v["pages"]
+                    .as_array()
+                    .is_some_and(|p| p.contains(&json!("inbox")))),
+        "{:?}",
+        t.events.lock().unwrap()
+    );
     let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
     assert_eq!(inbox.matches("TODO Milk uid-dated").count(), 1, "{inbox}");
     assert_eq!(inbox.matches("TODO Milk uid-undated").count(), 1, "{inbox}");
@@ -4014,18 +4028,16 @@ fn deletion_setup(
     let tasks = server.add_calendar("Tasks", &["VTODO"]);
     let tmp = tempfile::tempdir().unwrap();
     let graph = tmp.path().join("graph");
+    let events: Arc<Mutex<Vec<(String, Value)>>> = Arc::default();
+    let ev = events.clone();
     let app = AppState::new(AppOptions {
         dirs: Dirs::under(&tmp.path().join("device")),
-        emit: Arc::new(|_, _| {}),
+        emit: Arc::new(move |n, v| ev.lock().unwrap().push((n.to_string(), v))),
         today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
         watch: false,
     })
     .with_calendar_client(server.clone());
-    let t = T {
-        tmp,
-        app,
-        events: Arc::default(),
-    };
+    let t = T { tmp, app, events };
     std::fs::create_dir_all(graph.join("pages")).unwrap();
     std::fs::write(graph.join("pages/work.md"), page).unwrap();
     t.ok(

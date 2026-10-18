@@ -510,6 +510,28 @@ impl AppState {
             }
         }
 
+        // pages the sync wrote are open in the UI too: tell it like a change from outside (the UI skips our own)
+        let mut touched: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        if collected.added > 0 {
+            touched.extend(collected.places.values().map(|p| p.page.clone()));
+        }
+        if applied.pulled > 0 {
+            for item in &plan.items {
+                if let Some(p) = collected.places.get(&item.uid) {
+                    touched.insert(p.page.clone());
+                }
+            }
+        }
+        if imported_now > 0 {
+            touched.insert(section.inbox.clone());
+        }
+        if !touched.is_empty() {
+            (self.emit)(
+                "graph-changed",
+                json!({ "pages": touched, "paths": [], "own": false }),
+            );
+        }
+
         // 2. the notes as they are now go to the calendar
         let todos = if applied.pulled > 0 || imported_now > 0 {
             let again = self.with_open(|o| collect_todos(o, &id))?;
@@ -626,6 +648,10 @@ impl AppState {
                 "the value cannot be written into this block",
             ));
         }
+        (self.emit)(
+            "graph-changed",
+            json!({ "pages": [entry.page.clone()], "paths": [], "own": false }),
+        );
         self.append_calendar_log(
             &id,
             vec![CalendarLogEntry {
