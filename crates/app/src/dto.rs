@@ -1637,6 +1637,30 @@ pub struct CalendarSaveArgs {
     pub import_tasks: bool,
 }
 
+/// `calendar_events` arguments: the days to show, `YYYY-MM-DD`, both included.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarEventsArgs {
+    pub from: String,
+    pub to: String,
+}
+
+/// An event on a stretch of days (JR-5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarEventView {
+    pub uid: String,
+    pub title: String,
+    /// First day, `YYYY-MM-DD`, in local time.
+    pub date: String,
+    /// Last day; the same as `date` for most events.
+    pub end_date: String,
+    /// `HH:MM`; none for an all-day event.
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub location: Option<String>,
+    /// The calendar it comes from.
+    pub calendar: String,
+}
+
 /// One line of the calendar sync log (CA-8).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CalendarLogEntry {
@@ -1657,7 +1681,7 @@ pub struct CalendarLogEntry {
 }
 
 /// `calendar_sync` result.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CalendarSyncReport {
     /// Tasks sent for the first time.
     pub created: u32,
@@ -1673,6 +1697,8 @@ pub struct CalendarSyncReport {
     pub conflicts: Vec<String>,
     /// Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
     pub ids_added: u32,
+    /// Event resources that were new, changed or deleted in the calendars read for events.
+    pub events_changed: u32,
     /// Tasks created in other apps that were copied into the inbox page.
     pub imported: u32,
     /// Tasks of the notes that took a change from the calendar.

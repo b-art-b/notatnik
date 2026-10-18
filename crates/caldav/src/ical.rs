@@ -137,7 +137,7 @@ fn escape(s: &str) -> String {
     out
 }
 
-fn unescape(s: &str) -> String {
+pub(crate) fn unescape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut it = s.chars();
     while let Some(c) = it.next() {
@@ -237,13 +237,13 @@ impl Todo {
 }
 
 /// One unfolded content line.
-struct Prop<'a> {
-    name: String,
-    params: Vec<(String, &'a str)>,
-    value: &'a str,
+pub(crate) struct Prop<'a> {
+    pub(crate) name: String,
+    pub(crate) params: Vec<(String, &'a str)>,
+    pub(crate) value: &'a str,
 }
 
-fn unfold(text: &str) -> Vec<String> {
+pub(crate) fn unfold(text: &str) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for raw in text.split('\n') {
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
@@ -256,7 +256,7 @@ fn unfold(text: &str) -> Vec<String> {
     lines
 }
 
-fn split_prop(line: &str) -> Option<Prop<'_>> {
+pub(crate) fn split_prop(line: &str) -> Option<Prop<'_>> {
     // the first ':' outside double quotes ends the name and parameters
     let mut quoted = false;
     let mut colon = None;
@@ -285,7 +285,7 @@ fn split_prop(line: &str) -> Option<Prop<'_>> {
     })
 }
 
-fn parse_stamp(v: &str) -> Option<(NaiveDateTime, bool)> {
+pub(crate) fn parse_stamp(v: &str) -> Option<(NaiveDateTime, bool)> {
     let utc = v.ends_with('Z') || v.ends_with('z');
     let v = v.trim_end_matches(['Z', 'z']);
     NaiveDateTime::parse_from_str(v, "%Y%m%dT%H%M%S")
@@ -293,7 +293,7 @@ fn parse_stamp(v: &str) -> Option<(NaiveDateTime, bool)> {
         .map(|t| (t, utc))
 }
 
-fn parse_when(p: &Prop) -> Option<When> {
+pub(crate) fn parse_when(p: &Prop) -> Option<When> {
     let date_only = p
         .params
         .iter()

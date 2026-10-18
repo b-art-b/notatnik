@@ -81,3 +81,31 @@ test('with calendar sync on, the app syncs by itself when the graph opens', asyn
   await page.getByRole('tab', { name: 'Calendar' }).click()
   await expect(page.getByTestId('calendar-auto')).toContainText('Last synced', { timeout: 15_000 })
 })
+
+test('events of the chosen calendars show in the journal and in the timeline, and the notes stay as they are', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/')
+  const list = await backend.call<{ calendars: { href: string; name: string }[] }>('calendar_connect', {
+    server: 'http://localhost:8080',
+    user: 'me',
+    password: 'secret',
+  })
+  const birthdays = list.calendars.find((c) => c.name === 'Birthdays')!.href
+  await backend.call('calendar_save', { enabled: true, read: [birthdays], tasks: null, import_tasks: false })
+  await backend.call('calendar_sync')
+  await page.reload()
+  const day = page.getByTestId('day-events').first()
+  await expect(day).toContainText('Team standup')
+  await expect(day).toContainText('09:00–09:15')
+  await expect(day.getByRole('heading', { name: 'Calendar' })).toBeVisible()
+
+  // the timeline of a query shows the same events beside the tasks
+  backend.write(
+    'pages/cal.md',
+    '- TODO plan ^pl1\n  deadline:: 2026-10-12\n- ```query\n  task: todo\n  page: cal\n  view: timeline\n  ```\n',
+  )
+  await backend.open('/page/cal')
+  await expect(page.getByTestId('cal-event').first()).toContainText('Team standup')
+})

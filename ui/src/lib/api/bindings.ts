@@ -1976,6 +1976,10 @@ conflicts: Array<string>,
  */
 ids_added: number, 
 /**
+ * Event resources that were new, changed or deleted in the calendars read for events.
+ */
+events_changed: number, 
+/**
  * Tasks created in other apps that were copied into the inbox page.
  */
 imported: number, 
@@ -2012,6 +2016,24 @@ field: string | null, local: string | null, remote: string | null,
  * `local` or `remote`: the value that was kept.
  */
 winner: string | null, };
+export type CalendarEventsArgs = { from: string, to: string, };
+export type CalendarEventView = { uid: string, title: string, 
+/**
+ * First day, `YYYY-MM-DD`, in local time.
+ */
+date: string, 
+/**
+ * Last day; the same as `date` for most events.
+ */
+end_date: string, 
+/**
+ * `HH:MM`; none for an all-day event.
+ */
+start: string | null, end: string | null, location: string | null, 
+/**
+ * The calendar it comes from.
+ */
+calendar: string, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -2096,6 +2118,7 @@ export type Commands = {
   calendar_connect: { args: CalendarConnectArgs; result: CalendarList };
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
+  calendar_events: { args: CalendarEventsArgs; result: CalendarEventView[] };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
   calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };

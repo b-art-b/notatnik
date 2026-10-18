@@ -3951,6 +3951,115 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     assert_eq!(walk_md(&graph), files);
 }
 
+/// Events of the chosen calendars are read, kept and shown by day; nothing is written into the notes (CA-3, JR-5).
+#[test]
+fn events_are_read_from_the_chosen_calendars_and_never_written_into_the_notes() {
+    use notatnik_caldav::fake::FakeServer;
+    use notatnik_caldav::{CalDavClient, Cond};
+    let server = Arc::new(FakeServer::new());
+    let events = server.add_calendar("Events", &["VEVENT"]);
+    let other = server.add_calendar("Other", &["VEVENT"]);
+    let ev = |uid: &str, body: &str| {
+        format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{uid}\r\n{body}END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+    };
+    server
+        .put(
+            &events,
+            "a.ics",
+            &ev(
+                "a",
+                "SUMMARY:Dentist\r\nDTSTART:20261020T093000\r\nDTEND:20261020T103000\r\n",
+            ),
+            &Cond::Create,
+        )
+        .unwrap();
+    server
+        .put(
+            &events,
+            "w.ics",
+            &ev(
+                "w",
+                "SUMMARY:Standup\r\nDTSTART:20261019T090000\r\nDTEND:20261019T091500\r\nRRULE:FREQ=DAILY;COUNT=3\r\n",
+            ),
+            &Cond::Create,
+        )
+        .unwrap();
+    server
+        .put(
+            &other,
+            "o.ics",
+            &ev("o", "SUMMARY:Not chosen\r\nDTSTART:20261020T120000\r\n"),
+            &Cond::Create,
+        )
+        .unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [events], "tasks": null, "import_tasks": false}),
+    );
+    let before = walk_md(&graph);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["events_changed"], 2, "{r}");
+    assert_eq!(
+        walk_md(&graph),
+        before,
+        "events are not written into the notes"
+    );
+
+    let day = t.ok(
+        "calendar_events",
+        json!({"from": "2026-10-20", "to": "2026-10-20"}),
+    );
+    let titles: Vec<&str> = day
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        titles,
+        ["Standup", "Dentist"],
+        "the other calendar is not shown: {day}"
+    );
+    assert_eq!(day[1]["start"], "09:30");
+
+    // a second sync with nothing new is one request; a deleted event goes
+    let n = server.requests();
+    t.ok("calendar_sync", json!({}));
+    assert_eq!(server.requests(), n + 1);
+    server.delete(&events, "a.ics", None).unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["events_changed"], 1, "{r}");
+    let day = t.ok(
+        "calendar_events",
+        json!({"from": "2026-10-20", "to": "2026-10-20"}),
+    );
+    assert_eq!(day.as_array().unwrap().len(), 1);
+}
+
 /// Tasks other apps made are copied into the inbox page, once, and the original is removed after the copy is in
 /// the calendar (P4.10); with the import off they are left alone.
 #[test]

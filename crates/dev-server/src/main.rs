@@ -185,8 +185,16 @@ fn main() {
     if args.fake_calendar {
         let cal = notatnik_caldav::fake::FakeServer::new();
         cal.add_calendar("Tasks", &["VTODO"]);
-        cal.add_calendar("Birthdays", &["VEVENT"]);
+        let birthdays = cal.add_calendar("Birthdays", &["VEVENT"]);
         cal.add_calendar("Personal", &["VEVENT", "VTODO"]);
+        // an event every day, so the tests do not depend on the date they run on
+        use notatnik_caldav::CalDavClient;
+        let _ = cal.put(
+            &birthdays,
+            "standup.ics",
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:standup\r\nSUMMARY:Team standup\r\nDTSTART:20200101T090000\r\nDTEND:20200101T091500\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+            &notatnik_caldav::Cond::Create,
+        );
         state = state.with_calendar_client(Arc::new(cal));
     }
     let app = Arc::new(state);

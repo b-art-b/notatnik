@@ -3,6 +3,7 @@
   import { backend, type JournalDay } from '../api'
   import { app } from '../stores/app.svelte'
   import PageContent from './PageContent.svelte'
+  import DayEvents from './DayEvents.svelte'
   import { pageHash } from '../route'
   import { shownDate } from '../stores/format.svelte'
 
@@ -64,6 +65,7 @@
           titleLink
           hideProps
         />
+        {#if r.day.date !== app.today}<DayEvents date={r.day.date} />{/if}
         {#if r.day.date !== app.today}<a class="day-title" href={pageHash(r.day.name)}
             ><PageIcon name={r.day.name} journal />{shownDate(r.day.name)}</a
           >{/if}

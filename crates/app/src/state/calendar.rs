@@ -1,6 +1,7 @@
 //! Calendar sync settings (CA-1, CA-2): which login and which calendars. The login is the one of the graph's
 //! sync unless the graph is given one of its own. The sync engine itself is in `notatnik-caldav`.
 
+use notatnik_caldav::event::EventCal;
 use notatnik_caldav::ical::{Status, Todo, When};
 use notatnik_caldav::map::{Context, todo_from_block};
 use notatnik_caldav::map::{block_id_of, repeat_from_rrule};
@@ -276,13 +277,13 @@ impl AppState {
         let id = self.with_open(|o| Ok(o.graph.id()))?;
         let cfg = self.calendar_settings(&id);
         let section = self.with_open(|o| Ok(o.graph.config().calendar.clone()))?;
-        let Some(calendar) = cfg.tasks.clone().filter(|_| cfg.enabled) else {
+        if !cfg.enabled || (cfg.tasks.is_none() && cfg.read.is_empty()) {
             return Err(ApiError::new(
                 "invalid",
-                "calendar sync is off or has no calendar for tasks (Settings → Calendar)",
+                "calendar sync is off or has no calendar for tasks or events (Settings → Calendar)",
             ));
-        };
-        if section.tasks_as == "vevent" {
+        }
+        if cfg.tasks.is_some() && section.tasks_as == "vevent" {
             return Err(ApiError::new(
                 "invalid",
                 "tasks as calendar events (`[calendar] tasks_as = \"vevent\"`) are not supported yet",
@@ -292,7 +293,108 @@ impl AppState {
             .calendar_account(&id, &cfg)?
             .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
         let client = self.calendar_client_for(&account)?;
+        let mut report = match cfg.tasks.clone() {
+            Some(calendar) => self.sync_tasks(&id, &client, calendar, &section)?,
+            None => CalendarSyncReport::default(),
+        };
+        report.events_changed = self.refresh_events(&id, &*client, &cfg.read)?;
+        Ok(report)
+    }
 
+    /// Reads the calendars of events (read only; nothing is written to the notes) and keeps what they hold.
+    fn refresh_events(
+        &self,
+        graph: &str,
+        client: &dyn CalDavClient,
+        read: &[String],
+    ) -> ApiResult<u32> {
+        let file = self.calendar_events_file(graph);
+        let mut store: BTreeMap<String, EventCal> = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default();
+        store.retain(|href, _| read.contains(href));
+        let mut changed = 0;
+        let mut failure = None;
+        for href in read {
+            let cal = store.entry(href.clone()).or_default();
+            match notatnik_caldav::event::refresh(client, href, cal) {
+                Ok(n) => changed += n as u32,
+                Err(e) => {
+                    failure = Some(e);
+                    break;
+                }
+            }
+        }
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&file, serde_json::to_string(&store).unwrap_or_default());
+        match failure {
+            Some(e) => Err(api_err(&e)),
+            None => Ok(changed),
+        }
+    }
+
+    fn calendar_events_file(&self, graph: &str) -> PathBuf {
+        self.dirs
+            .data
+            .join("graphs")
+            .join(graph)
+            .join("calendar-events.json")
+    }
+
+    /// `calendar_events`: the events of the chosen calendars on the days `from` to `to` (inclusive), read from what
+    /// the last sync kept.
+    pub fn calendar_events(&self, a: CalendarEventsArgs) -> ApiResult<Vec<CalendarEventView>> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let cfg = self.calendar_settings(&id);
+        if !cfg.enabled {
+            return Ok(Vec::new());
+        }
+        let parse = |s: &str| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .map_err(|_| ApiError::new("invalid", format!("`{s}` is not a date (YYYY-MM-DD)")))
+        };
+        let (from, to) = (parse(&a.from)?, parse(&a.to)?);
+        let store: BTreeMap<String, EventCal> =
+            std::fs::read_to_string(self.calendar_events_file(&id))
+                .ok()
+                .and_then(|t| serde_json::from_str(&t).ok())
+                .unwrap_or_default();
+        let mut out = Vec::new();
+        for (href, cal) in &store {
+            if !cfg.read.contains(href) {
+                continue;
+            }
+            for (_, ics) in cal.items.values() {
+                for o in notatnik_caldav::event::occurrences(ics, from, to) {
+                    out.push(CalendarEventView {
+                        uid: o.uid,
+                        title: o.title,
+                        date: o.date.format("%Y-%m-%d").to_string(),
+                        end_date: o.end_date.format("%Y-%m-%d").to_string(),
+                        start: o.start.map(|t| t.format("%H:%M").to_string()),
+                        end: o.end.map(|t| t.format("%H:%M").to_string()),
+                        location: o.location,
+                        calendar: href.clone(),
+                    });
+                }
+            }
+        }
+        out.sort_by(|x, y| (&x.date, &x.start, &x.title).cmp(&(&y.date, &y.start, &y.title)));
+        Ok(out)
+    }
+
+    /// Sends the dated tasks to the task calendar and reads back what changed there.
+    fn sync_tasks(
+        &self,
+        id: &str,
+        client: &Arc<dyn CalDavClient + Send + Sync>,
+        calendar: String,
+        section: &notatnik_graph::CalendarSection,
+    ) -> ApiResult<CalendarSyncReport> {
+        let id = id.to_string();
         let collected = self.with_open(|o| collect_todos(o, &id))?;
         let mut ids_added = collected.added;
         let file = self.calendar_state_file(&id);
@@ -324,7 +426,7 @@ impl AppState {
             state.import_on = import_on;
         }
         let before = state.clone();
-        let fetched = match pull::fetch(&*client, &calendar, &id, &state) {
+        let fetched = match pull::fetch(&**client, &calendar, &id, &state) {
             Ok(f) => f,
             Err(e) => return Err(api_err(&e)),
         };
@@ -412,10 +514,10 @@ impl AppState {
         } else {
             collected.todos
         };
-        let result = push(&*client, &calendar, &todos, &mut state, &opts);
+        let result = push(&**client, &calendar, &todos, &mut state, &opts);
         // the copy of an imported task is in the calendar under our UID: the original can go
         if result.is_ok() {
-            remove_imported_originals(&*client, &calendar, &id, &fetched.foreign, &mut state);
+            remove_imported_originals(&**client, &calendar, &id, &fetched.foreign, &mut state);
         }
         // what was done is kept even when the push stopped half way
         save(&state);
@@ -429,6 +531,7 @@ impl AppState {
             conflicts: r.conflicts,
             ids_added,
             imported: imported_now,
+            events_changed: 0,
             pulled: applied.pulled,
             removed_in_calendar,
             logged,

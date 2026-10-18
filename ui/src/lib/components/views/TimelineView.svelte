@@ -1,5 +1,7 @@
 <script lang="ts">
-  import type { ResultRow } from '../../api'
+  import type { CalendarEventView, ResultRow } from '../../api'
+  import { eventsOn, loadEvents } from '../../events'
+  import { calendarAuto } from '../../stores/calendarAuto.svelte'
   import { setProperty } from '../../commands/exec'
   import { jumpToBlock } from '../../jump'
   import { untrack } from 'svelte'
@@ -24,6 +26,19 @@
   const dated = $derived(rows.filter((r) => valueOf(r)))
   const undated = $derived(rows.filter((r) => !valueOf(r)))
   const weeks = $derived(mode === 'month' ? monthGrid(month, weekStart) : [weekOf(weekDay, weekStart)])
+  // events of the calendars chosen in Settings → Calendar, shown beside the tasks (QV-6); read only
+  let events = $state<CalendarEventView[]>([])
+  $effect(() => {
+    void calendarAuto.last
+    const first = weeks[0][0].date
+    const lastWeek = weeks[weeks.length - 1]
+    const last = lastWeek[lastWeek.length - 1].date
+    let stale = false
+    void loadEvents(first, last).then((e) => {
+      if (!stale) events = e
+    })
+    return () => (stale = true)
+  })
   const on = (date: string) => dated.filter((r) => valueOf(r)?.slice(0, 10) === date)
 
   async function moveTo(r: ResultRow, date: string) {
@@ -108,6 +123,12 @@
               data-date={d.date}
             >
               <div class="num">{Number(d.date.slice(8))}</div>
+              {#each eventsOn(events, d.date) as e (e.uid + e.date + e.start)}
+                <div class="cal-ev" data-testid="cal-event" title={e.location ?? 'Calendar event'}>
+                  {#if e.start && e.date === d.date}<span class="at">{e.start}</span>{/if}
+                  {e.title}
+                </div>
+              {/each}
               {#each on(d.date) as r (r.id)}
                 <div
                   class="ev"
@@ -139,6 +160,18 @@
 </div>
 
 <style>
+  .cal-ev {
+    font-size: 0.85em;
+    padding: 0.1em 0.3em;
+    margin: 1px 0;
+    border-left: 3px solid var(--muted);
+    color: var(--muted);
+    background: transparent;
+  }
+  .cal-ev .at {
+    font-variant-numeric: tabular-nums;
+    margin-right: 0.3em;
+  }
   .bar {
     display: flex;
     gap: 0.5em;

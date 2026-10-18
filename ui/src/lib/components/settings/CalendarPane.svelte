@@ -255,7 +255,7 @@
     <p class="muted">Calendar sync is on. Connect to change the calendars.</p>
   {/if}
 
-  {#if status.enabled && status.tasks}
+  {#if status.enabled && (status.tasks || status.read.length)}
     <section aria-label="Tasks">
       <h3>Tasks</h3>
       <p class="muted">

@@ -97,8 +97,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4C: Events (read-only)
 
 ### P4.6 Pull events (CA-3)
-- [ ] Incremental pull (P4.11) into `cal_items`; recurring events expanded for a window (−30 / +365 days) for display
-- [ ] Journal page section "Calendar" (JR-5); timeline view (QV-6) can include events
+- [x] Incremental pull (P4.11) of the calendars chosen for events; kept in the device cache (`calendar-events.json`, not the SQLite index: it is rebuilt from the server), recurring events expanded on demand for the days being shown (`event.rs`, with the `rrule` and `chrono-tz` crates: repeats, `EXDATE`, moved occurrences, time zones)
+- [x] Journal page section "Calendar" (JR-5; today's journal, a day's own page and the older days of the feed); the timeline of a query shows the events too (QV-6)
 
 **Verify**
 - [ ] Create a single event, an all-day event, a weekly recurring event with one exception, and an event in another time zone in Nextcloud → each shows on the correct days and times in journals and the timeline

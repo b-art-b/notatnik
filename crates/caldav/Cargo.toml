@@ -13,6 +13,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 ureq = { version = "2.12", default-features = false, features = ["tls"] }
 notatnik-core = { workspace = true }
 notatnik-sync = { workspace = true }
+rrule = "0.14.0"
+chrono-tz = "0.10.4"
 
 [lints]
 workspace = true

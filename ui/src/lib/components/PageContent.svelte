@@ -10,6 +10,7 @@
   import BlockList from './BlockList.svelte'
   import Backlinks from './Backlinks.svelte'
   import PageTasks from './PageTasks.svelte'
+  import DayEvents from './DayEvents.svelte'
   import Hierarchy from './Hierarchy.svelte'
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
@@ -455,6 +456,7 @@
         {/if}
       </header>
     {/if}
+    {#if view.is_journal && !compact}<DayEvents date={view.name} />{/if}
     {#if renaming}<RenameDialog old={view.name} onclose={() => (renaming = false)} />{/if}
     {#if history}<HistoryDialog page={view.name} onclose={() => (history = false)} />{/if}
     {#if deleting}<DeleteDialog page={view.name} onclose={() => (deleting = false)} />{/if}

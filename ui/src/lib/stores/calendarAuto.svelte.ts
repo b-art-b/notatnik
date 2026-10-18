@@ -51,7 +51,7 @@ export async function runCalendarSync(quiet = true): Promise<void> {
   timer = undefined
   try {
     const st = await backend.call('calendar_status', {})
-    if (!st.enabled || !st.tasks) {
+    if (!st.enabled || (!st.tasks && !st.read.length)) {
       calendarAuto.state = 'off'
       return
     }
