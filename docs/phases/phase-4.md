@@ -165,13 +165,13 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [x] Each conflict appears in the sync log with both values; "use the other value" applies it and syncs
 
 ### P4.13 Deletion and un-dating (CA-9)
-- [ ] Block deleted, task un-dated, or `cal:: no` added → `on_delete` policy (`complete` default, or `delete`), subject to the deletion-safety rule
+- [x] Block deleted, task un-dated, or `cal:: no` added → `on_delete` policy (`complete` default, or `delete`), subject to the deletion-safety rule
 - [x] Remote deletion of a notatnik item → the block is **not** deleted; its dates are kept and a log entry plus `cal:: no` is suggested (never delete Markdown content because of a remote deletion)
 
 **Verify**
-- [ ] Delete a dated task block → after 2 sync runs, the remote item is completed (default) or deleted (policy `delete`); after 1 run nothing happens
-- [ ] Simulate a page file temporarily missing (Nextcloud mid-sync: delete the file, sync, restore the file) → no remote item deleted or completed
-- [ ] Delete the item in Nextcloud → the block still exists, and the log shows the event
+- [x] Delete a dated task block → after 2 sync runs, the remote item is completed (default) or deleted (policy `delete`); after 1 run nothing happens
+- [x] Simulate a page file temporarily missing (Nextcloud mid-sync: delete the file, sync, restore the file) → no remote item deleted or completed
+- [x] Delete the item in Nextcloud → the block still exists, and the log shows the event
 
 ### P4.14 Compatibility matrix (manual)
 Test each scenario with each client against your Docker Nextcloud, then against your real Nextcloud (test calendar):

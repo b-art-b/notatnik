@@ -3951,6 +3951,197 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     assert_eq!(walk_md(&graph), files);
 }
 
+/// A calendar test with a fake server and a graph of `page`; `policy` is `[calendar] on_delete`.
+fn deletion_setup(
+    policy: &str,
+    page: &str,
+) -> (
+    T,
+    Arc<notatnik_caldav::fake::FakeServer>,
+    String,
+    std::path::PathBuf,
+) {
+    let server = Arc::new(notatnik_caldav::fake::FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    std::fs::create_dir_all(graph.join("pages")).unwrap();
+    std::fs::write(graph.join("pages/work.md"), page).unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false}),
+    );
+    let cfg = graph.join(".notatnik/config.toml");
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    let text = text.replace(
+        "on_delete = \"complete\"",
+        &format!("on_delete = \"{policy}\""),
+    );
+    std::fs::write(&cfg, text).unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": false}),
+    );
+    (t, server, tasks, graph)
+}
+
+/// What the server holds, by title: `None` when the item is gone, else its `STATUS`.
+fn remote_status(
+    server: &notatnik_caldav::fake::FakeServer,
+    tasks: &str,
+    title: &str,
+) -> Option<String> {
+    use notatnik_caldav::CalDavClient;
+    server
+        .get(tasks, &server.names(tasks))
+        .unwrap()
+        .into_iter()
+        .find(|i| i.ics.contains(&format!("SUMMARY:{title}")))
+        .map(|i| {
+            i.ics
+                .lines()
+                .find_map(|l| l.trim_end().strip_prefix("STATUS:"))
+                .unwrap_or("")
+                .to_string()
+        })
+}
+
+/// A dated task block that is deleted, un-dated or marked `cal:: no` leaves the calendar only after two syncs in a
+/// row, completed (default) or deleted (policy `delete`); one sync changes nothing (CA-9).
+#[test]
+fn a_task_that_leaves_the_notes_leaves_the_calendar_after_two_syncs() {
+    for policy in ["complete", "delete"] {
+        let page = "- TODO Keep me\n  deadline:: 2026-10-21\n- TODO Delete me\n  deadline:: 2026-10-22\n- TODO Undate me\n  deadline:: 2026-10-23\n- TODO Mark me\n  deadline:: 2026-10-24\n";
+        let (t, server, tasks, _) = deletion_setup(policy, page);
+        t.ok("calendar_sync", json!({}));
+        let p = t.ok("get_page", json!({"name": "work"}));
+        let hash = p["hash"].clone();
+        t.ok(
+            "apply_ops",
+            json!({"page": "work", "base_hash": hash, "ops": [
+                {"op": "remove_property", "block": {"path": [2]}, "key": "deadline"},
+                {"op": "set_property", "block": {"path": [3]}, "key": "cal", "value": "no"},
+                {"op": "delete", "block": {"path": [1]}},
+            ]}),
+        );
+        let gone = |title: &str| {
+            match policy {
+                "delete" => None,
+                _ => Some(format!("COMPLETED")),
+            }
+            .filter(|_| true)
+            .map_or_else(
+                || remote_status(&server, &tasks, title).is_none(),
+                |s| remote_status(&server, &tasks, title) == Some(s),
+            )
+        };
+        let r = t.ok("calendar_sync", json!({}));
+        assert_eq!(
+            (r["retired"].clone(), r["deleted"].clone()),
+            (json!(0), json!(0)),
+            "{policy}: {r}"
+        );
+        for title in ["Delete me", "Undate me", "Mark me"] {
+            assert_eq!(
+                remote_status(&server, &tasks, title).as_deref(),
+                Some("NEEDS-ACTION"),
+                "{policy}: after one run {title} is untouched"
+            );
+        }
+        let r = t.ok("calendar_sync", json!({}));
+        assert_eq!(
+            r["retired"].as_u64().unwrap() + r["deleted"].as_u64().unwrap(),
+            3,
+            "{policy}: {r}"
+        );
+        for title in ["Delete me", "Undate me", "Mark me"] {
+            assert!(gone(title), "{policy}: {title} after two runs");
+        }
+        assert_eq!(
+            remote_status(&server, &tasks, "Keep me").as_deref(),
+            Some("NEEDS-ACTION")
+        );
+    }
+}
+
+/// A page file that is missing for a moment (a sync client in the middle of its work) must not remove anything
+/// from the calendar, however it ends (CA-9).
+#[test]
+fn a_page_file_missing_for_a_moment_removes_nothing_from_the_calendar() {
+    let page = "- TODO Pay rent\n  deadline:: 2026-10-21\n";
+    let (t, server, tasks, graph) = deletion_setup("complete", page);
+    t.ok("calendar_sync", json!({}));
+    let file = graph.join("pages/work.md");
+    let saved = std::fs::read_to_string(&file).unwrap();
+
+    // the file is gone for one run: nothing happens
+    std::fs::remove_file(&file).unwrap();
+    for _ in 0..1 {
+        let r = t.ok("calendar_sync", json!({}));
+        assert_eq!(
+            (r["retired"].clone(), r["deleted"].clone()),
+            (json!(0), json!(0)),
+            "{r}"
+        );
+    }
+    std::fs::write(&file, &saved).unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            r["retired"].clone(),
+            r["deleted"].clone(),
+            r["created"].clone()
+        ),
+        (json!(0), json!(0), json!(0)),
+        "{r}"
+    );
+    assert_eq!(
+        remote_status(&server, &tasks, "Pay rent").as_deref(),
+        Some("NEEDS-ACTION")
+    );
+
+    // one page gone while another exists: one run is not enough, and coming back starts the count over
+    std::fs::write(graph.join("pages/other.md"), "- just a note\n").unwrap();
+    std::fs::remove_file(&file).unwrap();
+    t.ok("calendar_sync", json!({}));
+    std::fs::write(&file, &saved).unwrap();
+    t.ok("calendar_sync", json!({}));
+    std::fs::remove_file(&file).unwrap();
+    t.ok("calendar_sync", json!({}));
+    std::fs::write(&file, &saved).unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (r["retired"].clone(), r["deleted"].clone()),
+        (json!(0), json!(0)),
+        "{r}"
+    );
+    assert_eq!(
+        remote_status(&server, &tasks, "Pay rent").as_deref(),
+        Some("NEEDS-ACTION")
+    );
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), saved);
+}
+
 /// A conflict in the sync log can be turned around: the value that lost is written into the block and the
 /// calendar gets it too (CA-8).
 #[test]
