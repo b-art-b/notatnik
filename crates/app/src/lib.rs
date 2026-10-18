@@ -125,6 +125,7 @@ commands! {
     calendar_save(CalendarSaveArgs) -> CalendarStatus => calendar_save,
     calendar_sync(NoArgs) -> CalendarSyncReport => calendar_sync,
     calendar_events(CalendarEventsArgs) -> Vec<CalendarEventView> => calendar_events,
+    calendar_pause(CalendarPauseArgs) -> CalendarStatus => calendar_pause,
     calendar_set_color(CalendarColorArgs) -> CalendarStatus => calendar_set_color,
     calendar_log(NoArgs) -> Vec<CalendarLogEntry> => calendar_log,
     calendar_use_other_value(CalendarUseOtherArgs) -> CalendarSyncReport => calendar_use_other_value,

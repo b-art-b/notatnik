@@ -11,7 +11,7 @@ import {
 import { openDocs } from '../stores/pages.svelte'
 import { globalUndo } from './exec'
 import { syncNow } from '../stores/sync.svelte'
-import { calendarSyncNow } from '../calendar'
+import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
 
 export interface Command {
   id: string
@@ -45,6 +45,12 @@ export const commands: Command[] = [
     title: 'Sync tasks with the calendar',
     keys: '',
     run: () => void calendarSyncNow(),
+  },
+  {
+    id: 'calendar-pause',
+    title: 'Pause or resume calendar sync',
+    keys: '',
+    run: () => void togglePauseCalendarSync(),
   },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },

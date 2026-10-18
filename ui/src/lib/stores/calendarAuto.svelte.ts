@@ -10,8 +10,8 @@ export const AFTER_CHANGE_MS = 10_000
 const MAX_BACKOFF_MS = 30 * 60_000
 
 export const calendarAuto = $state({
-  /** `off` (no calendar sync), `idle`, `syncing`, `error` or `offline`. */
-  state: 'off' as 'off' | 'idle' | 'syncing' | 'error' | 'offline',
+  /** `off` (no calendar sync), `paused` (switched off for now), `idle`, `syncing`, `error` or `offline`. */
+  state: 'off' as 'off' | 'idle' | 'syncing' | 'error' | 'offline' | 'paused',
   /** When the last sync worked (ISO time). */
   last: '',
   /** What the last failed sync said. */
@@ -53,6 +53,11 @@ export async function runCalendarSync(quiet = true): Promise<void> {
     const st = await backend.call('calendar_status', {})
     if (!st.enabled || (!st.tasks && !st.read.length)) {
       calendarAuto.state = 'off'
+      return
+    }
+    if (st.paused) {
+      // nothing runs until it is resumed, which starts the timer again
+      calendarAuto.state = 'paused'
       return
     }
     calendarAuto.state = 'syncing'

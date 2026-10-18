@@ -5,7 +5,7 @@
   import { onMount } from 'svelte'
   import { backend, type CalendarList, type CalendarLogEntry, type CalendarStatus } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
-  import { calendarSyncNow, describeCalendarSync } from '../../calendar'
+  import { calendarSyncNow, describeCalendarSync, setCalendarPaused } from '../../calendar'
   import { calendarAuto } from '../../stores/calendarAuto.svelte'
   import { setCalendarTargets } from '../../stores/calendarTargets.svelte'
 
@@ -170,6 +170,12 @@
     }
   }
 
+  async function pause(on: boolean) {
+    const st = await setCalendarPaused(on)
+    if (st) status = st
+    else if (status) status = { ...status } // a refused change puts the switch back
+  }
+
   function toggleMore(href: string, on: boolean) {
     more = on ? [...more.filter((h) => h !== href), href] : more.filter((h) => h !== href)
   }
@@ -248,6 +254,30 @@
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </section>
+
+  {#if status.enabled}
+    <section aria-label="Pause">
+      <label class="on">
+        <input
+          type="checkbox"
+          role="switch"
+          data-testid="calendar-paused"
+          checked={status.paused}
+          onchange={(e) => pause(e.currentTarget.checked)}
+        />
+        Pause calendar sync
+      </label>
+      <p class="muted" data-testid="calendar-paused-note">
+        {#if status.paused}
+          Paused: nothing is sent to or read from any calendar. Your choices are kept. Switch it off to go on;
+          what changed meanwhile is brought in step at the first sync.
+        {:else}
+          Stops the sync of all calendars for now, without forgetting which calendars you chose. Also in the
+          palette: "Pause or resume calendar sync".
+        {/if}
+      </p>
+    </section>
+  {/if}
 
   {#if list}
     <section aria-label="Calendars">
@@ -340,13 +370,18 @@
         calendar. A task with no date stays where it is, so it is not copied again.
       </p>
       <div class="buttons">
-        <button type="button" data-testid="calendar-sync" disabled={syncing} onclick={syncTasks}
-          >{syncing ? 'Syncing…' : 'Sync tasks with the calendar now'}</button
+        <button
+          type="button"
+          data-testid="calendar-sync"
+          disabled={syncing || status.paused}
+          onclick={syncTasks}>{syncing ? 'Syncing…' : 'Sync tasks with the calendar now'}</button
         >
       </div>
       {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
       <p class="muted" data-testid="calendar-auto">
-        {#if calendarAuto.error}
+        {#if status.paused}
+          Paused.
+        {:else if calendarAuto.error}
           Last sync failed: {calendarAuto.error}. It tries again by itself.
         {:else if calendarAuto.last}
           Last synced {new Date(calendarAuto.last).toLocaleTimeString()}.

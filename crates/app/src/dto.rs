@@ -1598,6 +1598,8 @@ pub struct CalendarStatus {
     /// The login that would be used; none when the graph has no sync and no login of its own was given.
     pub account: Option<CalendarAccountView>,
     pub enabled: bool,
+    /// Paused for now (all calendars): nothing is synced until it is resumed.
+    pub paused: bool,
     /// Calendars to read events from.
     pub read: Vec<String>,
     /// The calendar that receives the tasks.
@@ -1635,6 +1637,12 @@ pub struct CalendarConnectArgs {
 pub struct CalendarList {
     pub account: CalendarAccountView,
     pub calendars: Vec<CalendarView>,
+}
+
+/// `calendar_pause` arguments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarPauseArgs {
+    pub paused: bool,
 }
 
 /// `calendar_set_color` arguments.

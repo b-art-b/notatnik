@@ -127,6 +127,7 @@ impl AppState {
         Ok(CalendarStatus {
             account,
             enabled: cfg.enabled,
+            paused: cfg.paused,
             read: cfg.read.clone(),
             tasks: cfg.tasks.clone(),
             tasks_as: section.tasks_as,
@@ -288,6 +289,16 @@ impl AppState {
         self.calendar_status_of(&id)
     }
 
+    /// `calendar_pause`: stops the sync of every calendar for now, or resumes it. The choices are kept; what
+    /// changes in the notes or in the calendars meanwhile is brought in step at the first sync after the resume.
+    pub fn calendar_pause(&self, a: CalendarPauseArgs) -> ApiResult<CalendarStatus> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let mut cfg = self.calendar_settings(&id);
+        cfg.paused = a.paused;
+        self.store_calendar_settings(&id, cfg)?;
+        self.calendar_status_of(&id)
+    }
+
     /// `calendar_set_color`: the colour of a calendar in the calendar view (per graph, so it syncs with it).
     pub fn calendar_set_color(&self, a: CalendarColorArgs) -> ApiResult<CalendarStatus> {
         let id = self.with_open(|o| Ok(o.graph.id()))?;
@@ -367,6 +378,12 @@ impl AppState {
             return Err(ApiError::new(
                 "invalid",
                 "calendar sync is off or has no calendar for tasks or events (Settings → Calendar)",
+            ));
+        }
+        if cfg.paused {
+            return Err(ApiError::new(
+                "paused",
+                "calendar sync is paused (Settings → Calendar → Resume)",
             ));
         }
         if cfg.tasks.is_some() && section.tasks_as == "vevent" {

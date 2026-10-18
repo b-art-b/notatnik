@@ -1916,6 +1916,10 @@ export type CalendarStatus = {
  */
 account: CalendarAccountView | null, enabled: boolean, 
 /**
+ * Paused for now (all calendars): nothing is synced until it is resumed.
+ */
+paused: boolean, 
+/**
  * Calendars to read events from.
  */
 read: Array<string>, 
@@ -2064,6 +2068,7 @@ export type CalendarColorArgs = { href: string,
  * `#rrggbb`; none removes the choice.
  */
 color: string | null, };
+export type CalendarPauseArgs = { paused: boolean, };
 export type CalendarEventView = { uid: string, title: string, 
 /**
  * First day, `YYYY-MM-DD`, in local time.
@@ -2166,6 +2171,7 @@ export type Commands = {
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
   calendar_events: { args: CalendarEventsArgs; result: CalendarEventView[] };
+  calendar_pause: { args: CalendarPauseArgs; result: CalendarStatus };
   calendar_set_color: { args: CalendarColorArgs; result: CalendarStatus };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
   calendar_use_other_value: { args: CalendarUseOtherArgs; result: CalendarSyncReport };

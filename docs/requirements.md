@@ -256,6 +256,7 @@ A **graph** is a folder of notes.
 | CA-8 | Conflict policy: last-modified wins per field, with conflicts logged and shown in a sync log view. | V1 |
 | CA-9 | Deleting a task block (or un-dating it) removes or archives the calendar item, following a config setting. | V1 |
 | CA-10 | Create a note page from a calendar event (meeting notes) with a link back to the event. | Later |
+| CA-11 | Calendar sync can be paused for all calendars and resumed (Settings → Calendar → *Pause calendar sync*, or the palette command *Pause or resume calendar sync*). While paused nothing is sent, read or removed, the automatic sync does not run and *Sync now* is refused; the calendars and choices stay, and what changed meanwhile is brought in step at the first sync after the resume. It is a device setting. | V1 |
 
 ## 12. Nextcloud file sync
 

@@ -169,3 +169,48 @@ test('a task shows the calendar it is synced to and the chip changes it', async 
   await expect(chip).toContainText('Tasks')
   await expect.poll(() => backend.read('pages/Plan.md')).not.toContain('cal::')
 })
+
+test('calendar sync can be paused for all calendars and resumed; the choices stay', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/')
+  const list = await backend.call<{ calendars: { href: string; name: string }[] }>('calendar_connect', {
+    server: 'http://localhost:8080',
+    user: 'me',
+    password: 'secret',
+  })
+  const tasks = list.calendars.find((c) => c.name === 'Tasks')!.href
+  await backend.call('calendar_save', {
+    enabled: true,
+    read: [],
+    tasks,
+    import_tasks: false,
+    undated_tasks: false,
+  })
+  await page.reload()
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('tab', { name: 'Calendar' }).click()
+  await expect(page.getByTestId('calendar-auto')).toContainText('Last synced', { timeout: 15_000 })
+
+  // pausing needs no reconnecting; the sync button stops and the note says why
+  const paused = page.getByTestId('calendar-paused')
+  await expect(paused).not.toBeChecked()
+  await paused.check()
+  await expect(page.getByTestId('calendar-paused-note')).toContainText('Paused: nothing is sent')
+  await expect(page.getByTestId('calendar-sync')).toBeDisabled()
+  const st = await backend.call<{ paused: boolean; enabled: boolean; tasks: string }>('calendar_status')
+  expect([st.paused, st.enabled, st.tasks]).toEqual([true, true, tasks])
+  expect(await backend.call('calendar_sync')).toMatchObject({ code: 'paused' })
+
+  // it stays paused after a reload (the automatic sync does not start)
+  await page.reload()
+  await page.getByRole('tab', { name: 'Calendar' }).click()
+  await expect(page.getByTestId('calendar-paused')).toBeChecked()
+  await expect(page.getByTestId('calendar-auto')).toContainText('Paused.')
+
+  await page.getByTestId('calendar-paused').uncheck()
+  await expect(page.getByTestId('calendar-sync')).toBeEnabled()
+  await page.getByTestId('calendar-sync').click()
+  await expect(page.getByTestId('calendar-sync-result')).toContainText('up to date')
+})

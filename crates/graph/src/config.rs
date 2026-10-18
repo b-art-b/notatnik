@@ -439,6 +439,9 @@ pub struct CalendarConfig {
     /// Sync is on.
     #[serde(default)]
     pub enabled: bool,
+    /// Switched off for now: nothing is sent or read until it is resumed; the choices stay.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub paused: bool,
     /// Calendars (their `href`) to read events from.
     #[serde(default)]
     pub read: Vec<String>,

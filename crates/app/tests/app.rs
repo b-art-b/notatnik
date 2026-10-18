@@ -4207,6 +4207,51 @@ fn calendar_colors_are_kept_in_the_graph_and_names_are_known() {
     );
 }
 
+/// Pausing stops the sync of every calendar and keeps the choices; resuming picks up where it was (CA-7).
+#[test]
+fn calendar_sync_can_be_paused_and_resumed() {
+    let (t, server, tasks, graph) =
+        deletion_setup("complete", "- TODO One\n  deadline:: 2026-10-21\n");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 1, "{r}");
+
+    let st = t.ok("calendar_pause", json!({"paused": true}));
+    assert_eq!(st["paused"], true);
+    assert_eq!(st["enabled"], true, "the choices stay: {st}");
+    assert_eq!(st["tasks"], json!(tasks));
+
+    // while paused nothing is sent, read or removed, whatever happens in the notes
+    let p = t.ok("get_page", json!({"name": "work"}));
+    t.ok(
+        "apply_ops",
+        json!({"page": "work", "base_hash": p["hash"], "ops": [
+            {"op": "insert", "parent": [], "index": 1, "text": "TODO Two\ndeadline:: 2026-10-22"}]}),
+    );
+    let requests = server.requests();
+    let e = t.call("calendar_sync", json!({})).unwrap_err();
+    assert_eq!(e.code, "paused");
+    assert_eq!(server.requests(), requests, "no request at all");
+    assert_eq!(server.names(&tasks).len(), 1);
+    // saving the settings does not resume it
+    let st = t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false}),
+    );
+    assert_eq!(st["paused"], true);
+    let cfg = std::fs::read_to_string(graph.join(".notatnik/config.toml")).unwrap();
+    assert!(
+        !cfg.contains("paused"),
+        "a device setting, not part of the graph: {cfg}"
+    );
+
+    // resumed: what happened meanwhile is brought in step
+    let st = t.ok("calendar_pause", json!({"paused": false}));
+    assert_eq!(st["paused"], false);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 1, "{r}");
+    assert_eq!(server.names(&tasks).len(), 2);
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]
