@@ -215,6 +215,7 @@ A **graph** is a folder of notes.
 | CV-6 | Tasks without a date wait in a tray beside the calendar; dragging one onto the grid gives it that day and an hour at that time, onto the strip or a month cell only the date. | V1 |
 | CV-7 | Clicking an empty slot asks for a title and adds a task of one hour at that time to today's journal. | V1 |
 | CV-8 | The month view shows each day's items as chips (four, then "+n more"), drags tasks between days and opens a day by its number. | V1 |
+| CV-9 | *Overdue tasks* chooses how open tasks planned for an earlier day are shown: **at their dates**, or **rolled over to today**, all in today's strip with `↻ 3d` (days late) and a tooltip with the planned day. Nothing is copied or written; done tasks and ranges that do not include today stay as they are; dragging a rolled task gives it a real new date. Tasks are never dropped. | V1 |
 
 ## 9. Properties
 

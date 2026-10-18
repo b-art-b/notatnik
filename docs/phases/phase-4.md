@@ -216,6 +216,7 @@ Tasks and events as a real calendar. The maths is in `ui/src/lib/calendarGrid.ts
 
 **Verify**
 - [x] Browser tests: the month shows the task and the event on 1 Oct and opens the day; the event window shows title, time and calendar; the checkbox writes `DONE`
+- [x] Browser test: *rolled over to today* puts overdue open tasks in today's strip with their age, leaves done and future tasks and the files alone, a past week shows the originals, and dragging a rolled task writes a real date (CV-9)
 - [ ] Manual: use it for a week in the real app (feel of dragging, colours in dark mode, a long list of events)
 
 ## Manual acceptance checklist

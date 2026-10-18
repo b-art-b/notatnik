@@ -82,6 +82,18 @@ export function taskSegment(id: string, title: string, value: string, field: Dat
   return { ...base, allDay: false, start: s, end: Math.max(stop, s + 5), due: false }
 }
 
+/** Where an open task that is overdue shows when overdue tasks are "rolled over to today": in today's all-day strip,
+ * with how many days it is late and the day it was planned for. `null` for a task that is not before `today`. The
+ * file is not touched: this is only a way of looking at it. */
+export function rolledOver(seg: Segment, today: string): { seg: Segment; from: string; days: number } | null {
+  if (seg.kind !== 'task' || seg.date >= today) return null
+  return {
+    seg: { ...seg, date: today, allDay: true, start: 0, end: DAY_MINUTES, due: false },
+    from: seg.date,
+    days: daysBetween(seg.date, today),
+  }
+}
+
 /** The pieces of an event on the days `from` to `to` (both included): a timed event that spans days starts at
  * its time on the first day, fills the days between (as all-day pieces) and ends at its time on the last. */
 export function eventSegments(e: CalendarEventView, from: string, to: string): Segment[] {

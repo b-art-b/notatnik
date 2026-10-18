@@ -234,3 +234,66 @@ test('an event opens its details; a task opens its note; the checkbox completes 
   await item(page, 'Short task').getByRole('checkbox').check()
   await expect.poll(() => backend.read('pages/Plan.md')).toContain('DONE Short task')
 })
+
+test('overdue tasks can be shown rolled over to today or at their dates; nothing is written', async ({
+  backend,
+  page,
+}) => {
+  backend.write(
+    'pages/Late.md',
+    [
+      '- TODO Late timed',
+      '  scheduled:: 2026-10-01 09:00',
+      '- TODO Late deadline',
+      '  deadline:: 2026-09-29',
+      '- DONE Old done',
+      '  scheduled:: 2026-10-01 11:00',
+      '- TODO Future',
+      '  scheduled:: 2026-10-04 10:00',
+      '',
+    ].join('\n'),
+  )
+  await setUp(backend, page)
+  const files = () => `${backend.read('pages/Late.md')}|${backend.read('pages/Plan.md')}`
+  const before = files()
+  const badges = page.getByTestId('cal-rolled')
+
+  // at their dates (the default): every task is on the day it was planned for
+  await expect(badges).toHaveCount(0)
+  await expect(item(page, 'Late timed')).toHaveAttribute('data-date', '2026-10-01')
+  await expect(item(page, 'Late timed')).toHaveAttribute('data-start', '540')
+
+  // rolled over: the open overdue ones sit in today's strip with their age; the done and the future one stay
+  await page.getByLabel('Overdue tasks').selectOption('today')
+  const today = page.locator('[data-allday="2026-10-03"]')
+  await expect(today.locator('[data-testid="cal-item"]', { hasText: 'Late timed' })).toContainText('↻ 2d')
+  await expect(today.locator('[data-testid="cal-item"]', { hasText: 'Late deadline' })).toContainText('↻ 4d')
+  // the tasks of the plan page are late too (the fixture graph may have more, so no total is counted)
+  await expect(today.locator('[data-testid="cal-item"]', { hasText: 'Range task' })).toContainText('↻ 2d')
+  await expect(today.locator('[data-testid="cal-item"]', { hasText: 'Day task' })).toContainText('↻ 1d')
+  // finished tasks are only listed with "Show done", and they stay where they were done
+  await page.getByTestId('agenda-done').check()
+  await expect(item(page, 'Old done')).toHaveAttribute('data-date', '2026-10-01')
+  await expect(item(page, 'Future')).toHaveAttribute('data-date', '2026-10-04')
+  expect(files()).toBe(before)
+
+  // the choice is kept; a week that does not include today shows what was planned when
+  await page.reload()
+  await backend.open('/agenda')
+  await expect(page.getByLabel('Overdue tasks')).toHaveValue('today')
+  await page.getByRole('button', { name: 'Previous' }).click()
+  await expect(page.getByTestId('cal-heading')).toHaveText('21 – 27 Sep 2026')
+  await expect(badges).toHaveCount(0)
+
+  // dragging a rolled task gives it a real new date
+  await page.getByTestId('cal-today').click()
+  const strip = (await page.locator('[data-allday="2026-10-04"]').boundingBox())!
+  const rolled = today.locator('[data-testid="cal-item"]', { hasText: 'Late deadline' })
+  const box = (await rolled.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 10, box.y + 10, { steps: 3 })
+  await page.mouse.move(strip.x + strip.width / 2, strip.y + strip.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(() => backend.read('pages/Late.md')).toContain('deadline:: 2026-10-04')
+})

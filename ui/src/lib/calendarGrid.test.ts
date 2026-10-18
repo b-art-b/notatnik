@@ -7,6 +7,7 @@ import {
   movedValue,
   newTaskText,
   placingField,
+  rolledOver,
   rangeLabel,
   resizedValue,
   snap,
@@ -179,5 +180,20 @@ describe('colours and labels', () => {
     expect(rangeLabel(['2026-10-19', '2026-10-25'])).toBe('19 – 25 Oct 2026')
     expect(rangeLabel(['2026-10-26', '2026-11-01'])).toBe('26 Oct – 1 Nov 2026')
     expect(rangeLabel(['2026-10-20'])).toContain('20 Oct 2026')
+  })
+})
+
+describe('rolling overdue tasks over to today', () => {
+  it("puts a task from an earlier day in today's strip and says how late it is", () => {
+    const seg = taskSegment('t', 'x', '2026-10-01 09:00-10:30', 'scheduled')
+    const r = rolledOver(seg, '2026-10-03')!
+    expect(r.seg).toMatchObject({ date: '2026-10-03', allDay: true, start: 0, end: 1440 })
+    expect(r.from).toBe('2026-10-01')
+    expect(r.days).toBe(2)
+  })
+  it('leaves today, later days and events alone', () => {
+    expect(rolledOver(taskSegment('t', 'x', '2026-10-03', 'scheduled'), '2026-10-03')).toBeNull()
+    expect(rolledOver(taskSegment('t', 'x', '2026-10-09', 'deadline'), '2026-10-03')).toBeNull()
+    expect(rolledOver(eventSegments(ev({}), '2026-10-01', '2026-10-30')[0], '2026-10-30')).toBeNull()
   })
 })

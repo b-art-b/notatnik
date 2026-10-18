@@ -27,6 +27,7 @@
     movedValue,
     newTaskText,
     placingField,
+    rolledOver,
     monthTitle,
     rangeLabel,
     resizedValue,
@@ -48,6 +49,8 @@
   type Mode = 'day' | 'week' | 'month'
   let mode = $state<Mode>('week')
   let dateMode = $state<DateMode>('earlier')
+  /** Overdue open tasks at the day they were planned for, or all on today (only a way of looking at them). */
+  let overdue = $state<'dates' | 'today'>('dates')
   let showTasks = $state(true)
   let showEvents = $state(true)
   let hidden = $state<string[]>([]) // calendars switched off in the legend, by address
@@ -55,6 +58,7 @@
     const saved = JSON.parse(localStorage.getItem('notatnik-calendar-view') ?? '{}')
     if (['day', 'week', 'month'].includes(saved.mode)) mode = saved.mode
     if (['earlier', 'scheduled', 'deadline'].includes(saved.dateMode)) dateMode = saved.dateMode
+    if (saved.overdue === 'today') overdue = 'today'
     showTasks = saved.showTasks !== false
     showEvents = saved.showEvents !== false
     if (Array.isArray(saved.hidden)) hidden = saved.hidden.filter((h: unknown) => typeof h === 'string')
@@ -65,7 +69,7 @@
     try {
       localStorage.setItem(
         'notatnik-calendar-view',
-        JSON.stringify({ mode, dateMode, showTasks, showEvents, hidden }),
+        JSON.stringify({ mode, dateMode, overdue, showTasks, showEvents, hidden }),
       )
     } catch {
       /* not remembered */
@@ -74,8 +78,10 @@
 
   const weekStart = $derived(app.graph?.week_start === 'sunday' ? 'sunday' : 'monday')
   const today = $derived(app.today || new Date().toISOString().slice(0, 10))
-  // `anchor` is a day inside what is shown; the week or the month around it is drawn
-  let anchor = $state(untrack(() => app.today || new Date().toISOString().slice(0, 10)))
+  // `anchor` is a day inside what is shown; the week or the month around it is drawn. It is today until you move:
+  // `app.today` can still be empty when this view is built, so it is not copied at that moment.
+  let moved = $state<string | null>(null)
+  const anchor = $derived(moved ?? today)
   const weeks = $derived(mode === 'month' ? monthGrid(anchor.slice(0, 7), weekStart) : [])
   const days = $derived(
     mode === 'day' ? [anchor] : mode === 'week' ? weekOf(anchor, weekStart).map((d) => d.date) : [],
@@ -85,8 +91,8 @@
   const last = $derived(visible[visible.length - 1])
 
   function step(n: number) {
-    if (mode === 'month') anchor = `${addMonths(anchor.slice(0, 7), n)}-01`
-    else anchor = addDays(anchor, n * (mode === 'week' ? 7 : 1))
+    if (mode === 'month') moved = `${addMonths(anchor.slice(0, 7), n)}-01`
+    else moved = addDays(anchor, n * (mode === 'week' ? 7 : 1))
   }
   const heading = $derived(mode === 'month' ? monthTitle(anchor) : rangeLabel(days))
   const weekday = weekdayShort
@@ -148,6 +154,8 @@
     value?: string
     event?: CalendarEventView
     done: boolean
+    /** Shown on today though planned for an earlier day (overdue tasks rolled over). */
+    rolled?: { from: string; days: number }
   }
 
   const placed = $derived.by(() => {
@@ -157,7 +165,16 @@
         if (!r.block?.task) continue
         const pf = placingField(r.block?.task?.scheduled ?? null, r.block?.task?.deadline ?? null, dateMode)
         if (!pf) continue
-        const seg = taskSegment(r.id, titleOf(r), pf.value, pf.field)
+        let seg = taskSegment(r.id, titleOf(r), pf.value, pf.field)
+        // overdue and open: all on today, when today is in view (a past week still shows what happened when)
+        let rolled: Placed['rolled']
+        if (overdue === 'today' && !isDone(r) && first <= today && today <= last) {
+          const ro = rolledOver(seg, today)
+          if (ro) {
+            seg = ro.seg
+            rolled = { from: ro.from, days: ro.days }
+          }
+        }
         if (seg.date < first || seg.date > last) continue
         const cal = calendarOfTask(r)
         if (cal && hidden.includes(cal.href)) continue
@@ -170,6 +187,7 @@
           field: pf.field,
           value: pf.value,
           done: isDone(r),
+          rolled,
         })
       }
     }
@@ -438,6 +456,7 @@
     class:done={p.done}
     class:dragging={drag?.key === p.key && drag.kind !== 'tray'}
     class:due={p.seg.due}
+    class:rolled={!!p.rolled}
     data-testid="cal-item"
     data-kind={p.seg.kind}
     data-date={p.seg.date}
@@ -462,6 +481,9 @@
         onclick={(e) => e.stopPropagation()}
         onchange={() => toggleDone(p)}
       />{/if}
+    {#if p.rolled}<span class="roll" title={`Planned for ${p.rolled.from}`} data-testid="cal-rolled"
+        >↻ {p.rolled.days}d</span
+      >{/if}
     <span class="at">{timeText(p.seg)}</span>
     <span class="t">{p.seg.title}</span>
     {#if p.event?.location && !p.seg.allDay}<span class="loc">{p.event.location}</span>{/if}
@@ -481,7 +503,7 @@
 <div class="bar" role="toolbar" aria-label="Calendar">
   <div class="nav">
     <button type="button" aria-label="Previous" onclick={() => step(-1)}>‹</button>
-    <button type="button" data-testid="cal-today" onclick={() => (anchor = today)}>Today</button>
+    <button type="button" data-testid="cal-today" onclick={() => (moved = null)}>Today</button>
     <button type="button" aria-label="Next" onclick={() => step(1)}>›</button>
   </div>
   <strong class="heading" data-testid="cal-heading">{heading}</strong>
@@ -506,6 +528,13 @@
       <option value="earlier">earlier date</option>
       <option value="scheduled">scheduled</option>
       <option value="deadline">deadline</option>
+    </select>
+  </label>
+  <label
+    >Overdue tasks
+    <select bind:value={overdue} aria-label="Overdue tasks">
+      <option value="dates">at their dates</option>
+      <option value="today">rolled over to today</option>
     </select>
   </label>
   {#each legend as c (c.href)}
@@ -540,7 +569,7 @@
               class="dayhead"
               class:today={d === today}
               onclick={() => {
-                anchor = d
+                moved = d
                 mode = 'day'
               }}><span class="wd">{weekday(d)}</span> <span class="dn">{Number(d.slice(8))}</span></button
             >
@@ -653,7 +682,7 @@
                     type="button"
                     class="num"
                     onclick={() => {
-                      anchor = d.date
+                      moved = d.date
                       mode = 'day'
                     }}>{Number(d.date.slice(8))}</button
                   >
@@ -675,6 +704,9 @@
                       onclick={() => open(p)}
                       onkeydown={(e) => key(e, p)}
                     >
+                      {#if p.rolled}<span class="roll" title={`Planned for ${p.rolled.from}`}
+                          >↻ {p.rolled.days}d</span
+                        >{/if}
                       {#if !p.seg.allDay}<span class="at">{toClock(p.seg.start)}</span>{/if}
                       {p.seg.title}
                     </div>
@@ -684,7 +716,7 @@
                       type="button"
                       class="more"
                       onclick={() => {
-                        anchor = d.date
+                        moved = d.date
                         mode = 'day'
                       }}>+{chips.length - 4} more</button
                     >
@@ -979,6 +1011,14 @@
   }
   .item.due {
     border-style: dashed;
+  }
+  .item.rolled {
+    border-style: dashed;
+  }
+  .roll {
+    color: var(--danger);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .item.done .t {
     text-decoration: line-through;
