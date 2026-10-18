@@ -1,0 +1,38 @@
+# A throwaway Nextcloud for the CalDAV tests: `dev/nextcloud/setup.sh` starts it and prints the login.
+# The passwords come from the environment (see setup.sh); nothing secret is kept in this file.
+name: notatnik-nextcloud
+
+volumes:
+  nextcloud:
+  db:
+
+services:
+  db:
+    image: mariadb:10.6
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${NC_DB_PASSWORD:?run dev/nextcloud/setup.sh}
+      - MYSQL_PASSWORD=${NC_DB_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  app:
+    image: nextcloud
+    restart: unless-stopped
+    ports:
+      - ${NC_PORT:-8080}:80
+    depends_on:
+      - db
+    volumes:
+      - nextcloud:/var/www/html
+    environment:
+      - MYSQL_PASSWORD=${NC_DB_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - NEXTCLOUD_ADMIN_USER=admin
+      - NEXTCLOUD_ADMIN_PASSWORD=${NC_ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=localhost
