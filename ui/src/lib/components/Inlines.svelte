@@ -74,5 +74,7 @@
       kind="page"
       target={it.target}
       {chain}
-    />{:else if it.type === 'soft_break' || it.type === 'hard_break'}<br />{/if}
+    />{:else if it.type === 'footnote_ref'}<sup class="footnote-ref" title={`Footnote ${it.label}`}
+      >{it.label}</sup
+    >{:else if it.type === 'soft_break' || it.type === 'hard_break'}<br />{/if}
 {/each}

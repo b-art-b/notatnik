@@ -25,7 +25,7 @@ pub struct RefSpan {
 }
 
 fn opts() -> Options {
-    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH
+    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_FOOTNOTES
 }
 
 thread_local! {
@@ -144,8 +144,168 @@ pub fn render(content: &str, refs: &[RefSpan]) -> Vec<Node> {
         last = r.end;
     }
     text.push_str(content.get(last..).unwrap_or(""));
+    let lines: Vec<&str> = text.split('\n').collect();
+    parse_lines(&lines, &used, 0)
+}
+
+/// Containers other editors write around Markdown: `::: info` ... `:::` and `<details>` ... `</details>`.
+/// They are found line by line (outside code fences) and their insides are rendered again, so they can
+/// hold anything a block can. An opener without a closer stays ordinary text.
+const MAX_DEPTH: usize = 8;
+
+enum Open {
+    Callout(String),
+    Details { open: bool, rest: String },
+}
+
+fn opener(line: &str) -> Option<Open> {
+    let t = line.trim();
+    if let Some(rest) = t.strip_prefix(":::") {
+        let rest = rest.trim_start_matches(':').trim();
+        let kind = rest.split_whitespace().next()?;
+        if kind
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Some(Open::Callout(kind.to_ascii_lowercase()));
+        }
+        return None;
+    }
+    let tag = t.strip_prefix("<details")?;
+    let end = tag.find('>')?;
+    let attrs = &tag[..end];
+    if !(attrs.is_empty() || attrs.starts_with(char::is_whitespace)) {
+        return None;
+    }
+    Some(Open::Details {
+        open: attrs
+            .split_whitespace()
+            .any(|a| a.eq_ignore_ascii_case("open")),
+        rest: tag[end + 1..].to_string(),
+    })
+}
+
+fn is_close(open: &Open, line: &str) -> bool {
+    let t = line.trim();
+    match open {
+        Open::Callout(_) => t.len() >= 3 && t.chars().all(|c| c == ':'),
+        Open::Details { .. } => t.eq_ignore_ascii_case("</details>"),
+    }
+}
+
+fn fence_of(line: &str) -> Option<char> {
+    let t = line.trim_start();
+    if t.starts_with("```") {
+        Some('`')
+    } else if t.starts_with("~~~") {
+        Some('~')
+    } else {
+        None
+    }
+}
+
+/// Index of the line closing the container opened at `at`, nested containers of the same kind skipped.
+fn find_close(lines: &[&str], at: usize, open: &Open) -> Option<usize> {
+    let same = |o: &Open| {
+        matches!(
+            (o, open),
+            (Open::Callout(_), Open::Callout(_)) | (Open::Details { .. }, Open::Details { .. })
+        )
+    };
+    let mut depth = 1;
+    let mut fence: Option<char> = None;
+    for (i, line) in lines.iter().enumerate().skip(at + 1) {
+        if let Some(c) = fence {
+            if fence_of(line) == Some(c) {
+                fence = None;
+            }
+            continue;
+        }
+        if let Some(c) = fence_of(line) {
+            fence = Some(c);
+        } else if is_close(open, line) {
+            depth -= 1;
+            if depth == 0 {
+                return Some(i);
+            }
+        } else if opener(line).is_some_and(|o| same(&o)) {
+            depth += 1;
+        }
+    }
+    None
+}
+
+fn markdown(lines: &[&str], refs: &[&RefSpan]) -> Vec<Node> {
+    if lines.iter().all(|l| l.trim().is_empty()) {
+        return Vec::new();
+    }
+    let text = lines.join("\n");
     let mut it = Parser::new_ext(&text, opts()).peekable();
-    parse_blocks(&mut it, &used, None)
+    parse_blocks(&mut it, refs, None)
+}
+
+fn parse_lines(lines: &[&str], refs: &[&RefSpan], depth: usize) -> Vec<Node> {
+    if depth >= MAX_DEPTH {
+        return markdown(lines, refs);
+    }
+    let mut out = Vec::new();
+    let (mut start, mut i) = (0, 0);
+    let mut fence: Option<char> = None;
+    while i < lines.len() {
+        if let Some(c) = fence {
+            if fence_of(lines[i]) == Some(c) {
+                fence = None;
+            }
+        } else if let Some(c) = fence_of(lines[i]) {
+            fence = Some(c);
+        } else if let Some(open) = opener(lines[i]) {
+            if let Some(close) = find_close(lines, i, &open) {
+                out.extend(markdown(&lines[start..i], refs));
+                out.push(container(open, &lines[i + 1..close], refs, depth));
+                i = close + 1;
+                start = i;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out.extend(markdown(&lines[start..], refs));
+    out
+}
+
+fn container(open: Open, body: &[&str], refs: &[&RefSpan], depth: usize) -> Node {
+    match open {
+        Open::Callout(kind) => Node::Callout {
+            kind,
+            children: parse_lines(body, refs, depth + 1),
+        },
+        Open::Details { open, rest } => {
+            let mut body: Vec<&str> = std::iter::once(rest.as_str())
+                .chain(body.iter().copied())
+                .collect();
+            let mut summary = Vec::new();
+            if let Some(first) = body.iter().position(|l| !l.trim().is_empty()) {
+                let t = body[first].trim_start();
+                let low = t.to_ascii_lowercase();
+                if low.starts_with("<summary>") {
+                    if let Some(end) = low.find("</summary>") {
+                        let title = &t["<summary>".len()..end];
+                        if let Some(Node::Paragraph { children }) =
+                            markdown(&[title], refs).into_iter().next()
+                        {
+                            summary = children;
+                        }
+                        body.splice(..=first, [&t[end + "</summary>".len()..]]);
+                    }
+                }
+            }
+            Node::Details {
+                summary,
+                open,
+                children: parse_lines(&body, refs, depth + 1),
+            }
+        }
+    }
 }
 
 type Events<'a> = Peekable<Parser<'a>>;
@@ -154,6 +314,7 @@ fn is_inline_start(e: &Event) -> bool {
     matches!(
         e,
         Event::Text(_)
+            | Event::FootnoteReference(_)
             | Event::Code(_)
             | Event::SoftBreak
             | Event::HardBreak
@@ -236,6 +397,14 @@ fn parse_blocks(it: &mut Events, refs: &[&RefSpan], until: Option<TagEnd>) -> Ve
                 flush(&mut pending, &mut out);
                 let children = parse_blocks(it, refs, Some(TagEnd::BlockQuote(None)));
                 out.push(Node::Quote { children });
+            }
+            Event::Start(Tag::FootnoteDefinition(label)) => {
+                flush(&mut pending, &mut out);
+                let children = parse_blocks(it, refs, Some(TagEnd::FootnoteDefinition));
+                out.push(Node::Footnote {
+                    label: label.to_string(),
+                    children,
+                });
             }
             Event::Start(Tag::List(first)) => {
                 flush(&mut pending, &mut out);
@@ -386,6 +555,9 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
         Event::Text(t) => expand_text(&t, refs, out),
         Event::Code(c) => out.push(Inline::Code {
             text: c.to_string(),
+        }),
+        Event::FootnoteReference(label) => out.push(Inline::FootnoteRef {
+            label: label.to_string(),
         }),
         Event::SoftBreak => out.push(Inline::SoftBreak),
         Event::HardBreak => out.push(Inline::HardBreak),
@@ -876,5 +1048,45 @@ mod tests {
             .filter(|c| matches!(c, Inline::Highlight { .. }))
             .collect();
         assert_eq!(hl.len(), 1);
+    }
+
+    #[test]
+    fn callouts_and_details_wrap_what_is_inside_and_footnotes_are_kept() {
+        let nodes = render_with_core("::: info\nCareful!\n\n:::\n\nafter");
+        assert!(
+            matches!(&nodes[0], Node::Callout { kind, children } if kind == "info" && children.len() == 1)
+        );
+        assert_eq!(nodes.len(), 2);
+
+        let src =
+            "<details>\n<summary>More *here*</summary>\nHidden\n\n</details>\n::: warning\nx\n:::";
+        let nodes = render_with_core(src);
+        let Node::Details {
+            summary,
+            open,
+            children,
+        } = &nodes[0]
+        else {
+            panic!("{nodes:?}")
+        };
+        assert!(!open && matches!(summary[0], Inline::Text { .. }) && summary.len() == 2);
+        assert_eq!(children, &vec![para(vec![text("Hidden")])]);
+        assert!(matches!(&nodes[1], Node::Callout { kind, .. } if kind == "warning"));
+
+        // no closer, or inside a code fence: ordinary text
+        assert!(matches!(
+            &render_with_core("::: info\nx")[0],
+            Node::Paragraph { .. }
+        ));
+        assert!(matches!(
+            &render_with_core("```\n::: info\nx\n:::\n```")[0],
+            Node::CodeBlock { .. }
+        ));
+
+        let nodes = render_with_core("a[^1]\n\n[^1]: note");
+        assert!(
+            matches!(&nodes[0], Node::Paragraph { children } if children.iter().any(|c| matches!(c, Inline::FootnoteRef { label } if label == "1")))
+        );
+        assert!(matches!(&nodes[1], Node::Footnote { label, .. } if label == "1"));
     }
 }

@@ -95,3 +95,54 @@ test('attachments next to the page: a file is a link, a picture is shown', async
     (await page.request.get(`${base}/asset?path=${encodeURIComponent('.notatnik/config.toml')}`)).status(),
   ).not.toBe(200)
 })
+
+const EXTRAS = `* bullet
+
+Callout below:
+
+::: info
+Careful!
+
+:::
+
+<details>
+<summary>More</summary>
+Hidden text
+
+</details>
+
+\`\`\`mermaid
+flowchart TD
+    A[Start] --> B[End]
+\`\`\`
+
+A note[^1] here.
+
+[^1]: The footnote text
+`
+
+test('callouts, collapsible sections, footnotes and diagrams are drawn, not shown as raw text', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Extras.md', EXTRAS)
+  await backend.open('/page/Extras')
+  const tree = page.getByRole('tree', { name: 'Blocks' })
+  await expect(tree.getByRole('note')).toContainText('Careful!')
+  await expect(tree.getByText('::: info')).toHaveCount(0)
+
+  const details = tree.locator('details')
+  await expect(details).toHaveCount(1)
+  await expect(details.locator('summary')).toHaveText('More')
+  await expect(details.getByText('Hidden text')).toBeHidden()
+  await details.locator('summary').click()
+  await expect(details.getByText('Hidden text')).toBeVisible()
+
+  await expect(tree.locator('sup.footnote-ref')).toHaveText('1')
+  await expect(tree.getByText('The footnote text')).toBeVisible()
+
+  await expect(tree.getByRole('img', { name: 'Mermaid diagram' })).toBeVisible({ timeout: 15_000 })
+  // clicking a block still edits the Markdown as written
+  await tree.getByText('Careful!').click()
+  await expect(page.getByTestId('block-editor')).toContainText('::: info')
+})

@@ -112,7 +112,7 @@ started: 2026-09-01
   list items inside it belong to it. A text block is a top-level block without bullet, ID, properties or task
   marker; it is shown and edited as raw Markdown (Enter adds a line), kept byte for byte, never nested and nothing
   nests under it. An unindented line *without* a blank line before it stays a lazy continuation of the bullet. The
-  app puts a blank line between a text block and a bullet it moves or inserts next to it, so the two stay apart.
+  app puts a blank line between a text block and a bullet it moves or inserts next to it, so the two stay apart. Display only: `::: kind` ... `:::`, `<details>` ... `</details>` (each on its own line, outside code fences) and `[^1]` footnotes are drawn as containers by the renderer; the parser sees ordinary text.
 - **Indentation when writing:** new files use 2 spaces per level. When editing an existing file,
   the app detects the file's indentation style (2 spaces, 4 spaces or tabs, from its existing
   nested blocks) and uses that style for new or moved lines, so a file never ends up with mixed styles

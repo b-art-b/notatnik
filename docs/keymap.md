@@ -174,6 +174,7 @@ A property whose value is a block reference (`follows:: ((abc123))`) is shown as
 
 - Text between bullets (headings, tables, code blocks, footnotes after a blank line) is shown without a bullet, as it is in the file. Click it to edit it as raw Markdown: Enter adds a line, Tab and Backspace at the start do not nest or merge it, a paste stays as typed. It cannot have a task marker, properties or a block ID, and cannot be indented; use `+` at the end of the page or the bullets around it for outline blocks. Moving a bullet next to such text adds a blank line between them.
 - A checkbox bullet (`* [ ] call`, `- [x] done`) is a task: shown as ☐ / ☑, clicking it toggles open and done and writes `[x]` / `[ ]` back, with no `done::` line. Marking it DOING (or another state with no checkbox) writes the word.
+- Also drawn instead of shown raw: `::: info` ... `:::` callouts (a coloured bar; `info`, `warning`, `danger`, `success` and others), `<details><summary>Title</summary>...</details>` as a section that opens on a click on the title, footnote marks `[^1]` as a small raised number with the footnote text where it is written, and ```` ```mermaid ```` blocks as a diagram (drawn on first use; if the diagram has an error the code is shown with the reason). Clicking the text still edits the Markdown as written. Other HTML stays literal text.
 - Images and files from `.attachments.N` folders next to a page are shown: a picture is displayed, any other file is a link that opens it with the system's program.
 
 ## Follow-up tasks and chains

@@ -42,6 +42,8 @@ pub enum Inline {
     BlockEmbed { uid: String },
     /// `![[page]]`
     PageEmbed { target: String },
+    /// `[^label]`
+    FootnoteRef { label: String },
     /// A line break inside a paragraph.
     SoftBreak,
     /// A hard line break.
@@ -75,6 +77,16 @@ pub enum Node {
     Rule,
     /// A fenced block with the language `query`.
     Query { text: String },
+    /// `::: info` ... `:::` (written by Nextcloud Text and others); `kind` is the lowercase word after the colons.
+    Callout { kind: String, children: Vec<Node> },
+    /// `<details><summary>..</summary>..</details>`.
+    Details {
+        summary: Vec<Inline>,
+        open: bool,
+        children: Vec<Node>,
+    },
+    /// `[^label]: text`
+    Footnote { label: String, children: Vec<Node> },
 }
 
 /// A block property for display.
