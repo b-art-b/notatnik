@@ -55,11 +55,11 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4A: Test infrastructure
 
 ### P4.1 Radicale for automated tests
-- [ ] `pipx install radicale` (lightweight CalDAV server); a test helper starts it on a random port with a temp storage folder and a test user
-- [ ] The integration test suite runs only with `--full` (or when `RADICALE` is available)
+- [x] `pipx install radicale` (lightweight CalDAV server); a test helper starts it on a random port with a temp storage folder and a test user
+- [x] The integration test suite runs only with `--full` (or when `RADICALE` is available)
 
 **Verify**
-- [ ] `cargo test -p notatnik-caldav --features integration` starts Radicale, creates a calendar, runs a PUT/GET, and stops Radicale (no leftover process: `pgrep radicale` is empty afterwards)
+- [x] `cargo test -p notatnik-caldav --features integration` starts Radicale, creates a calendar, runs a PUT/GET, and stops Radicale (no leftover process: `pgrep radicale` is empty afterwards)
 
 ### P4.2 Nextcloud in Docker for compatibility tests
 - [ ] `docker compose` file in `dev/nextcloud/` (Nextcloud + DB), a script that creates a test user, calendars and an app password

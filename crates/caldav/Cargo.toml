@@ -16,8 +16,13 @@ notatnik-sync = { workspace = true }
 rrule = "0.14.0"
 chrono-tz = "0.10.4"
 
+[features]
+# the tests against a real CalDAV server (Radicale): `cargo test -p notatnik-caldav --features integration`
+integration = []
+
 [lints]
 workspace = true
 
 [dev-dependencies]
 insta = { version = "1.49.0" }
+tempfile = "3"

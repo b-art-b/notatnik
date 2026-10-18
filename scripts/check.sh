@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Single pre-commit check. Stops at the first failing step and says which one.
-# Usage: scripts/check.sh [--full]   (--full: slow suites; none yet)
+# Usage: scripts/check.sh [--full]   (--full: slow suites)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -35,6 +35,7 @@ step "ui e2e (Chrome + real backend)" pnpm -C ui test:e2e
 if [[ $FULL -eq 1 ]]; then
   step "perf targets (NF-2, NF-3, NF-5)" cargo test --release -p notatnik-graph --test perf -- --ignored
   step "ui performance (headless Chrome)" env PERF=1 pnpm -C ui exec playwright test tests/perf.spec.ts --workers=1 --retries=0
+  step "CalDAV against Radicale (P4.1)" cargo test -p notatnik-caldav --features integration --test radicale
   step "benchmarks" cargo bench -p notatnik-graph --bench synthetic -- --quick
 fi
 echo "All checks passed."

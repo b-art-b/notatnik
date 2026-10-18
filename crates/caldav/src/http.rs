@@ -175,6 +175,58 @@ impl HttpCalDav {
         xml::parse(&text)
     }
 
+    /// `current-user-principal` of the server's root, then that principal's `calendar-home-set`.
+    fn discover_home(&self, home_set_body: &str) -> Result<Option<String>> {
+        let body = format!(
+            r#"<?xml version="1.0"?><d:propfind {DAV}><d:prop><d:current-user-principal/></d:prop></d:propfind>"#
+        );
+        let root = format!("{}/", self.root);
+        let principal = match self.multi("PROPFIND", &root, "0", &body) {
+            Ok(m) => m.principal,
+            // a wrong password stops here; "forbidden" only means this is not where the account lives
+            Err(Error::Auth(e)) if e.contains("401") => return Err(Error::Auth(e)),
+            Err(Error::Offline(e)) => return Err(Error::Offline(e)),
+            Err(_) => None,
+        };
+        let Some(principal) = principal else {
+            return Ok(None);
+        };
+        Ok(self
+            .multi("PROPFIND", &self.abs(&principal), "0", home_set_body)
+            .ok()
+            .and_then(|m| m.home))
+    }
+
+    /// Makes a calendar (`MKCALENDAR`, RFC 4791 §5.3.1) in the account's calendar home and returns its `href`.
+    /// `components` are the item types it takes (`VEVENT`, `VTODO`). The app itself never creates calendars; the
+    /// tests do.
+    pub fn make_calendar(&self, name: &str, components: &[&str]) -> Result<String> {
+        let home = self.home_href()?;
+        let href = format!(
+            "{}/{}/",
+            home.trim_end_matches('/'),
+            encode(&name.to_lowercase().replace(' ', "-"))
+        );
+        let comps: String = components
+            .iter()
+            .map(|c| format!(r#"<c:comp name="{c}"/>"#))
+            .collect();
+        let body = format!(
+            r#"<?xml version="1.0"?><c:mkcalendar {DAV}><d:set><d:prop><d:displayname>{}</d:displayname><c:supported-calendar-component-set>{comps}</c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>"#,
+            xml_escape(name)
+        );
+        let resp = self.request(
+            "MKCALENDAR",
+            &self.abs(&href),
+            &[("Content-Type", "application/xml; charset=utf-8".into())],
+            &body,
+        )?;
+        match resp.status() {
+            200 | 201 => Ok(href),
+            s => Err(Self::fail(s, &href)),
+        }
+    }
+
     /// Where the account's calendars are: asked of the account's principal, else the usual Nextcloud place.
     fn home_href(&self) -> Result<String> {
         if let Some(h) = self.home.lock().unwrap().clone() {
@@ -190,9 +242,15 @@ impl HttpCalDav {
         );
         let found = match self.multi("PROPFIND", &principal, "0", &body) {
             Ok(m) => m.home,
-            Err(Error::Auth(e)) => return Err(Error::Auth(e)),
+            // a wrong password stops here; "forbidden" only means this is not where the account lives
+            Err(Error::Auth(e)) if e.contains("401") => return Err(Error::Auth(e)),
             Err(Error::Offline(e)) => return Err(Error::Offline(e)),
             Err(_) => None,
+        };
+        // not a Nextcloud: ask the server's root who the user is (RFC 5397), then where that user's calendars are
+        let found = match found {
+            Some(h) => Some(h),
+            None => self.discover_home(&body)?,
         };
         let home = found.unwrap_or_else(|| calendar_home_url(&self.root, &self.user));
         *self.home.lock().unwrap() = Some(home.clone());
