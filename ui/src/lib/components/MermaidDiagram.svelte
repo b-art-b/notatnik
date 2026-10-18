@@ -9,10 +9,19 @@
   let failed = $state('')
   let seq = 0
 
+  // When a diagram has a syntax error Mermaid draws its own error picture (a bomb) into the page body, outside
+  // the app. `parse` finds the error first, without drawing anything, `suppressErrorRendering` asks the
+  // library not to draw it, and what it may still have left behind is removed.
+  function removeLeftovers(id: string) {
+    document.getElementById(id)?.remove()
+    document.getElementById(`d${id}`)?.remove()
+  }
+
   // `$effect` re-runs when `code` changes. A newer run makes an older one stop (`seq`).
   $effect(() => {
     const text = code
     const mine = ++seq
+    const id = `mmd-${mine}-${Math.random().toString(36).slice(2)}`
     ;(async () => {
       try {
         const { default: mermaid } = await import('mermaid')
@@ -22,12 +31,15 @@
           securityLevel: 'strict',
           theme: dark ? 'dark' : 'default',
           flowchart: { htmlLabels: false },
+          suppressErrorRendering: true,
         })
-        const { svg } = await mermaid.render(`mmd-${mine}-${Math.random().toString(36).slice(2)}`, text)
+        await mermaid.parse(text)
+        const { svg } = await mermaid.render(id, text)
         if (mine !== seq) return
         src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
         failed = ''
       } catch (e) {
+        removeLeftovers(id)
         if (mine !== seq) return
         src = ''
         failed = e instanceof Error ? e.message.split('\n')[0] : 'Could not draw the diagram'

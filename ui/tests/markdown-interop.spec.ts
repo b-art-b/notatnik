@@ -146,3 +146,20 @@ test('callouts, collapsible sections, footnotes and diagrams are drawn, not show
   await tree.getByText('Careful!').click()
   await expect(page.getByTestId('block-editor')).toContainText('::: info')
 })
+
+test('a diagram with a syntax error shows its text and a note, and leaves nothing outside the page', async ({
+  backend,
+  page,
+}) => {
+  backend.write(
+    'pages/Broken.md',
+    '- ```mermaid\n  this is not a diagram at all\n  ```\n- ```mermaid\n  flowchart TD\n    A[Start] --> \n  ```\n',
+  )
+  await backend.open('/page/Broken')
+  const tree = page.getByRole('tree', { name: 'Blocks' })
+  await expect(tree.getByText(/Diagram not drawn/)).toHaveCount(2)
+  await expect(tree.getByText('this is not a diagram at all').first()).toBeVisible()
+  // Mermaid's own error pictures (a bomb, "Syntax error in text") are not drawn into the page
+  await expect(page.getByText('Syntax error in text')).toHaveCount(0)
+  await expect(page.locator('body > [id^="dmmd-"], body > svg[id^="mmd-"]')).toHaveCount(0)
+})
