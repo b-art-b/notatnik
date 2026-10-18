@@ -70,7 +70,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 - [ ] The S3 spike binary works against this instance
 
 ### P4.3 Fake CalDAV server for unit tests
-- [ ] An in-memory implementation of the `CalDavClient` trait with ETags, sync-tokens, 412 responses and fault injection (timeouts, 500s, network drop mid-sync)
+- [x] An in-memory implementation of the `CalDavClient` trait with ETags, sync-tokens, conditional writes (`Error::Changed`, the 412) and fault injection (offline, 500; `crates/caldav/src/fake.rs`)
 
 **Verify**
 - [ ] The fake passes the same contract tests as Radicale (one shared test suite run against both)
@@ -108,7 +108,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4D: Push tasks
 
 ### P4.7 Task → VTODO serialisation (CA-4)
-- [ ] Mapping as in the table above; deterministic output (the same block always produces byte-identical ICS, so pushes are idempotent)
+- [x] Mapping as in the table above (`crates/caldav/src/map.rs`, `ical.rs`); deterministic output (the same block always produces byte-identical ICS, so pushes are idempotent). Times are floating (D45); `repeat:: … from-completion` has no iCalendar form and is written as the plain rule
 
 **Verify**
 - [ ] Table tests: ≥ 20 blocks (each state, date vs datetime, each priority, each repeat, blocks with links/tags/code in the title) → insta ICS snapshots

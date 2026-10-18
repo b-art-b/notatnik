@@ -1,0 +1,20 @@
+---
+source: crates/caldav/src/map.rs
+expression: "ics[0].replace(\"\\r\\n\", \"\\n\")"
+---
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Notatnik//CalDAV//EN
+BEGIN:VTODO
+UID:notatnik-g1-abc123
+DTSTAMP:20261018T080000Z
+SUMMARY:Call Ann about #plan
+STATUS:NEEDS-ACTION
+DTSTART;VALUE=DATE:20261020
+DUE:20261021T173000
+PRIORITY:1
+CATEGORIES:plan
+URL:notatnik://page/Work/Plan#abc123
+X-NOTATNIK-PAGE:Work/Plan
+END:VTODO
+END:VCALENDAR

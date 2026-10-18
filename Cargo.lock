@@ -2861,6 +2861,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "notatnik-caldav"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "insta",
+ "notatnik-core",
+ "notatnik-sync",
+]
+
+[[package]]
 name = "notatnik-cli"
 version = "0.1.0"
 dependencies = [
