@@ -126,8 +126,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4E: Pull task changes back
 
 ### P4.9 Remote → Markdown (CA-5)
-- [ ] For changed remote VTODOs with a notatnik UID: three-way merge per field (base / local / remote), producing `BlockOp`s applied via the normal guarded edit path
-- [ ] SUMMARY rule: write back only if the local first line is "plain" (no inline markup); otherwise log a conflict entry
+- [x] For changed remote VTODOs with a notatnik UID: three-way merge per field (base / local / remote), producing `BlockOp`s applied via the normal guarded edit path (`pull.rs`, `apply_pulled` in `state/calendar.rs`; changed items are found by listing the calendar: the sync-token comes with P4.11). A time with another `TZID` is read as the clock time it states (no time zone database)
+- [x] SUMMARY rule: write back only if the local first line is "plain" (no inline markup); otherwise log an entry (`title_kept`). Not done: a repeating task that a client moves on itself (new DUE, status unchanged) updates the dates but does not add a `completed::` date
 
 **Verify** (fake server + Radicale)
 - [ ] Remote completes a task → block becomes `DONE` with `done::`; the next push sends nothing
@@ -166,7 +166,7 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 
 ### P4.13 Deletion and un-dating (CA-9)
 - [ ] Block deleted, task un-dated, or `cal:: no` added → `on_delete` policy (`complete` default, or `delete`), subject to the deletion-safety rule
-- [ ] Remote deletion of a notatnik item → the block is **not** deleted; its dates are kept and a log entry plus `cal:: no` is suggested (never delete Markdown content because of a remote deletion)
+- [x] Remote deletion of a notatnik item → the block is **not** deleted; its dates are kept and a log entry plus `cal:: no` is suggested (never delete Markdown content because of a remote deletion)
 
 **Verify**
 - [ ] Delete a dated task block → after 2 sync runs, the remote item is completed (default) or deleted (policy `delete`); after 1 run nothing happens

@@ -5,7 +5,7 @@
 //! Times are written as floating local time (no time zone): the server and the phone show them as the same
 //! clock time wherever the user is.
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 
 /// `STATUS` of a task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +52,19 @@ pub enum When {
 }
 
 impl When {
+    /// The day and clock time as the user sees them: a time in UTC is shown in local time; a time with another
+    /// `TZID` is taken as the clock time it states (there is no time zone database here).
+    pub fn floating(&self) -> (NaiveDate, Option<NaiveTime>) {
+        match self {
+            When::Date(d) => (*d, None),
+            When::Local { at, .. } => (at.date(), Some(at.time())),
+            When::Utc(at) => {
+                let l = Local.from_utc_datetime(at).naive_local();
+                (l.date(), Some(l.time()))
+            }
+        }
+    }
+
     pub fn date(&self) -> NaiveDate {
         match self {
             When::Date(d) => *d,
@@ -85,6 +98,28 @@ pub struct Todo {
     pub page: Option<String>,
     /// `LAST-MODIFIED` (UTC); only read.
     pub modified: Option<NaiveDateTime>,
+}
+
+impl Todo {
+    /// Both say the same about everything the app maps: times compared as clock times, `DTSTAMP`, `LAST-MODIFIED`
+    /// and `COMPLETED` ignored (the status says it).
+    pub fn same_as(&self, other: &Todo) -> bool {
+        let key = |t: &Todo| {
+            (
+                t.uid.clone(),
+                t.summary.trim().to_string(),
+                t.status.unwrap_or(Status::NeedsAction),
+                t.start.as_ref().map(When::floating),
+                t.due.as_ref().map(When::floating),
+                t.priority.filter(|p| *p > 0),
+                t.rrule.as_deref().map(|r| r.trim().to_string()),
+                t.categories.clone(),
+                t.description.clone(),
+                t.url.clone(),
+            )
+        };
+        key(self) == key(other)
+    }
 }
 
 fn escape(s: &str) -> String {

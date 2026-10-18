@@ -170,6 +170,7 @@ pub fn typescript_bindings() -> String {
         CalendarList,
         CalendarSaveArgs,
         CalendarSyncReport,
+        CalendarLogEntry,
     );
     out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };\n\n");
     out.push_str(&crate::commands_ts());

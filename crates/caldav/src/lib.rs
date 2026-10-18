@@ -6,6 +6,7 @@
 pub mod fake;
 pub mod ical;
 pub mod map;
+pub mod pull;
 pub mod push;
 
 mod client;

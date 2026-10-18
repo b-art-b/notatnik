@@ -46,6 +46,13 @@ pub struct Pushed {
     /// Marked completed because the task is gone; a task that comes back is sent again.
     #[serde(default)]
     pub retired: bool,
+    /// A pull took changes from this item into the notes: when the notes say what the server says, nothing
+    /// needs sending.
+    #[serde(default)]
+    pub pulled: bool,
+    /// Deleted in the calendar: the task stays in the notes and is not sent again.
+    #[serde(default)]
+    pub gone: bool,
 }
 
 /// Per device and calendar: what the last push left on the server.
@@ -109,6 +116,14 @@ pub fn push(
         let ics = stamped.to_ics();
         let known = state.items.get(&todo.uid).cloned();
         match known {
+            Some(k) if k.gone => report.unchanged += 1,
+            Some(k) if k.pulled && parse_todo(&k.ics).is_some_and(|r| r.same_as(todo)) => {
+                let k = state.items.get_mut(&todo.uid).unwrap();
+                k.hash = hash;
+                k.pulled = false;
+                k.missing = 0;
+                report.unchanged += 1;
+            }
             Some(k) if k.hash == hash && !k.retired => {
                 if k.missing != 0 {
                     state.items.get_mut(&todo.uid).unwrap().missing = 0;
@@ -148,6 +163,10 @@ pub fn push(
         .map(|(uid, _)| uid.clone())
         .collect();
     for uid in gone {
+        if state.items.get(&uid).is_some_and(|p| p.gone) {
+            state.items.remove(&uid); // deleted in the calendar and no longer in the notes: nothing to do
+            continue;
+        }
         if !opts.settled {
             continue;
         }
@@ -203,6 +222,8 @@ fn pushed(etag: String, hash: String, ics: String) -> Pushed {
         ics,
         missing: 0,
         retired: false,
+        pulled: false,
+        gone: false,
     }
 }
 
@@ -226,13 +247,7 @@ fn adopt(
         report.conflicts.push(todo.uid.clone()); // gone again meanwhile: the next run creates it
         return Ok(());
     };
-    let same = parse_todo(&remote.ics).is_some_and(|mut r| {
-        r.stamp = None;
-        r.modified = None;
-        let mut mine = todo.clone();
-        mine.stamp = None;
-        r == mine
-    });
+    let same = parse_todo(&remote.ics).is_some_and(|r| r.same_as(todo));
     if same {
         state
             .items

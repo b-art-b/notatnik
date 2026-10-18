@@ -28,9 +28,14 @@ pub fn uid(graph_id: &str, block_id: &str) -> String {
     format!("notatnik-{graph_id}-{block_id}")
 }
 
+/// What every UID of this graph starts with.
+pub fn uid_prefix(graph_id: &str) -> String {
+    format!("notatnik-{graph_id}-")
+}
+
 /// The block ID in a UID of this graph.
 pub fn block_id_of(graph_id: &str, uid: &str) -> Option<String> {
-    uid.strip_prefix(&format!("notatnik-{graph_id}-"))
+    uid.strip_prefix(&uid_prefix(graph_id))
         .filter(|id| !id.is_empty())
         .map(str::to_string)
 }
@@ -164,6 +169,40 @@ fn rrule(rule: &RepeatRule) -> String {
     }
 }
 
+/// A `repeat::` value for the text after `RRULE:`: the short forms the app knows where the rule says exactly that,
+/// else the rule verbatim (`RRULE:…`).
+pub fn repeat_from_rrule(rule: &str) -> String {
+    let rule = rule.trim();
+    let parts: Vec<(&str, &str)> = rule.split(';').filter_map(|p| p.split_once('=')).collect();
+    let get = |k: &str| parts.iter().find(|(n, _)| *n == k).map(|(_, v)| *v);
+    let freq = get("FREQ");
+    let others = parts
+        .iter()
+        .filter(|(n, _)| !matches!(*n, "FREQ" | "INTERVAL"))
+        .count();
+    let n: u32 = get("INTERVAL").map_or(1, |v| v.parse().unwrap_or(0));
+    let short = |unit: &str, word: &str| {
+        if n == 1 {
+            Some(word.to_string())
+        } else if n > 1 {
+            Some(format!("every {n}{unit}"))
+        } else {
+            None
+        }
+    };
+    let simple = match (freq, others) {
+        (Some("DAILY"), 0) => short("d", "daily"),
+        (Some("WEEKLY"), 0) => short("w", "weekly"),
+        (Some("MONTHLY"), 0) => short("m", "monthly"),
+        (Some("YEARLY"), 0) => short("y", "yearly"),
+        (Some("WEEKLY"), 1) if n == 1 && get("BYDAY") == Some("MO,TU,WE,TH,FR") => {
+            Some("weekdays".to_string())
+        }
+        _ => None,
+    };
+    simple.unwrap_or_else(|| format!("RRULE:{rule}"))
+}
+
 /// The first line of a block as a calendar title: no task marker, no `^id`, links reduced to their label.
 fn summary(source: &str, block: &Block) -> String {
     let first = block.first_line;
@@ -244,6 +283,24 @@ mod tests {
         }
         walk(&ctx, &page.blocks, &mut out);
         out
+    }
+
+    #[test]
+    fn rules_read_back_as_the_short_form_or_verbatim() {
+        for text in [
+            "daily", "weekly", "monthly", "yearly", "weekdays", "every 3d", "every 2w", "every 6m",
+        ] {
+            let r = notatnik_core::Repeat::parse(text).unwrap();
+            assert_eq!(repeat_from_rrule(&rrule(&r.rule)), text, "{text}");
+        }
+        assert_eq!(
+            repeat_from_rrule("FREQ=WEEKLY;BYDAY=MO"),
+            "RRULE:FREQ=WEEKLY;BYDAY=MO"
+        );
+        assert_eq!(
+            repeat_from_rrule("FREQ=DAILY;COUNT=3"),
+            "RRULE:FREQ=DAILY;COUNT=3"
+        );
     }
 
     #[test]

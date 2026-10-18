@@ -42,7 +42,7 @@ export const commands: Command[] = [
   },
   {
     id: 'calendar-sync',
-    title: 'Sync tasks to calendar',
+    title: 'Sync tasks with the calendar',
     keys: '',
     run: () => void calendarSyncNow(),
   },

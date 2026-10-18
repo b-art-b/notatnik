@@ -1631,6 +1631,25 @@ pub struct CalendarSaveArgs {
     pub tasks: Option<String>,
 }
 
+/// One line of the calendar sync log (CA-8).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct CalendarLogEntry {
+    /// When, `YYYY-MM-DDTHH:MM` local time.
+    pub at: String,
+    /// `pulled`, `conflict`, `title_kept`, `removed_in_calendar`.
+    pub kind: String,
+    pub uid: String,
+    /// The task's title in the notes.
+    pub title: String,
+    pub page: String,
+    /// The field (`status`, `scheduled`, `deadline`, `priority`, `title`, `repeat`).
+    pub field: Option<String>,
+    pub local: Option<String>,
+    pub remote: Option<String>,
+    /// `local` or `remote`: the value that was kept.
+    pub winner: Option<String>,
+}
+
 /// `calendar_sync` result.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CalendarSyncReport {
@@ -1648,4 +1667,10 @@ pub struct CalendarSyncReport {
     pub conflicts: Vec<String>,
     /// Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
     pub ids_added: u32,
+    /// Tasks of the notes that took a change from the calendar.
+    pub pulled: u32,
+    /// Tasks that were deleted in the calendar; their blocks stay.
+    pub removed_in_calendar: u32,
+    /// Entries added to the sync log (conflicts, changes that could not be written, deletions).
+    pub logged: u32,
 }

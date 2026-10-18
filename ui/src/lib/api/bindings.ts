@@ -1962,7 +1962,40 @@ conflicts: Array<string>,
 /**
  * Dated tasks that had no block ID and were given one (`^abc123` was added to their line).
  */
-ids_added: number, };
+ids_added: number, 
+/**
+ * Tasks of the notes that took a change from the calendar.
+ */
+pulled: number, 
+/**
+ * Tasks that were deleted in the calendar; their blocks stay.
+ */
+removed_in_calendar: number, 
+/**
+ * Entries added to the sync log (conflicts, changes that could not be written, deletions).
+ */
+logged: number, };
+export type CalendarLogEntry = { 
+/**
+ * When, `YYYY-MM-DDTHH:MM` local time.
+ */
+at: string, 
+/**
+ * `pulled`, `conflict`, `title_kept`, `removed_in_calendar`.
+ */
+kind: string, uid: string, 
+/**
+ * The task's title in the notes.
+ */
+title: string, page: string, 
+/**
+ * The field (`status`, `scheduled`, `deadline`, `priority`, `title`, `repeat`).
+ */
+field: string | null, local: string | null, remote: string | null, 
+/**
+ * `local` or `remote`: the value that was kept.
+ */
+winner: string | null, };
 
 export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
 
@@ -2047,6 +2080,7 @@ export type Commands = {
   calendar_connect: { args: CalendarConnectArgs; result: CalendarList };
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
+  calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
   calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };

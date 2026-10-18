@@ -3788,7 +3788,7 @@ fn dated_tasks_are_sent_to_the_calendar_with_block_ids_and_a_second_sync_sends_n
         (json!(0), json!(0), json!(0))
     );
     assert_eq!(r["unchanged"], sent);
-    assert_eq!(server.requests(), requests);
+    assert_eq!(server.requests(), requests + 1, "one listing, nothing else");
 
     // one date changes in a file: one item is sent
     let rel = "pages/dates.md";
@@ -3802,7 +3802,153 @@ fn dated_tasks_are_sent_to_the_calendar_with_block_ids_and_a_second_sync_sends_n
         (json!(1), json!(0)),
         "{r}"
     );
+    assert_eq!(
+        server.requests(),
+        requests + 3,
+        "listing, listing, one item"
+    );
+}
+
+/// Changes made in the calendar come back into the notes (CA-5, CA-9): a completion, a date, a priority, a plain
+/// title; a title with a link is kept and logged; the next sync sends nothing; a deletion in the calendar leaves
+/// the block alone.
+#[test]
+fn changes_made_in_the_calendar_are_written_into_the_blocks() {
+    use notatnik_caldav::fake::FakeServer;
+    use notatnik_caldav::{CalDavClient, Cond};
+    let server = Arc::new(FakeServer::new());
+    let tasks = server.add_calendar("Tasks", &["VTODO"]);
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    let page = "- TODO Call Anna\n  deadline:: 2026-10-21\n  note under it\n- TODO Write [[Report]] draft\n  deadline:: 2026-10-22\n- TODO Pay rent\n  scheduled:: 2026-10-23\n  priority:: B\n- TODO Water plants\n  deadline:: 2026-10-24\n";
+    std::fs::create_dir_all(graph.join("pages")).unwrap();
+    std::fs::write(graph.join("pages/work.md"), page).unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks}),
+    );
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 4, "{r}");
+    let with_ids = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+
+    // edit the server's copies like another client would
+    let edit = |summary: &str, f: &dyn Fn(String) -> String| {
+        let item = server
+            .get(&tasks, &server.names(&tasks))
+            .unwrap()
+            .into_iter()
+            .find(|i| i.ics.contains(&format!("SUMMARY:{summary}")))
+            .unwrap();
+        server
+            .put(&tasks, &item.name, &f(item.ics), &Cond::IfMatch(item.etag))
+            .unwrap();
+        item.name
+    };
+    edit("Call Anna", &|t| t.replace("NEEDS-ACTION", "COMPLETED"));
+    edit("Write Report draft", &|t| {
+        t.replace(
+            "SUMMARY:Write Report draft",
+            "SUMMARY:Write the final report",
+        )
+    });
+    edit("Pay rent", &|t| {
+        t.replace("DTSTART;VALUE=DATE:20261023", "DTSTART;VALUE=DATE:20261030")
+            .replace("SUMMARY:Pay rent", "SUMMARY:Pay the rent")
+            .replace("PRIORITY:5", "PRIORITY:1")
+    });
+    let gone = edit("Water plants", &|t| t);
+    server.delete(&tasks, &gone, None).unwrap();
+
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["pulled"], 2, "{r}");
+    assert_eq!(r["removed_in_calendar"], 1, "{r}");
+    // the title with a link stays as it is in the notes; the calendar keeps its title until the notes change
+    assert_eq!(r["updated"], 0, "{r}");
+    assert_eq!(r["created"], 0, "{r}");
+    let texts: Vec<String> = server
+        .get(&tasks, &server.names(&tasks))
+        .unwrap()
+        .into_iter()
+        .map(|i| i.ics)
+        .collect();
+    assert!(
+        texts
+            .iter()
+            .any(|i| i.contains("SUMMARY:Write the final report")),
+        "{texts:#?}"
+    );
+    let now = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+    let lines: Vec<&str> = now.lines().collect();
+    assert!(lines[0].starts_with("- DONE Call Anna"), "{now}");
+    assert!(now.contains("done:: "), "{now}");
+    assert!(now.contains("note under it"), "{now}");
+    assert!(now.contains("- TODO Write [[Report]] draft"), "kept: {now}");
+    assert!(now.contains("- TODO Pay the rent"), "{now}");
+    assert!(now.contains("scheduled:: 2026-10-30"), "{now}");
+    assert!(now.contains("priority:: A"), "{now}");
+    assert!(
+        now.contains("deadline:: 2026-10-24"),
+        "the block stays: {now}"
+    );
+    assert!(
+        with_ids.contains("deadline:: 2026-10-22") && now.contains("deadline:: 2026-10-22"),
+        "other lines untouched"
+    );
+
+    let log = t.ok("calendar_log", json!({}));
+    let kinds: Vec<String> = log
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            format!(
+                "{}:{}",
+                e["kind"].as_str().unwrap(),
+                e["field"].as_str().unwrap_or("")
+            )
+        })
+        .collect();
+    assert!(kinds.contains(&"title_kept:title".to_string()), "{kinds:?}");
+    assert!(
+        kinds.contains(&"removed_in_calendar:".to_string()),
+        "{kinds:?}"
+    );
+    assert!(kinds.contains(&"pulled:status".to_string()), "{kinds:?}");
+
+    // the notes caught up: the next sync sends nothing and writes nothing
+    let (requests, files) = (server.requests(), walk_md(&graph));
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            r["created"].clone(),
+            r["updated"].clone(),
+            r["pulled"].clone()
+        ),
+        (json!(0), json!(0), json!(0)),
+        "{r}"
+    );
     assert_eq!(server.requests(), requests + 1);
+    assert_eq!(walk_md(&graph), files);
 }
 
 /// Every Markdown file below `root` by relative path.

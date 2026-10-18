@@ -1,9 +1,9 @@
 <script lang="ts">
   // Settings → Calendar: which login and which Nextcloud calendars the graph uses. The login is the one of the
-  // graph's sync unless you give it one of its own. Nothing is sent to the server from here except a login
-  // check and the list of calendars; the sync itself comes later.
+  // graph's sync unless you give it one of its own. "Sync" sends the dated tasks, reads back what changed in
+  // the calendar and shows what the sync log holds (conflicts, kept titles, tasks deleted in the calendar).
   import { onMount } from 'svelte'
-  import { backend, type CalendarList, type CalendarStatus } from '../../api'
+  import { backend, type CalendarList, type CalendarLogEntry, type CalendarStatus } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
   import { calendarSyncNow, describeCalendarSync } from '../../calendar'
 
@@ -13,6 +13,7 @@
   let error = $state('')
   let syncing = $state(false)
   let lastSync = $state('')
+  let log = $state<CalendarLogEntry[]>([])
 
   // the form for a login of its own
   let own = $state(false)
@@ -25,6 +26,31 @@
   let tasks = $state<string | null>(null)
   let read = $state<string[]>([])
 
+  async function loadLog() {
+    try {
+      log = await backend.call('calendar_log', {})
+    } catch {
+      log = []
+    }
+  }
+
+  /** One line for a log entry. */
+  function describeLog(e: CalendarLogEntry): string {
+    const field = e.field ?? ''
+    switch (e.kind) {
+      case 'pulled':
+        return `${field} changed in the calendar`
+      case 'conflict':
+        return `${field}: notes "${e.local ?? ''}", calendar "${e.remote ?? ''}" — kept ${e.winner === 'remote' ? 'the calendar' : 'the notes'}`
+      case 'title_kept':
+        return `title changed in the calendar to "${e.remote ?? ''}"; not written, because the title has markup`
+      case 'removed_in_calendar':
+        return 'deleted in the calendar; the task stays here (add "cal:: no" to stop sending it)'
+      default:
+        return e.kind
+    }
+  }
+
   async function load() {
     try {
       status = await backend.call('calendar_status', {})
@@ -36,7 +62,10 @@
       error = errorMessage(e)
     }
   }
-  onMount(load)
+  onMount(() => {
+    void load()
+    void loadLog()
+  })
 
   async function connect() {
     busy = true
@@ -74,6 +103,7 @@
     const r = await calendarSyncNow()
     if (r) lastSync = describeCalendarSync(r)
     syncing = false
+    await loadLog()
   }
 
   async function forget() {
@@ -214,11 +244,24 @@
       </p>
       <div class="buttons">
         <button type="button" data-testid="calendar-sync" disabled={syncing} onclick={syncTasks}
-          >{syncing ? 'Sending…' : 'Send tasks to the calendar now'}</button
+          >{syncing ? 'Syncing…' : 'Sync tasks with the calendar now'}</button
         >
       </div>
       {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
     </section>
+    {#if log.length}
+      <section aria-label="Sync log">
+        <h3>Sync log</h3>
+        <ul class="log" data-testid="calendar-log">
+          {#each log.slice(0, 50) as e, i (i)}
+            <li>
+              <span class="muted">{e.at.replace('T', ' ')}</span>
+              <strong>{e.title}</strong> <span class="muted">({e.page})</span>: {describeLog(e)}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
   {/if}
 {/if}
 
@@ -252,6 +295,15 @@
   }
   .error {
     color: var(--danger);
+  }
+  .log {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.9em;
+  }
+  .log li {
+    padding: 0.2em 0;
   }
   .buttons {
     display: flex;
