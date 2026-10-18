@@ -3951,6 +3951,91 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     assert_eq!(walk_md(&graph), files);
 }
 
+/// With "send tasks without a date" every open task is in the calendar, the finished and the private ones are not;
+/// the calendar can complete one of them; turning it off again retires them like any task that left the notes
+/// (CA-4, CA-9).
+#[test]
+fn open_tasks_without_a_date_can_be_sent_too() {
+    use notatnik_caldav::CalDavClient;
+    let page = "- TODO Dated\n  deadline:: 2026-10-21\n- TODO Open without date\n- DOING Started without date\n- DONE Finished without date\n- TODO Private\n  cal:: no\n- just a note\n";
+    let (t, server, tasks, graph) = deletion_setup("complete", page);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 1, "off by default: {r}");
+
+    let save = |on: bool| {
+        t.ok(
+            "calendar_save",
+            json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": false, "undated_tasks": on}),
+        )
+    };
+    let st = save(true);
+    assert_eq!(st["undated_tasks"], true);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 2, "{r}");
+    let titles: Vec<String> = server
+        .get(&tasks, &server.names(&tasks))
+        .unwrap()
+        .into_iter()
+        .map(|i| i.ics)
+        .collect();
+    assert_eq!(titles.len(), 3, "{titles:#?}");
+    let open = titles
+        .iter()
+        .find(|i| i.contains("SUMMARY:Open without date"))
+        .unwrap();
+    assert!(!open.contains("DUE") && !open.contains("DTSTART"), "{open}");
+    assert!(
+        titles
+            .iter()
+            .any(|i| i.contains("SUMMARY:Started without date") && i.contains("STATUS:IN-PROCESS"))
+    );
+    let notes = std::fs::read_to_string(graph.join("pages/work.md")).unwrap();
+    assert!(
+        !notes.contains("Finished without date ^") && !notes.contains("Private ^"),
+        "{notes}"
+    );
+    assert!(notes.contains("Open without date ^"), "{notes}");
+
+    // the calendar completes one of them
+    let item = server
+        .get(&tasks, &server.names(&tasks))
+        .unwrap()
+        .into_iter()
+        .find(|i| i.ics.contains("SUMMARY:Open without date"))
+        .unwrap();
+    server
+        .put(
+            &tasks,
+            &item.name,
+            &item.ics.replace("NEEDS-ACTION", "COMPLETED"),
+            &notatnik_caldav::Cond::IfMatch(item.etag),
+        )
+        .unwrap();
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["pulled"], 1, "{r}");
+    assert!(
+        std::fs::read_to_string(graph.join("pages/work.md"))
+            .unwrap()
+            .contains("- DONE Open without date")
+    );
+    let again = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            again["created"].clone(),
+            again["updated"].clone(),
+            again["pulled"].clone()
+        ),
+        (json!(0), json!(0), json!(0)),
+        "{again}"
+    );
+
+    // off again: the still open one leaves like a task that left the notes, after two syncs
+    save(false);
+    t.ok("calendar_sync", json!({}));
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["retired"], 1, "{r}");
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]

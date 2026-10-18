@@ -61,10 +61,20 @@ test('the import of tasks made in other apps is a switch that is saved at once',
   await expect
     .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
     .toBe(true)
+  // the switches do not undo each other
+  const undated = page.getByTestId('calendar-undated')
+  await expect(undated).not.toBeChecked()
+  await undated.check()
+  await expect
+    .poll(async () => (await backend.call<{ undated_tasks: boolean }>('calendar_status')).undated_tasks)
+    .toBe(true)
+  expect((await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks).toBe(true)
+  await undated.uncheck()
   await box.uncheck()
   await expect
     .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
     .toBe(false)
+  expect((await backend.call<{ undated_tasks: boolean }>('calendar_status')).undated_tasks).toBe(false)
 })
 
 test('with calendar sync on, the app syncs by itself when the graph opens', async ({ backend, page }) => {
@@ -75,7 +85,13 @@ test('with calendar sync on, the app syncs by itself when the graph opens', asyn
     password: 'secret',
   })
   const tasks = list.calendars.find((c) => c.name === 'Tasks')!.href
-  await backend.call('calendar_save', { enabled: true, read: [], tasks, import_tasks: false })
+  await backend.call('calendar_save', {
+    enabled: true,
+    read: [],
+    tasks,
+    import_tasks: false,
+    undated_tasks: false,
+  })
   await page.reload()
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByRole('tab', { name: 'Calendar' }).click()
@@ -93,7 +109,13 @@ test('events of the chosen calendars show in the journal and in the timeline, an
     password: 'secret',
   })
   const birthdays = list.calendars.find((c) => c.name === 'Birthdays')!.href
-  await backend.call('calendar_save', { enabled: true, read: [birthdays], tasks: null, import_tasks: false })
+  await backend.call('calendar_save', {
+    enabled: true,
+    read: [birthdays],
+    tasks: null,
+    import_tasks: false,
+    undated_tasks: false,
+  })
   await backend.call('calendar_sync')
   await page.reload()
   const day = page.getByTestId('day-events').first()

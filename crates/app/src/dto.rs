@@ -1608,6 +1608,8 @@ pub struct CalendarStatus {
     pub on_delete: String,
     /// Tasks created in other apps are copied into the inbox page (`[calendar] import = "inbox"`).
     pub import_tasks: bool,
+    /// Open tasks without a date are sent too (`[calendar] undated = "open"`).
+    pub undated_tasks: bool,
     /// The page they go to.
     pub inbox: String,
 }
@@ -1635,6 +1637,9 @@ pub struct CalendarSaveArgs {
     pub tasks: Option<String>,
     /// Copy tasks created in other apps into the inbox page.
     pub import_tasks: bool,
+    /// Send open tasks without a date too.
+    #[serde(default)]
+    pub undated_tasks: bool,
 }
 
 /// `calendar_events` arguments: the days to show, `YYYY-MM-DD`, both included.

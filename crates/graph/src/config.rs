@@ -190,6 +190,9 @@ pub struct CalendarSection {
     /// The page those tasks go to.
     #[serde(default = "default_inbox")]
     pub inbox: String,
+    /// `open` (default `none`): open tasks without a date are sent too, so the calendar holds every open task.
+    #[serde(default = "default_undated")]
+    pub undated: String,
 }
 
 fn default_tasks_as() -> String {
@@ -200,6 +203,9 @@ fn default_on_delete() -> String {
 }
 fn default_import() -> String {
     "off".into()
+}
+fn default_undated() -> String {
+    "none".into()
 }
 fn default_inbox() -> String {
     "inbox".into()
@@ -212,6 +218,7 @@ impl Default for CalendarSection {
             on_delete: default_on_delete(),
             import: default_import(),
             inbox: default_inbox(),
+            undated: default_undated(),
         }
     }
 }
@@ -220,7 +227,10 @@ const KNOWN: &[(&str, &[&str])] = &[
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
     ("tasks", &["completed_log_limit", "priorities"]),
-    ("calendar", &["tasks_as", "on_delete", "import", "inbox"]),
+    (
+        "calendar",
+        &["tasks_as", "on_delete", "import", "inbox", "undated"],
+    ),
 ];
 
 impl Config {

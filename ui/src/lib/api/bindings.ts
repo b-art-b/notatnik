@@ -1936,6 +1936,10 @@ on_delete: string,
  */
 import_tasks: boolean, 
 /**
+ * Open tasks without a date are sent too (`[calendar] undated = "open"`).
+ */
+undated_tasks: boolean, 
+/**
  * The page they go to.
  */
 inbox: string, };
@@ -1945,7 +1949,11 @@ export type CalendarSaveArgs = { enabled: boolean, read: Array<string>, tasks: s
 /**
  * Copy tasks created in other apps into the inbox page.
  */
-import_tasks: boolean, };
+import_tasks: boolean, 
+/**
+ * Send open tasks without a date too.
+ */
+undated_tasks: boolean, };
 export type CalendarSyncReport = { 
 /**
  * Tasks sent for the first time.

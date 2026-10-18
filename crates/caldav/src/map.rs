@@ -21,6 +21,8 @@ pub struct Context<'a> {
     pub stamp: NaiveDateTime,
     /// The graph's priority labels, most important first (empty: `A`, `B`, `C`).
     pub priorities: &'a [String],
+    /// Open tasks without a date are shared too.
+    pub undated_open: bool,
 }
 
 /// `notatnik-<graph>-<block id>`.
@@ -40,12 +42,20 @@ pub fn block_id_of(graph_id: &str, uid: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The calendar task for a block, or `None` when it is not shared: not a task, no date, no block ID yet, or
-/// `cal:: no`.
+/// A task that is not finished.
+pub fn is_open(state: TaskState) -> bool {
+    !matches!(state, TaskState::Done | TaskState::Canceled)
+}
+
+/// The calendar task for a block, or `None` when it is not shared: not a task, no date (unless open tasks without
+/// a date are shared), no block ID yet, or `cal:: no`.
 pub fn todo_from_block(ctx: &Context, block: &Block) -> Option<Todo> {
     let task = block.task.as_ref()?;
     let id = &block.block_id.as_ref()?.id;
-    if task.scheduled.is_none() && task.deadline.is_none() {
+    if task.scheduled.is_none()
+        && task.deadline.is_none()
+        && !(ctx.undated_open && is_open(task.state))
+    {
         return None;
     }
     if block
@@ -271,6 +281,7 @@ mod tests {
             source: src,
             stamp: stamp(),
             priorities: &[],
+            undated_open: false,
         };
         let mut out = Vec::new();
         fn walk(ctx: &Context, blocks: &[Block], out: &mut Vec<String>) {

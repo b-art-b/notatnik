@@ -132,6 +132,7 @@ impl AppState {
             on_delete: section.on_delete,
             import_tasks: section.import == "inbox",
             inbox: section.inbox,
+            undated_tasks: section.undated == "open",
         })
     }
 
@@ -245,6 +246,14 @@ impl AppState {
             self.with_open(|o| {
                 o.graph
                     .update_config(|c| c.calendar.import = import.into())?;
+                Ok(())
+            })?;
+        }
+        if status.undated_tasks != a.undated_tasks {
+            let undated = if a.undated_tasks { "open" } else { "none" };
+            self.with_open(|o| {
+                o.graph
+                    .update_config(|c| c.calendar.undated = undated.into())?;
                 Ok(())
             })?;
         }
@@ -395,7 +404,7 @@ impl AppState {
         section: &notatnik_graph::CalendarSection,
     ) -> ApiResult<CalendarSyncReport> {
         let id = id.to_string();
-        let collected = self.with_open(|o| collect_todos(o, &id))?;
+        let collected = self.with_open(|o| collect_todos(o, &id, &section.undated))?;
         let mut ids_added = collected.added;
         let file = self.calendar_state_file(&id);
         let mut state: PushState = std::fs::read_to_string(&file)
@@ -534,7 +543,7 @@ impl AppState {
 
         // 2. the notes as they are now go to the calendar
         let todos = if applied.pulled > 0 || imported_now > 0 {
-            let again = self.with_open(|o| collect_todos(o, &id))?;
+            let again = self.with_open(|o| collect_todos(o, &id, &section.undated))?;
             ids_added += again.added;
             again.todos
         } else {
@@ -618,7 +627,8 @@ impl AppState {
             .ok_or_else(|| ApiError::new("invalid", "the value cannot be written"))?;
         let priorities = self.with_open(|o| Ok(o.graph.config().tasks.priorities.clone()))?;
         let applied = self.with_open(|o| {
-            let collected = collect_todos(o, &id)?;
+            let undated = o.graph.config().calendar.undated.clone();
+            let collected = collect_todos(o, &id, &undated)?;
             if !collected.places.contains_key(&a.uid) {
                 return Err(ApiError::new(
                     "not_found",
@@ -1253,7 +1263,8 @@ fn apply_pulled(
 }
 
 /// The calendar tasks of every page, after giving the dated tasks that lack one a block ID.
-fn collect_todos(o: &Open, graph_id: &str) -> ApiResult<Collected> {
+fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected> {
+    let undated_open = undated == "open";
     let files = o.graph.with_index(|i| i.page_files())?;
     let opts = o.graph.config().parse_options();
     let priorities = o.graph.config().tasks.priorities.clone();
@@ -1275,8 +1286,9 @@ fn collect_todos(o: &Open, graph_id: &str) -> ApiResult<Collected> {
         let mut parsed = notatnik_core::parse_page_with(&file.text, &opts);
         // dated tasks without an ID get one, all of a page in one edit
         let mut ops = Vec::new();
-        ids_for_dated_tasks(
+        ids_for_shared_tasks(
             &parsed.blocks,
+            undated_open,
             &mut Vec::new(),
             &mut ops,
             &mut used,
@@ -1299,6 +1311,7 @@ fn collect_todos(o: &Open, graph_id: &str) -> ApiResult<Collected> {
             source: &file.text,
             stamp: now,
             priorities: &priorities,
+            undated_open,
         };
         fn gather(ctx: &Context, blocks: &[Block], out: &mut Vec<Todo>) {
             for b in blocks {
@@ -1335,9 +1348,11 @@ fn collect_todos(o: &Open, graph_id: &str) -> ApiResult<Collected> {
     })
 }
 
-/// An `EnsureBlockId` op for every dated task (not marked `cal:: no`) that has no block ID.
-fn ids_for_dated_tasks<R: FnMut() -> u64>(
+/// An `EnsureBlockId` op for every shared task (dated, or open when those are shared too; not marked `cal:: no`)
+/// that has no block ID.
+fn ids_for_shared_tasks<R: FnMut() -> u64>(
     blocks: &[Block],
+    undated_open: bool,
     path: &mut Vec<usize>,
     ops: &mut Vec<BlockOp>,
     used: &mut std::collections::HashSet<String>,
@@ -1345,10 +1360,11 @@ fn ids_for_dated_tasks<R: FnMut() -> u64>(
 ) {
     for (i, b) in blocks.iter().enumerate() {
         path.push(i);
-        let dated = b
-            .task
-            .as_ref()
-            .is_some_and(|t| t.scheduled.is_some() || t.deadline.is_some());
+        let dated = b.task.as_ref().is_some_and(|t| {
+            t.scheduled.is_some()
+                || t.deadline.is_some()
+                || (undated_open && notatnik_caldav::map::is_open(t.state))
+        });
         let private = b
             .properties
             .iter()
@@ -1361,7 +1377,7 @@ fn ids_for_dated_tasks<R: FnMut() -> u64>(
                 id,
             });
         }
-        ids_for_dated_tasks(&b.children, path, ops, used, rng);
+        ids_for_shared_tasks(&b.children, undated_open, path, ops, used, rng);
         path.pop();
     }
 }

@@ -27,22 +27,26 @@
   let tasks = $state<string | null>(null)
   let read = $state<string[]>([])
   let importTasks = $state(false)
+  let undatedTasks = $state(false)
 
-  /** Turns the copy of tasks made in other apps on or off; it is saved at once, like a switch. */
-  async function setImport(on: boolean) {
+  /** Saves one of the switches at once; the other settings stay as they are saved. */
+  async function saveSwitch(change: { import_tasks?: boolean; undated_tasks?: boolean }) {
     if (!status) return
     try {
       status = await backend.call('calendar_save', {
         enabled: status.enabled,
         read: status.read,
         tasks: status.tasks,
-        import_tasks: on,
+        import_tasks: status.import_tasks,
+        undated_tasks: status.undated_tasks,
+        ...change,
       })
-      importTasks = status.import_tasks
     } catch (e) {
-      importTasks = !on
       toast(errorMessage(e), 'error')
     }
+    // a refused change puts the switch back to what is saved
+    importTasks = status?.import_tasks ?? false
+    undatedTasks = status?.undated_tasks ?? false
   }
 
   async function loadLog() {
@@ -77,6 +81,7 @@
       tasks = status.tasks
       read = [...status.read]
       importTasks = status.import_tasks
+      undatedTasks = status.undated_tasks
       own = !status.account
     } catch (e) {
       error = errorMessage(e)
@@ -109,7 +114,13 @@
     busy = true
     error = ''
     try {
-      status = await backend.call('calendar_save', { enabled, read, tasks, import_tasks: importTasks })
+      status = await backend.call('calendar_save', {
+        enabled,
+        read,
+        tasks,
+        import_tasks: importTasks,
+        undated_tasks: undatedTasks,
+      })
       toast('Calendar settings saved')
     } catch (e) {
       error = errorMessage(e)
@@ -282,9 +293,22 @@
       <label class="on">
         <input
           type="checkbox"
+          data-testid="calendar-undated"
+          checked={undatedTasks}
+          onchange={(e) => saveSwitch({ undated_tasks: e.currentTarget.checked })}
+        />
+        Also send open tasks without a date
+      </label>
+      <p class="muted">
+        Then the calendar holds every open task; finished tasks and tasks with <code>cal:: no</code> stay out. Turning
+        it off again completes the undated ones in the calendar. Every open task gets a block ID on its line.
+      </p>
+      <label class="on">
+        <input
+          type="checkbox"
           data-testid="calendar-import"
           checked={importTasks}
-          onchange={(e) => setImport(e.currentTarget.checked)}
+          onchange={(e) => saveSwitch({ import_tasks: e.currentTarget.checked })}
         />
         Copy tasks made in other apps into the page <code>{status.inbox}</code>
       </label>
