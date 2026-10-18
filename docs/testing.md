@@ -101,7 +101,7 @@ Things that bit us, worth knowing when writing a test:
 | Phase 2 | `pnpm -C ui lint && pnpm -C ui check && pnpm -C ui test` |
 | Phase 2 | Regenerate IPC bindings (`scripts/gen-bindings.sh`); the `bindings_are_up_to_date` test fails if they are stale |
 | Phase 4 | `cargo test -p notatnik-caldav --features integration --test radicale`: the contract and engine checks of `crates/caldav/tests/common` against Radicale. It uses a running one if `RADICALE_URL`, `RADICALE_USER` and `RADICALE_PASSWORD` are set, else starts `radicale` (or the Python of `uvx --from radicale`) on a free port with a temporary folder and stops it afterwards; with neither it skips. The same checks run on the in-memory server in `fake_contract.rs`. |
-| Phase 4 | `cargo test -p notatnik-app --test nextcloud -- --ignored` and `cargo run -p notatnik-caldav --example live`: a real Nextcloud (`NC_SERVER`, `NC_USER`, `NC_PASSWORD`, `NC_CALENDAR`), by hand; `dev/nextcloud/setup.sh` starts a throwaway one and prints the login |
+| Phase 4 | `cargo test -p notatnik-app --test nextcloud -- --ignored --test-threads=1` and `cargo run -p notatnik-caldav --example live`: a real Nextcloud (`NC_SERVER`, `NC_USER`, `NC_PASSWORD`, `NC_CALENDAR`), by hand; `dev/nextcloud/setup.sh` starts a throwaway one and prints the login |
 | Phase 2 | Playwright against the real backend (`ui/tests/*.spec.ts`, `retries: 2`) |
 
 Slow suites (benchmarks, `tauri-driver` e2e, Radicale integration, fuzzing) run via
