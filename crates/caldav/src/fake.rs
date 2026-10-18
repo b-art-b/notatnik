@@ -213,7 +213,7 @@ impl CalDavClient for FakeServer {
                     name: name.clone(),
                     etag: etag.clone(),
                 }),
-                None if *gone && since > 0 => deleted.push(name.clone()),
+                None if *gone && token.is_some() => deleted.push(name.clone()),
                 _ => {}
             }
         }

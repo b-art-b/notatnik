@@ -1,6 +1,7 @@
 // Calendar sync from the UI (Settings → Calendar and the "Sync tasks with the calendar" command).
 import { backend, type CalendarSyncReport } from './api'
 import { errorMessage, toast } from './stores/app.svelte'
+import { calendarAuto, EVERY_MS, scheduleCalendarSync } from './stores/calendarAuto.svelte'
 
 /** One sentence for what a calendar sync did. */
 export function describeCalendarSync(r: CalendarSyncReport): string {
@@ -25,6 +26,10 @@ export async function calendarSyncNow(): Promise<CalendarSyncReport | null> {
   try {
     const r = await backend.call('calendar_sync', {})
     toast(describeCalendarSync(r), 'info')
+    calendarAuto.state = 'idle'
+    calendarAuto.error = ''
+    calendarAuto.last = new Date().toISOString()
+    scheduleCalendarSync(EVERY_MS)
     return r
   } catch (e) {
     toast(errorMessage(e), 'error')

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::ical::{Status, Todo, When, parse_todo};
 use crate::map::uid_prefix;
 use crate::push::PushState;
-use crate::{CalDavClient, Result, ServerItem};
+use crate::{CalDavClient, Error, Result, ServerItem};
 
 /// A field the calendar and the notes share and both can change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,9 +100,15 @@ pub struct Fetched {
     pub foreign: Vec<ServerItem>,
     /// UIDs we sent that are no longer on the server.
     pub removed: Vec<String>,
+    /// UIDs of other apps' tasks we copied that are no longer on the server.
+    pub gone_foreign: Vec<String>,
+    /// Hand this to the next fetch (store it only when what was read has been dealt with).
+    pub token: Option<String>,
 }
 
-/// Reads what changed in the calendar since the state was written: one listing, and the text of what is new.
+/// Reads what changed in the calendar since the state was written. With a sync token that is one request (RFC
+/// 6578) and nothing is read when nothing changed; without one, or when the server no longer knows it, the whole
+/// calendar is listed and every new ETag is read. Both give the same result.
 pub fn fetch(
     client: &dyn CalDavClient,
     calendar: &str,
@@ -110,12 +116,19 @@ pub fn fetch(
     state: &PushState,
 ) -> Result<Fetched> {
     let prefix = uid_prefix(graph_id);
-    let list = client.list(calendar)?;
-    let on_server: std::collections::BTreeSet<&str> =
-        list.iter().map(|i| i.name.as_str()).collect();
+    let known = state.calendar == calendar;
+    // (items that may have changed, names that are gone when the server says so, a token for next time)
+    let (refs, deleted, token) = match state.token.as_deref().filter(|_| known) {
+        Some(t) => match client.sync(calendar, Some(t)) {
+            Ok(r) => (r.changed, Some(r.deleted), Some(r.token)),
+            Err(Error::Changed(_)) => full(client, calendar)?,
+            Err(e) => return Err(e),
+        },
+        None => full(client, calendar)?,
+    };
     let mut ask = Vec::new();
     let mut foreign_names = Vec::new();
-    for item in &list {
+    for item in &refs {
         let Some(uid) = item.name.strip_suffix(".ics") else {
             continue;
         };
@@ -123,7 +136,7 @@ pub fn fetch(
             let same = state
                 .items
                 .get(uid)
-                .is_some_and(|k| k.etag == item.etag && state.calendar == calendar);
+                .is_some_and(|k| k.etag == item.etag && known);
             if !same {
                 ask.push(item.name.clone());
             }
@@ -131,7 +144,10 @@ pub fn fetch(
             foreign_names.push(item.name.clone());
         }
     }
-    let mut out = Fetched::default();
+    let mut out = Fetched {
+        token,
+        ..Fetched::default()
+    };
     ask.extend(foreign_names.iter().cloned());
     if !ask.is_empty() {
         for item in client.get(calendar, &ask)? {
@@ -144,14 +160,35 @@ pub fn fetch(
             }
         }
     }
-    if state.calendar == calendar {
+    if known {
+        let gone = |uid: &str| match &deleted {
+            Some(d) => d.iter().any(|n| n == &format!("{uid}.ics")),
+            None => !refs.iter().any(|i| i.name == format!("{uid}.ics")),
+        };
         for (uid, p) in &state.items {
-            if !p.retired && !on_server.contains(format!("{uid}.ics").as_str()) {
+            if !p.retired && gone(uid) {
                 out.removed.push(uid.clone());
+            }
+        }
+        for uid in state.imported.keys() {
+            if gone(uid) {
+                out.gone_foreign.push(uid.clone());
             }
         }
     }
     Ok(out)
+}
+
+type Everything = (Vec<crate::ItemRef>, Option<Vec<String>>, Option<String>);
+
+/// Everything in the calendar, with a token when the server can give one.
+fn full(client: &dyn CalDavClient, calendar: &str) -> Result<Everything> {
+    match client.sync(calendar, None) {
+        Ok(r) => Ok((r.changed, None, Some(r.token))),
+        Err(e @ (Error::Offline(_) | Error::Auth(_))) => Err(e),
+        // a server without sync-collection: list it
+        Err(_) => Ok((client.list(calendar)?, None, None)),
+    }
 }
 
 /// One task that changed in the calendar.
@@ -454,7 +491,10 @@ mod tests {
                 )
             })
             .collect();
-        plan(&fetched, &map, st, h)
+        let token = fetched.token.clone();
+        let p = plan(&fetched, &map, st, h);
+        st.token = token;
+        p
     }
 
     #[test]
@@ -464,6 +504,41 @@ mod tests {
         let p = run(&s, &h, &mut st, &[(todo(1), None), (todo(2), None)]);
         assert_eq!(p, Plan::default());
         assert_eq!(s.requests() - before, 1, "one listing");
+    }
+
+    #[test]
+    fn with_a_token_a_quiet_calendar_costs_one_request_and_a_change_is_found_without_listing() {
+        let (s, h, mut st) = setup();
+        let both = [(todo(1), None), (todo(2), None)];
+        run(&s, &h, &mut st, &both); // the first run takes the token
+        assert!(st.token.is_some());
+        let before = s.requests();
+        assert_eq!(run(&s, &h, &mut st, &both), Plan::default());
+        assert_eq!(s.requests() - before, 1);
+
+        edit_remote(&s, &h, 2, |t| t.replace("NEEDS-ACTION", "COMPLETED"));
+        let before = s.requests();
+        let p = run(&s, &h, &mut st, &both);
+        assert_eq!(p.items.len(), 1);
+        assert_eq!(s.requests() - before, 2, "the report and one read");
+
+        s.delete(&h, &name(1), None).unwrap();
+        let p = run(&s, &h, &mut st, &both);
+        assert_eq!(p.removed, ["notatnik-g1-t00001"]);
+    }
+
+    #[test]
+    fn a_token_the_server_forgot_gives_a_full_comparison_and_a_new_token() {
+        let (s, h, mut st) = setup();
+        let both = [(todo(1), None), (todo(2), None)];
+        run(&s, &h, &mut st, &both);
+        let old = st.token.clone();
+        edit_remote(&s, &h, 1, |t| t.replace("NEEDS-ACTION", "COMPLETED"));
+        s.forget_sync_tokens(&h);
+        let p = run(&s, &h, &mut st, &both);
+        assert_eq!(p.items.len(), 1, "found by comparing everything");
+        assert_ne!(st.token, old);
+        assert!(st.token.is_some());
     }
 
     #[test]

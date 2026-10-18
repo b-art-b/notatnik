@@ -48,6 +48,7 @@
   import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
   import SidePanel from './lib/components/SidePanel.svelte'
   import SyncIndicator from './lib/components/SyncIndicator.svelte'
+  import CalendarAuto from './lib/components/CalendarAuto.svelte'
   import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
@@ -367,6 +368,7 @@
         {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
       </div>
       <SyncIndicator />
+      <CalendarAuto />
       <RecentPages />
       {#if saved.length}
         <h3>Saved queries</h3>

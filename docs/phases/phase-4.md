@@ -146,8 +146,8 @@ When `tasks_as = "vevent"`, the same mapping applies to VEVENT (status via `X-NO
 ## 4F: Incremental sync and scheduling
 
 ### P4.11 Incremental sync (CA-7)
-- [ ] Per calendar: `sync-token` (RFC 6578 `sync-collection` REPORT); fall back to a full ETag comparison when the token is invalid (server returns 403/409 `valid-sync-token`)
-- [ ] Sync triggers: on app start, every N minutes (default 5), after local task changes (debounced 10 s), on manual "Sync now"
+- [x] Per calendar: `sync-token` (RFC 6578 `sync-collection` REPORT); fall back to a full ETag comparison when the token is invalid (server returns 403/409 `valid-sync-token`) (`pull::fetch`; the token is kept in `PushState` and only moves on when every change it covers was written; turning the inbox import on forgets it once)
+- [x] Sync triggers: on app start, every N minutes (default 5), after local task changes (debounced 10 s), on manual "Sync now" (in the UI, `stores/calendarAuto.svelte.ts`: runs while the app is open; backoff 5, 10, 20, 30 min; a refused login is not retried by itself)
 
 **Verify**
 - [ ] With no changes, a sync run makes 1 request per calendar (the REPORT) and writes nothing

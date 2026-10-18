@@ -6,6 +6,7 @@
   import { backend, type CalendarList, type CalendarLogEntry, type CalendarStatus } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
   import { calendarSyncNow, describeCalendarSync } from '../../calendar'
+  import { calendarAuto } from '../../stores/calendarAuto.svelte'
 
   let status = $state<CalendarStatus | null>(null)
   let list = $state<CalendarList | null>(null)
@@ -280,6 +281,15 @@
         >
       </div>
       {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
+      <p class="muted" data-testid="calendar-auto">
+        {#if calendarAuto.error}
+          Last sync failed: {calendarAuto.error}. It tries again by itself.
+        {:else if calendarAuto.last}
+          Last synced {new Date(calendarAuto.last).toLocaleTimeString()}.
+        {/if}
+        The sync also runs by itself: when the graph opens, every 5 minutes and a few seconds after you change a
+        note, while the app is open.
+      </p>
     </section>
     {#if log.length}
       <section aria-label="Sync log">

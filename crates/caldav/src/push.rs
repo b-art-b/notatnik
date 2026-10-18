@@ -67,6 +67,12 @@ pub struct PushState {
     /// and this list keeps it from being copied again.
     #[serde(default)]
     pub imported: BTreeMap<String, String>,
+    /// RFC 6578 sync token of the calendar: what has changed since is all a pull needs to read.
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Whether the last pull looked at other apps' tasks; turning that on needs a full read.
+    #[serde(default)]
+    pub import_on: bool,
 }
 
 /// What a push did.

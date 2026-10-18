@@ -318,6 +318,11 @@ impl AppState {
         };
 
         // 1. what changed in the calendar since last time goes into the notes
+        let import_on = section.import == "inbox";
+        if state.import_on != import_on {
+            state.token = None; // other apps' tasks are only read when they change: read them all once
+            state.import_on = import_on;
+        }
         let before = state.clone();
         let fetched = match pull::fetch(&*client, &calendar, &id, &state) {
             Ok(f) => f,
@@ -350,6 +355,13 @@ impl AppState {
                     state.items.remove(uid);
                 }
             }
+        }
+        // the token moves on only when everything it covers was dealt with; otherwise the next run reads it again
+        if applied.failed.is_empty() {
+            state.token = fetched.token.clone();
+        }
+        for uid in &fetched.gone_foreign {
+            state.imported.remove(uid);
         }
         let removed_in_calendar = plan.removed.len() as u32;
         let mut log = applied.log;
@@ -599,14 +611,15 @@ fn remove_imported_originals(
         .map(|(u, b)| (u.clone(), b.clone()))
         .collect();
     for (uid, block) in entries {
-        let Some(orig) = foreign.iter().find(|i| i.name == format!("{uid}.ics")) else {
-            state.imported.remove(&uid); // the original is gone
-            continue;
-        };
+        let name = format!("{uid}.ics");
+        let etag = foreign
+            .iter()
+            .find(|i| i.name == name)
+            .map(|i| i.etag.as_str());
         let ours = notatnik_caldav::map::uid(graph_id, &block);
         if state.items.contains_key(&ours)
             && matches!(
-                client.delete(calendar, &orig.name, Some(&orig.etag)),
+                client.delete(calendar, &name, etag),
                 Ok(()) | Err(notatnik_caldav::Error::NotFound(_))
             )
         {

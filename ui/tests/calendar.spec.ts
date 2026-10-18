@@ -66,3 +66,18 @@ test('the import of tasks made in other apps is a switch that is saved at once',
     .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
     .toBe(false)
 })
+
+test('with calendar sync on, the app syncs by itself when the graph opens', async ({ backend, page }) => {
+  await backend.open('/')
+  const list = await backend.call<{ calendars: { href: string; name: string }[] }>('calendar_connect', {
+    server: 'http://localhost:8080',
+    user: 'me',
+    password: 'secret',
+  })
+  const tasks = list.calendars.find((c) => c.name === 'Tasks')!.href
+  await backend.call('calendar_save', { enabled: true, read: [], tasks, import_tasks: false })
+  await page.reload()
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('tab', { name: 'Calendar' }).click()
+  await expect(page.getByTestId('calendar-auto')).toContainText('Last synced', { timeout: 15_000 })
+})
