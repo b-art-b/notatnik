@@ -298,7 +298,7 @@ fn import_of_tasks_made_in_other_apps() {
             "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//other//EN\r\nBEGIN:VTODO\r\nUID:{uid}\r\nDTSTAMP:20261018T080000Z\r\nSUMMARY:NCLIVE milk {uid}\r\nSTATUS:NEEDS-ACTION\r\n{extra}END:VTODO\r\nEND:VCALENDAR\r\n"
         );
         e.dav
-            .put(&e.cal, &format!("{uid}.ics"), &ics, &Cond::Create)
+            .put(&e.cal, &format!("F{uid}-random.ics"), &ics, &Cond::Create)
             .unwrap();
     };
     theirs(
@@ -328,11 +328,11 @@ fn import_of_tasks_made_in_other_apps() {
     assert!(inbox.contains("TODO NCLIVE milk bbb-2 ^"), "{inbox}");
     let names: Vec<String> = e.items().into_iter().map(|i| i.name).collect();
     assert!(
-        !names.contains(&"aaa-1.ics".to_string()),
+        !names.contains(&"Faaa-1-random.ics".to_string()),
         "dated original removed: {names:?}"
     );
     assert!(
-        names.contains(&"bbb-2.ics".to_string()),
+        names.contains(&"Fbbb-2-random.ics".to_string()),
         "undated original stays: {names:?}"
     );
     assert_eq!(

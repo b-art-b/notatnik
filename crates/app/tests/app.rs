@@ -3951,6 +3951,55 @@ fn changes_made_in_the_calendar_are_written_into_the_blocks() {
     assert_eq!(walk_md(&graph), files);
 }
 
+/// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
+/// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
+#[test]
+fn imported_originals_are_found_by_their_own_file_name() {
+    use notatnik_caldav::{CalDavClient, Cond};
+    let page = "";
+    let (t, server, tasks, graph) = deletion_setup("complete", page);
+    let theirs = |name: &str, uid: &str, extra: &str| {
+        server
+            .put(
+                &tasks,
+                name,
+                &format!("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:{uid}\r\nSUMMARY:Milk {uid}\r\nSTATUS:NEEDS-ACTION\r\n{extra}END:VTODO\r\nEND:VCALENDAR\r\n"),
+                &Cond::Create,
+            )
+            .unwrap();
+    };
+    theirs(
+        "F1841001-AAAA.ics",
+        "uid-dated",
+        "DUE;VALUE=DATE:20261025\r\n",
+    );
+    theirs("F1841001-BBBB.ics", "uid-undated", "");
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true}),
+    );
+    for round in 0..4 {
+        let r = t.ok("calendar_sync", json!({}));
+        assert_eq!(
+            r["imported"],
+            if round == 0 { 2 } else { 0 },
+            "round {round}: {r}"
+        );
+    }
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    assert_eq!(inbox.matches("TODO Milk uid-dated").count(), 1, "{inbox}");
+    assert_eq!(inbox.matches("TODO Milk uid-undated").count(), 1, "{inbox}");
+    let names = server.names(&tasks);
+    assert!(
+        !names.contains(&"F1841001-AAAA.ics".to_string()),
+        "{names:?}"
+    );
+    assert!(
+        names.contains(&"F1841001-BBBB.ics".to_string()),
+        "{names:?}"
+    );
+}
+
 /// A calendar test with a fake server and a graph of `page`; `policy` is `[calendar] on_delete`.
 fn deletion_setup(
     policy: &str,

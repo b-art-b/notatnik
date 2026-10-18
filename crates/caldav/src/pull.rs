@@ -206,17 +206,22 @@ pub fn fetch(
         }
     }
     if known {
-        let gone = |uid: &str| match &deleted {
-            Some(d) => d.iter().any(|n| n == &format!("{uid}.ics")),
-            None => !refs.iter().any(|i| i.name == format!("{uid}.ics")),
+        let gone = |name: &str| match &deleted {
+            Some(d) => d.iter().any(|n| n == name),
+            None => !refs.iter().any(|i| i.name == name),
         };
         for (uid, p) in &state.items {
-            if !p.retired && gone(uid) {
+            if !p.retired && gone(&format!("{uid}.ics")) {
                 out.removed.push(uid.clone());
             }
         }
         for uid in state.imported.keys() {
-            if gone(uid) {
+            let name = state
+                .imported_names
+                .get(uid)
+                .cloned()
+                .unwrap_or_else(|| format!("{uid}.ics"));
+            if gone(&name) {
                 out.gone_foreign.push(uid.clone());
             }
         }

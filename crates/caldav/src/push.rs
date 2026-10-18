@@ -67,6 +67,10 @@ pub struct PushState {
     /// and this list keeps it from being copied again.
     #[serde(default)]
     pub imported: BTreeMap<String, String>,
+    /// The file name of each imported original in the calendar. Other apps do not name an item after its UID
+    /// (Nextcloud Tasks uses a random one), so the name has to be kept to find the original again.
+    #[serde(default)]
+    pub imported_names: BTreeMap<String, String>,
     /// RFC 6578 sync token of the calendar: what has changed since is all a pull needs to read.
     #[serde(default)]
     pub token: Option<String>,

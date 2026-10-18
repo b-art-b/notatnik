@@ -464,6 +464,7 @@ impl AppState {
         }
         for uid in &fetched.gone_foreign {
             state.imported.remove(uid);
+            state.imported_names.remove(uid);
         }
         let removed_in_calendar = plan.removed.len() as u32;
         let mut log = applied.log;
@@ -491,6 +492,9 @@ impl AppState {
         // tasks made in other apps are copied into the inbox page
         let mut imported_now = 0u32;
         if section.import == "inbox" {
+            // older versions did not keep the original's file name and copied a task again at every sync: what the
+            // log says was copied is not copied again, and its original is removed like the others
+            adopt_logged_imports(&self.read_calendar_log(&id), &fetched.foreign, &mut state);
             let n = self.with_open(|o| {
                 Ok(import_foreign(
                     o,
@@ -661,7 +665,7 @@ fn import_foreign(
         rng_state ^= rng_state << 17;
         rng_state
     };
-    let mut blocks: Vec<(String, String, String)> = Vec::new(); // foreign uid, block id, text
+    let mut blocks: Vec<(String, String, String, String)> = Vec::new(); // foreign uid, its file name, block id, text
     for item in foreign {
         let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
             continue;
@@ -707,7 +711,7 @@ fn import_foreign(
                 text.push_str(line.trim_end());
             }
         }
-        blocks.push((t.uid.clone(), id, text));
+        blocks.push((t.uid.clone(), item.name.clone(), id, text));
     }
     if blocks.is_empty() {
         return Vec::new();
@@ -722,7 +726,7 @@ fn import_foreign(
             let ops: Vec<BlockOp> = blocks
                 .iter()
                 .enumerate()
-                .map(|(i, (_, _, text))| BlockOp::Insert {
+                .map(|(i, (_, _, _, text))| BlockOp::Insert {
                     parent: Vec::new(),
                     index: parsed.blocks.len() + i,
                     text: text.clone(),
@@ -732,7 +736,7 @@ fn import_foreign(
         }
         Err(notatnik_graph::Error::NotFound(_)) => {
             let mut text = String::new();
-            for (_, _, b) in &blocks {
+            for (_, _, _, b) in &blocks {
                 let mut lines = b.split('\n');
                 text.push_str(&format!("- {}\n", lines.next().unwrap_or("")));
                 for l in lines {
@@ -749,8 +753,9 @@ fn import_foreign(
     let at = now_local();
     blocks
         .into_iter()
-        .map(|(uid, id, text)| {
+        .map(|(uid, name, id, text)| {
             state.imported.insert(uid.clone(), id);
+            state.imported_names.insert(uid.clone(), name);
             CalendarLogEntry {
                 at: at.clone(),
                 kind: "imported".into(),
@@ -764,6 +769,31 @@ fn import_foreign(
             }
         })
         .collect()
+}
+
+/// Marks the foreign tasks the sync log already shows as copied (`imported`, with the block's ID at the end of the
+/// title) as imported, so they are neither copied again nor left in the calendar.
+fn adopt_logged_imports(
+    log: &[CalendarLogEntry],
+    foreign: &[notatnik_caldav::ServerItem],
+    state: &mut PushState,
+) {
+    for item in foreign {
+        let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
+            continue;
+        };
+        if state.imported.contains_key(&t.uid) {
+            continue;
+        }
+        let first = log.iter().find(|e| e.kind == "imported" && e.uid == t.uid);
+        if let Some(id) = first
+            .and_then(|e| e.title.rsplit_once('^'))
+            .map(|(_, id)| id)
+        {
+            state.imported.insert(t.uid.clone(), id.trim().to_string());
+            state.imported_names.insert(t.uid, item.name.clone());
+        }
+    }
 }
 
 /// Deletes the original of every imported task whose copy has been sent; forgets originals that are gone.
@@ -780,7 +810,20 @@ fn remove_imported_originals(
         .map(|(u, b)| (u.clone(), b.clone()))
         .collect();
     for (uid, block) in entries {
-        let name = format!("{uid}.ics");
+        // the original's own file name: other apps do not name an item after its UID
+        let name = state
+            .imported_names
+            .get(&uid)
+            .cloned()
+            .or_else(|| {
+                foreign
+                    .iter()
+                    .find(|i| {
+                        notatnik_caldav::ical::parse_todo(&i.ics).is_some_and(|t| t.uid == uid)
+                    })
+                    .map(|i| i.name.clone())
+            })
+            .unwrap_or_else(|| format!("{uid}.ics"));
         let etag = foreign
             .iter()
             .find(|i| i.name == name)
@@ -793,6 +836,7 @@ fn remove_imported_originals(
             )
         {
             state.imported.remove(&uid);
+            state.imported_names.remove(&uid);
         }
     }
 }
