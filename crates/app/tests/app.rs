@@ -4036,6 +4036,144 @@ fn open_tasks_without_a_date_can_be_sent_too() {
     assert_eq!(r["retired"], 1, "{r}");
 }
 
+/// A task goes to the calendar its `cal::` property names (the default without one); changing it moves the
+/// task; a task imported from another calendar keeps it (CA-4, CA-5).
+#[test]
+fn a_task_goes_to_the_calendar_it_names_and_moves_when_that_changes() {
+    use notatnik_caldav::{CalDavClient, Cond};
+    let server = Arc::new(notatnik_caldav::fake::FakeServer::new());
+    let home = server.add_calendar("Tasks", &["VTODO"]);
+    let work = server.add_calendar("Work", &["VTODO"]);
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    std::fs::create_dir_all(graph.join("pages")).unwrap();
+    std::fs::write(
+        graph.join("pages/work.md"),
+        "- TODO Plain\n  deadline:: 2026-10-21\n- TODO At work\n  deadline:: 2026-10-22\n  cal:: work\n- TODO Nowhere\n  deadline:: 2026-10-23\n  cal:: Nope\n",
+    )
+    .unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": true}),
+    );
+    t.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    let st = t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": home, "more_tasks": [work, home], "import_tasks": false}),
+    );
+    let names: Vec<(String, bool)> = st["task_calendars"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            (
+                c["name"].as_str().unwrap().to_string(),
+                c["default"].as_bool().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        names,
+        [("Tasks".to_string(), true), ("Work".to_string(), false)],
+        "{st}"
+    );
+
+    let titles = |cal: &str| -> Vec<String> {
+        let mut v: Vec<String> = server
+            .get(cal, &server.names(cal))
+            .unwrap()
+            .into_iter()
+            .map(|i| {
+                i.ics
+                    .lines()
+                    .find_map(|l| l.trim_end().strip_prefix("SUMMARY:"))
+                    .unwrap_or("")
+                    .to_string()
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 3, "{r}");
+    assert_eq!(
+        titles(&home),
+        ["Nowhere", "Plain"],
+        "an unknown name is the default"
+    );
+    assert_eq!(titles(&work), ["At work"]);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            r["created"].clone(),
+            r["updated"].clone(),
+            r["pulled"].clone()
+        ),
+        (json!(0), json!(0), json!(0)),
+        "{r}"
+    );
+
+    // `cal::` changed: the task moves, it is not completed in the old calendar
+    let p = t.ok("get_page", json!({"name": "work"}));
+    t.ok(
+        "apply_ops",
+        json!({"page": "work", "base_hash": p["hash"], "ops": [
+            {"op": "set_property", "block": {"path": [0]}, "key": "cal", "value": "Work"},
+            {"op": "remove_property", "block": {"path": [1]}, "key": "cal"},
+        ]}),
+    );
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(
+        (
+            r["created"].clone(),
+            r["deleted"].clone(),
+            r["retired"].clone()
+        ),
+        (json!(2), json!(2), json!(0)),
+        "{r}"
+    );
+    assert_eq!(titles(&home), ["At work", "Nowhere"]);
+    assert_eq!(titles(&work), ["Plain"]);
+
+    // a task made in the other calendar is copied with its calendar named, and stays there
+    let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:theirs\r\nSUMMARY:From work\r\nSTATUS:NEEDS-ACTION\r\nDUE;VALUE=DATE:20261030\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
+    server.put(&work, "R4ND0M.ics", ics, &Cond::Create).unwrap();
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": home, "more_tasks": [work], "import_tasks": true}),
+    );
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 1, "{r}");
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    assert!(
+        inbox.contains("TODO From work ^") && inbox.contains("cal:: Work"),
+        "{inbox}"
+    );
+    assert_eq!(
+        titles(&work),
+        ["From work", "Plain"],
+        "the copy is in the same calendar, the original is gone"
+    );
+    assert!(!server.names(&work).contains(&"R4ND0M.ics".to_string()));
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]

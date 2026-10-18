@@ -38,6 +38,7 @@
   import { shownProps } from '../props'
   import Self from './Block.svelte'
   import { isLogOpen, logKey, toggleLog } from '../stores/logbook.svelte'
+  import { calendarOf, calendarTargets } from '../stores/calendarTargets.svelte'
 
   interface Props {
     block: BlockView
@@ -149,7 +150,27 @@
   const latest = $derived(block.logbook[block.logbook.length - 1])
   const hasChildren = $derived(block.children.length > 0)
   const prog = $derived(progress(block))
-  let chipEdit = $state<'scheduled' | 'deadline' | 'priority' | null>(null)
+  let chipEdit = $state<'scheduled' | 'deadline' | 'priority' | 'calendar' | null>(null)
+
+  // The calendar this task is synced to (Settings → Calendar). `cal:: <name>` picks one, `cal:: no` keeps the
+  // task out; with neither, it goes to the default calendar. Shown only for tasks the sync would send.
+  const calValue = $derived(block.props.find((p) => p.key.toLowerCase() === 'cal')?.raw.trim())
+  const calendarChip = $derived.by(() => {
+    if (!block.task || !calendarTargets.on) return ''
+    const open = block.task.state !== 'DONE' && block.task.state !== 'CANCELED'
+    const shared =
+      !!block.task.scheduled || !!block.task.deadline || (calendarTargets.undated && open) || !!calValue
+    if (!shared) return ''
+    const target = calendarOf(calValue)
+    return target === null ? 'not synced' : (target?.name ?? '')
+  })
+  const calendarChoice = $derived.by(() => {
+    if (calValue?.toLowerCase() === 'no') return 'no'
+    const named = calendarTargets.calendars.find(
+      (c) => !c.default && c.name.toLowerCase() === calValue?.toLowerCase(),
+    )
+    return named ? named.name : ''
+  })
 
   // The menu of the bullet: copy a reference to the block (`((id))`), an embed (`!((id))`) or its text.
   let menu = $state<{ x: number; y: number } | null>(null)
@@ -274,7 +295,25 @@
       {#if block.task.chain}<TaskChain page={docName} path={block.path} />{/if}
       {#if block.task.repeat}<span class="chip"><span class="lab">Repeat:</span> {block.task.repeat}</span
         >{/if}
-      {#if chipEdit === 'priority'}
+      {#if calendarChip}<button
+          class="chip"
+          data-chip="calendar"
+          title="Change the calendar this task is synced to"
+          onclick={() => (chipEdit = chipEdit === 'calendar' ? null : 'calendar')}
+          ><span class="lab">Calendar:</span> {calendarChip}</button
+        >{/if}
+      {#if chipEdit === 'calendar'}
+        <select
+          aria-label="Calendar"
+          value={calendarChoice}
+          onchange={(e) => applyChip('cal', (e.currentTarget as HTMLSelectElement).value || null)}
+        >
+          {#each calendarTargets.calendars as c (c.href)}
+            <option value={c.default ? '' : c.name}>{c.name}{c.default ? ' (default)' : ''}</option>
+          {/each}
+          <option value="no">not synced</option>
+        </select>
+      {:else if chipEdit === 'priority'}
         <select
           aria-label="Priority"
           value={block.task.priority ?? ''}

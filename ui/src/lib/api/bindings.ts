@@ -1940,6 +1940,14 @@ import_tasks: boolean,
  */
 undated_tasks: boolean, 
 /**
+ * More calendars tasks can go to (`href`s); a task chooses with `cal:: <name>`.
+ */
+more_tasks: Array<string>, 
+/**
+ * The calendars a task can go to, the default first.
+ */
+task_calendars: Array<TaskCalendarView>, 
+/**
  * The page they go to.
  */
 inbox: string, };
@@ -1953,7 +1961,11 @@ import_tasks: boolean,
 /**
  * Send open tasks without a date too.
  */
-undated_tasks: boolean, };
+undated_tasks: boolean, 
+/**
+ * More calendars tasks can go to.
+ */
+more_tasks: Array<string>, };
 export type CalendarSyncReport = { 
 /**
  * Tasks sent for the first time.
@@ -2030,6 +2042,15 @@ export type CalendarUseOtherArgs = { uid: string,
  * The log entry's field (`status`, `scheduled`, `deadline`, `priority`, `title`, `repeat`).
  */
 field: string, };
+export type TaskCalendarView = { href: string, 
+/**
+ * What `cal:: <name>` is matched against.
+ */
+name: string, 
+/**
+ * Where tasks go that name no calendar.
+ */
+default: boolean, };
 export type CalendarEventView = { uid: string, title: string, 
 /**
  * First day, `YYYY-MM-DD`, in local time.

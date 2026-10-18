@@ -6,7 +6,7 @@ use notatnik_caldav::ical::{Status, Todo, When};
 use notatnik_caldav::map::{Context, todo_from_block};
 use notatnik_caldav::map::{block_id_of, repeat_from_rrule};
 use notatnik_caldav::pull::{self, Change, Local, Side};
-use notatnik_caldav::push::{OnDelete, Options, PushState, push};
+use notatnik_caldav::push::{OnDelete, Options, PushState, push_with};
 use notatnik_caldav::{CalDavClient, HttpCalDav};
 use notatnik_core::{Block, BlockOp, BlockRef, Moment, TaskState};
 use notatnik_graph::{CalendarAccount, CalendarConfig};
@@ -123,16 +123,19 @@ impl AppState {
             }),
         };
         let section = self.with_open(|o| Ok(o.graph.config().calendar.clone()))?;
+        let task_calendars = task_calendars(&cfg);
         Ok(CalendarStatus {
             account,
             enabled: cfg.enabled,
-            read: cfg.read,
-            tasks: cfg.tasks,
+            read: cfg.read.clone(),
+            tasks: cfg.tasks.clone(),
             tasks_as: section.tasks_as,
             on_delete: section.on_delete,
             import_tasks: section.import == "inbox",
             inbox: section.inbox,
             undated_tasks: section.undated == "open",
+            more_tasks: cfg.more.clone(),
+            task_calendars,
         })
     }
 
@@ -208,38 +211,52 @@ impl AppState {
                 "choose a calendar for tasks or calendars to read events from",
             ));
         }
-        if let Some(href) = &a.tasks {
+        let mut more: Vec<String> = Vec::new();
+        for h in &a.more_tasks {
+            if a.tasks.as_ref() != Some(h) && !more.contains(h) {
+                more.push(h.clone());
+            }
+        }
+        if a.tasks.is_none() {
+            more.clear();
+        }
+        let mut names = std::collections::BTreeMap::new();
+        if let Some(default) = &a.tasks {
             let account = self
                 .calendar_account(&id, &cfg)?
                 .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
             let list = Self::calendar_list(&*self.calendar_client_for(&account)?)?;
-            let cal = list
-                .iter()
-                .find(|c| &c.href == href)
-                .ok_or_else(|| ApiError::new("not_found", "that calendar is not on the server"))?;
-            let takes = if status.tasks_as == "vevent" {
-                cal.events
-            } else {
-                cal.tasks
-            };
-            if !takes {
-                return Err(ApiError::new(
-                    "invalid",
-                    format!(
-                        "the calendar `{}` does not take {}; choose another",
-                        cal.name,
-                        if status.tasks_as == "vevent" {
-                            "events"
-                        } else {
-                            "tasks"
-                        }
-                    ),
-                ));
+            for href in std::iter::once(default).chain(more.iter()) {
+                let cal = list.iter().find(|c| &c.href == href).ok_or_else(|| {
+                    ApiError::new("not_found", "that calendar is not on the server")
+                })?;
+                let takes = if status.tasks_as == "vevent" {
+                    cal.events
+                } else {
+                    cal.tasks
+                };
+                if !takes {
+                    return Err(ApiError::new(
+                        "invalid",
+                        format!(
+                            "the calendar `{}` does not take {}; choose another",
+                            cal.name,
+                            if status.tasks_as == "vevent" {
+                                "events"
+                            } else {
+                                "tasks"
+                            }
+                        ),
+                    ));
+                }
+                names.insert(href.clone(), cal.name.clone());
             }
         }
         cfg.enabled = a.enabled;
         cfg.read = a.read;
         cfg.tasks = a.tasks;
+        cfg.more = more;
+        cfg.names = names;
         self.store_calendar_settings(&id, cfg)?;
         let import = if a.import_tasks { "inbox" } else { "off" };
         if status.import_tasks != a.import_tasks {
@@ -272,12 +289,36 @@ impl AppState {
     }
 
     /// Where what the last push left on the server is kept: with the graph's cache, never in the graph.
-    fn calendar_state_file(&self, graph: &str) -> PathBuf {
+    fn calendar_state_file(&self, graph: &str, calendar: &str) -> PathBuf {
+        let hash = calendar.bytes().fold(0xcbf29ce484222325u64, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(0x100000001b3)
+        });
         self.dirs
             .data
             .join("graphs")
             .join(graph)
-            .join("calendar-push.json")
+            .join(format!("calendar-push-{hash:08x}.json"))
+    }
+
+    /// What the last sync left in one calendar. An older version kept a single file for the only calendar.
+    fn read_calendar_state(&self, graph: &str, calendar: &str) -> PushState {
+        let read = |f: PathBuf| {
+            std::fs::read_to_string(f)
+                .ok()
+                .and_then(|t| serde_json::from_str::<PushState>(&t).ok())
+        };
+        read(self.calendar_state_file(graph, calendar))
+            .or_else(|| {
+                read(
+                    self.dirs
+                        .data
+                        .join("graphs")
+                        .join(graph)
+                        .join("calendar-push.json"),
+                )
+                .filter(|s| s.calendar == calendar)
+            })
+            .unwrap_or_default()
     }
 
     /// `calendar_sync`: sends the dated tasks of the open graph to the task calendar. A dated task with no block
@@ -302,10 +343,25 @@ impl AppState {
             .calendar_account(&id, &cfg)?
             .ok_or_else(|| ApiError::new("invalid", "connect to a calendar server first"))?;
         let client = self.calendar_client_for(&account)?;
-        let mut report = match cfg.tasks.clone() {
-            Some(calendar) => self.sync_tasks(&id, &client, calendar, &section)?,
-            None => CalendarSyncReport::default(),
-        };
+        let mut report = CalendarSyncReport::default();
+        if let Some(mut routing) = Routing::new(&cfg) {
+            // the names `cal::` is matched against are kept when the calendars are chosen; older settings lack them
+            if routing.all.iter().any(|c| !cfg.names.contains_key(&c.href)) {
+                let list = Self::calendar_list(&*client)?;
+                let mut cfg = cfg.clone();
+                for c in &routing.all {
+                    if let Some(found) = list.iter().find(|l| l.href == c.href) {
+                        cfg.names.insert(c.href.clone(), found.name.clone());
+                    }
+                }
+                routing = Routing::new(&cfg).unwrap_or(routing);
+                self.store_calendar_settings(&id, cfg)?;
+            }
+            for c in routing.all.clone() {
+                let r = self.sync_tasks(&id, &client, c.href, &section, &routing)?;
+                report.add(r);
+            }
+        }
         report.events_changed = self.refresh_events(&id, &*client, &cfg.read)?;
         Ok(report)
     }
@@ -402,15 +458,36 @@ impl AppState {
         client: &Arc<dyn CalDavClient + Send + Sync>,
         calendar: String,
         section: &notatnik_graph::CalendarSection,
+        routing: &Routing,
     ) -> ApiResult<CalendarSyncReport> {
         let id = id.to_string();
         let collected = self.with_open(|o| collect_todos(o, &id, &section.undated))?;
         let mut ids_added = collected.added;
-        let file = self.calendar_state_file(&id);
-        let mut state: PushState = std::fs::read_to_string(&file)
-            .ok()
-            .and_then(|t| serde_json::from_str(&t).ok())
-            .unwrap_or_default();
+        let file = self.calendar_state_file(&id, &calendar);
+        let mut state = self.read_calendar_state(&id, &calendar);
+        // the tasks that go to this calendar
+        let here = |all: &[Todo], places: &BTreeMap<String, Place>| -> Vec<Todo> {
+            all.iter()
+                .filter(|t| {
+                    routing.target(places.get(&t.uid).and_then(|p| p.calendar.as_deref()))
+                        == calendar
+                })
+                .cloned()
+                .collect()
+        };
+        let mine = here(&collected.todos, &collected.places);
+        // tasks this calendar has that were given another one: they are moved, not removed
+        let moved: std::collections::BTreeSet<String> = state
+            .items
+            .keys()
+            .filter(|u| {
+                collected
+                    .places
+                    .get(*u)
+                    .is_some_and(|p| routing.target(p.calendar.as_deref()) != calendar)
+            })
+            .cloned()
+            .collect();
         let opts = Options {
             now: chrono::Utc::now().naive_utc(),
             on_delete: if section.on_delete == "delete" {
@@ -439,8 +516,7 @@ impl AppState {
             Ok(f) => f,
             Err(e) => return Err(api_err(&e)),
         };
-        let local: BTreeMap<String, Local> = collected
-            .todos
+        let local: BTreeMap<String, Local> = mine
             .iter()
             .map(|t| {
                 (
@@ -510,6 +586,7 @@ impl AppState {
                     &fetched.foreign,
                     &mut state,
                     &section.inbox,
+                    (calendar != routing.default).then(|| routing.name_of(&calendar)),
                 ))
             })?;
             imported_now = n.len() as u32;
@@ -545,11 +622,11 @@ impl AppState {
         let todos = if applied.pulled > 0 || imported_now > 0 {
             let again = self.with_open(|o| collect_todos(o, &id, &section.undated))?;
             ids_added += again.added;
-            again.todos
+            here(&again.todos, &again.places)
         } else {
-            collected.todos
+            mine
         };
-        let result = push(&**client, &calendar, &todos, &mut state, &opts);
+        let result = push_with(&**client, &calendar, &todos, &mut state, &opts, &moved);
         // the copy of an imported task is in the calendar under our UID: the original can go
         if result.is_ok() {
             remove_imported_originals(&**client, &calendar, &id, &fetched.foreign, &mut state);
@@ -688,6 +765,7 @@ fn import_foreign(
     foreign: &[notatnik_caldav::ServerItem],
     state: &mut PushState,
     inbox: &str,
+    calendar_name: Option<&str>,
 ) -> Vec<CalendarLogEntry> {
     let priorities = o.graph.config().tasks.priorities.clone();
     let Ok(used) = o.graph.with_index(|i| i.all_block_uids()) else {
@@ -740,6 +818,9 @@ fn import_foreign(
         }
         if let Some(r) = &t.rrule {
             text.push_str(&format!("\nrepeat:: {}", repeat_from_rrule(r)));
+        }
+        if let Some(name) = calendar_name {
+            text.push_str(&format!("\ncal:: {name}"));
         }
         if let Some(d) = t.description.as_deref().filter(|d| !d.trim().is_empty()) {
             for line in d.lines() {
@@ -886,6 +967,8 @@ struct Place {
     page: String,
     rel: String,
     title: String,
+    /// The calendar its `cal::` property names, if it has one.
+    calendar: Option<String>,
     /// When the page file last changed (UTC).
     modified: Option<chrono::NaiveDateTime>,
 }
@@ -920,6 +1003,75 @@ fn find_block<'a>(blocks: &'a [Block], id: &str, path: &mut Vec<usize>) -> Optio
         path.pop();
     }
     None
+}
+
+/// The calendars a task can go to, the default first, with the names `cal::` is matched against.
+fn task_calendars(cfg: &CalendarConfig) -> Vec<TaskCalendarView> {
+    let name = |h: &str| {
+        cfg.names
+            .get(h)
+            .cloned()
+            .unwrap_or_else(|| last_path_part(h))
+    };
+    cfg.tasks
+        .iter()
+        .map(|h| (h, true))
+        .chain(cfg.more.iter().map(|h| (h, false)))
+        .map(|(h, default)| TaskCalendarView {
+            href: h.clone(),
+            name: name(h),
+            default,
+        })
+        .collect()
+}
+
+fn last_path_part(href: &str) -> String {
+    href.trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or(href)
+        .to_string()
+}
+
+/// Which calendar a task goes to: the one its `cal::` property names, else the default.
+struct Routing {
+    default: String,
+    /// Lower-case name or last part of the `href` -> `href`.
+    by_name: BTreeMap<String, String>,
+    /// All calendars, the default first.
+    all: Vec<TaskCalendarView>,
+}
+
+impl Routing {
+    fn new(cfg: &CalendarConfig) -> Option<Routing> {
+        let all = task_calendars(cfg);
+        let default = cfg.tasks.clone()?;
+        let mut by_name = BTreeMap::new();
+        for c in &all {
+            by_name.insert(c.name.to_lowercase(), c.href.clone());
+            by_name
+                .entry(last_path_part(&c.href).to_lowercase())
+                .or_insert_with(|| c.href.clone());
+        }
+        Some(Routing {
+            default,
+            by_name,
+            all,
+        })
+    }
+
+    /// The `href` for a `cal::` value (none, or one that names no calendar of ours: the default).
+    fn target(&self, name: Option<&str>) -> &str {
+        name.and_then(|n| self.by_name.get(&n.trim().to_lowercase()))
+            .unwrap_or(&self.default)
+    }
+
+    fn name_of(&self, href: &str) -> &str {
+        self.all
+            .iter()
+            .find(|c| c.href == href)
+            .map_or("", |c| c.name.as_str())
+    }
 }
 
 /// A title with no markup: what a plain calendar title can replace without loss.
@@ -1313,10 +1465,10 @@ fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected
             priorities: &priorities,
             undated_open,
         };
-        fn gather(ctx: &Context, blocks: &[Block], out: &mut Vec<Todo>) {
+        fn gather(ctx: &Context, blocks: &[Block], out: &mut Vec<(Todo, Option<String>)>) {
             for b in blocks {
                 if let Some(t) = todo_from_block(ctx, b) {
-                    out.push(t);
+                    out.push((t, calendar_named(b)));
                 }
                 gather(ctx, &b.children, out);
             }
@@ -1327,13 +1479,14 @@ fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected
             .and_then(|m| m.modified())
             .ok()
             .map(|t| chrono::DateTime::<chrono::Utc>::from(t).naive_utc());
-        for t in found {
+        for (t, calendar) in found {
             places.insert(
                 t.uid.clone(),
                 Place {
                     page: page.clone(),
                     rel: rel.clone(),
                     title: t.summary.clone(),
+                    calendar,
                     modified,
                 },
             );
@@ -1346,6 +1499,15 @@ fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected
         added,
         pages: files.len(),
     })
+}
+
+/// The calendar a block's `cal::` property names (`no` is not a name).
+fn calendar_named(b: &Block) -> Option<String> {
+    b.properties
+        .iter()
+        .find(|p| p.key.eq_ignore_ascii_case("cal"))
+        .map(|p| p.raw.trim().to_string())
+        .filter(|v| !v.is_empty() && !v.eq_ignore_ascii_case("no"))
 }
 
 /// An `EnsureBlockId` op for every shared task (dated, or open when those are shared too; not marked `cal:: no`)

@@ -434,6 +434,12 @@ pub struct CalendarConfig {
     /// The calendar (its `href`) that receives the tasks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tasks: Option<String>,
+    /// More calendars (their `href`) that tasks can go to; a task names one with `cal:: <name>`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub more: Vec<String>,
+    /// The names of the calendars of `tasks` and `more`, by `href` (what `cal::` is matched against).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub names: std::collections::BTreeMap<String, String>,
     /// A login of its own; none means the login of the graph's sync.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account: Option<CalendarAccount>,

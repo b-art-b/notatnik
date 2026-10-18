@@ -7,6 +7,7 @@
   import { errorMessage, toast } from '../../stores/app.svelte'
   import { calendarSyncNow, describeCalendarSync } from '../../calendar'
   import { calendarAuto } from '../../stores/calendarAuto.svelte'
+  import { setCalendarTargets } from '../../stores/calendarTargets.svelte'
 
   let status = $state<CalendarStatus | null>(null)
   let list = $state<CalendarList | null>(null)
@@ -26,6 +27,7 @@
   let enabled = $state(false)
   let tasks = $state<string | null>(null)
   let read = $state<string[]>([])
+  let more = $state<string[]>([])
   let importTasks = $state(false)
   let undatedTasks = $state(false)
 
@@ -39,6 +41,7 @@
         tasks: status.tasks,
         import_tasks: status.import_tasks,
         undated_tasks: status.undated_tasks,
+        more_tasks: status.more_tasks,
         ...change,
       })
     } catch (e) {
@@ -80,6 +83,7 @@
       enabled = status.enabled
       tasks = status.tasks
       read = [...status.read]
+      more = [...status.more_tasks]
       importTasks = status.import_tasks
       undatedTasks = status.undated_tasks
       own = !status.account
@@ -120,6 +124,7 @@
         tasks,
         import_tasks: importTasks,
         undated_tasks: undatedTasks,
+        more_tasks: more.filter((h) => h !== tasks),
       })
       toast('Calendar settings saved')
     } catch (e) {
@@ -164,6 +169,13 @@
       error = errorMessage(e)
     }
   }
+
+  function toggleMore(href: string, on: boolean) {
+    more = on ? [...more.filter((h) => h !== href), href] : more.filter((h) => h !== href)
+  }
+
+  // the task rows show where a task is synced to: they follow what is saved here
+  $effect(() => setCalendarTargets(status))
 
   function toggleRead(href: string, on: boolean) {
     read = on ? [...read.filter((h) => h !== href), href] : read.filter((h) => h !== href)
@@ -243,7 +255,7 @@
       <p class="muted">Connected as {list.account.user}: {list.calendars.length} calendars found.</p>
       <table class="cals">
         <thead>
-          <tr><th>Calendar</th><th>Receives tasks</th><th>Show events</th></tr>
+          <tr><th>Calendar</th><th>Receives tasks</th><th>Also takes tasks</th><th>Show events</th></tr>
         </thead>
         <tbody>
           {#each list.calendars as c (c.href)}
@@ -257,6 +269,15 @@
                   disabled={!c.tasks}
                   checked={tasks === c.href}
                   onchange={() => (tasks = c.href)}
+                />
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  aria-label={`Tasks can also go to ${c.name}`}
+                  disabled={!c.tasks || tasks === c.href}
+                  checked={more.includes(c.href)}
+                  onchange={(e) => toggleMore(c.href, e.currentTarget.checked)}
                 />
               </td>
               <td>
@@ -288,7 +309,9 @@
       <h3>Tasks</h3>
       <p class="muted">
         Tasks with a <code>scheduled::</code> or <code>deadline::</code> date go to the calendar; a task gets
-        a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep one out.
+        a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep one
+        out, or <code>cal:: Work</code> to send it to another calendar (tick it under "Also takes tasks"); the
+        <em>Calendar</em> chip of a task changes it too.
       </p>
       <label class="on">
         <input

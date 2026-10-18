@@ -4,12 +4,16 @@
   import { untrack } from 'svelte'
   import { app } from '../stores/app.svelte'
   import { bus } from '../stores/events.svelte'
+  import { refreshCalendarTargets } from '../stores/calendarTargets.svelte'
   import { AFTER_CHANGE_MS, scheduleCalendarSync, stopCalendarSync } from '../stores/calendarAuto.svelte'
 
   // a graph was opened (or switched): sync soon; closed: stop
   $effect(() => {
     if (app.graph?.id) {
-      untrack(() => scheduleCalendarSync(1500))
+      untrack(() => {
+        scheduleCalendarSync(1500)
+        void refreshCalendarTargets()
+      })
       return () => stopCalendarSync()
     }
   })

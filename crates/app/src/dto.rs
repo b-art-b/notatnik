@@ -1610,6 +1610,10 @@ pub struct CalendarStatus {
     pub import_tasks: bool,
     /// Open tasks without a date are sent too (`[calendar] undated = "open"`).
     pub undated_tasks: bool,
+    /// More calendars tasks can go to (`href`s); a task chooses with `cal:: <name>`.
+    pub more_tasks: Vec<String>,
+    /// The calendars a task can go to, the default first.
+    pub task_calendars: Vec<TaskCalendarView>,
     /// The page they go to.
     pub inbox: String,
 }
@@ -1629,6 +1633,16 @@ pub struct CalendarList {
     pub calendars: Vec<CalendarView>,
 }
 
+/// A calendar tasks can go to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct TaskCalendarView {
+    pub href: String,
+    /// What `cal:: <name>` is matched against.
+    pub name: String,
+    /// Where tasks go that name no calendar.
+    pub default: bool,
+}
+
 /// `calendar_save` arguments.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CalendarSaveArgs {
@@ -1640,6 +1654,9 @@ pub struct CalendarSaveArgs {
     /// Send open tasks without a date too.
     #[serde(default)]
     pub undated_tasks: bool,
+    /// More calendars tasks can go to.
+    #[serde(default)]
+    pub more_tasks: Vec<String>,
 }
 
 /// `calendar_events` arguments: the days to show, `YYYY-MM-DD`, both included.
@@ -1720,4 +1737,22 @@ pub struct CalendarSyncReport {
     pub removed_in_calendar: u32,
     /// Entries added to the sync log (conflicts, changes that could not be written, deletions).
     pub logged: u32,
+}
+
+impl CalendarSyncReport {
+    /// Adds the result of another calendar.
+    pub fn add(&mut self, o: CalendarSyncReport) {
+        self.created += o.created;
+        self.updated += o.updated;
+        self.unchanged += o.unchanged;
+        self.retired += o.retired;
+        self.deleted += o.deleted;
+        self.conflicts.extend(o.conflicts);
+        self.ids_added += o.ids_added;
+        self.events_changed += o.events_changed;
+        self.imported += o.imported;
+        self.pulled += o.pulled;
+        self.removed_in_calendar += o.removed_in_calendar;
+        self.logged += o.logged;
+    }
 }

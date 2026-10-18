@@ -114,6 +114,19 @@ pub fn push(
     state: &mut PushState,
     opts: &Options,
 ) -> Result<Report> {
+    push_with(client, calendar, desired, state, opts, &Default::default())
+}
+
+/// [`push`] where the tasks in `moved` now belong to another calendar: they are deleted here at once, whatever the
+/// policy for tasks that left the notes says (the task is not gone, and completing it here would be wrong).
+pub fn push_with(
+    client: &dyn CalDavClient,
+    calendar: &str,
+    desired: &[Todo],
+    state: &mut PushState,
+    opts: &Options,
+    moved: &std::collections::BTreeSet<String>,
+) -> Result<Report> {
     if state.calendar != calendar {
         *state = PushState {
             calendar: calendar.to_string(),
@@ -180,6 +193,18 @@ pub fn push(
     for uid in gone {
         if state.items.get(&uid).is_some_and(|p| p.gone) {
             state.items.remove(&uid); // deleted in the calendar and no longer in the notes: nothing to do
+            continue;
+        }
+        if moved.contains(&uid) {
+            let etag = state.items[&uid].etag.clone();
+            match client.delete(calendar, &name_of(&uid), Some(&etag)) {
+                Ok(()) | Err(Error::NotFound(_)) => {
+                    state.items.remove(&uid);
+                    report.deleted += 1;
+                }
+                Err(Error::Changed(_)) => report.conflicts.push(uid),
+                Err(e) => return Err(e),
+            }
             continue;
         }
         if !opts.settled {
@@ -519,5 +544,25 @@ mod tests {
         let r = push(&s, &other, &ten(), &mut st, &opts(OnDelete::Complete, true)).unwrap();
         assert_eq!(r.created, 10);
         assert_eq!(s.names(&other).len(), 10);
+    }
+
+    #[test]
+    fn a_moved_task_is_deleted_at_once_even_when_the_policy_completes() {
+        let (s, h) = setup();
+        let mut st = PushState::default();
+        push(&s, &h, &ten(), &mut st, &opts(OnDelete::Complete, true)).unwrap();
+        let moved: std::collections::BTreeSet<String> = [ten()[0].uid.clone()].into();
+        let r = push_with(
+            &s,
+            &h,
+            &ten()[1..],
+            &mut st,
+            &opts(OnDelete::Complete, true),
+            &moved,
+        )
+        .unwrap();
+        assert_eq!((r.deleted, r.retired), (1, 0));
+        assert!(s.text(&h, &name_of(&ten()[0].uid)).is_none());
+        assert_eq!(s.names(&h).len(), 9);
     }
 }

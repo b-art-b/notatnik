@@ -131,3 +131,41 @@ test('events of the chosen calendars show in the journal and in the timeline, an
   await backend.open('/page/cal')
   await expect(page.getByTestId('cal-event').first()).toContainText('Team standup')
 })
+
+test('a task shows the calendar it is synced to and the chip changes it', async ({ backend, page }) => {
+  backend.write('pages/Plan.md', '- TODO Pay rent\n  deadline:: 2026-10-21\n- TODO No date at all\n')
+  await backend.open('/')
+  const list = await backend.call<{ calendars: { href: string; name: string }[] }>('calendar_connect', {
+    server: 'http://localhost:8080',
+    user: 'me',
+    password: 'secret',
+  })
+  const tasks = list.calendars.find((c) => c.name === 'Tasks')!.href
+  await backend.call('calendar_save', {
+    enabled: true,
+    read: [],
+    tasks,
+    import_tasks: false,
+    undated_tasks: false,
+  })
+  await page.reload()
+  await backend.open('/page/Plan')
+
+  // the dated task shows where it goes; the one without a date is not synced, so it shows nothing
+  const rows = page.getByRole('tree', { name: 'Blocks' })
+  const chip = rows.locator('[data-chip="calendar"]')
+  await expect(chip).toHaveCount(1)
+  await expect(chip).toContainText('Tasks')
+
+  // choosing "not synced" writes `cal:: no`
+  await chip.click()
+  await rows.getByLabel('Calendar', { exact: true }).selectOption('no')
+  await expect(chip).toContainText('not synced')
+  await expect.poll(() => backend.read('pages/Plan.md')).toContain('cal:: no')
+
+  // back to the default removes the property again
+  await chip.click()
+  await rows.getByLabel('Calendar', { exact: true }).selectOption('')
+  await expect(chip).toContainText('Tasks')
+  await expect.poll(() => backend.read('pages/Plan.md')).not.toContain('cal::')
+})
