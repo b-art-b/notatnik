@@ -180,3 +180,43 @@ test('the folder browser clicks through the server and fills in the folder', asy
   await expect(page.getByTestId('webdav-seen')).toContainText('does not exist yet')
   await expect(browser).toHaveCount(0)
 })
+
+test('a page that another editor rewrote with its lines joined is reported in the sidebar and in Settings', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await page.getByTestId('new-server-graph').click()
+  const form = page.getByTestId('webdav-form')
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  await form.getByLabel('Folder on the server').fill('Notes/joined')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await form.getByRole('button', { name: 'Create the graph' }).click()
+  const status = page.getByTestId('sync-status')
+  await expect(status).toContainText('Synced', { timeout: 15000 })
+  await expect(page.getByTestId('sync-warning')).toHaveCount(0)
+
+  // something else (a web editor) saves a page on the server with the lines of a block joined
+  const auth = `Basic ${Buffer.from(`${dav.user}:${dav.password}`).toString('base64')}`
+  const folder = `${dir(dav.server, dav.user, 'Notes/joined')}/pages`
+  await fetch(folder, { method: 'MKCOL', headers: { Authorization: auth } }) // may exist already
+  const url = `${folder}/Joined.md`
+  const put = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: auth },
+    body: '- TODO call Anna ^abc123 deadline:: 2026-10-21',
+  })
+  expect(put.ok).toBe(true)
+  await status.click()
+  await expect(page.getByTestId('sync-warning')).toContainText('1 page(s) look reformatted')
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await expect(page.getByTestId('sync-warnings')).toContainText('pages/Joined.md')
+  await expect(page.getByTestId('sync-warnings')).toContainText('History')
+})

@@ -176,6 +176,8 @@ pub fn typescript_bindings() -> String {
         TaskCalendarView,
         CalendarColorArgs,
         CalendarPauseArgs,
+        InboxCopies,
+        MovedCopies,
         CalendarEventView,
     );
     out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };\n\n");

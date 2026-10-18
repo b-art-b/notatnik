@@ -132,7 +132,13 @@ impl AppState {
             tasks: cfg.tasks.clone(),
             tasks_as: section.tasks_as,
             on_delete: section.on_delete,
-            import_tasks: section.import == "inbox",
+            import_tasks: section.import != "off",
+            import_to: if section.import == "inbox" {
+                "inbox".into()
+            } else {
+                "journal".into()
+            },
+            import_section: section.import_section.clone(),
             inbox: section.inbox,
             undated_tasks: section.undated == "open",
             more_tasks: cfg.more.clone(),
@@ -270,11 +276,28 @@ impl AppState {
         cfg.more = more;
         cfg.names = names;
         self.store_calendar_settings(&id, cfg)?;
-        let import = if a.import_tasks { "inbox" } else { "off" };
-        if status.import_tasks != a.import_tasks {
+        let current = if status.import_tasks {
+            status.import_to.clone()
+        } else {
+            "inbox".to_string() // switching it on without saying where keeps what it always was
+        };
+        let import = if !a.import_tasks {
+            "off".to_string()
+        } else {
+            match a.import_to.as_deref() {
+                Some(to @ ("journal" | "inbox")) => to.to_string(),
+                _ => current,
+            }
+        };
+        let was = if status.import_tasks {
+            status.import_to.as_str()
+        } else {
+            "off"
+        };
+        if was != import {
             self.with_open(|o| {
                 o.graph
-                    .update_config(|c| c.calendar.import = import.into())?;
+                    .update_config(|c| c.calendar.import = import.clone())?;
                 Ok(())
             })?;
         }
@@ -287,6 +310,301 @@ impl AppState {
             })?;
         }
         self.calendar_status_of(&id)
+    }
+
+    /// A random name for this device, made once and kept with the device's data (never in the graph).
+    fn device_id(&self) -> String {
+        let file = self.dirs.data.join("device-id");
+        if let Ok(t) = std::fs::read_to_string(&file) {
+            let t = t.trim();
+            if !t.is_empty() {
+                return t.to_string();
+            }
+        }
+        let id = format!("{:x}", now_seed() & 0xffff_ffff_ffff);
+        let _ = std::fs::create_dir_all(&self.dirs.data);
+        let _ = std::fs::write(&file, &id);
+        id
+    }
+
+    /// Which of the tasks made in other apps this device may copy into the notes now. A task the notes already say
+    /// they have (`cal-source::`) is not copied again; a task another device took over a short while ago is left
+    /// to it; the rest is marked as taken by this device (a write that only succeeds for one device, because it is
+    /// made against the item's ETag) before it is copied.
+    fn claim_foreign(
+        &self,
+        graph: &str,
+        client: &dyn CalDavClient,
+        calendar: &str,
+        foreign: &[notatnik_caldav::ServerItem],
+        state: &mut PushState,
+        etags: &mut BTreeMap<String, String>,
+    ) -> ApiResult<Vec<notatnik_caldav::ServerItem>> {
+        let _ = graph;
+        let me = self.device_id();
+        let now = chrono::Utc::now().timestamp();
+        let mut out = Vec::new();
+        for item in foreign {
+            let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
+                continue;
+            };
+            if state.imported.contains_key(&t.uid)
+                || t.summary.trim().is_empty()
+                || matches!(t.status, Some(Status::Completed | Status::Cancelled))
+            {
+                continue;
+            }
+            // already in the notes, made by this or another device
+            let hits = self.with_open(|o| {
+                Ok(o.graph
+                    .with_index(|i| i.blocks_with_property(SOURCE_KEY, &t.uid))
+                    .unwrap_or_default())
+            })?;
+            if !hits.is_empty() {
+                if let Some(id) = hits.into_iter().find_map(|(_, id)| id) {
+                    state.imported.insert(t.uid.clone(), id);
+                    state
+                        .imported_names
+                        .insert(t.uid.clone(), item.name.clone());
+                }
+                continue;
+            }
+            if let Some(c) = notatnik_caldav::ical::claim_of(&item.ics) {
+                // a copy is made for good, or another device took it over a short while ago and is on it
+                if c.done || (c.device != me && now - c.at < CLAIM_TTL_SECS) {
+                    continue;
+                }
+            }
+            let marked = notatnik_caldav::ical::with_claim(&item.ics, &me, now, false);
+            match client.put(
+                calendar,
+                &item.name,
+                &marked,
+                &notatnik_caldav::Cond::IfMatch(item.etag.clone()),
+            ) {
+                Ok(etag) => {
+                    etags.insert(item.name.clone(), etag.clone());
+                    let mut taken = item.clone();
+                    taken.etag = etag;
+                    taken.ics = marked;
+                    out.push(taken);
+                }
+                // changed or taken in the meantime: the next run looks again
+                Err(notatnik_caldav::Error::Changed(_)) => {}
+                Err(e @ notatnik_caldav::Error::Offline(_)) => return Err(api_err(&e)),
+                // a calendar that cannot be written (shared read-only): copy anyway, the notes' own mark still
+                // keeps another device from copying it twice
+                Err(_) => out.push(item.clone()),
+            }
+        }
+        Ok(out)
+    }
+
+    /// Makes the takeover mark of every original that stays final (`done`).
+    fn finish_claims(
+        &self,
+        client: &dyn CalDavClient,
+        calendar: &str,
+        taken: &[notatnik_caldav::ServerItem],
+        deleted: &std::collections::BTreeSet<String>,
+        state: &PushState,
+    ) {
+        let me = self.device_id();
+        let now = chrono::Utc::now().timestamp();
+        for item in taken {
+            let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
+                continue;
+            };
+            if !state.imported.contains_key(&t.uid) || deleted.contains(&item.name) {
+                continue;
+            }
+            if notatnik_caldav::ical::claim_of(&item.ics).is_some_and(|c| c.done) {
+                continue;
+            }
+            let marked = notatnik_caldav::ical::with_claim(&item.ics, &me, now, true);
+            let _ = client.put(
+                calendar,
+                &item.name,
+                &marked,
+                &notatnik_caldav::Cond::IfMatch(item.etag.clone()),
+            );
+        }
+    }
+
+    /// Block ID -> the UID of the task of another app, for every copy this device's syncs made (its sync states
+    /// and its log).
+    fn copies_made_by_sync(&self, graph: &str) -> BTreeMap<String, String> {
+        let mut out = BTreeMap::new();
+        for e in self.read_calendar_log(graph) {
+            if e.kind == "imported" {
+                if let Some((_, id)) = e.title.rsplit_once('^') {
+                    out.insert(id.trim().to_string(), e.uid.clone());
+                }
+            }
+        }
+        if let Ok(dir) = std::fs::read_dir(self.dirs.data.join("graphs").join(graph)) {
+            for f in dir.flatten() {
+                let name = f.file_name().to_string_lossy().to_string();
+                if !(name.starts_with("calendar-push") && name.ends_with(".json")) {
+                    continue;
+                }
+                let state: Option<PushState> = std::fs::read_to_string(f.path())
+                    .ok()
+                    .and_then(|t| serde_json::from_str(&t).ok());
+                for (uid, id) in state.map(|s| s.imported).unwrap_or_default() {
+                    out.insert(id, uid);
+                }
+            }
+        }
+        out
+    }
+
+    /// `calendar_inbox_copies`: how many tasks an earlier sync copied into the inbox page and that are still there.
+    pub fn calendar_inbox_copies(&self, _: NoArgs) -> ApiResult<InboxCopies> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let inbox = self.with_open(|o| Ok(o.graph.config().calendar.inbox.clone()))?;
+        let made = self.copies_made_by_sync(&id);
+        let count = self.with_open(|o| {
+            let rel = Self::page_rel(o, &inbox)?;
+            let Ok(file) = o.graph.read_page(&rel) else {
+                return Ok(0);
+            };
+            let opts = o.graph.config().parse_options();
+            let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+            Ok(parsed
+                .blocks
+                .iter()
+                .filter(|b| {
+                    b.block_id
+                        .as_ref()
+                        .is_some_and(|i| made.contains_key(&i.id))
+                })
+                .count() as u32)
+        })?;
+        Ok(InboxCopies { count, page: inbox })
+    }
+
+    /// `calendar_move_inbox_copies`: moves the copies an earlier sync made from the inbox page into today's journal,
+    /// under the import section, and marks them (and copies that are elsewhere) with the task they came from. The
+    /// block IDs, dates, children and logbooks stay. Nothing is moved that the sync did not make.
+    pub fn calendar_move_inbox_copies(&self, _: NoArgs) -> ApiResult<MovedCopies> {
+        let id = self.with_open(|o| Ok(o.graph.id()))?;
+        let section = self.with_open(|o| Ok(o.graph.config().calendar.clone()))?;
+        let made = self.copies_made_by_sync(&id);
+        let today = self.today().format("%Y-%m-%d").to_string();
+        self.with_open(|o| {
+            let inbox_rel = Self::page_rel(o, &section.inbox)?;
+            let journal_rel = Self::page_rel(o, &today)?;
+            let opts = o.graph.config().parse_options();
+            let mut moved = 0u32;
+            let mut moved_ids: Vec<String> = Vec::new();
+            if let Ok(file) = o.graph.read_page(&inbox_rel) {
+                let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+                let mut nodes = Vec::new();
+                let mut paths = Vec::new();
+                for (i, b) in parsed.blocks.iter().enumerate() {
+                    let Some(bid) = b.block_id.as_ref().map(|x| x.id.clone()) else {
+                        continue;
+                    };
+                    let Some(uid) = made.get(&bid) else {
+                        continue;
+                    };
+                    nodes.push(copy_node(b, &file.text, Some((&bid, uid))));
+                    paths.push(i);
+                    moved_ids.push(bid);
+                }
+                if !nodes.is_empty() {
+                    if !place_nodes(o, &journal_rel, Some(&section.import_section), &nodes) {
+                        return Err(ApiError::new(
+                            "conflict",
+                            "today's journal changed meanwhile; try again",
+                        ));
+                    }
+                    // take them out of the inbox; when that fails the copies in the journal are taken out again,
+                    // so no block ID is there twice
+                    let ops: Vec<BlockOp> = paths
+                        .iter()
+                        .rev()
+                        .map(|i| BlockOp::Delete {
+                            block: BlockRef::at(&[*i]),
+                        })
+                        .collect();
+                    let mut removed = o
+                        .graph
+                        .edit_page(&inbox_rel, Some(&file.hash), &ops)
+                        .is_ok();
+                    if !removed {
+                        // the page moved on: look again, by block ID
+                        if let Ok(fresh) = o.graph.read_page(&inbox_rel) {
+                            let p2 = notatnik_core::parse_page_with(&fresh.text, &opts);
+                            let ops: Vec<BlockOp> = p2
+                                .blocks
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, b)| {
+                                    b.block_id
+                                        .as_ref()
+                                        .is_some_and(|x| moved_ids.contains(&x.id))
+                                })
+                                .rev()
+                                .map(|(i, _)| BlockOp::Delete {
+                                    block: BlockRef::at(&[i]),
+                                })
+                                .collect();
+                            removed = o
+                                .graph
+                                .edit_page(&inbox_rel, Some(&fresh.hash), &ops)
+                                .is_ok();
+                        }
+                    }
+                    if !removed {
+                        remove_blocks_by_id(o, &journal_rel, &moved_ids);
+                        return Err(ApiError::new(
+                            "conflict",
+                            "the inbox changed meanwhile; nothing was moved, try again",
+                        ));
+                    }
+                    moved = nodes.len() as u32;
+                }
+            }
+            // copies that are somewhere else (moved by hand earlier) only get their mark
+            let mut marked = 0u32;
+            for (bid, uid) in &made {
+                if moved_ids.contains(bid) {
+                    continue;
+                }
+                let Some((page, path, _)) =
+                    o.graph.with_index(|i| i.block_by_uid(bid)).ok().flatten()
+                else {
+                    continue;
+                };
+                let rel = Self::page_rel(o, &page)?;
+                let Ok(file) = o.graph.read_page(&rel) else {
+                    continue;
+                };
+                let path: Vec<usize> = path.split('.').filter_map(|p| p.parse().ok()).collect();
+                let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+                let Some(block) = find_by_path(&parsed.blocks, &path) else {
+                    continue;
+                };
+                if block
+                    .properties
+                    .iter()
+                    .any(|p| p.key.eq_ignore_ascii_case(SOURCE_KEY))
+                {
+                    continue;
+                }
+                let op = BlockOp::SetProperty {
+                    block: BlockRef::at(&path),
+                    key: SOURCE_KEY.into(),
+                    value: uid.clone(),
+                };
+                if o.graph.edit_page(&rel, Some(&file.hash), &[op]).is_ok() {
+                    marked += 1;
+                }
+            }
+            Ok(MovedCopies { moved, marked })
+        })
     }
 
     /// `calendar_pause`: stops the sync of every calendar for now, or resumes it. The choices are kept; what
@@ -566,7 +884,7 @@ impl AppState {
         };
 
         // 1. what changed in the calendar since last time goes into the notes
-        let import_on = section.import == "inbox";
+        let import_on = section.import != "off";
         if state.import_on != import_on {
             state.token = None; // other apps' tasks are only read when they change: read them all once
             state.import_on = import_on;
@@ -634,26 +952,51 @@ impl AppState {
         }
         save(&state);
 
-        // tasks made in other apps are copied into the inbox page
+        // tasks made in other apps are copied into the notes
         let mut imported_now = 0u32;
-        if section.import == "inbox" {
+        let mut touched_import: Option<String> = None;
+        let mut claimed: BTreeMap<String, String> = BTreeMap::new();
+        let mut taken: Vec<notatnik_caldav::ServerItem> = Vec::new();
+        if section.import != "off" {
             // older versions did not keep the original's file name and copied a task again at every sync: what the
             // log says was copied is not copied again, and its original is removed like the others
             adopt_logged_imports(&self.read_calendar_log(&id), &fetched.foreign, &mut state);
+            let target = if section.import == "journal" {
+                ImportTarget {
+                    page: self.today().format("%Y-%m-%d").to_string(),
+                    section: Some(section.import_section.clone()),
+                }
+            } else {
+                ImportTarget {
+                    page: section.inbox.clone(),
+                    section: None,
+                }
+            };
+            let mine = self.claim_foreign(
+                &id,
+                &**client,
+                &calendar,
+                &fetched.foreign,
+                &mut state,
+                &mut claimed,
+            )?;
+            taken = mine.clone();
             let n = self.with_open(|o| {
                 Ok(import_foreign(
                     o,
-                    &fetched.foreign,
+                    &mine,
                     &mut state,
-                    &section.inbox,
+                    &target,
                     (calendar != routing.default).then(|| routing.name_of(&calendar)),
                 ))
             })?;
             imported_now = n.len() as u32;
             if !n.is_empty() {
+                // the page the copies went to is open in the UI too
+                touched_import = Some(target.page.clone());
                 self.append_calendar_log(&id, n);
-                save(&state);
             }
+            save(&state);
         }
 
         // pages the sync wrote are open in the UI too: tell it like a change from outside (the UI skips our own)
@@ -668,8 +1011,8 @@ impl AppState {
                 }
             }
         }
-        if imported_now > 0 {
-            touched.insert(section.inbox.clone());
+        if let Some(page) = touched_import {
+            touched.insert(page);
         }
         if !touched.is_empty() {
             (self.emit)(
@@ -689,7 +1032,17 @@ impl AppState {
         let result = push_with(&**client, &calendar, &todos, &mut state, &opts, &moved);
         // the copy of an imported task is in the calendar under our UID: the original can go
         if result.is_ok() {
-            remove_imported_originals(&**client, &calendar, &id, &fetched.foreign, &mut state);
+            let deleted = remove_imported_originals(
+                &**client,
+                &calendar,
+                &id,
+                &fetched.foreign,
+                &claimed,
+                &mut state,
+            );
+            // an original that stays (it has no date to be sent with): the mark on it becomes final, so no device
+            // copies it again, even when the copy is deleted or moved
+            self.finish_claims(&**client, &calendar, &taken, &deleted, &state);
         }
         // what was done is kept even when the push stopped half way
         save(&state);
@@ -818,13 +1171,135 @@ impl AppState {
     }
 }
 
-/// Copies the open tasks other apps made into the inbox page (one block each, with a block ID and the task's
-/// dates, priority and repeat) and remembers them, so each is copied once.
+/// How long a takeover mark of another device holds: it keeps the task for itself this long, then anyone may take it.
+const CLAIM_TTL_SECS: i64 = 24 * 3600;
+
+/// The property that says which task of another app a block is a copy of: the same on every device, so a device
+/// that finds it knows the task is already in the notes.
+const SOURCE_KEY: &str = "cal-source";
+
+/// Where tasks made in other apps are copied to.
+struct ImportTarget {
+    /// The page: today's journal or the inbox.
+    page: String,
+    /// The heading the blocks go under; none: at the end of the page.
+    section: Option<String>,
+}
+
+/// One block to write with its children.
+struct Node {
+    text: String,
+    children: Vec<Node>,
+}
+
+/// The block ID of a copy: derived from the other app's UID, so every device makes the same one.
+fn derived_block_id(uid: &str, used: &std::collections::HashSet<String>) -> String {
+    let mut h = uid.bytes().fold(0xcbf29ce484222325u64, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x100000001b3)
+    });
+    notatnik_core::ids::generate_block_id(used, &mut || {
+        let v = h;
+        h = h.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1);
+        v
+    })
+}
+
+fn first_line_of(b: &Block, source: &str) -> String {
+    b.edit_text(source)
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+fn push_inserts(ops: &mut Vec<BlockOp>, parent: &[usize], index: &mut usize, nodes: &[Node]) {
+    for n in nodes {
+        ops.push(BlockOp::Insert {
+            parent: parent.to_vec(),
+            index: *index,
+            text: n.text.clone(),
+        });
+        let mut mine = parent.to_vec();
+        mine.push(*index);
+        *index += 1;
+        let mut child = 0;
+        push_inserts(ops, &mine, &mut child, &n.children);
+    }
+}
+
+fn node_lines(n: &Node, depth: usize, out: &mut String) {
+    let pad = "  ".repeat(depth);
+    let mut lines = n.text.split('\n');
+    out.push_str(&format!("{pad}- {}\n", lines.next().unwrap_or("")));
+    for l in lines {
+        out.push_str(&format!("{pad}  {l}\n"));
+    }
+    for c in &n.children {
+        node_lines(c, depth + 1, out);
+    }
+}
+
+/// Writes `nodes` into the page `rel` (which may not exist yet): under the section `### <name>` when there is one
+/// (made at the end of the page when missing), else at the end. False when the page could not be written.
+fn place_nodes(o: &Open, rel: &str, section: Option<&str>, nodes: &[Node]) -> bool {
+    let heading = section.map(|s| format!("### {s}"));
+    match o.graph.read_page(rel) {
+        Ok(file) => {
+            let opts = o.graph.config().parse_options();
+            let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+            let mut ops = Vec::new();
+            let (parent, mut index): (Vec<usize>, usize) = match &heading {
+                None => (Vec::new(), parsed.blocks.len()),
+                Some(h) => {
+                    match parsed
+                        .blocks
+                        .iter()
+                        .position(|b| first_line_of(b, &file.text).eq_ignore_ascii_case(h))
+                    {
+                        Some(i) => (vec![i], parsed.blocks[i].children.len()),
+                        None => {
+                            ops.push(BlockOp::Insert {
+                                parent: Vec::new(),
+                                index: parsed.blocks.len(),
+                                text: h.clone(),
+                            });
+                            (vec![parsed.blocks.len()], 0)
+                        }
+                    }
+                }
+            };
+            push_inserts(&mut ops, &parent, &mut index, nodes);
+            o.graph.edit_page(rel, Some(&file.hash), &ops).is_ok()
+        }
+        Err(notatnik_graph::Error::NotFound(_)) => {
+            let mut text = String::new();
+            match &heading {
+                Some(h) => {
+                    text.push_str(&format!("- {h}\n"));
+                    for n in nodes {
+                        node_lines(n, 1, &mut text);
+                    }
+                }
+                None => {
+                    for n in nodes {
+                        node_lines(n, 0, &mut text);
+                    }
+                }
+            }
+            o.graph.write_page(rel, &text, None).is_ok()
+        }
+        Err(_) => false,
+    }
+}
+
+/// Copies the open tasks other apps made into the target (one block each, with a block ID and the task's dates,
+/// priority and repeat, and the property that names its source) and remembers them, so each is copied once.
 fn import_foreign(
     o: &Open,
     foreign: &[notatnik_caldav::ServerItem],
     state: &mut PushState,
-    inbox: &str,
+    target: &ImportTarget,
     calendar_name: Option<&str>,
 ) -> Vec<CalendarLogEntry> {
     let priorities = o.graph.config().tasks.priorities.clone();
@@ -832,13 +1307,6 @@ fn import_foreign(
         return Vec::new();
     };
     let mut used = used;
-    let mut rng_state = now_seed();
-    let mut rng = move || {
-        rng_state ^= rng_state << 13;
-        rng_state ^= rng_state >> 7;
-        rng_state ^= rng_state << 17;
-        rng_state
-    };
     let mut blocks: Vec<(String, String, String, String)> = Vec::new(); // foreign uid, its file name, block id, text
     for item in foreign {
         let Some(t) = notatnik_caldav::ical::parse_todo(&item.ics) else {
@@ -850,7 +1318,7 @@ fn import_foreign(
         {
             continue;
         }
-        let id = notatnik_core::ids::generate_block_id(&used, &mut rng);
+        let id = derived_block_id(&t.uid, &used);
         used.insert(id.clone());
         let marker = match (t.status, t.state.as_deref()) {
             (Some(Status::InProcess), _) => "DOING",
@@ -882,6 +1350,7 @@ fn import_foreign(
         if let Some(name) = calendar_name {
             text.push_str(&format!("\ncal:: {name}"));
         }
+        text.push_str(&format!("\n{SOURCE_KEY}:: {}", t.uid));
         if let Some(d) = t.description.as_deref().filter(|d| !d.trim().is_empty()) {
             for line in d.lines() {
                 text.push('\n');
@@ -893,38 +1362,17 @@ fn import_foreign(
     if blocks.is_empty() {
         return Vec::new();
     }
-    let Ok(rel) = AppState::page_rel(o, inbox) else {
+    let Ok(rel) = AppState::page_rel(o, &target.page) else {
         return Vec::new();
     };
-    let written = match o.graph.read_page(&rel) {
-        Ok(file) => {
-            let opts = o.graph.config().parse_options();
-            let parsed = notatnik_core::parse_page_with(&file.text, &opts);
-            let ops: Vec<BlockOp> = blocks
-                .iter()
-                .enumerate()
-                .map(|(i, (_, _, _, text))| BlockOp::Insert {
-                    parent: Vec::new(),
-                    index: parsed.blocks.len() + i,
-                    text: text.clone(),
-                })
-                .collect();
-            o.graph.edit_page(&rel, Some(&file.hash), &ops).is_ok()
-        }
-        Err(notatnik_graph::Error::NotFound(_)) => {
-            let mut text = String::new();
-            for (_, _, _, b) in &blocks {
-                let mut lines = b.split('\n');
-                text.push_str(&format!("- {}\n", lines.next().unwrap_or("")));
-                for l in lines {
-                    text.push_str(&format!("  {l}\n"));
-                }
-            }
-            o.graph.write_page(&rel, &text, None).is_ok()
-        }
-        Err(_) => false,
-    };
-    if !written {
+    let nodes: Vec<Node> = blocks
+        .iter()
+        .map(|(_, _, _, text)| Node {
+            text: text.clone(),
+            children: Vec::new(),
+        })
+        .collect();
+    if !place_nodes(o, &rel, target.section.as_deref(), &nodes) {
         return Vec::new(); // read again next time
     }
     let at = now_local();
@@ -938,7 +1386,7 @@ fn import_foreign(
                 kind: "imported".into(),
                 uid,
                 title: text.lines().next().unwrap_or("").to_string(),
-                page: inbox.to_string(),
+                page: target.page.clone(),
                 field: None,
                 local: None,
                 remote: None,
@@ -946,6 +1394,82 @@ fn import_foreign(
             }
         })
         .collect()
+}
+
+fn find_by_path<'a>(blocks: &'a [Block], path: &[usize]) -> Option<&'a Block> {
+    let (first, rest) = path.split_first()?;
+    let b = blocks.get(*first)?;
+    if rest.is_empty() {
+        Some(b)
+    } else {
+        find_by_path(&b.children, rest)
+    }
+}
+
+/// The block and its children as new blocks: the text with its `^id` back on the first line, and the mark of the
+/// task it is a copy of added when it has none.
+fn copy_node(b: &Block, source: &str, copy_of: Option<(&str, &str)>) -> Node {
+    let edit = b.edit_text(source);
+    let mut lines = edit.split('\n');
+    let first = lines.next().unwrap_or("").trim_end().to_string();
+    let rest: Vec<&str> = lines.collect();
+    let mut text = match b.block_id.as_ref() {
+        Some(id) => format!("{first} ^{}", id.id),
+        None => first,
+    };
+    for l in &rest {
+        text.push('\n');
+        text.push_str(l);
+    }
+    if let Some((_, uid)) = copy_of {
+        if !b
+            .properties
+            .iter()
+            .any(|p| p.key.eq_ignore_ascii_case(SOURCE_KEY))
+        {
+            text.push_str(&format!("\n{SOURCE_KEY}:: {uid}"));
+        }
+    }
+    Node {
+        text,
+        children: b
+            .children
+            .iter()
+            .map(|c| copy_node(c, source, None))
+            .collect(),
+    }
+}
+
+/// Removes the top-level blocks of a page that have one of these block IDs (an undone move).
+fn remove_blocks_by_id(o: &Open, rel: &str, ids: &[String]) {
+    let opts = o.graph.config().parse_options();
+    let Ok(file) = o.graph.read_page(rel) else {
+        return;
+    };
+    let parsed = notatnik_core::parse_page_with(&file.text, &opts);
+    fn walk(blocks: &[Block], prefix: &mut Vec<usize>, ids: &[String], out: &mut Vec<Vec<usize>>) {
+        for (i, b) in blocks.iter().enumerate() {
+            prefix.push(i);
+            if b.block_id.as_ref().is_some_and(|x| ids.contains(&x.id)) {
+                out.push(prefix.clone());
+            } else {
+                walk(&b.children, prefix, ids, out);
+            }
+            prefix.pop();
+        }
+    }
+    let mut paths = Vec::new();
+    walk(&parsed.blocks, &mut Vec::new(), ids, &mut paths);
+    let ops: Vec<BlockOp> = paths
+        .iter()
+        .rev()
+        .map(|p| BlockOp::Delete {
+            block: BlockRef::at(p),
+        })
+        .collect();
+    if !ops.is_empty() {
+        let _ = o.graph.edit_page(rel, Some(&file.hash), &ops);
+    }
 }
 
 /// Marks the foreign tasks the sync log already shows as copied (`imported`, with the block's ID at the end of the
@@ -979,8 +1503,10 @@ fn remove_imported_originals(
     calendar: &str,
     graph_id: &str,
     foreign: &[notatnik_caldav::ServerItem],
+    claimed: &BTreeMap<String, String>,
     state: &mut PushState,
-) {
+) -> std::collections::BTreeSet<String> {
+    let mut deleted = std::collections::BTreeSet::new();
     let entries: Vec<(String, String)> = state
         .imported
         .iter()
@@ -1001,10 +1527,13 @@ fn remove_imported_originals(
                     .map(|i| i.name.clone())
             })
             .unwrap_or_else(|| format!("{uid}.ics"));
-        let etag = foreign
-            .iter()
-            .find(|i| i.name == name)
-            .map(|i| i.etag.as_str());
+        // the ETag after our takeover mark, else the one the item was read with
+        let etag = claimed.get(&name).map(String::as_str).or_else(|| {
+            foreign
+                .iter()
+                .find(|i| i.name == name)
+                .map(|i| i.etag.as_str())
+        });
         let ours = notatnik_caldav::map::uid(graph_id, &block);
         if state.items.contains_key(&ours)
             && matches!(
@@ -1014,8 +1543,10 @@ fn remove_imported_originals(
         {
             state.imported.remove(&uid);
             state.imported_names.remove(&uid);
+            deleted.insert(name.clone());
         }
     }
+    deleted
 }
 
 fn now_local() -> String {

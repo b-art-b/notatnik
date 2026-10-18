@@ -16,7 +16,7 @@ mod webdav;
 pub mod fakedav;
 
 pub use bases::Bases;
-pub use engine::{Options, Report, sync};
+pub use engine::{Options, Report, looks_reformatted, sync};
 pub use error::{Error, Result};
 pub use plan::{Action, plan};
 pub use remote::{Cond, Entry, Listing, Remote, norm_etag};

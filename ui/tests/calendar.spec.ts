@@ -61,6 +61,17 @@ test('the import of tasks made in other apps is a switch that is saved at once',
   await expect
     .poll(async () => (await backend.call<{ import_tasks: boolean }>('calendar_status')).import_tasks)
     .toBe(true)
+  // the copies go to today's journal unless you choose the inbox page
+  const to = page.getByTestId('calendar-import-to')
+  await expect(to).toHaveValue('journal')
+  await to.selectOption('inbox')
+  await expect
+    .poll(async () => (await backend.call<{ import_to: string }>('calendar_status')).import_to)
+    .toBe('inbox')
+  await to.selectOption('journal')
+  await expect
+    .poll(async () => (await backend.call<{ import_to: string }>('calendar_status')).import_to)
+    .toBe('journal')
   // the switches do not undo each other
   const undated = page.getByTestId('calendar-undated')
   await expect(undated).not.toBeChecked()

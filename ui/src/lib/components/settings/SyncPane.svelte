@@ -120,6 +120,19 @@
   {:else if st.error}
     <p class="warn" role="alert" data-testid="sync-error">{st.error}</p>
   {/if}
+  {#if st.warnings.length}
+    <div class="box" role="note" data-testid="sync-warnings">
+      <p>
+        {st.warnings.length === 1 ? 'This file was' : 'These files were'} downloaded with the lines of its blocks
+        joined together, which another editor does when it saves a note (Nextcloud's Text editor, for one). Properties
+        such as <code>deadline::</code> then stop working. Open the page, choose <strong>History</strong> and restore
+        the version from before.
+      </p>
+      <ul>
+        {#each st.warnings as w (w)}<li><code>{w}</code></li>{/each}
+      </ul>
+    </div>
+  {/if}
   {#if st.file_errors.length}
     <ul class="errors" aria-label="Files that failed">
       {#each st.file_errors as f, i (i)}<li>{f}</li>{/each}

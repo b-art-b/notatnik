@@ -170,6 +170,23 @@ impl SyncCtx {
                 s.deleted = (report.deleted_remote.len() + report.deleted_local.len()) as u32;
                 s.conflicts = report.conflicts.len() as u32;
                 s.merged = report.merged.len() as u32;
+                // a page another editor joined the lines of stays listed until it looks right again
+                let root = self.root.clone();
+                let mut warnings: Vec<String> = s
+                    .warnings
+                    .iter()
+                    .filter(|p| {
+                        std::fs::read_to_string(root.join(p))
+                            .is_ok_and(|t| notatnik_sync::looks_reformatted(&t))
+                    })
+                    .cloned()
+                    .collect();
+                for p in &report.suspect {
+                    if !warnings.contains(p) {
+                        warnings.push(p.clone());
+                    }
+                }
+                s.warnings = warnings;
                 s.file_errors = report
                     .errors
                     .iter()

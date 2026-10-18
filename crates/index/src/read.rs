@@ -852,6 +852,27 @@ impl Index {
         Ok(rows)
     }
 
+    /// The blocks that have the property `key` with this value: `(page name, block ID if it has one)`. The value
+    /// is compared the way searches are (case and accents ignored).
+    pub fn blocks_with_property(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> Result<Vec<(String, Option<String>)>> {
+        let mut st = self.conn.prepare_cached(
+            "SELECT p.name, b.uid FROM props pr
+             JOIN blocks b ON b.id = pr.owner_id JOIN pages p ON p.id = b.page_id
+             WHERE pr.owner_kind = 'block' AND pr.key = ?1 AND pr.value_fold = ?2 AND p.is_virtual = 0
+             ORDER BY p.key, b.id",
+        )?;
+        let rows = st
+            .query_map(params![key, search_fold(value)], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(rows)
+    }
+
     /// Name of the page whose file is `rel` (relative path).
     pub fn page_for_file(&self, rel: &str) -> Result<Option<String>> {
         let mut st = self.conn.prepare_cached(

@@ -1654,6 +1654,10 @@ pending_deletes: number,
  */
 file_errors: Array<string>, 
 /**
+ * Pages (paths) that were downloaded with their lines joined together by another editor and still are.
+ */
+warnings: Array<string>, 
+/**
  * The address of the server folder.
  */
 url: string, 
@@ -1944,6 +1948,14 @@ import_tasks: boolean,
  */
 undated_tasks: boolean, 
 /**
+ * Where copied tasks go: `journal` (a section of today's journal) or `inbox`.
+ */
+import_to: string, 
+/**
+ * The heading of that section.
+ */
+import_section: string, 
+/**
  * More calendars tasks can go to (`href`s); a task chooses with `cal:: <name>`.
  */
 more_tasks: Array<string>, 
@@ -1974,6 +1986,10 @@ import_tasks: boolean,
  * Send open tasks without a date too.
  */
 undated_tasks: boolean, 
+/**
+ * Where copied tasks go: `journal` or `inbox`; none keeps the current choice (`inbox` when it was off).
+ */
+import_to: string | null, 
 /**
  * More calendars tasks can go to.
  */
@@ -2069,6 +2085,16 @@ export type CalendarColorArgs = { href: string,
  */
 color: string | null, };
 export type CalendarPauseArgs = { paused: boolean, };
+export type InboxCopies = { count: number, page: string, };
+export type MovedCopies = { 
+/**
+ * Moved from the inbox into today's journal.
+ */
+moved: number, 
+/**
+ * Copies elsewhere that were only marked with their source.
+ */
+marked: number, };
 export type CalendarEventView = { uid: string, title: string, 
 /**
  * First day, `YYYY-MM-DD`, in local time.
@@ -2171,6 +2197,8 @@ export type Commands = {
   calendar_save: { args: CalendarSaveArgs; result: CalendarStatus };
   calendar_sync: { args: NoArgs; result: CalendarSyncReport };
   calendar_events: { args: CalendarEventsArgs; result: CalendarEventView[] };
+  calendar_inbox_copies: { args: NoArgs; result: InboxCopies };
+  calendar_move_inbox_copies: { args: NoArgs; result: MovedCopies };
   calendar_pause: { args: CalendarPauseArgs; result: CalendarStatus };
   calendar_set_color: { args: CalendarColorArgs; result: CalendarStatus };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };

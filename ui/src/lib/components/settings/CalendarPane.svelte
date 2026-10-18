@@ -3,7 +3,13 @@
   // graph's sync unless you give it one of its own. "Sync" sends the dated tasks, reads back what changed in
   // the calendar and shows what the sync log holds (conflicts, kept titles, tasks deleted in the calendar).
   import { onMount } from 'svelte'
-  import { backend, type CalendarList, type CalendarLogEntry, type CalendarStatus } from '../../api'
+  import {
+    backend,
+    type CalendarList,
+    type CalendarLogEntry,
+    type CalendarStatus,
+    type InboxCopies,
+  } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
   import { calendarSyncNow, describeCalendarSync, setCalendarPaused } from '../../calendar'
   import { calendarAuto } from '../../stores/calendarAuto.svelte'
@@ -32,7 +38,7 @@
   let undatedTasks = $state(false)
 
   /** Saves one of the switches at once; the other settings stay as they are saved. */
-  async function saveSwitch(change: { import_tasks?: boolean; undated_tasks?: boolean }) {
+  async function saveSwitch(change: { import_tasks?: boolean; import_to?: string; undated_tasks?: boolean }) {
     if (!status) return
     try {
       status = await backend.call('calendar_save', {
@@ -41,6 +47,7 @@
         tasks: status.tasks,
         import_tasks: status.import_tasks,
         undated_tasks: status.undated_tasks,
+        import_to: status.import_to,
         more_tasks: status.more_tasks,
         ...change,
       })
@@ -50,6 +57,29 @@
     // a refused change puts the switch back to what is saved
     importTasks = status?.import_tasks ?? false
     undatedTasks = status?.undated_tasks ?? false
+    await loadInboxCopies()
+  }
+
+  /** Tasks an earlier sync copied into the inbox page, when they are to go to the journal now. */
+  let inboxCopies = $state<InboxCopies | null>(null)
+  async function loadInboxCopies() {
+    try {
+      inboxCopies =
+        status?.import_tasks && status.import_to === 'journal'
+          ? await backend.call('calendar_inbox_copies', {})
+          : null
+    } catch {
+      inboxCopies = null
+    }
+  }
+  async function moveCopies() {
+    try {
+      const r = await backend.call('calendar_move_inbox_copies', {})
+      toast(`${r.moved} tasks moved into today's journal`)
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+    await loadInboxCopies()
   }
 
   async function loadLog() {
@@ -86,6 +116,7 @@
       more = [...status.more_tasks]
       importTasks = status.import_tasks
       undatedTasks = status.undated_tasks
+      await loadInboxCopies()
       own = !status.account
     } catch (e) {
       error = errorMessage(e)
@@ -123,6 +154,7 @@
         read,
         tasks,
         import_tasks: importTasks,
+        import_to: status?.import_to ?? null,
         undated_tasks: undatedTasks,
         more_tasks: more.filter((h) => h !== tasks),
       })
@@ -363,12 +395,41 @@
           checked={importTasks}
           onchange={(e) => saveSwitch({ import_tasks: e.currentTarget.checked })}
         />
-        Copy tasks made in other apps into the page <code>{status.inbox}</code>
+        Copy tasks made in other apps into my notes
       </label>
+      {#if importTasks}
+        <label class="on">
+          Copy them to
+          <select
+            data-testid="calendar-import-to"
+            aria-label="Copy them to"
+            value={status.import_to}
+            onchange={(e) => saveSwitch({ import_to: e.currentTarget.value })}
+          >
+            <option value="journal">today's journal, under “{status.import_section}”</option>
+            <option value="inbox">the page “{status.inbox}”</option>
+          </select>
+        </label>
+      {/if}
       <p class="muted">
-        Each copy gets a block ID and is sent back under its own item; the original is then removed from the
-        calendar. A task with no date stays where it is, so it is not copied again.
+        Each copy gets a block ID and a <code>cal-source::</code> property that names the task it came from, so
+        no device copies a task twice, even when you move or delete the copy. A task with a date is sent back under
+        its own item and the original is removed from the calendar; a task without a date stays, marked as taken.
       </p>
+      {#if inboxCopies && inboxCopies.count > 0}
+        <div class="box" data-testid="calendar-inbox-copies">
+          <p>
+            {inboxCopies.count} tasks copied earlier are still in the page <code>{inboxCopies.page}</code>.
+          </p>
+          <button type="button" data-testid="calendar-move-copies" onclick={moveCopies}
+            >Move them into today's journal</button
+          >
+          <p class="muted">
+            Only tasks the sync made are moved, with their dates, notes and block IDs. Anything else in that
+            page stays. The page history in the app can bring the old version back.
+          </p>
+        </div>
+      {/if}
       <div class="buttons">
         <button
           type="button"
@@ -459,6 +520,12 @@
     text-decoration: underline;
     cursor: pointer;
     font: inherit;
+  }
+  .box {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3em 0.8em;
+    margin: 0.5em 0;
   }
   .buttons {
     display: flex;

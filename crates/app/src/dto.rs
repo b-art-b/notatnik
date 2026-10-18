@@ -1392,6 +1392,8 @@ pub struct SyncStatus {
     pub pending_deletes: u32,
     /// Files that failed in the last sync.
     pub file_errors: Vec<String>,
+    /// Pages (paths) that were downloaded with their lines joined together by another editor and still are.
+    pub warnings: Vec<String>,
     /// The address of the server folder.
     pub url: String,
     /// The login name.
@@ -1415,6 +1417,7 @@ impl SyncStatus {
             merge: true,
             pending_deletes: 0,
             file_errors: Vec::new(),
+            warnings: Vec::new(),
             url: String::new(),
             user: String::new(),
         }
@@ -1612,6 +1615,10 @@ pub struct CalendarStatus {
     pub import_tasks: bool,
     /// Open tasks without a date are sent too (`[calendar] undated = "open"`).
     pub undated_tasks: bool,
+    /// Where copied tasks go: `journal` (a section of today's journal) or `inbox`.
+    pub import_to: String,
+    /// The heading of that section.
+    pub import_section: String,
     /// More calendars tasks can go to (`href`s); a task chooses with `cal:: <name>`.
     pub more_tasks: Vec<String>,
     /// The calendars a task can go to, the default first.
@@ -1637,6 +1644,22 @@ pub struct CalendarConnectArgs {
 pub struct CalendarList {
     pub account: CalendarAccountView,
     pub calendars: Vec<CalendarView>,
+}
+
+/// `calendar_inbox_copies` result: the tasks an earlier sync copied into the inbox page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct InboxCopies {
+    pub count: u32,
+    pub page: String,
+}
+
+/// `calendar_move_inbox_copies` result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct MovedCopies {
+    /// Moved from the inbox into today's journal.
+    pub moved: u32,
+    /// Copies elsewhere that were only marked with their source.
+    pub marked: u32,
 }
 
 /// `calendar_pause` arguments.
@@ -1674,6 +1697,9 @@ pub struct CalendarSaveArgs {
     /// Send open tasks without a date too.
     #[serde(default)]
     pub undated_tasks: bool,
+    /// Where copied tasks go: `journal` or `inbox`; none keeps the current choice (`inbox` when it was off).
+    #[serde(default)]
+    pub import_to: Option<String>,
     /// More calendars tasks can go to.
     #[serde(default)]
     pub more_tasks: Vec<String>,

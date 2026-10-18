@@ -78,6 +78,7 @@ A **graph** is a folder of notes.
 | SY-6 | A sync runs a few seconds after a local change, every minute, when the graph opens, when the app closes, and on request. | V1 |
 | SY-7 | The password is kept in the system keyring, never in `settings.toml`, the graph folder or backups. | V1 |
 | SY-8 | The sidebar shows the sync state; Settings → Sync shows details, asks for a password again, and disconnects (the notes stay as a local graph). | V1 |
+| SY-9 | A page that a sync downloads with the lines of its blocks joined together by another editor (a block ID followed by a property on the same line) is reported in the sidebar and in Settings → Sync, with the advice to restore the earlier version from History. | V1 |
 | ST-11 | Multi-file operations (rename with reference rewriting, namespace move, delete of several pages) are journaled outside the graph before their first step. If the app dies in the middle, the next open undoes the partial operation (or only drops the record when it had completed) and says so. | V1 |
 | ST-12 | The app remembers the graphs opened on this device (device setting, never in a graph): the start screen lists them, the most recent first with the last opened selected (Enter opens it), shows a missing folder as such and removes an entry from the list on request (the folder, its notes, cache and backups are not touched). *Settings → Graph → Open the last graph at start* skips the start screen. *Switch graph…* (palette, Settings) shows it again with a way back. Opening a graph with the CLI does not add it to the history. A graph's folder can be picked with the system's folder chooser (desktop app) instead of typing the path. | V1 |
 | VH-1 | Every file the app writes, and every change from outside it notices, is recorded in a per-page version history on this device (outside the graph, never synced); the text before the first change is kept too. | V1 |
@@ -257,6 +258,7 @@ A **graph** is a folder of notes.
 | CA-9 | Deleting a task block (or un-dating it) removes or archives the calendar item, following a config setting. | V1 |
 | CA-10 | Create a note page from a calendar event (meeting notes) with a link back to the event. | Later |
 | CA-11 | Calendar sync can be paused for all calendars and resumed (Settings → Calendar → *Pause calendar sync*, or the palette command *Pause or resume calendar sync*). While paused nothing is sent, read or removed, the automatic sync does not run and *Sync now* is refused; the calendars and choices stay, and what changed meanwhile is brought in step at the first sync after the resume. It is a device setting. | V1 |
+| CA-12 | Tasks made in other apps are copied into today's journal under a `### Synced tasks` heading (or the inbox page) and each is copied exactly once, whichever device syncs: the copy carries `cal-source:: <UID>` and a block ID derived from it, a device marks the original as taken with a conditional write before copying (one device wins; a mark holds for a day, a final mark for good), and copies an earlier version put in the inbox can be moved into the journal. | V1 |
 
 ## 12. Nextcloud file sync
 

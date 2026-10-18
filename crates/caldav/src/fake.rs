@@ -23,6 +23,8 @@ struct State {
     etag: u64,
     requests: usize,
     fail: Option<&'static str>,
+    /// Keep no `X-` properties of what is written (some apps drop what they do not know).
+    drop_extensions: bool,
 }
 
 /// The server. Share it between "devices" by reference.
@@ -49,6 +51,11 @@ impl FakeServer {
             ..Cal::default()
         });
         href
+    }
+
+    /// From now on the server drops every `X-` property of what is written, as some apps do.
+    pub fn drop_extension_properties(&self, on: bool) {
+        self.state.lock().unwrap().drop_extensions = on;
     }
 
     /// The next call fails: `"offline"` or `"server"`.
@@ -152,6 +159,7 @@ impl CalDavClient for FakeServer {
         begin(&mut s)?;
         s.etag += 1;
         let etag = format!("\"{}\"", s.etag);
+        let drop_x = s.drop_extensions;
         let Some(c) = find(&mut s, calendar) else {
             return missing(calendar);
         };
@@ -164,7 +172,14 @@ impl CalDavClient for FakeServer {
             _ => {}
         }
         c.rev += 1;
-        c.items.insert(name.into(), (etag.clone(), ics.into()));
+        let stored = if drop_x {
+            ics.split_inclusive('\n')
+                .filter(|l| !l.to_ascii_uppercase().starts_with("X-"))
+                .collect::<String>()
+        } else {
+            ics.to_string()
+        };
+        c.items.insert(name.into(), (etag.clone(), stored));
         c.log.push((c.rev, name.into(), false));
         Ok(etag)
     }

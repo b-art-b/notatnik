@@ -184,12 +184,16 @@ pub struct CalendarSection {
     /// `complete` or `delete`.
     #[serde(default = "default_on_delete")]
     pub on_delete: String,
-    /// `off` (default) or `inbox`: tasks created in other apps become blocks on the inbox page (CA-5).
+    /// `off` (default), `journal` or `inbox`: tasks created in other apps become blocks in a section of today's
+    /// journal, or on the inbox page (CA-5, CA-12).
     #[serde(default = "default_import")]
     pub import: String,
-    /// The page those tasks go to.
+    /// The page those tasks go to with `import = "inbox"`.
     #[serde(default = "default_inbox")]
     pub inbox: String,
+    /// The heading of the section of today's journal they go under with `import = "journal"`.
+    #[serde(default = "default_import_section")]
+    pub import_section: String,
     /// `open` (default `none`): open tasks without a date are sent too, so the calendar holds every open task.
     #[serde(default = "default_undated")]
     pub undated: String,
@@ -210,6 +214,9 @@ fn default_import() -> String {
 fn default_undated() -> String {
     "none".into()
 }
+fn default_import_section() -> String {
+    "Synced tasks".into()
+}
 fn default_inbox() -> String {
     "inbox".into()
 }
@@ -221,6 +228,7 @@ impl Default for CalendarSection {
             on_delete: default_on_delete(),
             import: default_import(),
             inbox: default_inbox(),
+            import_section: default_import_section(),
             undated: default_undated(),
             colors: Default::default(),
         }
@@ -238,6 +246,7 @@ const KNOWN: &[(&str, &[&str])] = &[
             "on_delete",
             "import",
             "inbox",
+            "import_section",
             "undated",
             "colors",
         ],

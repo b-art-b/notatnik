@@ -386,6 +386,68 @@ fn split_list(v: &str) -> Vec<String> {
     out
 }
 
+/// The mark a device puts on a task made in another app when it takes it over (copies it into the notes): which
+/// device, and when (seconds since 1970). Another device that sees a fresh mark leaves the task to the first.
+pub const CLAIM_PROPERTY: &str = "X-NOTATNIK-IMPORT";
+
+/// A takeover mark. `done`: the copy is in the notes, the task stays as it is for good.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Claim {
+    pub device: String,
+    pub at: i64,
+    pub done: bool,
+}
+
+/// The takeover mark of an item, if it has one.
+pub fn claim_of(ics: &str) -> Option<Claim> {
+    for line in unfold(ics) {
+        let Some(p) = split_prop(&line) else {
+            continue;
+        };
+        if p.name.eq_ignore_ascii_case(CLAIM_PROPERTY) {
+            let mut parts = p.value.split(';');
+            let device = parts.next()?.to_string();
+            let at = parts.next()?.trim().parse().ok()?;
+            return Some(Claim {
+                device,
+                at,
+                done: parts.next().is_some_and(|d| d.trim() == "done"),
+            });
+        }
+    }
+    None
+}
+
+/// The item with a takeover mark (an older one is replaced), the rest of the text as it was.
+pub fn with_claim(ics: &str, device: &str, at: i64, done: bool) -> String {
+    let eol = if ics.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut out = String::with_capacity(ics.len() + 64);
+    let mut inserted = false;
+    let mut skipping = false;
+    for raw in ics.split_inclusive('\n') {
+        let line = raw.trim_end_matches(['\r', '\n']);
+        // a folded continuation of the mark we replace
+        if skipping && (line.starts_with(' ') || line.starts_with('\t')) {
+            continue;
+        }
+        skipping = false;
+        if line
+            .to_ascii_uppercase()
+            .starts_with(&format!("{CLAIM_PROPERTY}:"))
+        {
+            skipping = true;
+            continue;
+        }
+        if !inserted && line.eq_ignore_ascii_case("END:VTODO") {
+            let end = if done { ";done" } else { "" };
+            out.push_str(&format!("{CLAIM_PROPERTY}:{device};{at}{end}{eol}"));
+            inserted = true;
+        }
+        out.push_str(raw);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -503,5 +565,41 @@ LAST-MODIFIED:20261018T100000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
         let todo = parse_todo(ics).unwrap();
         assert_eq!(todo.priority, None);
         assert_eq!(todo.start, Some(When::Date(d(2026, 10, 20))));
+    }
+
+    #[test]
+    fn a_takeover_mark_is_added_replaced_and_read_back() {
+        let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:x\r\nSUMMARY:A task\r\nEND:VTODO\r\nEND:VCALENDAR\r\n";
+        assert_eq!(claim_of(ics), None);
+        let marked = with_claim(ics, "dev1", 1_700_000_000, false);
+        assert_eq!(
+            marked,
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:x\r\nSUMMARY:A task\r\nX-NOTATNIK-IMPORT:dev1;1700000000\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+        );
+        assert_eq!(
+            claim_of(&marked),
+            Some(Claim {
+                device: "dev1".into(),
+                at: 1_700_000_000,
+                done: false
+            })
+        );
+        // a newer mark replaces the old one; everything else stays as it was
+        let again = with_claim(&marked, "dev2", 1_700_000_500, false);
+        assert_eq!(again.matches("X-NOTATNIK-IMPORT").count(), 1);
+        assert_eq!(claim_of(&again).unwrap().device, "dev2");
+        assert_eq!(
+            again.replace("X-NOTATNIK-IMPORT:dev2;1700000500\r\n", ""),
+            ics
+        );
+        // the task still reads as before
+        assert_eq!(parse_todo(&marked).unwrap().summary, "A task");
+        // text with bare line feeds keeps them
+        let lf = with_claim("BEGIN:VTODO\nUID:y\nEND:VTODO\n", "d", 5, false);
+        assert_eq!(lf, "BEGIN:VTODO\nUID:y\nX-NOTATNIK-IMPORT:d;5\nEND:VTODO\n");
+        // the final mark says the copy is made
+        let done = with_claim(&marked, "dev1", 1_700_000_900, true);
+        assert!(claim_of(&done).unwrap().done);
+        assert!(!claim_of(&marked).unwrap().done);
     }
 }

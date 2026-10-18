@@ -66,8 +66,42 @@ pub struct Report {
     pub conflict_files: Vec<String>,
     /// Files that failed, with the reason; the next sync tries them again.
     pub errors: Vec<(String, String)>,
+    /// Downloaded pages whose lines look joined together by some other editor (a block ID followed by properties on
+    /// the same line, which this app never writes).
+    pub suspect: Vec<String>,
     /// Everything is in step: nothing was left to do at the end.
     pub complete: bool,
+}
+
+/// True for the text of a page in which a block ID is followed by a `key:: value` property on the same line
+/// (`- TODO call ^abc123 deadline:: 2026-10-21`). The app puts properties on lines of their own; a file like this was
+/// rewritten by an editor that joins the lines of a list item (Nextcloud's Text editor does).
+pub fn looks_reformatted(text: &str) -> bool {
+    text.lines().any(|line| {
+        let mut from = 0;
+        while let Some(at) = line[from..].find(" ^") {
+            let rest = &line[from + at + 2..];
+            from += at + 2;
+            let id: String = rest.chars().take(6).collect();
+            let after = &rest[id.len()..];
+            if id.len() == 6
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+                && after.starts_with(' ')
+            {
+                let word: String = after
+                    .trim_start()
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                    .collect();
+                if !word.is_empty() && after.trim_start()[word.len()..].starts_with("::") {
+                    return true;
+                }
+            }
+        }
+        false
+    })
 }
 
 impl Report {
@@ -346,6 +380,9 @@ fn run(
                 },
             );
             report.pulled.push(path.clone());
+            if path.ends_with(".md") && std::str::from_utf8(&bytes).is_ok_and(looks_reformatted) {
+                report.suspect.push(path.clone());
+            }
             Ok(true)
         }
         Action::DeleteRemote { path, etag } => {

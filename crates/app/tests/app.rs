@@ -4311,6 +4311,313 @@ fn imports_into_an_existing_inbox_keep_properties_on_their_own_lines() {
     );
 }
 
+/// Puts a task made in "another app" on the server, under a file name that is not its UID.
+fn foreign_task(
+    server: &notatnik_caldav::fake::FakeServer,
+    calendar: &str,
+    uid: &str,
+    summary: &str,
+    extra: &str,
+) -> String {
+    use notatnik_caldav::{CalDavClient, Cond};
+    let name = format!("RANDOM-{uid}.ics");
+    let ics = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTODO\r\nUID:{uid}\r\nSUMMARY:{summary}\r\nSTATUS:NEEDS-ACTION\r\n{extra}END:VTODO\r\nEND:VCALENDAR\r\n"
+    );
+    server.put(calendar, &name, &ics, &Cond::Create).unwrap();
+    name
+}
+
+fn server_text(
+    server: &notatnik_caldav::fake::FakeServer,
+    calendar: &str,
+    name: &str,
+) -> Option<String> {
+    server.text(calendar, name)
+}
+
+/// The same graph on a second device: its own device folder and calendar settings, the notes shared.
+fn second_device(
+    first: &T,
+    server: &Arc<notatnik_caldav::fake::FakeServer>,
+    calendar: &str,
+    import_to: &str,
+) -> T {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device-b")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    })
+    .with_calendar_client(server.clone());
+    let b = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    b.ok(
+        "open_graph",
+        json!({"path": first.graph().to_str().unwrap(), "create": false}),
+    );
+    b.ok(
+        "calendar_connect",
+        json!({"server": "http://localhost:8080", "user": "me", "password": "pw"}),
+    );
+    b.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": calendar, "import_tasks": true, "import_to": import_to}),
+    );
+    b
+}
+
+fn reopen(t: &T, graph: &std::path::Path) {
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": false}),
+    );
+}
+
+const JOURNAL: &str = "journals/2026/2026-10-18.md";
+
+/// Tasks made in other apps go under a heading of today's journal, each with the property that names its source
+/// and a block ID made from it; the original is deleted when it has a date and marked when it stays (CA-5, CA-12).
+#[test]
+fn tasks_made_in_other_apps_go_into_a_section_of_todays_journal() {
+    let (t, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true, "import_to": "journal"}),
+    );
+    let st = t.ok("calendar_status", json!({}));
+    assert_eq!(
+        (st["import_tasks"].clone(), st["import_to"].clone()),
+        (json!(true), json!("journal"))
+    );
+    let dated = foreign_task(
+        &server,
+        &tasks,
+        "uid-milk",
+        "Buy milk",
+        "DUE;VALUE=DATE:20261025\r\nPRIORITY:1\r\n",
+    );
+    let undated = foreign_task(&server, &tasks, "uid-ola", "Call Ola", "");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 2, "{r}");
+
+    let day = std::fs::read_to_string(graph.join(JOURNAL)).unwrap();
+    println!("{day}");
+    assert!(
+        day.starts_with("- ### Synced tasks\n  - TODO Buy milk ^"),
+        "{day}"
+    );
+    assert!(day.contains("    deadline:: 2026-10-25\n"), "{day}");
+    assert!(day.contains("    cal-source:: uid-milk\n"), "{day}");
+    assert!(
+        day.contains("  - TODO Call Ola ^") && day.contains("    cal-source:: uid-ola"),
+        "{day}"
+    );
+    // the block ID is made from the source: the same on every device
+    let id = |title: &str| {
+        let l = day.lines().find(|l| l.contains(title)).unwrap();
+        l.rsplit('^').next().unwrap().to_string()
+    };
+    assert_eq!(id("Buy milk").len(), 6);
+    assert_ne!(id("Buy milk"), id("Call Ola"));
+
+    // the original with a date is gone (its copy is sent under our own name); the one without stays, marked for good
+    assert_eq!(server_text(&server, &tasks, &dated), None);
+    let kept = server_text(&server, &tasks, &undated).unwrap();
+    assert!(
+        kept.contains("X-NOTATNIK-IMPORT:") && kept.contains(";done"),
+        "{kept}"
+    );
+
+    // a later task goes under the same heading
+    foreign_task(&server, &tasks, "uid-three", "Third", "");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 1, "{r}");
+    let day = std::fs::read_to_string(graph.join(JOURNAL)).unwrap();
+    assert_eq!(day.matches("### Synced tasks").count(), 1, "{day}");
+    assert!(day.contains("  - TODO Third ^"), "{day}");
+
+    // and nothing more is copied
+    let before = walk_md(&graph);
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    assert_eq!(walk_md(&graph), before);
+}
+
+/// Two devices see the same tasks: each is copied once. The mark on the original and the property in the notes
+/// each keep the other device from copying it, also when the copy is deleted later (CA-12).
+#[test]
+fn a_task_made_in_another_app_is_copied_once_whichever_device_syncs() {
+    let (a, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    a.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true, "import_to": "journal"}),
+    );
+    let b = second_device(&a, &server, &tasks, "journal");
+    foreign_task(&server, &tasks, "uid-one", "Task one", "");
+    foreign_task(&server, &tasks, "uid-two", "Task two", "");
+
+    let r = a.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 2, "{r}");
+    // B has not seen A's notes yet, but the originals say they are taken
+    let r = b.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    // B has A's notes now
+    reopen(&b, &graph);
+    let r = b.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    let all: String = walk_md(&graph).values().cloned().collect();
+    assert_eq!(all.matches("TODO Task one").count(), 1, "{all}");
+    assert_eq!(all.matches("TODO Task two").count(), 1, "{all}");
+
+    // the copy is deleted: neither device brings it back
+    let day = std::fs::read_to_string(graph.join(JOURNAL)).unwrap();
+    let path_of_one = day
+        .lines()
+        .filter(|l| l.trim_start().starts_with("- "))
+        .position(|l| l.contains("Task one"))
+        .unwrap()
+        - 1; // not counting the heading: child 0 or 1 of the section
+    let page = a.ok("get_page", json!({"name": "2026-10-18"}));
+    a.ok(
+        "apply_ops",
+        json!({"page": "2026-10-18", "base_hash": page["hash"], "ops": [{"op": "delete", "block": {"path": [0, path_of_one]}}]}),
+    );
+    let r = a.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    reopen(&b, &graph);
+    let r = b.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    let all: String = walk_md(&graph).values().cloned().collect();
+    assert_eq!(all.matches("TODO Task one").count(), 0, "{all}");
+}
+
+/// A server that drops the marks (some apps do) is no problem once a device has the other's notes; a fresh mark of
+/// another device holds the task back for a day, an old one does not (CA-12).
+#[test]
+fn takeover_marks_expire_and_the_notes_are_the_fallback() {
+    let (a, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    a.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true, "import_to": "journal"}),
+    );
+    let b = second_device(&a, &server, &tasks, "journal");
+
+    // a mark of another device: fresh, it keeps A away; a day old, it does not
+    let now = chrono::Utc::now().timestamp();
+    let mark = |name: &str, at: i64| {
+        let item = server.get(&tasks, &[name.to_string()]).unwrap().remove(0);
+        let ics = notatnik_caldav::ical::with_claim(&item.ics, "ghost", at, false);
+        use notatnik_caldav::{CalDavClient, Cond};
+        server
+            .put(&tasks, name, &ics, &Cond::IfMatch(item.etag))
+            .unwrap();
+    };
+    let fresh = foreign_task(&server, &tasks, "uid-fresh", "Fresh claim", "");
+    let old = foreign_task(&server, &tasks, "uid-old", "Old claim", "");
+    mark(&fresh, now - 60);
+    mark(&old, now - 2 * 24 * 3600);
+    let r = a.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 1, "{r}");
+    let day = std::fs::read_to_string(graph.join(JOURNAL)).unwrap();
+    assert!(
+        day.contains("Old claim") && !day.contains("Fresh claim"),
+        "{day}"
+    );
+
+    // marks that the server drops: A copies, B (with A's notes) does not copy again
+    server.drop_extension_properties(true);
+    foreign_task(&server, &tasks, "uid-plain", "Plain", "");
+    let r = a.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 1, "{r}");
+    reopen(&b, &graph);
+    let r = b.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+    let all: String = walk_md(&graph).values().cloned().collect();
+    assert_eq!(all.matches("TODO Plain").count(), 1, "{all}");
+}
+
+/// Copies an earlier sync put into the inbox move into today's journal (the sync's own, nothing else), keep their
+/// IDs, dates and source, and nothing is copied again afterwards (CA-12).
+#[test]
+fn copies_in_the_inbox_move_into_the_journal_section() {
+    let (t, server, tasks, graph) = deletion_setup("complete", "- note\n");
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true, "import_to": "inbox"}),
+    );
+    foreign_task(
+        &server,
+        &tasks,
+        "uid-a",
+        "Old copy A",
+        "DUE;VALUE=DATE:20261026\r\n",
+    );
+    foreign_task(&server, &tasks, "uid-b", "Old copy B", "");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 2, "{r}");
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    assert!(
+        inbox.contains("Old copy A") && inbox.contains("Old copy B"),
+        "{inbox}"
+    );
+    // the person's own block in the inbox
+    let page = t.ok("get_page", json!({"name": "inbox"}));
+    t.ok(
+        "apply_ops",
+        json!({"page": "inbox", "base_hash": page["hash"], "ops": [{"op": "insert", "parent": [], "index": 0, "text": "My own note"}]}),
+    );
+
+    // switching to the journal: the copies in the inbox can be moved
+    t.ok(
+        "calendar_save",
+        json!({"enabled": true, "read": [], "tasks": tasks, "import_tasks": true, "import_to": "journal"}),
+    );
+    let c = t.ok("calendar_inbox_copies", json!({}));
+    assert_eq!(
+        (c["count"].clone(), c["page"].clone()),
+        (json!(2), json!("inbox")),
+        "{c}"
+    );
+    let m = t.ok("calendar_move_inbox_copies", json!({}));
+    assert_eq!(m["moved"], 2, "{m}");
+
+    let inbox = std::fs::read_to_string(graph.join("pages/inbox.md")).unwrap();
+    assert!(
+        inbox.contains("My own note") && !inbox.contains("Old copy"),
+        "{inbox}"
+    );
+    let day = std::fs::read_to_string(graph.join(JOURNAL)).unwrap();
+    assert!(day.starts_with("- ### Synced tasks\n"), "{day}");
+    assert!(
+        day.contains("Old copy A ^") && day.contains("cal-source:: uid-a"),
+        "{day}"
+    );
+    assert!(
+        day.contains("Old copy B ^") && day.contains("cal-source:: uid-b"),
+        "{day}"
+    );
+    assert!(day.contains("deadline:: 2026-10-26"), "{day}");
+    assert_eq!(t.ok("calendar_inbox_copies", json!({}))["count"], 0);
+
+    // no block ID twice anywhere, and the next sync copies and changes nothing
+    let all: String = walk_md(&graph).values().cloned().collect();
+    let mut ids: Vec<&str> = all
+        .lines()
+        .filter_map(|l| l.rsplit_once(" ^").map(|(_, i)| i))
+        .collect();
+    let n = ids.len();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), n, "{all}");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["imported"], 0, "{r}");
+}
+
 /// Other apps do not name an item after its UID (Nextcloud Tasks uses a random name): the original is still found,
 /// deleted once, and never copied again, whether the copy has a date or not (CA-5; P4.10).
 #[test]

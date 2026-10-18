@@ -16,6 +16,7 @@ const base: SyncStatus = {
   merge: true,
   pending_deletes: 0,
   file_errors: [],
+  warnings: [],
   url: '',
   user: '',
 }

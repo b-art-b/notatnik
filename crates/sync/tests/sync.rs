@@ -611,3 +611,42 @@ fn a_server_that_mounts_the_files_like_nextcloud_works_the_same() {
     let r = sync(root.path(), &remote, &o).unwrap();
     assert_eq!(r.pulled, ["pages/b.md"]);
 }
+
+#[test]
+fn a_downloaded_page_whose_lines_were_joined_by_another_editor_is_reported() {
+    use notatnik_sync::looks_reformatted;
+    assert!(looks_reformatted(
+        "- TODO call ^abc123 deadline:: 2026-10-21\n"
+    ));
+    assert!(looks_reformatted(
+        "- a\n- TODO x ^q1g4p1 scheduled:: 2026-10-24"
+    ));
+    // what the app writes is fine, and so is text that only looks similar
+    assert!(!looks_reformatted(
+        "- TODO call ^abc123\n  deadline:: 2026-10-21\n"
+    ));
+    assert!(!looks_reformatted("- see ^abc123 and more text\n- a:: b\n"));
+    assert!(!looks_reformatted("- a ^abc12 deadline:: x\n"));
+
+    let e = Env::new();
+    e.write(
+        "pages/inbox.md",
+        "- TODO call ^abc123\n  deadline:: 2026-10-21\n",
+    );
+    e.sync();
+    // another editor on the server joins the lines
+    e.dav.put_file(
+        "Notes/g/pages/inbox.md",
+        b"- TODO call ^abc123 deadline:: 2026-10-21",
+    );
+    let r = e.sync();
+    assert_eq!(r.pulled, ["pages/inbox.md"], "{r:?}");
+    assert_eq!(r.suspect, ["pages/inbox.md"], "{r:?}");
+    // an ordinary change is not reported
+    e.dav.put_file(
+        "Notes/g/pages/inbox.md",
+        b"- TODO call ^abc123\n  deadline:: 2026-10-22\n",
+    );
+    let r = e.sync();
+    assert!(r.suspect.is_empty(), "{r:?}");
+}

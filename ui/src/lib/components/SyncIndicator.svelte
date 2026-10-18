@@ -29,6 +29,15 @@
     <span aria-hidden="true">☁</span>
     {syncLine(sync.status)}
   </button>
+  {#if sync.status.warnings.length}
+    <a
+      class="sync warn"
+      href="#/settings"
+      data-testid="sync-warning"
+      title={`Look reformatted by another editor:\n${sync.status.warnings.join('\n')}\nOpen Settings → Sync.`}
+      >⚠ {sync.status.warnings.length} page(s) look reformatted</a
+    >
+  {/if}
 {/if}
 
 <style>
@@ -45,6 +54,10 @@
   }
   .sync:hover:not(:disabled) {
     color: var(--text);
+  }
+  .sync.warn {
+    color: var(--warn);
+    text-decoration: none;
   }
   .sync.problem {
     color: var(--danger);

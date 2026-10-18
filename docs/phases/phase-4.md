@@ -219,6 +219,16 @@ Tasks and events as a real calendar. The maths is in `ui/src/lib/calendarGrid.ts
 - [x] Browser test: *rolled over to today* puts overdue open tasks in today's strip with their age, leaves done and future tasks and the files alone, a past week shows the originals, and dragging a rolled task writes a real date (CV-9)
 - [ ] Manual: use it for a week in the real app (feel of dragging, colours in dark mode, a long list of events)
 
+### P4.18 Copies of other apps' tasks in the journal, once across devices (CA-12)
+- [x] Journal section `### Synced tasks` (or the inbox page), `cal-source::` property, block ID derived from the source
+- [x] Takeover mark on the original (conditional write, one winner, one day, final mark when the original stays)
+- [x] Moving earlier inbox copies into the journal section; copies elsewhere only marked
+
+**Verify**
+- [x] App tests: the section is made and reused; dated originals deleted, undated ones marked final; two devices (own device folders, shared notes and server) copy each task once, also after the copy is deleted; a fresh mark of another device holds a task back, an old one does not; a server that drops the marks is covered by the notes' property; the inbox move keeps IDs, dates and the person's own blocks and leaves no block ID twice
+- [ ] Real Nextcloud: the mark survives an edit of the task in Nextcloud Tasks and Thunderbird (not tried)
+- [ ] Two real devices copying in the same second (the ETag write decides; only tried one after the other)
+
 ## Manual acceptance checklist
 
 - [ ] Enable sync with a dedicated test calendar on your real Nextcloud; use it for 3 days
