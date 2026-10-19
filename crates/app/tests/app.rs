@@ -3433,6 +3433,57 @@ fn files_on_a_server_are_browsed_and_linked_by_their_id() {
     );
 }
 
+/// A local graph is connected to an empty server folder and uploaded; a folder with anything in it is refused.
+#[test]
+fn a_local_graph_can_be_connected_to_a_server_folder() {
+    use notatnik_sync::fakedav::FakeDav;
+    let dav = FakeDav::start();
+    let t = start("basic");
+    let args = |folder: &str| json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": folder, "attach": false});
+    let root = t.tmp.path().join("graph");
+    std::fs::create_dir_all(root.join("pages")).unwrap();
+    std::fs::write(root.join("pages/local.md"), "- only here\n").unwrap();
+
+    // a folder with other things in it, and one with a graph, are refused and nothing is uploaded
+    dav.put_file("Other/readme.txt", b"hello");
+    assert_eq!(
+        t.call("connect_remote", args("Other")).unwrap_err().code,
+        "not_a_graph"
+    );
+    dav.put_file("Taken/pages/x.md", b"- x\n");
+    assert_eq!(
+        t.call("connect_remote", args("Taken")).unwrap_err().code,
+        "has_graph"
+    );
+    assert!(dav.file("Other/pages/local.md").is_none());
+    assert!(t.ok("sync_status", json!({}))["state"] == "off");
+
+    // an empty (new) folder takes the graph, in place: same folder, same pages
+    let info = t.ok("connect_remote", args("Notes/mine"));
+    assert_eq!(
+        std::path::Path::new(info["root"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        root.canonicalize().unwrap()
+    );
+    assert!(info["remote"]["url"].is_string());
+    assert_eq!(
+        dav.file("Notes/mine/pages/local.md").unwrap(),
+        b"- only here\n"
+    );
+    let st = t.ok("sync_status", json!({}));
+    assert_eq!(st["state"], "idle", "{st}");
+    assert!(root.join("pages/local.md").exists());
+
+    // it is a server graph now: connecting again is refused
+    assert_eq!(
+        t.call("connect_remote", args("Notes/again"))
+            .unwrap_err()
+            .code,
+        "invalid"
+    );
+}
+
 /// SY-1..SY-6: a graph kept in a server folder; two devices through the in-memory WebDAV server.
 #[test]
 fn a_graph_kept_in_a_server_folder_syncs_both_ways() {

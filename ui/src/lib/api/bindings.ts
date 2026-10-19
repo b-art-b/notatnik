@@ -2352,6 +2352,7 @@ export type Commands = {
   calendar_forget: { args: NoArgs; result: CalendarStatus };
   webdav_test: { args: WebdavArgs; result: WebdavTest };
   create_remote_graph: { args: WebdavArgs; result: GraphInfo };
+  connect_remote: { args: WebdavArgs; result: GraphInfo };
   disconnect_remote: { args: NoArgs; result: GraphInfo };
   backup_lock: { args: NoArgs; result: BackupEncryption };
   backup_encryption_change_password: { args: BackupChangePasswordArgs; result: BackupEncryption };

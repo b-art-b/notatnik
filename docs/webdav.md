@@ -25,6 +25,11 @@ reads and writes files, and the watcher picks up what it writes like any externa
 4. The sidebar shows `☁ Synced 3 min ago`; click it to sync now. Settings → Sync shows the details, asks for the
    password again when needed, and has **Disconnect** (keeps the notes here as a local graph).
 
+A graph that is a local folder can move to a server in place: Settings → Sync → **Connect to a server…**, the same
+form. The folder must be empty or new (a folder with a graph or anything else is refused; two graphs are not merged).
+**Upload this graph** keeps the pages where they are and uploads them with the first sync. To encrypt some of them,
+mark them after this upload (docs/encryption.md).
+
 Plain `http://` is accepted only for this computer and the local network (`localhost`, `127.*`, `10.*`,
 `192.168.*`, `172.16–31.*`, `*.local`); everything else needs `https://` (SY-2).
 

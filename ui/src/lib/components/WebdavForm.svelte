@@ -3,8 +3,13 @@
   // folder is looked at first without changing anything; an empty or new folder becomes a new graph, a folder that
   // already holds a graph can be downloaded to this device.
   import { backend, CommandError, type WebdavTest } from '../api'
-  import { adoptGraph, errorMessage } from '../stores/app.svelte'
+  import { adoptGraph, app, errorMessage } from '../stores/app.svelte'
   import WebdavFolderBrowser from './WebdavFolderBrowser.svelte'
+  import { refreshSync } from '../stores/sync.svelte'
+
+  // `connect`: the form of Settings → Sync for the open local graph. It is uploaded to an empty or new folder, in
+  // place, and a folder that holds anything is refused. Without it the form is the start screen's.
+  let { connect = false, ondone }: { connect?: boolean; ondone?: () => void } = $props()
 
   let server = $state('')
   let user = $state('')
@@ -36,11 +41,16 @@
     busy = true
     error = ''
     try {
-      await adoptGraph(await backend.call('create_remote_graph', args(attach)))
+      if (connect) {
+        // the same graph, now with a server: no reload, Settings stays where it is
+        app.graph = await backend.call('connect_remote', args(false))
+        await refreshSync()
+        ondone?.()
+      } else await adoptGraph(await backend.call('create_remote_graph', args(attach)))
     } catch (e) {
       error = errorMessage(e)
       // the folder has a graph after all: show the choice
-      if (e instanceof CommandError && e.code === 'has_graph') await check()
+      if (!connect && e instanceof CommandError && e.code === 'has_graph') await check()
     } finally {
       busy = false
     }
@@ -52,7 +62,7 @@
   data-testid="webdav-form"
   onsubmit={(e) => {
     e.preventDefault()
-    void (seen ? create(seen.has_graph) : check())
+    void (seen ? create(!connect && seen.has_graph) : check())
   }}
 >
   <label for="wd-server">Server</label>
@@ -93,9 +103,13 @@
   {#if seen}
     <p class="seen" data-testid="webdav-seen">
       {#if !seen.exists}
-        The folder does not exist yet; it will be created.
+        The folder does not exist yet; it will be created{connect
+          ? ' and this graph will be uploaded to it'
+          : ''}.
       {:else if seen.items === 0}
-        The folder is empty.
+        The folder is empty.{connect ? ' This graph will be uploaded to it.' : ''}
+      {:else if connect}
+        The folder holds {seen.items} item(s). To upload this graph, choose an empty or a new folder.
       {:else if seen.has_graph}
         The folder already holds a Notatnik graph. It will be downloaded to this device.
       {:else}
@@ -106,10 +120,10 @@
   <div class="buttons">
     <button
       type="submit"
-      disabled={!filled || busy || (!!seen && seen.exists && seen.items > 0 && !seen.has_graph)}
+      disabled={!filled || busy || (!!seen && seen.exists && seen.items > 0 && (connect || !seen.has_graph))}
     >
-      {#if busy}Working…{:else if !seen}Check the folder{:else if seen.has_graph}Download and open{:else}Create
-        the graph{/if}
+      {#if busy}Working…{:else if !seen}Check the folder{:else if connect}Upload this graph{:else if seen.has_graph}Download
+        and open{:else}Create the graph{/if}
     </button>
   </div>
 </form>

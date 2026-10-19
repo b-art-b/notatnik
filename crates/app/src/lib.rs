@@ -173,6 +173,7 @@ commands! {
     calendar_forget(NoArgs) -> CalendarStatus => calendar_forget,
     webdav_test(WebdavArgs) -> WebdavTest => webdav_test,
     create_remote_graph(WebdavArgs) -> GraphInfo => create_remote_graph,
+    connect_remote(WebdavArgs) -> GraphInfo => connect_remote,
     disconnect_remote(NoArgs) -> GraphInfo => disconnect_remote,
     backup_lock(NoArgs) -> BackupEncryption => backup_lock,
     backup_encryption_change_password(BackupChangePasswordArgs) -> BackupEncryption => backup_encryption_change_password,

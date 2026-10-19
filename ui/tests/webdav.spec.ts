@@ -37,6 +37,54 @@ const test = base.extend<{ dav: Dav }>({
 const dir = (server: string, user: string, folder: string) =>
   `${server}/remote.php/dav/files/${user}/${folder}`
 
+test('a local graph is connected to an empty server folder from Settings → Sync and uploaded in place', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  backend.write('pages/Mine.md', '- stays where it is\n')
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await page.getByTestId('connect-server').click()
+  const form = page.getByTestId('webdav-form')
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  // a folder with something in it is refused
+  await fetch(`${dir(dav.server, dav.user, 'Taken')}/`, {
+    method: 'MKCOL',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${dav.user}:${dav.password}`).toString('base64') },
+  })
+  await fetch(`${dir(dav.server, dav.user, 'Taken')}/note.txt`, {
+    method: 'PUT',
+    body: 'x',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${dav.user}:${dav.password}`).toString('base64') },
+  })
+  await form.getByLabel('Folder on the server').fill('Taken')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await expect(page.getByTestId('webdav-seen')).toContainText('choose an empty or a new folder')
+  await expect(form.getByRole('button', { name: 'Upload this graph' })).toBeDisabled()
+  // a new folder takes the graph
+  await form.getByLabel('Folder on the server').fill('Notes/connected')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await expect(page.getByTestId('webdav-seen')).toContainText(
+    'will be created and this graph will be uploaded',
+  )
+  await form.getByRole('button', { name: 'Upload this graph' }).click()
+  await expect(page.getByTestId('sync-url')).toContainText(dir(dav.server, dav.user, 'Notes/connected'), {
+    timeout: 15000,
+  })
+  await expect(page.getByTestId('connect-server')).toHaveCount(0)
+  await expect
+    .poll(async () => {
+      const r = await fetch(`${dir(dav.server, dav.user, 'Notes/connected')}/pages/Mine.md`, {
+        headers: { Authorization: 'Basic ' + Buffer.from(`${dav.user}:${dav.password}`).toString('base64') },
+      })
+      return r.ok ? await r.text() : r.status
+    })
+    .toBe('- stays where it is\n')
+})
+
 test('a new graph on a server is created, shows its sync status, and can be disconnected', async ({
   backend,
   page,

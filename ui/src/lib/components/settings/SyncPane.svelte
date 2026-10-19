@@ -5,10 +5,12 @@
   import { app, errorMessage, adoptGraph, toast } from '../../stores/app.svelte'
   import { refreshSync, sync, syncLine, syncNow } from '../../stores/sync.svelte'
   import SettingRow from './SettingRow.svelte'
+  import WebdavForm from '../WebdavForm.svelte'
   import EncryptionSection from './EncryptionSection.svelte'
 
   let password = $state('')
   let confirmDisconnect = $state(false)
+  let connecting = $state(false)
   const st = $derived(sync.status)
 
   async function signIn() {
@@ -159,10 +161,17 @@
     This graph is a folder on this device only.
   </p>
   <p>
-    To keep notes on a Nextcloud or other WebDAV server, create a graph there: open the start screen (Ctrl+K,
-    "Switch graph") and choose <em>New graph on a server</em>. The same folder can then be opened on other
-    devices.
+    To keep this graph on a Nextcloud or other WebDAV server, connect it to an empty folder there. The pages
+    stay where they are; they are uploaded, and the same folder can then be opened on other devices.
   </p>
+  {#if connecting}
+    <WebdavForm connect ondone={() => (connecting = false)} />
+    <button type="button" class="plain" onclick={() => (connecting = false)}>Cancel</button>
+  {:else}
+    <button type="button" data-testid="connect-server" onclick={() => (connecting = true)}
+      >Connect to a server…</button
+    >
+  {/if}
 {/if}
 
 <style>

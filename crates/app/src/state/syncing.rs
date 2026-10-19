@@ -652,6 +652,66 @@ impl AppState {
         Ok(info)
     }
 
+    /// `connect_remote`: the open graph (a local folder) starts to be kept in an empty or new server folder; the
+    /// first sync uploads it. A folder that holds a graph or other things is refused: two graphs are not merged.
+    pub fn connect_remote(&self, a: WebdavArgs) -> ApiResult<GraphInfo> {
+        use notatnik_sync::Remote;
+        let (id, root) = self.with_open(|o| Ok((o.graph.id(), o.graph.root().to_path_buf())))?;
+        if self.remote_of(&id).is_some() {
+            return Err(ApiError::new(
+                "invalid",
+                "this graph is already kept on a server; disconnect it first",
+            ));
+        }
+        let url =
+            notatnik_sync::folder_url(&a.server, &a.user, &a.folder).map_err(|e| api_err(&e))?;
+        let remote = WebDavRemote::new(&url, &a.user, &a.password).map_err(|e| api_err(&e))?;
+        let entries = remote
+            .list("")
+            .map_err(|e| api_err(&e))?
+            .map(|l| l.entries)
+            .unwrap_or_default();
+        if !entries.is_empty() {
+            let code = if looks_like_graph(&entries) {
+                "has_graph"
+            } else {
+                "not_a_graph"
+            };
+            return Err(ApiError::new(
+                code,
+                "the folder is not empty; choose an empty or a new folder (a graph that is already there is not merged with this one)",
+            ));
+        }
+        let probe = notatnik_sync::probe(&remote).map_err(|e| api_err(&e))?;
+        let cfg = RemoteConfig {
+            url,
+            user: a.user.clone(),
+            trust_folder_etags: probe.trusts_folder_etags,
+            merge: true,
+        };
+        self.secrets
+            .set(&secret_key(&cfg), &a.password)
+            .map_err(|e| {
+                ApiError::new("server", format!("the password could not be stored: {e}"))
+            })?;
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        dev.set_remote(&id, Some(cfg));
+        dev.save(&self.dirs)?;
+        // no sync state from an earlier connection: this is a first sync
+        let _ = std::fs::remove_file(state_file(&root));
+        let _ = std::fs::remove_dir_all(bases_dir(&root));
+        let info = self.open_graph(OpenGraphArgs {
+            path: root.to_string_lossy().into_owned(),
+            create: false,
+        })?;
+        // uploaded now, so that the server has it when this returns
+        let _ = self.sync_now(SyncNowArgs {
+            allow_mass_delete: false,
+        });
+        log::info!("graph {id} is now kept on a server");
+        Ok(info)
+    }
+
     /// `disconnect_remote`: the graph stays on this device as a local graph; the server folder and the password
     /// are left alone (the password is forgotten).
     pub fn disconnect_remote(&self, _a: NoArgs) -> ApiResult<GraphInfo> {
