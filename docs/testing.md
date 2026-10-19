@@ -144,6 +144,15 @@ selection, moves) in Playwright's WebKit build (`ui/playwright.webkit.config.ts`
 100 MB). Run it after changes to the editor, focus handling or keys. The whole suite also runs there
 (`npx playwright test -c playwright.webkit.config.ts`): all but one test in `navigation.spec.ts` (clipboard) pass.
 
+## Encryption of chosen paths
+
+`crates/sync/tests/encrypted.rs` (fake WebDAV server): what the server holds after a session with marked paths (a scan of
+every file for marker strings), two devices, the locked key, adding and removing a mark, an interrupted change of form,
+files that were tampered with, conflict copies, the folder ETag shortcut. `crates/app/tests/app.rs` (`encrypted_*`,
+`marked_*`, `passwords_*`, `tasks_of_encrypted_*`): the vault, marks, previews, rename warnings, the calendar
+exclusion. `ui/tests/encryption.spec.ts`: the Settings section and the page's *Encrypt…* dialog against the fake
+server. `crates/app/tests/nextcloud.rs` (`encrypted_paths_on_a_real_nextcloud`, `--ignored`) against a real server.
+
 ## Sync with a server
 
 The sync engine and the app are tested against `notatnik-sync`'s in-memory WebDAV server (`fakedav` feature; the

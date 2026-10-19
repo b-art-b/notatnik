@@ -423,7 +423,7 @@ with everything up to the ephemeral key as associated data. The chunks (as above
 the whole header. The comment holds `notatnik-backup v1 <fingerprint>` for a snapshot (BK-1). A sealed snapshot is
 `notatnik-<graph id>-<YYYYMMDD>-<HHMMSS>[-before].zip.enc`; decrypting it gives the zip of BK-1.
 
-**Encrypted copy on a WebDAV server** (planned, EN-11 to EN-13): a path listed under `[encryption] paths` in
+**Encrypted copy on a WebDAV server** (EN-11 to EN-13): a path listed under `[encryption] paths` in
 `.notatnik/config.toml` is stored as `<path>.enc`, an `NTNKFILE` whose context is `<path>` (without `.enc`). The
 key is the data key of the graph's vault, `.notatnik/vault.json` (the vault JSON of EN-2, plain, synced). Folder
 entries end in `/`; matching is on the path relative to the graph folder, and a conflict copy is matched by the

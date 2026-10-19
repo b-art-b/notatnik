@@ -582,3 +582,217 @@ fn conflicts_are_decided_by_the_later_change_and_can_be_turned_around() {
     let r = e.call("calendar_sync", json!({}));
     assert_eq!(counts(&r), (json!(0), json!(0), json!(0)), "{r}");
 }
+
+/// Encrypting chosen paths on a real server (EN-11 to EN-17, E6): the server holds `.enc` files and no text of a
+/// marked page, a second device opens it with the password, a locked key stops only the marked files, and what the
+/// server's trash bin keeps of a file that was synced in plain before it was marked. Uses and removes the folder
+/// `Notes/notatnik-enc-<process id>`.
+#[test]
+#[ignore = "needs a real server, see the header"]
+fn encrypted_paths_on_a_real_nextcloud() {
+    use notatnik_sync::{Remote, WebDavRemote};
+    let (server, user, password) = (env("NC_SERVER"), env("NC_USER"), env("NC_PASSWORD"));
+    let folder = format!("Notes/notatnik-enc-{}", std::process::id());
+    let marker = "SECRETMARKER-4711";
+    let device = |name: &str| {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = AppState::new(AppOptions {
+            dirs: Dirs::under(&tmp.path().join(name)),
+            emit: Arc::new(|_, _| {}),
+            today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+            watch: false,
+        });
+        (tmp, app)
+    };
+    let (_t1, laptop) = device("laptop");
+    let (_t2, phone) = device("phone");
+    let call = |app: &AppState, name: &str, args: Value| {
+        dispatch(app, name, args).unwrap_or_else(|e| panic!("{name}: {e}"))
+    };
+    let seed = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(seed.path().join("pages")).unwrap();
+    // a graph made on the laptop
+    let args = |attach: bool| json!({"server": server, "user": user, "password": password, "folder": folder, "attach": attach});
+    let info = call(&laptop, "create_remote_graph", args(false));
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(
+        root.join("pages/private/diary.md"),
+        format!("- {marker} one\n"),
+    )
+    .unwrap();
+    std::fs::write(root.join("pages/open.md"), "- open text\n").unwrap();
+    let url = notatnik_sync::folder_url(&server, &user, &folder).unwrap();
+    let remote = WebDavRemote::new(&url, &user, &password).unwrap();
+    let cleanup = Folder(url.clone(), user.clone(), password.clone());
+
+    // synced in plain first, as a person who marks a page later would have it
+    call(&laptop, "sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        String::from_utf8_lossy(&remote.get("pages/private/diary.md").unwrap().0).contains(marker)
+    );
+
+    call(
+        &laptop,
+        "encryption_setup",
+        json!({"password": "correct horse"}),
+    );
+    call(&laptop, "encryption_confirm", json!({}));
+    let p = call(
+        &laptop,
+        "encryption_preview",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    println!("preview: {p}");
+    call(
+        &laptop,
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    let st = call(&laptop, "sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["state"], "idle", "{st}");
+    let sealed = remote.get("pages/private/diary.md.enc").unwrap().0;
+    assert!(sealed.starts_with(b"NTNKFILE"));
+    assert!(!sealed.windows(marker.len()).any(|w| w == marker.as_bytes()));
+    assert!(
+        remote.get("pages/private/diary.md").is_err(),
+        "the plain copy is gone"
+    );
+    assert!(String::from_utf8_lossy(&remote.get("pages/open.md").unwrap().0).contains("open text"));
+    assert!(remote.get(".notatnik/vault.json").is_ok());
+
+    // what Nextcloud's trash bin kept of the plain copy
+    let trash = trash_entries(&server, &user, &password, "diary.md");
+    println!("trash bin entries for diary.md: {trash:?}");
+    for t in &trash {
+        let text = trash_text(&server, &user, &password, t);
+        println!("  {t}: plain text kept = {}", text.contains(marker));
+    }
+
+    // a second device: vault and plain page first, the encrypted page after the password
+    call(&phone, "create_remote_graph", args(true));
+    let st = call(&phone, "encryption_status", json!({}));
+    assert_eq!(
+        (st["configured"].clone(), st["unlocked"].clone()),
+        (json!(true), json!(false))
+    );
+    let proot = std::path::PathBuf::from(
+        call(&phone, "graph_info", json!({}))["root"]
+            .as_str()
+            .unwrap(),
+    );
+    assert!(proot.join("pages/open.md").exists());
+    assert!(!proot.join("pages/private/diary.md").exists());
+    call(
+        &phone,
+        "encryption_unlock",
+        json!({"secret": "correct horse"}),
+    );
+    call(&phone, "sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        std::fs::read_to_string(proot.join("pages/private/diary.md"))
+            .unwrap()
+            .contains(marker)
+    );
+
+    // an edit on the phone, read by the laptop; then a locked laptop leaves the encrypted file alone
+    std::fs::write(
+        proot.join("pages/private/diary.md"),
+        format!("- {marker} one\n- phone\n"),
+    )
+    .unwrap();
+    call(&phone, "sync_now", json!({"allow_mass_delete": false}));
+    call(&laptop, "encryption_lock", json!({}));
+    let st = call(&laptop, "sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["left_alone"], 1, "{st}");
+    assert!(
+        !std::fs::read_to_string(root.join("pages/private/diary.md"))
+            .unwrap()
+            .contains("phone")
+    );
+    call(
+        &laptop,
+        "encryption_unlock",
+        json!({"secret": "correct horse"}),
+    );
+    call(&laptop, "sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        std::fs::read_to_string(root.join("pages/private/diary.md"))
+            .unwrap()
+            .contains("phone")
+    );
+
+    // unmarked: stored as it is again
+    call(
+        &laptop,
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": false}),
+    );
+    call(&laptop, "sync_now", json!({"allow_mass_delete": false}));
+    assert!(remote.get("pages/private/diary.md.enc").is_err());
+    assert!(
+        String::from_utf8_lossy(&remote.get("pages/private/diary.md").unwrap().0).contains("phone")
+    );
+    drop(cleanup);
+}
+
+struct Folder(String, String, String);
+
+impl Drop for Folder {
+    fn drop(&mut self) {
+        if let Ok(r) = notatnik_sync::WebDavRemote::new(&self.0, &self.1, &self.2) {
+            use notatnik_sync::Remote;
+            let _ = r.delete("", None);
+        }
+    }
+}
+
+fn dav_request(
+    server: &str,
+    user: &str,
+    password: &str,
+    method: &str,
+    path: &str,
+    body: &str,
+) -> String {
+    let auth = notatnik_sync::basic_auth(user, password);
+    let url = format!("{}/remote.php/dav/{path}", server.trim_end_matches('/'));
+    let r = ureq::request(method, &url)
+        .set("Authorization", &auth)
+        .set("Depth", "1")
+        .send_string(body);
+    match r {
+        Ok(r) => r.into_string().unwrap_or_default(),
+        Err(ureq::Error::Status(_, r)) => r.into_string().unwrap_or_default(),
+        Err(e) => panic!("{method} {url}: {e}"),
+    }
+}
+
+/// The hrefs in the user's trash bin whose name starts like `name`.
+fn trash_entries(server: &str, user: &str, password: &str, name: &str) -> Vec<String> {
+    let xml = dav_request(
+        server,
+        user,
+        password,
+        "PROPFIND",
+        &format!("trashbin/{user}/trash"),
+        r#"<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/></d:prop></d:propfind>"#,
+    );
+    xml.split("<d:href>")
+        .skip(1)
+        .filter_map(|s| s.split("</d:href>").next())
+        .filter(|h| h.contains(&format!("/{name}.d")))
+        .map(str::to_string)
+        .collect()
+}
+
+fn trash_text(server: &str, user: &str, password: &str, href: &str) -> String {
+    let auth = notatnik_sync::basic_auth(user, password);
+    let url = format!("{}{href}", server.trim_end_matches('/'));
+    ureq::get(&url)
+        .set("Authorization", &auth)
+        .call()
+        .ok()
+        .and_then(|r| r.into_string().ok())
+        .unwrap_or_default()
+}

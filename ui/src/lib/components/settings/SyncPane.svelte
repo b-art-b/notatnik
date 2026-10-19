@@ -5,6 +5,7 @@
   import { app, errorMessage, adoptGraph, toast } from '../../stores/app.svelte'
   import { refreshSync, sync, syncLine, syncNow } from '../../stores/sync.svelte'
   import SettingRow from './SettingRow.svelte'
+  import EncryptionSection from './EncryptionSection.svelte'
 
   let password = $state('')
   let confirmDisconnect = $state(false)
@@ -39,7 +40,7 @@
   </p>
   <SettingRow
     title="Server folder"
-    description="The WebDAV folder of this graph. Everything in it is stored as plain files."
+    description="The WebDAV folder of this graph. Files are stored as they are, except the ones you choose to encrypt (see Encryption below)."
   >
     <code data-testid="sync-url">{st.url}</code>
   </SettingRow>
@@ -138,6 +139,8 @@
       {#each st.file_errors as f, i (i)}<li>{f}</li>{/each}
     </ul>
   {/if}
+
+  <EncryptionSection />
 
   <SettingRow
     title="Disconnect"

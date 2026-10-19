@@ -2892,6 +2892,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "ts-rs",
+ "ureq",
 ]
 
 [[package]]

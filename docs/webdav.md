@@ -1,6 +1,6 @@
 # Graphs on a WebDAV server (Nextcloud)
 
-Status: **built** (plain files; encrypting chosen paths on the server is planned, see [encryption.md](encryption.md) §6).
+Status: **built**. Files are stored as they are; chosen paths can be stored encrypted (see below and [encryption.md](encryption.md) §6).
 Requirements SY-1 to SY-8 in [requirements.md](requirements.md), decision D42 in [architecture.md](architecture.md).
 
 ## What it is
@@ -103,6 +103,24 @@ and folder address. It is not in `settings.toml`, so it is not in backups either
 cannot be stored and the graph cannot be created; the error says so. The browser test build keeps passwords in
 memory.
 
+## Encrypted paths
+
+A file under a path listed in `[encryption] paths` of `.notatnik/config.toml` is stored as `<path>.enc` (EN-11,
+EN-12); the replica on this device stays plain. The engine lists the server by the path a file is the copy of, so
+`p.enc` is the server's copy of `p`, and the plan, the state file, merging and conflicts work on the plain text as
+before. What differs:
+
+- A file whose server form differs from what the rules ask for is stored again in the right form, then the old copy
+  is deleted; both forms side by side (an interrupted run) are repaired by the next sync, and only when their
+  contents are equal. Different contents are reported and nothing is deleted.
+- While the key is locked, marked files and server files that end in `.enc` are left alone, and the folder ETag
+  shortcut is not used at the next sync.
+- A copy that fails to decrypt (wrong key, cut short, swapped with another path) is an error of that file; the sync
+  goes on with the others.
+- What the server learns: names, folders, sizes and times of encrypted files, and that they exist. What stays on it
+  after a file was synced in plain before it was marked: Nextcloud's file versions and trash bin (checked on a real
+  server: the trash bin keeps the plain text).
+
 ## When another editor changes the files
 
 A page that another editor saves on the server may come back with its lines joined: Nextcloud's web *Text* editor
@@ -112,8 +130,8 @@ own files should not be opened in that editor.
 
 ## Limits
 
-- The server and everything with access to it sees the notes in plain text. Encryption on the server (EN-7 to
-  EN-10) is planned and not built.
+- The server and everything with access to it sees the files that are not marked as encrypted in plain text.
+  Marked files are encrypted, but their names and sizes are visible (EN-11 to EN-18).
 - One server folder per graph, one graph open at a time; the folder is typed or picked in the folder browser (Browse… next to the field: click through the server's folders, *New folder here*, *Use …*). The browser only looks; folders that do not exist yet, also several levels of them, are made when the graph is created.
 - Files are sent one after another, whole; a broken upload starts again. A Nextcloud with a slow disk needs about
   half a second per file.

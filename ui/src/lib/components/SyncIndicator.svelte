@@ -29,6 +29,15 @@
     <span aria-hidden="true">☁</span>
     {syncLine(sync.status)}
   </button>
+  {#if sync.status.left_alone > 0}
+    <a
+      class="sync warn"
+      href="#/settings"
+      data-testid="sync-locked"
+      title="The encryption key is locked: encrypted files are neither sent nor received. Open Settings → Sync to unlock it."
+      >🔒 {sync.status.left_alone} encrypted file{sync.status.left_alone === 1 ? '' : 's'} waiting for the key</a
+    >
+  {/if}
   {#if sync.status.warnings.length}
     <a
       class="sync warn"

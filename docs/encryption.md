@@ -4,8 +4,9 @@ What is encrypted, how, and in which order it is built. Requirement IDs: EN-1 to
 [requirements.md](requirements.md) §3. The formats are specified in [file-format.md](file-format.md) §11.
 
 Status: **P0 spec, P1 crypto core and P2 encrypted backups are built. Encrypting chosen paths on a WebDAV server
-(§6, EN-11 to EN-18, tasks E1 to E7 in [phases/encrypted-sync.md](phases/encrypted-sync.md)) is planned and waits for
-review. The encrypted replica for a folder that another tool syncs (EN-7) is on hold.**
+(§6, EN-11 to EN-18, tasks E1 to E6 in [phases/encrypted-sync.md](phases/encrypted-sync.md)) is built and tested
+against the fake server and a real Nextcloud. The encrypted replica for a folder that another tool syncs (EN-7) is on
+hold.**
 
 ## 1. Goal and threat model
 
@@ -99,9 +100,9 @@ and P2 fit it:
 | P6 | WebDAV remote for Nextcloud | built, plain files; encrypting chosen paths is §6 |
 | P7 | Android | planned (Phase 8) |
 
-## 6. Planned: encrypting chosen paths on a WebDAV server (EN-11 to EN-18)
+## 6. Encrypting chosen paths on a WebDAV server (EN-11 to EN-18)
 
-Not built. The idea in one sentence: **the graph on this device is plain, the server holds some files as they are
+Built. The idea in one sentence: **the graph on this device is plain, the server holds some files as they are
 and some encrypted, and you choose which.** Pages of both kinds are edited, searched and synced the same way.
 
 ### 6.1 What you get
@@ -121,11 +122,11 @@ and some encrypted, and you choose which.** Pages of both kinds are edited, sear
 | Topic | Decision | Why |
 |---|---|---|
 | Where the marks live | `[encryption] paths = ["pages/private/", "pages/Health.md"]` in `.notatnik/config.toml` (a graph setting that syncs, EN-11) | A page property fails when the page is moved; a path rule is what a person means by "this folder". The list is plain on the server: it shows which names are encrypted, which the file names show anyway |
-| Where the work happens | A wrapper around the WebDAV remote encrypts on `put`, decrypts on `get`, and maps `p.enc` to `p` when listing. The sync engine keeps comparing local plaintext hashes and remote ETags | The engine, its state file, merge and conflict code stay as they are. Re-encrypting unchanged text gives different bytes, but the engine uploads only when the local hash changed and treats a new ETag with equal decrypted content as "nothing to do" (it already does for Nextcloud's ETag changes) |
+| Where the work happens | In the sync engine, in one place (`crates/sync/src/forms.rs`): it lists the server by the path a file is the copy of (`p` or `p.enc`), reads and writes the form each file has or should have, and decrypts after `get` and encrypts before `put`. The engine keeps comparing local plaintext hashes and remote ETags | Merge, conflicts, the state file and the plan stay as they are. Re-encrypting unchanged text gives different bytes, but the engine uploads only when the local hash changed and treats a new ETag with equal decrypted content as "nothing to do" (it already did for Nextcloud's ETag changes). A wrapper around the remote could not see that a path exists in both forms, so the engine does the mapping |
 | What is visible | File and folder names (with `.enc`), sizes, times, the number of files, and the list of marked paths. Not visible: content. Hiding names needs a manifest and is not part of this | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter |
 | Which vault | One vault per graph, descriptor `.notatnik/vault.json` (public, synced as a plain file); separate from the backup vault, which belongs to the device (EN-13) | A second device needs the same keys; the backup vault is device-wide and not part of the graph. At setup the same password can be typed again, but the keys are different |
 | The key | Unlocked per session, or kept in the system keyring (opt-in, EN-14). The keyring entry holds the data key, not the password, so starting the app needs no Argon2 run | The keyring is the same Secret Service the sync and calendar passwords use (SY-7). Anyone logged in to the desktop session can then read the key, which the settings text says |
-| Locked | Marked files are left alone on both sides (EN-15). The engine gets a "leave these paths alone" set; their state entries stay | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them |
+| Locked | Marked files are left alone on both sides (EN-15). The engine computes a "leave these paths alone" set; their state entries stay, and the folder ETag shortcut is not saved while any file is left alone | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them. Without the second rule an encrypted file that was left alone would stay hidden behind an unchanged folder ETag even after unlocking (found by a test) |
 | Changing a mark | The state records how the server copy of each path is stored. When the rule differs, the engine uploads the new form, then deletes the old one; the second step is retried until it works (EN-16) | An interrupted run leaves both forms, never neither. The next run sees "both exist, rule says encrypted" and removes the plain one |
 | The server's list wins | A server file `p.enc` is an encrypted copy of `p` whatever the rules say; the rules decide how a local file is *uploaded* | A new device reads the rules from `config.toml` in the same sync, and an unmarked path with an `.enc` copy is simply migrated back |
 | `.enc` is reserved | A local file whose name ends in `.enc` is not synced and is reported | Otherwise it could not be told from an encrypted copy |
@@ -151,12 +152,12 @@ and some encrypted, and you choose which.** Pages of both kinds are edited, sear
 
 | Part | What | Status |
 |---|---|---|
-| E1 | Rules in the config, matching, `.enc` rules | planned |
-| E2 | The graph vault: make, confirm, unlock, lock, keyring switch, join from a second device | planned |
-| E3 | The wrapper around the remote, the "leave alone" set, the migration step | planned |
-| E4 | App: status fields, calendar exclusion, rename and backup warnings | planned |
-| E5 | UI: Settings → Sync encryption, the page menu, the lock mark, keymap | planned |
-| E6 | Real Nextcloud and two-device checks, manual checklist | planned |
+| E1 | Rules in the config, matching, `.enc` rules | built |
+| E2 | The graph vault: make, confirm, unlock, lock, keyring switch, join from a second device | built |
+| E3 | The engine: forms, the "leave alone" set, the migration step | built |
+| E4 | App: status fields, calendar exclusion, rename and backup warnings | built |
+| E5 | UI: Settings → Sync → Encryption, the page's *Encrypt…* button, the lock mark, keymap | built |
+| E6 | Real Nextcloud and two-device checks, manual checklist | tests built; manual checklist open |
 | E7 | Later: hidden names, a replica for folder tools (EN-7), the images of a page | on hold |
 
 The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).

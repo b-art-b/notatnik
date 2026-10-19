@@ -16,6 +16,8 @@
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
+  import EncryptDialog from './EncryptDialog.svelte'
+  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
@@ -162,6 +164,15 @@
   let renaming = $state(false)
   let deleting = $state(false)
   let history = $state(false)
+  let encrypting = $state(false)
+  // the page is stored encrypted on the server: one of the marked paths covers its file (EN-12)
+  const encrypted = $derived(
+    !!encryption.status && !!view?.path && pathIsEncrypted(encryption.status.paths, view.path),
+  )
+  $effect(() => {
+    // read once per page view; the dialog and Settings keep the store fresh after a change
+    if (!encryption.status && app.graph?.remote) void refreshEncryption()
+  })
   let showProps = $state(false)
 
   // --- page properties (frontmatter): edit, remove, add ---
@@ -273,6 +284,13 @@
                 segments[segments.length - 1]}</button
             >
           {/if}
+          {#if encrypted}<span
+              class="lock"
+              data-testid="title-lock"
+              role="img"
+              aria-label="Stored encrypted on the server"
+              title="Stored encrypted on the server">🔒</span
+            >{/if}
           {#if isoTitle && !titleLink}<span class="muted iso">{view.name}</span>{/if}
           {#if lastPlaces > 1}<a
               class="topic-chip"
@@ -299,6 +317,15 @@
               aria-expanded={history}
               onclick={() => (history = !history)}>History</button
             >
+            {#if app.graph?.remote}
+              <button
+                class="act"
+                data-testid="encrypt-toggle"
+                title="Store this page encrypted on the server"
+                aria-expanded={encrypting}
+                onclick={() => (encrypting = !encrypting)}>{encrypted ? 'Encrypted' : 'Encrypt…'}</button
+              >
+            {/if}
             {#if !view.is_journal}
               <button
                 class="act"
@@ -459,6 +486,12 @@
     {#if view.is_journal && !compact}<DayEvents date={view.name} />{/if}
     {#if renaming}<RenameDialog old={view.name} onclose={() => (renaming = false)} />{/if}
     {#if history}<HistoryDialog page={view.name} onclose={() => (history = false)} />{/if}
+    {#if encrypting}<EncryptDialog
+        page={view.name}
+        path={view.path}
+        hasSubpages={view.child_pages.length > 0}
+        onclose={() => (encrypting = false)}
+      />{/if}
     {#if deleting}<DeleteDialog page={view.name} onclose={() => (deleting = false)} />{/if}
     {#if !compact && isArchived(view.name)}
       <p class="archived" data-testid="archived-banner" role="status">
@@ -595,6 +628,11 @@
     gap: 0.6em;
     color: var(--muted);
     font-size: 0.85em;
+  }
+  .lock {
+    font-size: 0.6em;
+    margin-left: 0.4em;
+    vertical-align: middle;
   }
   .act {
     border: none;

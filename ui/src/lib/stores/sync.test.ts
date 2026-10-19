@@ -17,6 +17,8 @@ const base: SyncStatus = {
   pending_deletes: 0,
   file_errors: [],
   warnings: [],
+  left_alone: 0,
+  reserved: [],
   url: '',
   user: '',
 }

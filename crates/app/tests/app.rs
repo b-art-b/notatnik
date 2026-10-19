@@ -5620,3 +5620,73 @@ fn the_status_warns_when_backups_are_plain_while_paths_are_marked() {
     );
     assert_eq!(st["backups_plain"], true, "{st}");
 }
+
+/// A keyring that refuses everything (no Secret Service running).
+struct RefusingSecrets;
+
+impl notatnik_app::Secrets for RefusingSecrets {
+    fn get(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        Err("no keyring".into())
+    }
+    fn delete(&self, _: &str) {}
+}
+
+#[test]
+fn a_keyring_that_refuses_leaves_the_switch_off_with_a_message() {
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    copy_dir(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/graphs/basic"),
+        &graph,
+    );
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.path().join("device")),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 3).unwrap()),
+        watch: false,
+    })
+    .with_secrets(Arc::new(RefusingSecrets));
+    let t = T {
+        tmp,
+        app,
+        events: Arc::default(),
+    };
+    t.ok(
+        "open_graph",
+        json!({"path": graph.to_str().unwrap(), "create": false}),
+    );
+    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok("encryption_confirm", json!({}));
+    let e = t
+        .call("encryption_keyring", json!({"on": true}))
+        .unwrap_err();
+    assert!(e.message.contains("no keyring"), "{}", e.message);
+    assert_eq!(t.ok("encryption_status", json!({}))["keyring"], false);
+}
+
+#[test]
+fn a_missing_vault_uploads_nothing_of_the_marked_files_and_says_so() {
+    let (t, dav, root, _r) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    // the vault file goes missing (a bad restore, a deleted folder) while paths are marked, and the key is gone
+    std::fs::remove_file(root.join(".notatnik/vault.json")).unwrap();
+    reopen(&t, &root);
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(
+        (st["configured"].clone(), st["unlocked"].clone()),
+        (json!(false), json!(false))
+    );
+    assert_eq!(st["paths"], json!(["pages/private/"]));
+    let sync = t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(sync["left_alone"], 1, "{sync}");
+    assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
+    assert!(!server_has_text(&dav, SECRET));
+}
