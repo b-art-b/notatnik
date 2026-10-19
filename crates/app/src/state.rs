@@ -1533,6 +1533,7 @@ impl AppState {
             Ok(rows
                 .into_iter()
                 .map(|r| PageListRow {
+                    path: r.file_path,
                     name: r.name,
                     is_virtual: r.is_virtual,
                     is_journal: r.is_journal,

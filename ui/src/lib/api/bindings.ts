@@ -503,7 +503,11 @@ backlinks: number,
 /**
  * File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
  */
-modified: string | null, };
+modified: string | null, 
+/**
+ * The file, relative to the graph (to tell whether it is stored encrypted).
+ */
+path: string | null, };
 export type SegmentArgs = { 
 /**
  * A name used as a path segment (`Renewal`), or several in a row (`Renewal/Snowflake`).

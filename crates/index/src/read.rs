@@ -1155,6 +1155,8 @@ pub struct PageRow {
     pub backlinks: usize,
     /// File modification time, nanoseconds since the Unix epoch.
     pub mtime_ns: Option<i64>,
+    /// The file, relative to the graph.
+    pub file_path: Option<String>,
 }
 
 /// One entry of the namespace tree.
@@ -1211,7 +1213,7 @@ impl Index {
                                      FROM refs WHERE kind IN ('page','tag','page_embed')) r
                                JOIN pages p2 ON p2.key = r.target_key
                                WHERE r.src_page_id <> p2.id GROUP BY p2.id)
-                   SELECT p.name, p.is_virtual, p.is_journal, COALESCE(bc.n, 0), COALESCE(bl.n, 0), f.mtime_ns
+                   SELECT p.name, p.is_virtual, p.is_journal, COALESCE(bc.n, 0), COALESCE(bl.n, 0), f.mtime_ns, p.file_path
                    FROM pages p
                    LEFT JOIN bc ON bc.page_id = p.id
                    LEFT JOIN bl ON bl.pid = p.id
@@ -1227,6 +1229,7 @@ impl Index {
                     blocks: r.get::<_, i64>(3)? as usize,
                     backlinks: r.get::<_, i64>(4)? as usize,
                     mtime_ns: r.get(5)?,
+                    file_path: r.get(6)?,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?;

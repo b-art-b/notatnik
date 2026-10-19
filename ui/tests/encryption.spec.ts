@@ -197,3 +197,20 @@ test('encryption is set up and a page marked on a local graph; connecting upload
   expect(sealed).not.toBeNull()
   expect(sealed).not.toContain(SECRET)
 })
+
+test('All pages shows a lock on the pages that are stored encrypted', async ({ backend, page }) => {
+  backend.write('pages/Secret.md', '- hidden\n')
+  backend.write('pages/vault/Deep.md', '- deep\n')
+  backend.write('pages/Open.md', '- open\n')
+  await backend.open('/')
+  await backend.call('encryption_setup', { password: 'correct horse' })
+  await backend.call('encryption_confirm', {})
+  await backend.call('encryption_mark', { paths: ['pages/Secret.md', 'pages/vault/'], encrypted: true })
+  await page.evaluate(() => (location.hash = '#/pages'))
+  const row = (name: string) =>
+    page.getByTestId('pages-table').locator('tr', { has: page.locator(`a[data-page="${name}"]`) })
+  await expect(row('Secret').getByTestId('row-lock')).toBeVisible()
+  await expect(row('vault/Deep').getByTestId('row-lock')).toBeVisible()
+  await expect(row('Open')).toBeVisible()
+  await expect(row('Open').getByTestId('row-lock')).toHaveCount(0)
+})

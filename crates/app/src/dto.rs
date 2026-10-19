@@ -464,6 +464,8 @@ pub struct PageListRow {
     pub backlinks: u32,
     /// File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
     pub modified: Option<String>,
+    /// The file, relative to the graph (to tell whether it is stored encrypted).
+    pub path: Option<String>,
 }
 
 /// Arguments of `page_groups`.

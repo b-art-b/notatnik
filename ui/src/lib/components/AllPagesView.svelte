@@ -8,6 +8,14 @@
   import { getDoc } from '../stores/pages.svelte'
   import { errorMessage, toast } from '../stores/app.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
+  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+
+  // the lock mark: the file is covered by a marked path (EN-12)
+  const locked = (r: PageListRow) =>
+    !!encryption.status && !!r.path && pathIsEncrypted(encryption.status.paths, r.path)
+  $effect(() => {
+    void refreshEncryption()
+  })
   import NamespaceTree from './NamespaceTree.svelte'
 
   type SortKey = 'name' | 'blocks' | 'backlinks' | 'modified'
@@ -190,6 +198,13 @@
               ><PageIcon name={r.name} />{r.name}</a
             >
             {#if r.is_virtual}<span class="tag">no file</span>{/if}
+            {#if locked(r)}<span
+                class="lock"
+                data-testid="row-lock"
+                role="img"
+                aria-label="Stored encrypted on the server"
+                title="Stored encrypted on the server">🔒</span
+              >{/if}
           </td>
           <td class="num">{r.is_virtual ? '' : r.blocks}</td>
           <td class="num">{r.backlinks || ''}</td>
@@ -305,6 +320,10 @@
     border-radius: 6px;
     padding: 0 0.4em;
     margin-left: 0.4em;
+  }
+  .lock {
+    margin-left: 0.4em;
+    font-size: 0.85em;
   }
   .tree {
     max-width: 40em;
