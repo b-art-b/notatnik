@@ -29,6 +29,7 @@
   let desc = $state(false)
   let journals = $state(false)
   let showArchived = $state(false)
+  let onlyEncrypted = $state(false)
   let virtual = $state(true)
   let limit = $state(SHOWN)
 
@@ -98,6 +99,7 @@
         (journals || !r.is_journal) &&
         (virtual || !r.is_virtual) &&
         (showArchived || !isArchived(r.name)) &&
+        (!onlyEncrypted || locked(r)) &&
         (!q || r.name.toLowerCase().includes(q)),
     )
     const dir = desc ? -1 : 1
@@ -134,6 +136,7 @@
     void filter
     void journals
     void showArchived
+    void onlyEncrypted
     void virtual
     limit = SHOWN
   })
@@ -162,6 +165,11 @@
     <label><input type="checkbox" bind:checked={journals} /> Journals</label>
     <label><input type="checkbox" bind:checked={virtual} /> Pages without a file</label>
     <label><input type="checkbox" bind:checked={showArchived} data-testid="show-archived" /> Archived</label>
+    {#if encryption.status?.paths.length}
+      <label
+        ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" /> Only encrypted</label
+      >
+    {/if}
   {/if}
 </div>
 

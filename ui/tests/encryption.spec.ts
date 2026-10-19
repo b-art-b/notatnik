@@ -213,4 +213,11 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(row('vault/Deep').getByTestId('row-lock')).toBeVisible()
   await expect(row('Open')).toBeVisible()
   await expect(row('Open').getByTestId('row-lock')).toHaveCount(0)
+
+  // the filter keeps only the encrypted ones
+  await page.getByTestId('only-encrypted').check()
+  await expect(row('Open')).toHaveCount(0)
+  await expect(row('Secret')).toBeVisible()
+  await expect(row('vault/Deep')).toBeVisible()
+  await expect(page.getByTestId('pages-count')).toHaveText('2')
 })
