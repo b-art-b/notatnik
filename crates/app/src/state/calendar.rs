@@ -2106,7 +2106,16 @@ fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected
     let now = chrono::Utc::now().naive_utc();
     let (mut todos, mut added) = (Vec::new(), 0u32);
     let mut places = BTreeMap::new();
+    // tasks of pages that are stored encrypted on the server stay out of the calendar (EN-17): their text would
+    // reach the calendar server in plain
+    let enc = o.graph.config().encryption;
+    let hidden = (enc.calendar == "exclude")
+        .then(|| notatnik_core::encrypted::EncryptedPaths::new(&enc.paths))
+        .filter(|r| !r.is_empty());
     for (page, rel) in &files {
+        if hidden.as_ref().is_some_and(|r| r.is_encrypted(rel)) {
+            continue;
+        }
         let Ok(mut file) = o.graph.read_page(rel) else {
             continue;
         };

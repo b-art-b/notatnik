@@ -1403,6 +1403,10 @@ pub struct SyncStatus {
     pub file_errors: Vec<String>,
     /// Pages (paths) that were downloaded with their lines joined together by another editor and still are.
     pub warnings: Vec<String>,
+    /// Encrypted files that the last sync left alone because the key is locked (EN-15).
+    pub left_alone: u32,
+    /// Files of the graph whose name ends in `.enc`, which is reserved for encrypted copies: they are not synced.
+    pub reserved: Vec<String>,
     /// The address of the server folder.
     pub url: String,
     /// The login name.
@@ -1427,6 +1431,8 @@ impl SyncStatus {
             pending_deletes: 0,
             file_errors: Vec::new(),
             warnings: Vec::new(),
+            left_alone: 0,
+            reserved: Vec::new(),
             url: String::new(),
             user: String::new(),
         }
@@ -1810,4 +1816,108 @@ impl CalendarSyncReport {
         self.removed_in_calendar += o.removed_in_calendar;
         self.logged += o.logged;
     }
+}
+
+/// `encryption_status`: the encryption of the files stored on the graph's server (EN-11 to EN-18).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct EncryptionStatus {
+    /// The graph has a vault (`.notatnik/vault.json`).
+    pub configured: bool,
+    /// A vault was made and its recovery key shown, and is not confirmed yet.
+    pub pending: bool,
+    /// The key is in memory: encrypted files sync.
+    pub unlocked: bool,
+    /// The name of the key (empty without a vault).
+    pub key_id: String,
+    /// The key is kept in the system keyring and unlocks by itself when the graph opens.
+    pub keyring: bool,
+    /// The graph has a server folder.
+    pub has_server: bool,
+    /// The paths stored encrypted: a folder ends in `/`.
+    pub paths: Vec<String>,
+    /// `exclude` or `allow`: whether tasks of encrypted pages go to the calendar.
+    pub calendar: String,
+    /// Encrypted files the last sync left alone because the key was locked.
+    pub left_alone: u32,
+    /// Files whose name ends in `.enc` (reserved), not synced.
+    pub reserved: Vec<String>,
+    /// Paths are marked while the backups are not encrypted: the backups hold those pages as plain text.
+    pub backups_plain: bool,
+}
+
+/// `encryption_setup`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionSetupArgs {
+    /// At least 8 characters.
+    pub password: String,
+}
+
+/// `encryption_unlock`: the password, or the recovery key.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionUnlockArgs {
+    /// What the user typed.
+    pub secret: String,
+}
+
+/// `encryption_change_password`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionChangePasswordArgs {
+    /// The current password (or the recovery key).
+    pub old_password: String,
+    /// The new password, at least 8 characters.
+    pub new_password: String,
+}
+
+/// `encryption_new_recovery_key`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionPasswordArgs {
+    /// The current password (or the recovery key).
+    pub password: String,
+}
+
+/// `encryption_keyring`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionKeyringArgs {
+    /// Keep the key in the system keyring (on) or remove it from there (off).
+    pub on: bool,
+}
+
+/// `encryption_calendar`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionCalendarArgs {
+    /// Send the tasks of encrypted pages to the calendar anyway.
+    pub allow: bool,
+}
+
+/// `encryption_page_paths`: the paths that mark a page (and the pages below it).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionPagePathsArgs {
+    /// The page.
+    pub page: String,
+    /// Also the pages below it (its folder).
+    pub subpages: bool,
+}
+
+/// `encryption_preview`, `encryption_mark`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionPathsArgs {
+    /// Paths relative to the graph folder; a folder ends in `/`.
+    pub paths: Vec<String>,
+    /// For `encryption_mark`: encrypt (true) or stop encrypting (false).
+    pub encrypted: bool,
+}
+
+/// `encryption_preview`: what marking paths means, before it is done.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct EncryptionPreview {
+    /// The server holds plain copies of files under these paths from earlier syncs. Its old versions and its trash
+    /// keep their text whatever is done now.
+    pub synced_before: bool,
+    /// How many files are under the paths.
+    pub files: u32,
+    /// Pictures that the pages under the paths use and that are not encrypted (they stay plain).
+    pub images: Vec<String>,
+    /// Open tasks with a date on those pages: they stay out of the calendar (or leave it) while the calendar
+    /// setting is `exclude`.
+    pub calendar_tasks: u32,
 }

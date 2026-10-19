@@ -339,7 +339,6 @@ impl Graph {
         atomic_write(&root, &path, cfg.to_toml().as_bytes())?;
         // the priority labels decide how `priority::` parses: files are indexed again when they change
         let relabel = g.index.priority_labels() != cfg.priority_labels().as_slice();
-        log::info!("config.toml changed on disk; settings reloaded");
         g.config = cfg;
         if relabel {
             let options = IndexOptions {
@@ -375,6 +374,7 @@ impl Graph {
             return false;
         }
         let relabel = g.index.priority_labels() != cfg.priority_labels().as_slice();
+        log::info!("config.toml changed on disk; settings reloaded");
         g.config = cfg;
         if relabel {
             let options = IndexOptions {
@@ -386,6 +386,26 @@ impl Graph {
             let _ = g.index.index_all(&root);
         }
         true
+    }
+
+    /// The vault of this graph (`.notatnik/vault.json`, EN-13): the public descriptor of the keys that encrypt
+    /// marked files on a server. It syncs as a plain file, so a second device can unlock it. `None` when the graph
+    /// has none.
+    pub fn read_vault(&self) -> Result<Option<notatnik_crypt::Vault>> {
+        let path = self.root.join(".notatnik").join("vault.json");
+        match std::fs::read(&path) {
+            Ok(b) => notatnik_crypt::Vault::from_json(&b)
+                .map(Some)
+                .map_err(|e| Error::Crypt(format!(".notatnik/vault.json: {e}"))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Writes the vault of this graph (atomic).
+    pub fn write_vault(&self, vault: &notatnik_crypt::Vault) -> Result<()> {
+        let path = self.root.join(".notatnik").join("vault.json");
+        atomic_write(&self.root, &path, &vault.to_json())
     }
 
     /// A copy of the current config.

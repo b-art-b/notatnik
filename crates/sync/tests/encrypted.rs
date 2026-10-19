@@ -532,3 +532,38 @@ fn a_marked_file_deleted_on_one_side_is_deleted_on_the_other() {
     assert_eq!(r.deleted_local, ["pages/private/gone.md"], "{r:?}");
     let _ = (&e.vault, e.remote().list("").unwrap());
 }
+
+#[test]
+fn a_file_left_alone_is_not_hidden_by_the_folder_etag_shortcut() {
+    let e = Env::new();
+    let (a, b) = (Device::new(), Device::new());
+    a.write("pages/private/diary.md", &format!("- {SECRET}\n"));
+    a.write("pages/open.md", "- open\n");
+    e.sync(&a, PATHS);
+    let trusting = |d: &Device, keys: Option<Arc<Keys>>| {
+        let mut o = e.options(d, PATHS, keys);
+        o.trust_folder_etags = true;
+        o
+    };
+    // B syncs locked, twice: nothing changed on the server, yet the encrypted file is still counted
+    let r = sync(b.root(), &e.remote(), &trusting(&b, None)).unwrap();
+    assert_eq!(r.left_alone, 1, "{r:?}");
+    let r = sync(b.root(), &e.remote(), &trusting(&b, None)).unwrap();
+    assert_eq!(r.left_alone, 1, "{r:?}");
+    // and when the key is there, it comes, although nothing changed on the server since
+    let r = sync(b.root(), &e.remote(), &trusting(&b, Some(e.keys.clone()))).unwrap();
+    assert_eq!(r.pulled, ["pages/private/diary.md"], "{r:?}");
+    assert_eq!(b.read("pages/private/diary.md"), format!("- {SECRET}\n"));
+    // fully in step, the shortcut is used again: a quiet sync asks the server for the top folder only
+    sync(b.root(), &e.remote(), &trusting(&b, Some(e.keys.clone()))).unwrap();
+    e.dav.clear_requests();
+    let r = sync(b.root(), &e.remote(), &trusting(&b, Some(e.keys.clone()))).unwrap();
+    assert!(r.complete && !r.changed(), "{r:?}");
+    let lists = e
+        .dav
+        .requests()
+        .iter()
+        .filter(|q| q.starts_with("PROPFIND"))
+        .count();
+    assert_eq!(lists, 1, "{:?}", e.dav.requests());
+}

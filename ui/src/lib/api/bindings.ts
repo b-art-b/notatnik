@@ -761,6 +761,122 @@ level: string,
  * What happened in the UI (never note text).
  */
 message: string, };
+export type EncryptionStatus = { 
+/**
+ * The graph has a vault (`.notatnik/vault.json`).
+ */
+configured: boolean, 
+/**
+ * A vault was made and its recovery key shown, and is not confirmed yet.
+ */
+pending: boolean, 
+/**
+ * The key is in memory: encrypted files sync.
+ */
+unlocked: boolean, 
+/**
+ * The name of the key (empty without a vault).
+ */
+key_id: string, 
+/**
+ * The key is kept in the system keyring and unlocks by itself when the graph opens.
+ */
+keyring: boolean, 
+/**
+ * The graph has a server folder.
+ */
+has_server: boolean, 
+/**
+ * The paths stored encrypted: a folder ends in `/`.
+ */
+paths: Array<string>, 
+/**
+ * `exclude` or `allow`: whether tasks of encrypted pages go to the calendar.
+ */
+calendar: string, 
+/**
+ * Encrypted files the last sync left alone because the key was locked.
+ */
+left_alone: number, 
+/**
+ * Files whose name ends in `.enc` (reserved), not synced.
+ */
+reserved: Array<string>, 
+/**
+ * Paths are marked while the backups are not encrypted: the backups hold those pages as plain text.
+ */
+backups_plain: boolean, };
+export type EncryptionSetupArgs = { 
+/**
+ * At least 8 characters.
+ */
+password: string, };
+export type EncryptionUnlockArgs = { 
+/**
+ * What the user typed.
+ */
+secret: string, };
+export type EncryptionChangePasswordArgs = { 
+/**
+ * The current password (or the recovery key).
+ */
+old_password: string, 
+/**
+ * The new password, at least 8 characters.
+ */
+new_password: string, };
+export type EncryptionPasswordArgs = { 
+/**
+ * The current password (or the recovery key).
+ */
+password: string, };
+export type EncryptionKeyringArgs = { 
+/**
+ * Keep the key in the system keyring (on) or remove it from there (off).
+ */
+on: boolean, };
+export type EncryptionCalendarArgs = { 
+/**
+ * Send the tasks of encrypted pages to the calendar anyway.
+ */
+allow: boolean, };
+export type EncryptionPagePathsArgs = { 
+/**
+ * The page.
+ */
+page: string, 
+/**
+ * Also the pages below it (its folder).
+ */
+subpages: boolean, };
+export type EncryptionPathsArgs = { 
+/**
+ * Paths relative to the graph folder; a folder ends in `/`.
+ */
+paths: Array<string>, 
+/**
+ * For `encryption_mark`: encrypt (true) or stop encrypting (false).
+ */
+encrypted: boolean, };
+export type EncryptionPreview = { 
+/**
+ * The server holds plain copies of files under these paths from earlier syncs. Its old versions and its trash
+ * keep their text whatever is done now.
+ */
+synced_before: boolean, 
+/**
+ * How many files are under the paths.
+ */
+files: number, 
+/**
+ * Pictures that the pages under the paths use and that are not encrypted (they stay plain).
+ */
+images: Array<string>, 
+/**
+ * Open tasks with a date on those pages: they stay out of the calendar (or leave it) while the calendar
+ * setting is `exclude`.
+ */
+calendar_tasks: number, };
 export type ReadConflictArgs = { 
 /**
  * Path of the conflict copy.
@@ -1667,6 +1783,14 @@ file_errors: Array<string>,
  */
 warnings: Array<string>, 
 /**
+ * Encrypted files that the last sync left alone because the key is locked (EN-15).
+ */
+left_alone: number, 
+/**
+ * Files of the graph whose name ends in `.enc`, which is reserved for encrypted copies: they are not synced.
+ */
+reserved: Array<string>, 
+/**
  * The address of the server folder.
  */
 url: string, 
@@ -2157,6 +2281,18 @@ export type Commands = {
   get_block: { args: GetBlockArgs; result: BlockLookup | null };
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
   log_client: { args: LogClientArgs; result: NoArgs };
+  encryption_status: { args: NoArgs; result: EncryptionStatus };
+  encryption_setup: { args: EncryptionSetupArgs; result: RecoveryKeyResult };
+  encryption_confirm: { args: NoArgs; result: EncryptionStatus };
+  encryption_unlock: { args: EncryptionUnlockArgs; result: EncryptionStatus };
+  encryption_lock: { args: NoArgs; result: EncryptionStatus };
+  encryption_change_password: { args: EncryptionChangePasswordArgs; result: EncryptionStatus };
+  encryption_new_recovery_key: { args: EncryptionPasswordArgs; result: RecoveryKeyResult };
+  encryption_keyring: { args: EncryptionKeyringArgs; result: EncryptionStatus };
+  encryption_calendar: { args: EncryptionCalendarArgs; result: EncryptionStatus };
+  encryption_page_paths: { args: EncryptionPagePathsArgs; result: StringList };
+  encryption_preview: { args: EncryptionPathsArgs; result: EncryptionPreview };
+  encryption_mark: { args: EncryptionPathsArgs; result: EncryptionStatus };
   conflict_merge: { args: ConflictMergeArgs; result: ConflictMergeView };
   resolve_conflict: { args: ResolveConflictArgs; result: StringList };
   list_conflicts: { args: NoArgs; result: StringList };

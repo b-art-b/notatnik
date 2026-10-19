@@ -294,6 +294,7 @@ impl Drop for BackupTask {
 
 mod calendar;
 mod conflicts;
+mod encryption;
 mod filesources;
 mod syncing;
 pub use syncing::{MemorySecrets, Secrets};
@@ -325,6 +326,10 @@ pub struct AppState {
     backup_keys: Mutex<Option<Unlocked>>,
     /// Passwords of server logins.
     secrets: Arc<dyn Secrets>,
+    /// The unlocked key of the open graph's vault (EN-13, EN-14), shared with the sync thread.
+    graph_keys: encryption::SharedKeys,
+    /// A graph vault that was made and not confirmed yet.
+    graph_pending: Mutex<Option<encryption::PendingVault>>,
     /// A calendar server to use instead of the real one (tests).
     calendar_client: Option<Arc<dyn notatnik_caldav::CalDavClient + Send + Sync>>,
 }
@@ -381,6 +386,8 @@ impl AppState {
             last_rename: Mutex::new(None),
             backup_keys: Mutex::new(None),
             secrets: Arc::new(MemorySecrets::default()),
+            graph_keys: Arc::default(),
+            graph_pending: Mutex::new(None),
             calendar_client: None,
         }
     }
@@ -449,7 +456,8 @@ impl AppState {
         let _ = dev.save(&self.dirs);
         // snapshots run on a thread of their own, only where the file watcher runs too (not in unit tests)
         let backup = self.watch.then(|| self.start_backups(&graph));
-        let sync = self.start_sync(&graph.id(), graph.root(), wake);
+        self.unlock_from_keyring(&graph);
+        let sync = self.start_sync(&graph, wake);
         *self.lock() = Some(Open {
             graph,
             _watcher: watcher,
@@ -527,6 +535,7 @@ impl AppState {
     /// `forget_graph`: removes a graph from the history. Its folder, its cache and its backups are not touched.
     pub fn forget_graph(&self, a: ForgetGraphArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
         self.forget_remote_secret(&a.id);
+        self.forget_graph_key(&a.id);
         let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         dev.forget(&a.id);
         dev.save(&self.dirs)?;
@@ -1592,6 +1601,7 @@ impl AppState {
             let p = o
                 .graph
                 .plan_rename_with(&a.old, &a.new, a.include_subpages.unwrap_or(true))?;
+            let plan_moves = p.file_moves.clone();
             Ok(RenamePlanView {
                 old: p.old,
                 new: p.new,
@@ -1604,7 +1614,25 @@ impl AppState {
                         replacements: e.patches.len() as u32,
                     })
                     .collect(),
-                warnings: p.warnings,
+                warnings: {
+                    let mut w = p.warnings;
+                    // a page that moves into or out of an encrypted path is stored in the other form (EN-17)
+                    let rules = notatnik_core::encrypted::EncryptedPaths::new(
+                        &o.graph.config().encryption.paths,
+                    );
+                    for (from, to) in &plan_moves {
+                        match (rules.is_encrypted(from), rules.is_encrypted(to)) {
+                            (false, true) => w.push(format!(
+                                "`{from}` moves into an encrypted path: it will be stored encrypted on the server"
+                            )),
+                            (true, false) => w.push(format!(
+                                "`{from}` moves out of an encrypted path: it will be stored as plain text on the server"
+                            )),
+                            _ => {}
+                        }
+                    }
+                    w
+                },
             })
         })
     }

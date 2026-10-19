@@ -59,7 +59,7 @@ pub(super) fn api_err(e: &SyncError) -> ApiError {
 }
 
 /// Where the state of a replica is kept: beside its folder, not in it (ST-2).
-fn state_file(replica: &Path) -> PathBuf {
+pub(super) fn state_file(replica: &Path) -> PathBuf {
     let name = replica
         .file_name()
         .map_or_else(|| "graph".into(), |n| n.to_string_lossy().into_owned());
@@ -82,6 +82,10 @@ pub(super) struct SyncCtx {
     emit: Emitter,
     /// Merge pages changed on both sides (the setting; read at each sync).
     merge: AtomicBool,
+    /// The graph, for the list of encrypted paths (read at each sync, EN-11).
+    graph: Graph,
+    /// The unlocked key of the graph's vault, if any (EN-14).
+    keys: super::encryption::SharedKeys,
     status: Mutex<SyncStatus>,
     /// One sync at a time, whether it was asked for or came from the timer.
     gate: Mutex<()>,
@@ -111,6 +115,18 @@ impl Wake {
             }
         }
         self.cv.notify_all();
+    }
+}
+
+impl SyncTask {
+    /// Asks for a sync in `secs` seconds.
+    pub(super) fn kick(&self, secs: u64) {
+        self.wake.kick(secs);
+    }
+
+    /// How the last sync went.
+    pub(super) fn status(&self) -> SyncStatus {
+        self.ctx.snapshot()
     }
 }
 
@@ -173,6 +189,8 @@ impl SyncCtx {
                 s.deleted = (report.deleted_remote.len() + report.deleted_local.len()) as u32;
                 s.conflicts = report.conflicts.len() as u32;
                 s.merged = report.merged.len() as u32;
+                s.left_alone = report.left_alone as u32;
+                s.reserved = report.reserved.clone();
                 // a page another editor joined the lines of stays listed until it looks right again
                 let root = self.root.clone();
                 let mut warnings: Vec<String> = s
@@ -261,6 +279,17 @@ impl SyncCtx {
                 for (path, why) in &r.errors {
                     log::warn!("sync: {path} could not be synced: {why}");
                 }
+                if r.left_alone > 0 {
+                    log::debug!(
+                        "sync: {} encrypted file(s) left alone: the key is locked",
+                        r.left_alone
+                    );
+                }
+                for p in &r.reserved {
+                    log::warn!(
+                        "sync: {p} ends in .enc, which is reserved for encrypted copies; it is not synced"
+                    );
+                }
                 for p in &r.suspect {
                     log::warn!("sync: {p} looks reformatted by another editor (lines joined)");
                 }
@@ -292,6 +321,13 @@ impl SyncCtx {
         opts.allow_mass_delete = allow_mass_delete;
         opts.bases = notatnik_sync::Bases::new(Some(bases_dir(&self.root)));
         opts.merge = self.merge.load(Ordering::Relaxed);
+        // which files are stored encrypted, and the key while it is unlocked
+        opts.encryption = Some(notatnik_sync::Encryption {
+            paths: notatnik_core::encrypted::EncryptedPaths::new(
+                &self.graph.config().encryption.paths,
+            ),
+            keys: self.keys.lock().ok().and_then(|g| g.clone()),
+        });
         notatnik_sync::sync(&self.root, &remote, &opts)
     }
 }
@@ -355,15 +391,13 @@ impl AppState {
     }
 
     /// The sync of a graph that has a server folder: the context, and the worker where the app runs one.
-    pub(super) fn start_sync(
-        &self,
-        graph_id: &str,
-        root: &Path,
-        wake: Arc<Wake>,
-    ) -> Option<SyncTask> {
+    pub(super) fn start_sync(&self, graph: &Graph, wake: Arc<Wake>) -> Option<SyncTask> {
+        let (graph_id, root) = (graph.id(), graph.root());
         let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
-        let cfg = dev.remote_of(graph_id)?;
+        let cfg = dev.remote_of(&graph_id)?;
         let ctx = Arc::new(SyncCtx {
+            graph: graph.clone(),
+            keys: self.graph_keys.clone(),
             root: root.to_path_buf(),
             status: Mutex::new(SyncStatus::idle(&cfg)),
             merge: AtomicBool::new(cfg.merge),

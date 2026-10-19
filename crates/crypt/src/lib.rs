@@ -369,6 +369,30 @@ impl Vault {
         r
     }
 
+    /// Opens the vault with keys that [`Keys::export_hex`] wrote earlier (kept in the system keyring so the app
+    /// can unlock itself, EN-14). The keys must be the ones this descriptor describes.
+    pub fn unlock_exported(&self, exported: &str) -> Result<Keys> {
+        let mut bundle = unhex_vec(exported.trim())?;
+        if bundle.len() != BUNDLE_LEN || bundle[0] != BUNDLE_VERSION {
+            bundle.zeroize();
+            return Err(Error::Unsupported("key bundle version".into()));
+        }
+        let mut keys = Keys {
+            data_key: [0; 32],
+            secret: [0; 32],
+        };
+        keys.data_key.copy_from_slice(&bundle[1..33]);
+        keys.secret.copy_from_slice(&bundle[33..]);
+        bundle.zeroize();
+        let public = PublicKey::from(&StaticSecret::from(keys.secret));
+        if hex(&key_id_of(&keys.data_key)) != self.key_id
+            || hex(public.as_bytes()) != self.public_key
+        {
+            return Err(Error::WrongSecret);
+        }
+        Ok(keys)
+    }
+
     /// Opens the vault with whatever the user typed: the password, or if that does not fit and it reads as a
     /// recovery key, the recovery key.
     pub fn unlock(&self, secret: &str) -> Result<Keys> {
@@ -439,6 +463,18 @@ const FILE_VERSION: u8 = 1;
 const FILE_HEADER: usize = 8 + 1 + 16 + 19;
 
 impl Keys {
+    /// The secrets as hex text, for the system keyring (see [`Vault::unlock_exported`]). The text is wiped when
+    /// dropped; it opens everything the vault protects, so it belongs nowhere but the keyring.
+    pub fn export_hex(&self) -> zeroize::Zeroizing<String> {
+        let mut bundle = [0u8; BUNDLE_LEN];
+        bundle[0] = BUNDLE_VERSION;
+        bundle[1..33].copy_from_slice(&self.data_key);
+        bundle[33..].copy_from_slice(&self.secret);
+        let text = zeroize::Zeroizing::new(hex(&bundle));
+        bundle.zeroize();
+        text
+    }
+
     /// The key's name (hex), as written in the vault and in every file made with it.
     pub fn key_id(&self) -> String {
         hex(&key_id_of(&self.data_key))

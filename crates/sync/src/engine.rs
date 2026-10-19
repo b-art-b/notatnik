@@ -374,7 +374,13 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
         }
         if actions.is_empty() {
             if opts.trust_folder_etags {
-                state.dirs = rdirs;
+                // folders are skipped at the next sync only when everything in them was dealt with: a file that
+                // was left alone (locked key) or could not be dealt with must be seen again, not hidden by the ETag
+                if left.is_empty() && report.errors.is_empty() {
+                    state.dirs = rdirs;
+                } else {
+                    state.dirs.clear();
+                }
             }
             if report.errors.is_empty() {
                 state.last_sync = Some(chrono::Local::now().to_rfc3339());

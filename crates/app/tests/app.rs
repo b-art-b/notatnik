@@ -5203,3 +5203,420 @@ fn the_ui_can_write_to_the_log() {
         assert!(r.is_ok(), "{level}: {r:?}");
     }
 }
+
+// ---- encrypting chosen paths on the server (EN-11 to EN-18) ----------------------------------------------------
+
+const SECRET: &str = "SECRETMARKER-4711";
+
+fn all_task_text(server: &notatnik_caldav::fake::FakeServer, calendar: &str) -> String {
+    server
+        .names(calendar)
+        .iter()
+        .filter_map(|n| server.text(calendar, n))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn server_has_text(dav: &notatnik_sync::fakedav::FakeDav, marker: &str) -> bool {
+    dav.files("Notes")
+        .iter()
+        .filter_map(|p| dav.file(p))
+        .any(|d| d.windows(marker.len()).any(|w| w == marker.as_bytes()))
+}
+
+/// A graph on a fake server with a marked folder, and the recovery key of its vault.
+fn encrypted_graph() -> (
+    T,
+    notatnik_sync::fakedav::FakeDav,
+    std::path::PathBuf,
+    String,
+) {
+    let dav = notatnik_sync::fakedav::FakeDav::start();
+    let t = start("basic");
+    let info = t.ok(
+        "create_remote_graph",
+        json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": false}),
+    );
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    let recovery = t.ok("encryption_setup", json!({"password": "correct horse"}));
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(
+        (st["configured"].clone(), st["pending"].clone()),
+        (json!(false), json!(true))
+    );
+    let st = t.ok("encryption_confirm", json!({}));
+    assert_eq!(
+        (st["configured"].clone(), st["unlocked"].clone()),
+        (json!(true), json!(true)),
+        "{st}"
+    );
+    (
+        t,
+        dav,
+        root,
+        recovery["recovery_key"].as_str().unwrap().to_string(),
+    )
+}
+
+#[test]
+fn marked_paths_are_stored_encrypted_on_the_server_and_a_second_device_unlocks_them() {
+    let (t, dav, root, recovery) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    std::fs::write(root.join("pages/open.md"), "- open text\n").unwrap();
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(st["paths"], json!(["pages/private/"]));
+    let sync = t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(sync["state"], "idle", "{sync}");
+    assert!(dav.file("Notes/graph/pages/private/diary.md.enc").is_some());
+    assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
+    assert!(dav.file("Notes/graph/pages/open.md").is_some());
+    assert!(!server_has_text(&dav, SECRET));
+    // the vault and the list of paths are plain files on the server, and hold no secret
+    let vault = String::from_utf8(dav.file("Notes/graph/.notatnik/vault.json").unwrap()).unwrap();
+    assert!(!vault.contains("correct horse") && !vault.contains(&recovery.replace('-', "")));
+    // the page is an ordinary page here
+    let page = t.ok("get_page", json!({"name": "private/diary"}));
+    assert_eq!(page["exists"], true);
+
+    // a second device: it gets the vault and the plain page and waits for the key
+    let phone = start("basic");
+    let info = phone.ok(
+        "create_remote_graph",
+        json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": true}),
+    );
+    let phone_root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    let st = phone.ok("encryption_status", json!({}));
+    assert_eq!(
+        (st["configured"].clone(), st["unlocked"].clone()),
+        (json!(true), json!(false)),
+        "{st}"
+    );
+    assert_eq!(st["paths"], json!(["pages/private/"]));
+    assert!(phone_root.join("pages/open.md").exists());
+    assert!(!phone_root.join("pages/private/diary.md").exists());
+    let sync = phone.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(sync["left_alone"], 1, "{sync}");
+
+    // wrong secret, then the recovery key, then it arrives
+    let err = phone
+        .call("encryption_unlock", json!({"secret": "nope nope nope"}))
+        .unwrap_err();
+    assert_eq!(err.code, "invalid");
+    let st = phone.ok("encryption_unlock", json!({"secret": recovery}));
+    assert_eq!(st["unlocked"], true);
+    phone.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(
+        std::fs::read_to_string(phone_root.join("pages/private/diary.md")).unwrap(),
+        format!("- {SECRET}\n")
+    );
+
+    // an edit on the phone reaches the laptop through the encrypted copy
+    std::fs::write(
+        phone_root.join("pages/private/diary.md"),
+        format!("- {SECRET}\n- from the phone\n"),
+    )
+    .unwrap();
+    phone.ok("sync_now", json!({"allow_mass_delete": false}));
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        std::fs::read_to_string(root.join("pages/private/diary.md"))
+            .unwrap()
+            .contains("from the phone")
+    );
+    assert!(!server_has_text(&dav, SECRET));
+
+    // locking stops the encrypted files and nothing else
+    let st = phone.ok("encryption_lock", json!({}));
+    assert_eq!(st["unlocked"], false);
+    std::fs::write(phone_root.join("pages/open.md"), "- open text, edited\n").unwrap();
+    std::fs::write(
+        phone_root.join("pages/private/diary.md"),
+        format!("- {SECRET}\n- locked edit\n"),
+    )
+    .unwrap();
+    phone.ok("sync_now", json!({"allow_mass_delete": false}));
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        std::fs::read_to_string(root.join("pages/open.md"))
+            .unwrap()
+            .contains("edited")
+    );
+    assert!(
+        !std::fs::read_to_string(root.join("pages/private/diary.md"))
+            .unwrap()
+            .contains("locked edit")
+    );
+}
+
+#[test]
+fn marking_needs_a_vault_and_an_unlocked_key_and_stops_only_where_it_started() {
+    let t = start("basic");
+    // no vault yet
+    let e = t
+        .call(
+            "encryption_mark",
+            json!({"paths": ["pages/a.md"], "encrypted": true}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "invalid", "{e:?}");
+    assert!(
+        t.call("encryption_confirm", json!({})).is_err(),
+        "nothing to confirm"
+    );
+    // a password that is too short makes nothing
+    assert!(
+        t.call("encryption_setup", json!({"password": "short"}))
+            .is_err()
+    );
+    assert_eq!(t.ok("encryption_status", json!({}))["pending"], false);
+}
+
+#[test]
+fn passwords_recovery_keys_and_the_keyring_switch() {
+    let (t, _dav, root, recovery) = encrypted_graph();
+    // setting up twice is refused
+    assert_eq!(
+        t.call("encryption_setup", json!({"password": "another long one"}))
+            .unwrap_err()
+            .code,
+        "invalid"
+    );
+    // a short password is refused
+    let t2 = start("basic");
+    assert!(
+        t2.call("encryption_setup", json!({"password": "short"}))
+            .is_err()
+    );
+
+    // a new password: the old one stops, the new one and the recovery key work
+    t.ok(
+        "encryption_change_password",
+        json!({"old_password": "correct horse", "new_password": "battery staple!"}),
+    );
+    t.ok("encryption_lock", json!({}));
+    assert!(
+        t.call("encryption_unlock", json!({"secret": "correct horse"}))
+            .is_err()
+    );
+    assert_eq!(
+        t.ok("encryption_unlock", json!({"secret": "battery staple!"}))["unlocked"],
+        true
+    );
+    t.ok("encryption_lock", json!({}));
+    assert_eq!(
+        t.ok("encryption_unlock", json!({"secret": recovery}))["unlocked"],
+        true
+    );
+
+    // a new recovery key: the old one stops
+    let fresh = t.ok(
+        "encryption_new_recovery_key",
+        json!({"password": "battery staple!"}),
+    );
+    t.ok("encryption_lock", json!({}));
+    assert!(
+        t.call("encryption_unlock", json!({"secret": recovery}))
+            .is_err()
+    );
+    t.ok(
+        "encryption_unlock",
+        json!({"secret": fresh["recovery_key"]}),
+    );
+
+    // the keyring switch: needs the key; with it on the next start is unlocked, off it is not
+    t.ok("encryption_lock", json!({}));
+    assert_eq!(
+        t.call("encryption_keyring", json!({"on": true}))
+            .unwrap_err()
+            .code,
+        "locked"
+    );
+    t.ok("encryption_unlock", json!({"secret": "battery staple!"}));
+    assert_eq!(
+        t.ok("encryption_keyring", json!({"on": true}))["keyring"],
+        true
+    );
+    reopen(&t, &root);
+    assert_eq!(t.ok("encryption_status", json!({}))["unlocked"], true);
+    t.ok("encryption_keyring", json!({"on": false}));
+    reopen(&t, &root);
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(
+        (st["unlocked"].clone(), st["keyring"].clone()),
+        (json!(false), json!(false))
+    );
+    // without the key, marking says so
+    assert_eq!(
+        t.call(
+            "encryption_mark",
+            json!({"paths": ["pages/a.md"], "encrypted": true})
+        )
+        .unwrap_err()
+        .code,
+        "locked"
+    );
+}
+
+#[test]
+fn marks_are_checked_listed_and_removed_where_they_were_made() {
+    let (t, _dav, _root, _r) = encrypted_graph();
+    for bad in ["../x/", "/etc/", ".notatnik/", "a//b", ""] {
+        assert!(
+            t.call(
+                "encryption_mark",
+                json!({"paths": [bad], "encrypted": true})
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    let paths = t.ok(
+        "encryption_page_paths",
+        json!({"page": "work/projects/alpha", "subpages": true}),
+    );
+    assert_eq!(
+        paths["items"],
+        json!(["pages/work/projects/alpha.md", "pages/work/projects/alpha/"])
+    );
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/work/"], "encrypted": true}),
+    );
+    // a file inside a marked folder cannot be unmarked alone
+    let e = t
+        .call(
+            "encryption_mark",
+            json!({"paths": ["pages/work/projects/alpha.md"], "encrypted": false}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "invalid");
+    assert!(e.message.contains("pages/work/"), "{}", e.message);
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/work/"], "encrypted": false}),
+    );
+    assert_eq!(st["paths"], json!([]));
+}
+
+#[test]
+fn the_preview_says_what_stays_plain_and_what_the_server_already_has() {
+    let (t, _dav, root, _r) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::create_dir_all(root.join("assets")).unwrap();
+    std::fs::write(root.join("assets/scan.png"), b"png").unwrap();
+    std::fs::write(
+        root.join("pages/private/diary.md"),
+        "- text ![scan](../assets/scan.png)\n- TODO call ^abc123\n  deadline:: 2026-10-25\n",
+    )
+    .unwrap();
+    // let the sync upload it as it is, before anything is marked
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    // the file is known to the index after the watcher or a reopen (which locks the key again)
+    reopen(&t, &root);
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    let p = t.ok(
+        "encryption_preview",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(p["synced_before"], true, "{p}");
+    assert_eq!(p["files"], 1);
+    assert_eq!(p["images"], json!(["assets/scan.png"]));
+    assert_eq!(p["calendar_tasks"], 1);
+    // pictures that are marked too are not listed
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["assets/"], "encrypted": true}),
+    );
+    let p = t.ok(
+        "encryption_preview",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(p["images"], json!([]));
+}
+
+#[test]
+fn a_rename_that_crosses_an_encrypted_path_is_warned_about() {
+    let (t, _dav, root, _r) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), "- one\n").unwrap();
+    std::fs::write(root.join("pages/plain.md"), "- two\n").unwrap();
+    reopen(&t, &root);
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    let out = t.ok(
+        "rename_plan",
+        json!({"old": "private/diary", "new": "diary"}),
+    );
+    let w = out["warnings"].to_string();
+    assert!(w.contains("moves out of an encrypted path"), "{w}");
+    let into = t.ok(
+        "rename_plan",
+        json!({"old": "plain", "new": "private/plain"}),
+    );
+    assert!(
+        into["warnings"]
+            .to_string()
+            .contains("moves into an encrypted path")
+    );
+    let inside = t.ok(
+        "rename_plan",
+        json!({"old": "private/diary", "new": "private/log"}),
+    );
+    assert!(!inside["warnings"].to_string().contains("encrypted path"));
+    let elsewhere = t.ok("rename_plan", json!({"old": "plain", "new": "other"}));
+    assert!(!elsewhere["warnings"].to_string().contains("encrypted path"));
+}
+
+#[test]
+fn tasks_of_encrypted_pages_stay_out_of_the_calendar_unless_allowed() {
+    let (t, server, tasks, graph) =
+        deletion_setup("complete", "- TODO plain task\n  deadline:: 2026-10-25\n");
+    std::fs::create_dir_all(graph.join("pages/private")).unwrap();
+    std::fs::write(
+        graph.join("pages/private/secret.md"),
+        "- TODO secret errand\n  deadline:: 2026-10-26\n",
+    )
+    .unwrap();
+    reopen(&t, &graph);
+    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok("encryption_confirm", json!({}));
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 1, "{r}");
+    assert!(
+        !all_task_text(&server, &tasks).contains("secret errand"),
+        "the secret task reached the calendar"
+    );
+    // the page was not touched either: no block ID was written
+    let page = std::fs::read_to_string(graph.join("pages/private/secret.md")).unwrap();
+    assert!(!page.contains(" ^"), "{page}");
+
+    // allowed: it is sent
+    let st = t.ok("encryption_calendar", json!({"allow": true}));
+    assert_eq!(st["calendar"], "allow");
+    let r = t.ok("calendar_sync", json!({}));
+    assert_eq!(r["created"], 1, "{r}");
+    assert!(all_task_text(&server, &tasks).contains("secret errand"));
+}
+
+#[test]
+fn the_status_warns_when_backups_are_plain_while_paths_are_marked() {
+    let (t, _dav, _root, _r) = encrypted_graph();
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(st["backups_plain"], false);
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(st["backups_plain"], true, "{st}");
+}

@@ -298,3 +298,18 @@ fn fixtures_from_an_earlier_build_still_open() {
     let sealed_file = std::fs::read(dir.join("sealed.bin")).unwrap();
     assert_eq!(opened(&keys, &sealed_file).unwrap(), plain);
 }
+
+#[test]
+fn exported_keys_open_the_same_vault_again_and_only_that_one() {
+    let (vault, keys, _) = Vault::create("pw", KdfParams::insecure_for_tests()).unwrap();
+    let text = keys.export_hex();
+    let again = vault.unlock_exported(&text).unwrap();
+    let sealed = keys.encrypt(b"hello", b"p").unwrap();
+    assert_eq!(again.decrypt(&sealed, b"p").unwrap(), b"hello");
+    // another vault, damaged or empty text: refused
+    let (other, _, _) = Vault::create("pw", KdfParams::insecure_for_tests()).unwrap();
+    assert!(other.unlock_exported(&text).is_err());
+    assert!(vault.unlock_exported("").is_err());
+    assert!(vault.unlock_exported("zz").is_err());
+    assert!(vault.unlock_exported(&text[..text.len() - 2]).is_err());
+}
