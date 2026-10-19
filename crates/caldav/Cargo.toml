@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 chrono = "0.4.45"
+log = "0.4"
 quick-xml = "0.38"
 serde = { version = "1.0.229", features = ["derive"] }
 ureq = { version = "2.12", default-features = false, features = ["tls"] }

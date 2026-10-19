@@ -833,6 +833,15 @@ pub struct ReadConflictArgs {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct NoArgs {}
 
+/// `log_client`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LogClientArgs {
+    /// `error`, `warn`, `info` or `debug`.
+    pub level: String,
+    /// What happened in the UI (never note text).
+    pub message: String,
+}
+
 /// A list of strings.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct StringList {

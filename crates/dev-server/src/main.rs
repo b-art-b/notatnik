@@ -162,6 +162,7 @@ fn handle(app: &AppState, events: &Events, mut req: Request) {
 }
 
 fn main() {
+    notatnik_log::init("info");
     let args = Args::parse();
     let events: Arc<Events> = Arc::default();
     let device = args.device_dir.clone().unwrap_or_else(|| {
@@ -204,7 +205,7 @@ fn main() {
         "open_graph",
         json!({"path": graph, "create": args.create}),
     ) {
-        eprintln!("cannot open graph: {e}");
+        log::error!("cannot open graph: {e}");
         std::process::exit(1);
     }
     let server = Server::http(("127.0.0.1", args.port)).expect("bind 127.0.0.1");
@@ -212,6 +213,7 @@ fn main() {
         .server_addr()
         .to_ip()
         .map_or_else(String::new, |a| a.to_string());
+    // the browser tests wait for this line on stdout
     println!("listening on http://{addr}");
     for req in server.incoming_requests() {
         let app = app.clone();

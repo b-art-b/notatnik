@@ -15,6 +15,7 @@ notatnik-graph = { workspace = true }
 notatnik-sync = { workspace = true }
 notatnik-caldav = { path = "../caldav" }
 base64 = "0.22"
+log = "0.4"
 chrono = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }

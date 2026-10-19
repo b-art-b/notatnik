@@ -138,9 +138,23 @@ impl HttpCalDav {
         for (k, v) in headers {
             req = req.set(k, v);
         }
-        match req.send_bytes(body.as_bytes()) {
-            Ok(r) | Err(ureq::Error::Status(_, r)) => Ok(r),
-            Err(ureq::Error::Transport(t)) => Err(Error::Offline(t.to_string())),
+        let started = std::time::Instant::now();
+        let sent = req.send_bytes(body.as_bytes());
+        // never the headers (the login) and never the body (the notes); the address is shown without a query
+        let at = url.split('?').next().unwrap_or(url);
+        match sent {
+            Ok(r) | Err(ureq::Error::Status(_, r)) => {
+                log::debug!(
+                    "{method} {at} -> {} ({} ms)",
+                    r.status(),
+                    started.elapsed().as_millis()
+                );
+                Ok(r)
+            }
+            Err(ureq::Error::Transport(t)) => {
+                log::debug!("{method} {at} failed: {t}");
+                Err(Error::Offline(t.to_string()))
+            }
         }
     }
 

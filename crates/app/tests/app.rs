@@ -5184,3 +5184,22 @@ fn regex_lite_strip_ids(text: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+/// The UI sends its uncaught errors to the terminal log; it works without an open graph and never fails.
+#[test]
+fn the_ui_can_write_to_the_log() {
+    let state = AppState::new(AppOptions {
+        dirs: Dirs::under(&tempfile::tempdir().unwrap().keep()),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 3).unwrap()),
+        watch: false,
+    });
+    for level in ["error", "warn", "info", "debug", "something else"] {
+        let r = dispatch(
+            &state,
+            "log_client",
+            json!({"level": level, "message": "x".repeat(5000)}),
+        );
+        assert!(r.is_ok(), "{level}: {r:?}");
+    }
+}

@@ -82,6 +82,7 @@ pub fn typescript_bindings() -> String {
         GetBlockArgs,
         BlockLookup,
         SetCollapsedArgs,
+        LogClientArgs,
         ReadConflictArgs,
         NoArgs,
         StringList,

@@ -114,6 +114,7 @@ impl AppState {
     /// trash. Returns the conflict copies that are left.
     pub fn resolve_conflict(&self, a: ResolveConflictArgs) -> ApiResult<StringList> {
         self.with_open(|o| {
+            log::info!("resolving conflict copy {} ({})", a.path, a.mode);
             let (view, inputs) = Self::merge_for(o, &a.path, &a.choices)?;
             let guard = a.expected_hash.as_deref().or(view.original_hash.as_deref());
             match a.mode.as_str() {

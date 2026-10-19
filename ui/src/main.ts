@@ -1,6 +1,7 @@
 import './assets/fonts/inter.css'
 import { mount } from 'svelte'
 import App from './App.svelte'
+import { backend, CommandError } from './lib/api'
 
 mount(App, { target: document.getElementById('app')! })
 
@@ -10,3 +11,18 @@ for (const type of ['dragover', 'drop']) {
     if ((e as DragEvent).dataTransfer?.types.includes('Files')) e.preventDefault()
   })
 }
+
+// The desktop app has no visible console: an error nobody caught goes to the terminal log of the app as well.
+// A failed command was logged by the backend already.
+function toTerminal(message: string) {
+  backend.call('log_client', { level: 'error', message }).catch(() => {})
+}
+window.addEventListener('error', (e) => {
+  toTerminal(`${e.message} (${e.filename}:${e.lineno})`)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason instanceof CommandError) return
+  toTerminal(
+    `unhandled rejection: ${e.reason instanceof Error ? (e.reason.stack ?? e.reason.message) : String(e.reason)}`,
+  )
+})

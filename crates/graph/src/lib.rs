@@ -338,6 +338,7 @@ impl Graph {
         atomic_write(&root, &path, cfg.to_toml().as_bytes())?;
         // the priority labels decide how `priority::` parses: files are indexed again when they change
         let relabel = g.index.priority_labels() != cfg.priority_labels().as_slice();
+        log::info!("config.toml changed on disk; settings reloaded");
         g.config = cfg;
         if relabel {
             let options = IndexOptions {
@@ -359,8 +360,12 @@ impl Graph {
         let Ok(text) = std::fs::read_to_string(&path) else {
             return false;
         };
-        let Ok((mut cfg, _)) = Config::parse(&text) else {
-            return false;
+        let (mut cfg, _) = match Config::parse(&text) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("config.toml changed but cannot be read, the old settings stay: {e}");
+                return false;
+            }
         };
         if cfg.graph.id.is_empty() {
             cfg.graph.id = g.config.graph.id.clone();

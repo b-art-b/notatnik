@@ -1417,6 +1417,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_filter"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "900d271a03799a1ee8d1ca9b19893b48ca674a9284fefcfb85f05e74ed314217"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de671bd27a75a797dc9ae289ba1e77276e75e2026408aab65185384e2d5cd3f6"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "log",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2858,6 +2880,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "log",
  "notatnik-caldav",
  "notatnik-core",
  "notatnik-crypt",
@@ -2878,6 +2901,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "insta",
+ "log",
  "notatnik-core",
  "notatnik-sync",
  "quick-xml 0.38.4",
@@ -2899,6 +2923,7 @@ dependencies = [
  "notatnik-crypt",
  "notatnik-graph",
  "notatnik-index",
+ "notatnik-log",
  "rpassword",
  "serde",
  "serde_json",
@@ -2953,8 +2978,10 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "keyring",
+ "log",
  "notatnik-app",
  "notatnik-graph",
+ "notatnik-log",
  "png 0.17.16",
  "serde_json",
  "tauri",
@@ -2969,9 +2996,11 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "log",
  "notatnik-app",
  "notatnik-caldav",
  "notatnik-graph",
+ "notatnik-log",
  "serde_json",
  "tiny_http",
 ]
@@ -2983,6 +3012,7 @@ dependencies = [
  "blake3",
  "chrono",
  "criterion",
+ "log",
  "notatnik-core",
  "notatnik-crypt",
  "notatnik-index",
@@ -3011,11 +3041,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "notatnik-log"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "env_logger",
+ "log",
+]
+
+[[package]]
 name = "notatnik-sync"
 version = "0.1.0"
 dependencies = [
  "blake3",
  "chrono",
+ "log",
  "notatnik-core",
  "notatnik-sync",
  "quick-xml 0.38.4",

@@ -40,7 +40,10 @@ async function startBackend(
   const proc: ChildProcess = spawn(
     bin,
     ['--graph', dir, '--today', today, '--device-dir', path.join(tmp, 'device'), ...extra],
-    { stdio: ['ignore', 'pipe', 'inherit'] },
+    {
+      stdio: ['ignore', 'pipe', 'inherit'],
+      env: { ...process.env, RUST_LOG: process.env.RUST_LOG ?? 'warn' },
+    },
   )
   const api = await new Promise<string>((resolve, reject) => {
     let buf = ''

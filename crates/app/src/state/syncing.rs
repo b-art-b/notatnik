@@ -154,8 +154,11 @@ impl SyncCtx {
             .gate
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let before = self.snapshot();
         self.set_status(|s| s.state = "syncing".into());
+        let started = Instant::now();
         let result = self.run_inner(allow_mass_delete);
+        self.log_result(&result, &before, started.elapsed());
         self.set_status(|s| match result {
             Ok(report) => {
                 s.state = "idle".into();
@@ -216,6 +219,66 @@ impl SyncCtx {
                 };
             }
         })
+    }
+
+    /// The log line of a sync. Quiet when nothing happened; a problem is reported when it starts and again when it
+    /// changes, not at every attempt (a laptop without a network would otherwise log once a minute).
+    fn log_result(
+        &self,
+        result: &Result<notatnik_sync::Report, SyncError>,
+        before: &SyncStatus,
+        took: Duration,
+    ) {
+        match result {
+            Ok(r) => {
+                let done = r.pushed.len()
+                    + r.pulled.len()
+                    + r.deleted_remote.len()
+                    + r.deleted_local.len()
+                    + r.merged.len()
+                    + r.conflicts.len();
+                let summary = format!(
+                    "sync with {}: {} sent, {} received, {} deleted on the server, {} deleted here, {} merged, {} conflicts ({} ms)",
+                    self.cfg.url,
+                    r.pushed.len(),
+                    r.pulled.len(),
+                    r.deleted_remote.len(),
+                    r.deleted_local.len(),
+                    r.merged.len(),
+                    r.conflicts.len(),
+                    took.as_millis()
+                );
+                if done > 0 {
+                    log::info!("{summary}");
+                } else {
+                    log::debug!("{summary}");
+                }
+                for c in &r.conflict_files {
+                    log::warn!(
+                        "sync conflict: both sides changed, the local version is kept as {c}"
+                    );
+                }
+                for (path, why) in &r.errors {
+                    log::warn!("sync: {path} could not be synced: {why}");
+                }
+                for p in &r.suspect {
+                    log::warn!("sync: {p} looks reformatted by another editor (lines joined)");
+                }
+                if before.state == "error" || before.state == "offline" {
+                    log::info!("sync with {} works again", self.cfg.url);
+                }
+            }
+            Err(e) => {
+                let same = before.error_code.as_deref() == Some(api_err(e).code.as_str())
+                    && before.state != "syncing";
+                let line = format!("sync with {} failed: {e}", self.cfg.url);
+                match (e.code(), same) {
+                    (_, true) => log::debug!("{line}"),
+                    ("offline", false) => log::warn!("{line}"),
+                    _ => log::error!("{line}"),
+                }
+            }
+        }
     }
 
     fn run_inner(&self, allow_mass_delete: bool) -> Result<notatnik_sync::Report, SyncError> {

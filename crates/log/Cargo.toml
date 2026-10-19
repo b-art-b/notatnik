@@ -1,0 +1,16 @@
+[package]
+name = "notatnik-log"
+description = "Terminal logging for the binaries: one format, RUST_LOG to choose what is shown."
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+chrono = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "color"] }
+log = "0.4"
+
+[lints]
+workspace = true

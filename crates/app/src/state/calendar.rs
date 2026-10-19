@@ -394,7 +394,13 @@ impl AppState {
                 Err(e @ notatnik_caldav::Error::Offline(_)) => return Err(api_err(&e)),
                 // a calendar that cannot be written (shared read-only): copy anyway, the notes' own mark still
                 // keeps another device from copying it twice
-                Err(_) => out.push(item.clone()),
+                Err(e) => {
+                    log::warn!(
+                        "calendar: the takeover mark could not be written to {} ({e}); copying it anyway",
+                        item.name
+                    );
+                    out.push(item.clone());
+                }
             }
         }
         Ok(out)
@@ -422,12 +428,17 @@ impl AppState {
                 continue;
             }
             let marked = notatnik_caldav::ical::with_claim(&item.ics, &me, now, true);
-            let _ = client.put(
+            if let Err(e) = client.put(
                 calendar,
                 &item.name,
                 &marked,
                 &notatnik_caldav::Cond::IfMatch(item.etag.clone()),
-            );
+            ) {
+                log::debug!(
+                    "calendar: the final mark on {} was not written: {e}",
+                    item.name
+                );
+            }
         }
     }
 
@@ -613,6 +624,10 @@ impl AppState {
         let id = self.with_open(|o| Ok(o.graph.id()))?;
         let mut cfg = self.calendar_settings(&id);
         cfg.paused = a.paused;
+        log::info!(
+            "calendar sync {}",
+            if a.paused { "paused" } else { "resumed" }
+        );
         self.store_calendar_settings(&id, cfg)?;
         self.calendar_status_of(&id)
     }
@@ -688,7 +703,58 @@ impl AppState {
 
     /// `calendar_sync`: sends the dated tasks of the open graph to the task calendar. A dated task with no block
     /// ID is given one first (the calendar item is named after it).
-    pub fn calendar_sync(&self, _: NoArgs) -> ApiResult<CalendarSyncReport> {
+    pub fn calendar_sync(&self, a: NoArgs) -> ApiResult<CalendarSyncReport> {
+        let started = std::time::Instant::now();
+        let result = self.calendar_sync_inner(a);
+        let took = started.elapsed().as_millis();
+        match &result {
+            Ok(r) => {
+                let line = format!(
+                    "calendar sync: {} sent, {} updated, {} unchanged, {} retired, {} deleted, {} pulled, {} imported, {} events changed ({took} ms)",
+                    r.created,
+                    r.updated,
+                    r.unchanged,
+                    r.retired,
+                    r.deleted,
+                    r.pulled,
+                    r.imported,
+                    r.events_changed
+                );
+                if r.created
+                    + r.updated
+                    + r.retired
+                    + r.deleted
+                    + r.pulled
+                    + r.imported
+                    + r.events_changed
+                    + r.removed_in_calendar
+                    > 0
+                {
+                    log::info!("{line}");
+                } else {
+                    log::debug!("{line}");
+                }
+                if r.ids_added > 0 {
+                    log::info!("calendar sync gave {} task(s) a block ID", r.ids_added);
+                }
+                if !r.conflicts.is_empty() {
+                    log::warn!(
+                        "calendar sync: {} task(s) were changed in the calendar and here; the calendar item was not overwritten",
+                        r.conflicts.len()
+                    );
+                }
+            }
+            // paused and "not set up" are the user's choices, not problems
+            Err(e) if e.code == "paused" || e.code == "invalid" => {
+                log::debug!("calendar sync did not run: {}", e.message);
+            }
+            Err(e) if e.code == "offline" => log::warn!("calendar sync: {}", e.message),
+            Err(e) => log::error!("calendar sync failed: {e}"),
+        }
+        result
+    }
+
+    fn calendar_sync_inner(&self, _: NoArgs) -> ApiResult<CalendarSyncReport> {
         let id = self.with_open(|o| Ok(o.graph.id()))?;
         let cfg = self.calendar_settings(&id);
         let section = self.with_open(|o| Ok(o.graph.config().calendar.clone()))?;
@@ -736,6 +802,7 @@ impl AppState {
         }
         if let Some(routing) = Routing::new(&cfg) {
             for c in routing.all.clone() {
+                log::debug!("calendar sync: {}", routing.name_of(&c.href));
                 let r = self.sync_tasks(&id, &client, c.href, &section, &routing)?;
                 report.add(r);
             }
@@ -1080,6 +1147,17 @@ impl AppState {
 
     /// Adds entries to the sync log, which keeps the last 500.
     fn append_calendar_log(&self, graph: &str, entries: Vec<CalendarLogEntry>) {
+        for e in &entries {
+            log::info!(
+                "calendar: {} {} ({}){}",
+                e.kind,
+                e.page,
+                e.uid,
+                e.field
+                    .as_deref()
+                    .map_or_else(String::new, |f| format!(", {f}"))
+            );
+        }
         let mut all = self.read_calendar_log(graph);
         all.extend(entries);
         let keep = all.len().saturating_sub(500);
@@ -1535,12 +1613,18 @@ fn remove_imported_originals(
                 .map(|i| i.etag.as_str())
         });
         let ours = notatnik_caldav::map::uid(graph_id, &block);
-        if state.items.contains_key(&ours)
-            && matches!(
-                client.delete(calendar, &name, etag),
-                Ok(()) | Err(notatnik_caldav::Error::NotFound(_))
-            )
-        {
+        if !state.items.contains_key(&ours) {
+            continue;
+        }
+        let gone = client.delete(calendar, &name, etag);
+        if let Err(e) = &gone {
+            if !matches!(e, notatnik_caldav::Error::NotFound(_)) {
+                log::warn!(
+                    "calendar: the original {name} of a copied task could not be removed: {e}"
+                );
+            }
+        }
+        if matches!(gone, Ok(()) | Err(notatnik_caldav::Error::NotFound(_))) {
             state.imported.remove(&uid);
             state.imported_names.remove(&uid);
             deleted.insert(name.clone());

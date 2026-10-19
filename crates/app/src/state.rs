@@ -270,6 +270,19 @@ fn run_backup(
             .err()
             .map(|e| e.to_string())
     });
+    match &made {
+        Ok(Some(f)) => log::info!(
+            "backup {} written ({} KiB{})",
+            f.name,
+            f.bytes / 1024,
+            if f.encrypted { ", encrypted" } else { "" }
+        ),
+        Ok(None) => log::debug!("backup: nothing to do (no change, or the last one is recent)"),
+        Err(e) => log::warn!("backup failed: {e}"),
+    }
+    if let Some(e) = &mirror_error {
+        log::warn!("backup: the second folder could not be brought up to date: {e}");
+    }
     (made, mirror_error)
 }
 
@@ -396,18 +409,21 @@ impl AppState {
     /// `open_graph`
     pub fn open_graph(&self, a: OpenGraphArgs) -> ApiResult<GraphInfo> {
         let path = PathBuf::from(&a.path);
+        let started = std::time::Instant::now();
         let (graph, report) =
             if a.create && !path.join(".notatnik").exists() && !path.join("pages").exists() {
                 Graph::create(&path, &self.dirs)?
             } else {
                 Graph::open(&path, &self.dirs)?
             };
+        Self::log_opened(&graph, &report, started.elapsed());
         let emit = self.emit.clone();
         // a change on this device asks for a sync a few seconds later (SY-6)
         let wake = Arc::new(syncing::Wake::default());
         let kick = wake.clone();
         let watcher = if self.watch {
             Some(graph.watch_with(Duration::from_millis(200), move |ev| {
+                log::debug!("files changed: {}", ev.paths.join(", "));
                 kick.kick(syncing::SYNC_AFTER_WRITE_SECS);
                 emit(
                     "graph-changed",
@@ -447,6 +463,37 @@ impl AppState {
             warnings: report.warnings,
         });
         Ok(info)
+    }
+
+    /// What opening a graph did, for the log: how the index was brought up to date, and every warning.
+    fn log_opened(graph: &Graph, report: &notatnik_graph::OpenReport, took: Duration) {
+        let pages = graph.with_index(|i| i.counts()).map_or(0, |c| c.pages);
+        let r = &report.reconcile;
+        let how = if report.index_rebuilt {
+            "index rebuilt".to_string()
+        } else {
+            format!(
+                "index updated: {} new, {} changed, {} gone",
+                r.added,
+                r.reindexed - r.added.min(r.reindexed),
+                r.deleted
+            )
+        };
+        log::info!(
+            "opened graph {} ({}): {pages} pages, {how}, {} ms",
+            graph.root().display(),
+            graph.id(),
+            took.as_millis()
+        );
+        for w in &report.warnings {
+            log::warn!("graph {}: {w}", graph.id());
+        }
+        for r in &report.reids {
+            log::warn!("duplicate block ID in {} was given a new one", r.path);
+        }
+        for c in graph.conflict_files().unwrap_or_default() {
+            log::warn!("conflict copy waiting to be merged by hand: {c}");
+        }
     }
 
     fn history(&self) -> Vec<GraphHistoryEntry> {
@@ -1571,7 +1618,19 @@ impl AppState {
             if plan.file_moves.len() + plan.edits.len() > 1 {
                 self.snapshot_before_change(o);
             }
+            log::info!(
+                "rename `{}` -> `{}`: {} file(s) moved, {} rewritten",
+                plan.old,
+                plan.new,
+                plan.file_moves.len(),
+                plan.edits.len()
+            );
             if let Err(e) = o.graph.apply_rename(&plan) {
+                log::error!(
+                    "rename `{}` -> `{}` stopped half way: {e}",
+                    plan.old,
+                    plan.new
+                );
                 // remember it: the user can revert what was already written
                 *self
                     .last_rename
@@ -1626,6 +1685,11 @@ impl AppState {
             }
             let trash_id = o.graph.trash_pages(&rels)?;
             let names: Vec<String> = pages.into_iter().map(|p| p.0).collect();
+            log::info!(
+                "deleted {} page(s) to the trash ({trash_id}): {}",
+                names.len(),
+                names.join(", ")
+            );
             // the history of a deleted page can't be undone any more
             o.undo.retain(|e| !names.contains(&e.page));
             o.redo.retain(|e| !names.contains(&e.page));
@@ -1653,6 +1717,11 @@ impl AppState {
     pub fn restore_pages(&self, a: RestorePagesArgs) -> ApiResult<StringList> {
         self.with_open(|o| {
             let restored = o.graph.restore_trash(&a.trash_id)?;
+            log::info!(
+                "restored {} file(s) from the trash ({})",
+                restored.len(),
+                a.trash_id
+            );
             let pages: Vec<String> = restored
                 .iter()
                 .filter_map(|r| o.graph.with_index(|i| i.page_for_file(r)).ok().flatten())
@@ -1687,6 +1756,7 @@ impl AppState {
                     ApiError::new("invalid", "there is no unfinished rename to revert")
                 })?;
             let restored = o.graph.revert_rename(&plan)?;
+            log::info!("rename `{}` -> `{}` reverted", plan.old, plan.new);
             o.undo.retain(|e| e.page != plan.old && e.page != plan.new);
             o.redo.retain(|e| e.page != plan.old && e.page != plan.new);
             (self.emit)(
@@ -1803,6 +1873,20 @@ impl AppState {
                 block: b.clone(),
             }))
         })
+    }
+
+    /// `log_client`: a line of the UI's own for the terminal log (an error nobody caught). The webview's console is
+    /// not visible in the desktop app, so the UI sends what it would have printed there.
+    pub fn log_client(&self, a: LogClientArgs) -> ApiResult<NoArgs> {
+        let level = match a.level.as_str() {
+            "error" => log::Level::Error,
+            "warn" => log::Level::Warn,
+            "debug" => log::Level::Debug,
+            _ => log::Level::Info,
+        };
+        let message: String = a.message.chars().take(2000).collect();
+        log::log!(target: "ui", level, "{message}");
+        Ok(NoArgs {})
     }
 
     /// `set_collapsed`
@@ -2833,11 +2917,15 @@ impl AppState {
         else {
             return;
         };
-        let _ = o.graph.backup_before_change(
+        match o.graph.backup_before_change(
             &primary_dir(&self.dirs, &dev),
             chrono::Local::now().naive_local(),
             &opts,
-        );
+        ) {
+            Ok(Some(f)) => log::info!("restore point {} written before a bulk change", f.name),
+            Ok(None) => {}
+            Err(e) => log::warn!("no restore point before a bulk change: {e}"),
+        }
     }
 
     // ---- page history (VH-1..VH-3) ------------------------------------------------------------
@@ -2886,6 +2974,7 @@ impl AppState {
         self.with_open(|o| {
             let rel = Self::page_rel(o, &a.page)?;
             o.graph.restore_page_version(&rel, &a.id)?;
+            log::info!("restored an earlier version of {rel}");
             o.undo.retain(|e| e.rel != rel);
             o.redo.retain(|e| e.rel != rel);
             (self.emit)(
@@ -3131,6 +3220,7 @@ impl AppState {
             let opts = self.read_options(&o.graph.id())?;
             o.graph
                 .restore_backup_to(&self.backup_dir(), &a.name, &target, &opts)?;
+            log::info!("backup {} restored to {}", a.name, target.display());
             Ok(StringValue {
                 value: target.to_string_lossy().into_owned(),
             })

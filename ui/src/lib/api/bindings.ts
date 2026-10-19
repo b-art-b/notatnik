@@ -752,6 +752,15 @@ page: string,
  * Content hashes of collapsed blocks (the block's `hash`).
  */
 collapsed: Array<string>, };
+export type LogClientArgs = { 
+/**
+ * `error`, `warn`, `info` or `debug`.
+ */
+level: string, 
+/**
+ * What happened in the UI (never note text).
+ */
+message: string, };
 export type ReadConflictArgs = { 
 /**
  * Path of the conflict copy.
@@ -2147,6 +2156,7 @@ export type Commands = {
   ensure_block_id: { args: EnsureBlockIdArgs; result: StringValue };
   get_block: { args: GetBlockArgs; result: BlockLookup | null };
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };
+  log_client: { args: LogClientArgs; result: NoArgs };
   conflict_merge: { args: ConflictMergeArgs; result: ConflictMergeView };
   resolve_conflict: { args: ResolveConflictArgs; result: StringList };
   list_conflicts: { args: NoArgs; result: StringList };

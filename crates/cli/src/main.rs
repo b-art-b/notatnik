@@ -515,6 +515,8 @@ fn decrypt(file: &Path, out: Option<PathBuf>, force: bool) -> Result<(), String>
 }
 
 fn main() -> ExitCode {
+    // the commands print their own results; `RUST_LOG=notatnik_graph=debug` shows what the library does
+    notatnik_log::init("warn");
     let cli = Cli::parse();
     match run(cli) {
         Ok(code) => code,

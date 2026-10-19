@@ -11,6 +11,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/keymap.md`: what the user can do (keys, mouse, menus, settings), kept in step with the UI
 - `docs/placeholders.md`: `{{page}}`, `{{title}}`, `{{date}}` ... in templates and queries, and where the app offers them
 - `docs/date-formats.md`: display date formats and the custom pattern tokens (device setting)
+- `docs/logging.md`: what the app writes to the terminal log, at which level, and what is never logged (`RUST_LOG`)
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)
 - `docs/TODO.md`: phase overview and status
 - `docs/phases/phase-N.md`: detailed tasks for each phase; every task has a **Verify** block, and a task is done only when all of its Verify items pass. Tick items off there
@@ -21,6 +22,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `crates/index`: SQLite schema, indexing, search, query → SQL.
 - `crates/graph`: file I/O, atomic writes, watcher, conflicts.
 - `crates/cli`: `notatnik` binary.
+- `crates/log` (`notatnik-log`): starts the terminal logger for the three binaries; libraries only use the `log` macros (`docs/logging.md`).
 - `crates/app` (`notatnik-app`): the typed API (`dispatch`), page views, markdown renderer, undo, agenda/query commands. TypeScript bindings are generated from it (`scripts/gen-bindings.sh`).
 - `crates/dev-server`: HTTP wrapper around `dispatch`; the browser tests run against it.
 - `src-tauri/`: Tauri 2 shell (one `invoke_api` command). `ui/`: Svelte 5 + Vite frontend, Vitest unit tests, Playwright tests in `ui/tests`.

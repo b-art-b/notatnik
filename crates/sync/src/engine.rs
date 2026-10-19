@@ -264,6 +264,10 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             .filter(|a| matches!(a, Action::DeleteLocal { .. } | Action::DeleteRemote { .. }))
             .count();
         if !opts.allow_mass_delete && deletes > 10 && deletes * 2 > state.files.len() {
+            log::warn!(
+                "sync stopped: it would delete {deletes} of {} files; confirm in the app to go on",
+                state.files.len()
+            );
             return Err(Error::MassDelete(deletes));
         }
         let mut progress = false;
@@ -338,6 +342,7 @@ fn run(
                             mtime_ms: mtime_ms(&md),
                         },
                     );
+                    log::debug!("sync: sent {path}");
                     report.pushed.push(path.clone());
                     Ok(true)
                 }
@@ -379,6 +384,7 @@ fn run(
                     mtime_ms: mtime,
                 },
             );
+            log::debug!("sync: received {path}");
             report.pulled.push(path.clone());
             if path.ends_with(".md") && std::str::from_utf8(&bytes).is_ok_and(looks_reformatted) {
                 report.suspect.push(path.clone());
@@ -394,6 +400,7 @@ fn run(
             }
             state.files.remove(path);
             opts.bases.remove_synced(path);
+            log::debug!("sync: deleted {path} on the server");
             report.deleted_remote.push(path.clone());
             Ok(true)
         }
@@ -408,6 +415,7 @@ fn run(
             }
             state.files.remove(path);
             opts.bases.remove_synced(path);
+            log::info!("sync: {path} was deleted on the server; moved to the local trash");
             report.deleted_local.push(path.clone());
             Ok(true)
         }
@@ -445,6 +453,7 @@ fn run(
                                 mtime_ms: mtime,
                             },
                         );
+                        log::info!("sync: both sides changed {path}; merged without a conflict");
                         report.merged.push(path.clone());
                         return Ok(true);
                     }
@@ -481,6 +490,9 @@ fn run(
                 },
             );
             if let Some(c) = copy {
+                log::warn!(
+                    "sync: both sides changed {path}; the server version is kept, yours is {c}"
+                );
                 report.conflicts.push(path.clone());
                 report.conflict_files.push(c);
             }

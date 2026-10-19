@@ -15,7 +15,9 @@ path = "src/main.rs"
 notatnik-app = { path = "../app" }
 notatnik-caldav = { path = "../caldav" }
 notatnik-graph = { workspace = true }
+notatnik-log = { path = "../log" }
 chrono = "0.4"
+log = "0.4"
 clap = { version = "4", features = ["derive"] }
 serde_json = "1"
 tiny_http = "0.12"

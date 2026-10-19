@@ -16,12 +16,38 @@ pub use ts::typescript_bindings;
 use dto::*;
 use serde_json::Value;
 
+/// A command that takes this long is worth a line at `info`; faster ones are only logged at `debug`.
+const SLOW_COMMAND: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Calls a command by name with JSON arguments; returns the JSON result. Every call is logged at `debug` with its
+/// time (never its arguments or result: those are the user's notes). A slow call is logged at `info`, a failure
+/// by its code: `internal` is a bug (`error`), `invalid` is the caller's mistake (`warn`), the others (`not_found`,
+/// `conflict`, `no_graph`, ...) are ordinary answers (`debug`).
+pub fn dispatch(state: &AppState, name: &str, args: Value) -> Result<Value, ApiError> {
+    let started = std::time::Instant::now();
+    let result = run_command(state, name, args);
+    let took = started.elapsed();
+    match &result {
+        Ok(_) if took >= SLOW_COMMAND => {
+            log::info!("command {name} was slow: {} ms", took.as_millis())
+        }
+        Ok(_) => log::debug!("command {name} ok ({} ms)", took.as_millis()),
+        Err(e) if e.code == "internal" => log::error!("command {name} failed: {e}"),
+        Err(e) if e.code == "invalid" => log::warn!("command {name} was refused: {}", e.message),
+        Err(e) => log::debug!(
+            "command {name} answered {} ({} ms)",
+            e.code,
+            took.as_millis()
+        ),
+    }
+    result
+}
+
 /// Declares every command once: its name, argument type, result type and implementation. Generates
 /// [`dispatch`] and the TypeScript `Commands` map.
 macro_rules! commands {
     ($( $name:ident ( $args:ty ) -> $ret:ty => $method:ident ),* $(,)?) => {
-        /// Calls a command by name with JSON arguments; returns the JSON result.
-        pub fn dispatch(state: &AppState, name: &str, args: Value) -> Result<Value, ApiError> {
+        fn run_command(state: &AppState, name: &str, args: Value) -> Result<Value, ApiError> {
             match name {
                 $( stringify!($name) => {
                     let a: $args = serde_json::from_value(args)
@@ -75,6 +101,7 @@ commands! {
     ensure_block_id(EnsureBlockIdArgs) -> StringValue => ensure_block_id,
     get_block(GetBlockArgs) -> Option<BlockLookup> => get_block,
     set_collapsed(SetCollapsedArgs) -> NoArgs => set_collapsed,
+    log_client(LogClientArgs) -> NoArgs => log_client,
     conflict_merge(ConflictMergeArgs) -> ConflictMergeView => conflict_merge,
     resolve_conflict(ResolveConflictArgs) -> StringList => resolve_conflict,
     list_conflicts(NoArgs) -> StringList => list_conflicts,

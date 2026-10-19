@@ -27,6 +27,7 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         return open_local(&app, std::path::Path::new(&path));
     }
     if !(l.starts_with("http://") || l.starts_with("https://") || l.starts_with("mailto:")) {
+        log::warn!("a link was not opened, only http, https, mailto and file links are");
         return Err("only http, https, mailto and file links can be opened".into());
     }
     tauri_plugin_opener::OpenerExt::opener(&app)
@@ -40,6 +41,7 @@ fn open_local(app: &tauri::AppHandle, path: &std::path::Path) -> Result<(), Stri
         .file_name()
         .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     if notatnik_graph::is_risky_file(&name) {
+        log::warn!("{name} was not opened: programs and scripts are not opened from a note");
         return Err("programs and scripts are not opened from a note".into());
     }
     if !path.exists() {
@@ -143,7 +145,10 @@ impl Secrets for KeyringSecrets {
     fn set(&self, key: &str, value: &str) -> Result<(), String> {
         Self::entry(key)
             .and_then(|e| e.set_password(value))
-            .map_err(|e| format!("{e} (is a keyring such as GNOME Keyring running?)"))
+            .map_err(|e| {
+                log::error!("the keyring did not take the password: {e}");
+                format!("{e} (is a keyring such as GNOME Keyring running?)")
+            })
     }
     fn delete(&self, key: &str) {
         if let Ok(e) = Self::entry(key) {
@@ -153,6 +158,12 @@ impl Secrets for KeyringSecrets {
 }
 
 fn main() {
+    notatnik_log::init("info");
+    log::info!(
+        "Notatnik {} starting (data in {})",
+        env!("CARGO_PKG_VERSION"),
+        notatnik_graph::Dirs::from_env().data.display()
+    );
     tauri::Builder::default()
         // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
         .register_uri_scheme_protocol("asset", |ctx, req| {
@@ -187,11 +198,13 @@ fn main() {
             if let Ok(s) = notatnik_graph::DeviceSettings::load(&notatnik_graph::Dirs::from_env()) {
                 if let (true, Some(path)) = (s.ui.open_last_graph, s.last_path()) {
                     if std::path::Path::new(path).is_dir() {
-                        let _ = dispatch(
+                        if let Err(e) = dispatch(
                             &state,
                             "open_graph",
                             serde_json::json!({"path": path, "create": false}),
-                        );
+                        ) {
+                            log::error!("the last graph ({path}) could not be reopened: {e}");
+                        }
                     }
                 }
             }
@@ -213,6 +226,8 @@ fn main() {
             // the app from closing for long
             if let tauri::RunEvent::Exit = event {
                 if let Some(state) = app.try_state::<Arc<AppState>>() {
+                    log::info!("quitting: a last sync and a backup, if they are due");
+                    let started = std::time::Instant::now();
                     let state = Arc::clone(&state);
                     let (done, wait) = std::sync::mpsc::channel();
                     std::thread::spawn(move || {
@@ -220,7 +235,12 @@ fn main() {
                         state.backup_on_quit();
                         let _ = done.send(());
                     });
-                    let _ = wait.recv_timeout(std::time::Duration::from_secs(30));
+                    match wait.recv_timeout(std::time::Duration::from_secs(30)) {
+                        Ok(()) => log::info!("bye ({} ms)", started.elapsed().as_millis()),
+                        Err(_) => log::warn!(
+                            "the last sync or backup took more than 30 s; quitting without waiting"
+                        ),
+                    }
                 }
             }
         });

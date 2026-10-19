@@ -228,6 +228,10 @@ impl Graph {
             }
             conflict_paths.sort();
             conflict_paths.dedup();
+            log::warn!(
+                "conflict copy appeared (merge it by hand): {}",
+                conflict_paths.join(", ")
+            );
             return Some(GraphChanged {
                 pages: Vec::new(),
                 paths: conflict_paths,
