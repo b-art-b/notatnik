@@ -513,6 +513,7 @@
       {#if view.blocks.length === 0 && !view.preamble}
         {#if draft}
           <div class="draft">
+            <span class="draft-dot" aria-hidden="true"></span>
             <Editor
               text=""
               cursor="start"
@@ -774,14 +775,42 @@
     cursor: pointer;
     padding: 0.4em 0;
   }
+  .empty {
+    /* the text starts where a block's text starts (bullet cell + gap) */
+    padding-left: 20px;
+  }
   .add {
     opacity: 0;
   }
   .blocks:hover .add {
     opacity: 1;
   }
+  /* same geometry as a block row (Block.svelte): an 18px bullet cell, a 2px gap, then the text,
+     so the text does not jump when the draft becomes the first real block */
   .draft {
-    padding-left: 36px;
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .draft-dot {
+    flex: none;
+    width: 18px;
+    height: 1.6em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .draft-dot::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.4;
+  }
+  .draft > :global(:not(.draft-dot)) {
+    flex: 1;
+    min-width: 0;
   }
   .error {
     color: var(--danger);
