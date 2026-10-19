@@ -1277,7 +1277,7 @@ pub struct BackupEncryption {
 /// `backup_encryption_setup`: a first password.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct BackupSetupArgs {
-    /// At least 8 characters.
+    /// 8 to 200 characters.
     pub password: String,
 }
 
@@ -1300,7 +1300,7 @@ pub struct BackupUnlockArgs {
 pub struct BackupChangePasswordArgs {
     /// The current password (or the recovery key).
     pub old_password: String,
-    /// The new password, at least 8 characters.
+    /// The new password, 8 to 200 characters.
     pub new_password: String,
 }
 
@@ -1864,7 +1864,7 @@ pub struct EncryptionUnlockArgs {
 pub struct EncryptionChangePasswordArgs {
     /// The current password (or the recovery key).
     pub old_password: String,
-    /// The new password, at least 8 characters.
+    /// The new password, 8 to 200 characters.
     pub new_password: String,
 }
 

@@ -1171,7 +1171,7 @@
               }}
             >
               <label
-                >Password (at least 8 characters)
+                >Password (8 to 200 characters)
                 <input type="password" autocomplete="new-password" bind:value={encPw} /></label
               >
               <label
@@ -1213,7 +1213,7 @@
                 <input type="password" autocomplete="current-password" bind:value={encOld} /></label
               >
               <label
-                >New password (at least 8 characters)
+                >New password (8 to 200 characters)
                 <input type="password" autocomplete="new-password" bind:value={encPw} /></label
               >
               <label

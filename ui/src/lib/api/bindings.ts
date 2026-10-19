@@ -822,7 +822,7 @@ export type EncryptionChangePasswordArgs = {
  */
 old_password: string, 
 /**
- * The new password, at least 8 characters.
+ * The new password, 8 to 200 characters.
  */
 new_password: string, };
 export type EncryptionPasswordArgs = { 
@@ -1650,7 +1650,7 @@ key_id: string,
 plain_snapshots: number, };
 export type BackupSetupArgs = { 
 /**
- * At least 8 characters.
+ * 8 to 200 characters.
  */
 password: string, };
 export type RecoveryKeyResult = { 
@@ -1669,7 +1669,7 @@ export type BackupChangePasswordArgs = {
  */
 old_password: string, 
 /**
- * The new password, at least 8 characters.
+ * The new password, 8 to 200 characters.
  */
 new_password: string, };
 export type BackupPasswordArgs = { 

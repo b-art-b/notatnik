@@ -169,7 +169,7 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   // set up: two passwords that match, then the recovery key is shown once and must be confirmed
   await pane.getByTestId('enc-setup').click()
   const form = pane.locator('form.encform')
-  await form.getByLabel('Password (at least 8 characters)').fill('correct horse')
+  await form.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await form.getByLabel('Password again').fill('something else')
   await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled()
   await form.getByLabel('Password again').fill('correct horse')
