@@ -27,8 +27,18 @@
   import Self from './NamespaceTree.svelte'
   import { archived, isArchived } from '../stores/archived.svelte'
   import { pagesFold } from '../stores/pagesFold.svelte'
+  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { toggleArchive } from '../pageActions'
+  import DeleteDialog from './DeleteDialog.svelte'
 
-  let { parent = null }: { parent?: string | null } = $props()
+  // `actions`: All pages shows a lock and Archive / Delete… on each page; the sidebar tree does not
+  let { parent = null, actions = false }: { parent?: string | null; actions?: boolean } = $props()
+  let deleting = $state('') // the page whose Delete… confirmation is open
+  const locked = (e: NamespaceEntry) =>
+    actions && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status.paths, e.path)
+  $effect(() => {
+    if (actions) void refreshEncryption()
+  })
   let all = $state<NamespaceEntry[]>([])
   // archived pages (and what is below them) are not in the tree
   const entries = $derived((void archived.names, all.filter((e) => !isArchived(e.name))))
@@ -78,9 +88,36 @@
         <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}
           ><PageIcon name={e.name} />{e.leaf}</a
         >
+        {#if locked(e)}<span
+            class="lock"
+            data-testid="row-lock"
+            role="img"
+            aria-label="Stored encrypted on the server"
+            title="Stored encrypted on the server">🔒</span
+          >{/if}
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
+        <!-- a page without a file has nothing to archive or delete -->
+        {#if actions && !e.is_virtual}
+          <span class="acts">
+            <button
+              class="act"
+              data-testid="row-archive"
+              title="Hide this page (and the pages below it) from the sidebar and the agenda"
+              onclick={() => toggleArchive(e.name)}>Archive</button
+            >
+            <button
+              class="act danger"
+              data-testid="row-delete"
+              aria-label={`Delete ${e.name}`}
+              onclick={() => (deleting = deleting === e.name ? '' : e.name)}>Delete…</button
+            >
+          </span>
+        {/if}
       </span>
-      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} />{/if}
+      {#if actions && deleting === e.name}
+        <DeleteDialog page={e.name} stay onclose={() => (deleting = '')} />
+      {/if}
+      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} />{/if}
     </li>
   {/each}
 </ul>
@@ -119,5 +156,33 @@
   .count {
     font-size: 0.7em;
     color: var(--muted);
+  }
+  .lock {
+    font-size: 0.8em;
+  }
+  .acts {
+    display: inline-flex;
+    gap: 0.2em;
+    margin-left: 0.6em;
+    white-space: nowrap;
+  }
+  .act {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.1em 0.4em;
+    font: inherit;
+    font-size: 0.8em;
+  }
+  .act:hover,
+  .act:focus-visible {
+    color: var(--accent);
+    background: var(--chip);
+    border-radius: 4px;
+  }
+  .act.danger:hover,
+  .act.danger:focus-visible {
+    color: var(--danger);
   }
 </style>

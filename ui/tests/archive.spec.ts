@@ -108,3 +108,25 @@ test('All pages: a row archives, unarchives and deletes a page without leaving t
   await expect(row('Beta')).toBeVisible()
   expect(backend.exists('pages/Beta.md')).toBe(true)
 })
+
+test('All pages, Namespaces view: a page archives and deletes from its line', async ({ backend, page }) => {
+  backend.write('pages/Alpha.md', '- alpha\n')
+  backend.write('pages/Beta.md', '- beta\n')
+  await backend.open('/pages')
+  await page.getByRole('button', { name: 'Namespaces' }).click()
+  const tree = page.getByTestId('pages-tree')
+  const line = (name: string) => tree.locator('.line', { has: page.locator(`a[data-ns="${name}"]`) })
+
+  await line('Alpha').getByTestId('row-archive').click()
+  await expect.poll(() => backend.read('pages/Alpha.md')).toMatch(/^---\narchived: true\n---\n/)
+  await expect(line('Alpha')).toHaveCount(0) // archived pages are not in the tree
+
+  await line('Beta').getByTestId('row-delete').click()
+  await page.getByRole('dialog', { name: 'Delete page' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(line('Beta')).toHaveCount(0)
+  expect(backend.exists('pages/Beta.md')).toBe(false)
+  await expect(page).toHaveURL(/#\/pages/)
+
+  // the sidebar tree has no buttons
+  await expect(page.getByRole('complementary', { name: 'Sidebar' }).getByTestId('row-archive')).toHaveCount(0)
+})

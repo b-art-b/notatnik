@@ -1168,6 +1168,8 @@ pub struct NamespaceRow {
     pub is_virtual: bool,
     /// Number of pages below it, at any depth.
     pub descendants: usize,
+    /// The file, relative to the graph.
+    pub file_path: Option<String>,
 }
 
 impl Index {
@@ -1187,7 +1189,8 @@ impl Index {
             None => None,
         };
         let sql = "SELECT c.name, c.is_virtual,
-                          (SELECT COUNT(*) FROM pages d WHERE d.key > c.key || '/' AND d.key < c.key || '0')
+                          (SELECT COUNT(*) FROM pages d WHERE d.key > c.key || '/' AND d.key < c.key || '0'),
+                          c.file_path
                    FROM pages c
                    WHERE c.ns_parent_id IS ?1 AND c.is_journal = 0
                    ORDER BY c.key";
@@ -1198,6 +1201,7 @@ impl Index {
                     name: r.get(0)?,
                     is_virtual: r.get::<_, i64>(1)? != 0,
                     descendants: r.get::<_, i64>(2)? as usize,
+                    file_path: r.get(3)?,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?;

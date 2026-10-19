@@ -567,6 +567,8 @@ pub struct NamespaceEntry {
     pub has_children: bool,
     /// Number of pages below (all depths).
     pub descendants: u32,
+    /// The file, relative to the graph (to tell whether it is stored encrypted).
+    pub path: Option<String>,
 }
 
 /// One day of the journals view.

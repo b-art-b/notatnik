@@ -478,7 +478,11 @@ has_children: boolean,
 /**
  * Number of pages below (all depths).
  */
-descendants: number, };
+descendants: number, 
+/**
+ * The file, relative to the graph (to tell whether it is stored encrypted).
+ */
+path: string | null, };
 export type PageListRow = { 
 /**
  * Full page name.

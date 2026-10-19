@@ -5,8 +5,7 @@
   import { bus } from '../stores/events.svelte'
   import { pageHash } from '../route'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
-  import { getDoc } from '../stores/pages.svelte'
-  import { errorMessage, toast } from '../stores/app.svelte'
+  import { toggleArchive } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
   import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
 
@@ -51,32 +50,6 @@
 
   // the row whose "Delete…" confirmation is open (a page name), if any
   let deleting = $state('')
-
-  /** Archives a page (the `archived` property, as the page's own Archive button does) or takes it out again. */
-  async function toggleArchive(name: string) {
-    const was = isArchivedItself(name)
-    const change = (on: boolean) =>
-      getDoc(name).apply([
-        on
-          ? { op: 'set_page_property', key: 'archived', value: 'true' }
-          : { op: 'remove_page_property', key: 'archived' },
-      ])
-    try {
-      await change(!was)
-      toast(`${was ? 'Unarchived' : 'Archived'} “${name}”`, 'info', {
-        label: 'Undo',
-        run: async () => {
-          try {
-            await change(was)
-          } catch (e) {
-            toast(errorMessage(e), 'error')
-          }
-        },
-      })
-    } catch (e) {
-      toast(errorMessage(e), 'error')
-    }
-  }
 
   $effect(() => {
     void bus.version
@@ -174,7 +147,7 @@
 </div>
 
 {#if mode === 'tree'}
-  <div class="tree" data-testid="pages-tree"><NamespaceTree /></div>
+  <div class="tree" data-testid="pages-tree"><NamespaceTree actions /></div>
 {:else if !loaded}
   <p class="muted">Loading…</p>
 {:else if visible.length === 0}

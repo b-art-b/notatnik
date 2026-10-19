@@ -1562,6 +1562,7 @@ impl AppState {
                     is_virtual: r.is_virtual,
                     has_children: r.descendants > 0,
                     descendants: r.descendants as u32,
+                    path: r.file_path,
                 })
                 .collect())
         })
