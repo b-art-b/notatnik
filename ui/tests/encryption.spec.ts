@@ -243,4 +243,13 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(sideLine('Secret').getByTestId('row-lock')).toBeVisible()
   await expect(sideLine('Open')).toBeVisible()
   await expect(sideLine('Open').getByTestId('row-lock')).toHaveCount(0)
+
+  // Recent: open a page of each kind
+  await page.evaluate(() => (location.hash = '#/page/Secret'))
+  await page.evaluate(() => (location.hash = '#/page/Open'))
+  const recent = page.getByTestId('recent-pages')
+  const recentItem = (name: string) => recent.locator('li', { has: page.locator(`a[data-recent="${name}"]`) })
+  await expect(recentItem('Secret').getByTestId('recent-lock')).toBeVisible()
+  await expect(recentItem('Open')).toBeVisible()
+  await expect(recentItem('Open').getByTestId('recent-lock')).toHaveCount(0)
 })

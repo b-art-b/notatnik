@@ -86,6 +86,7 @@ commands! {
     subpages(PageArgs) -> Vec<TitleHit> => subpages,
     page_icons(NoArgs) -> Vec<PageIconView> => page_icons,
     segment_view(SegmentArgs) -> SegmentView => segment_view,
+    page_files(PageFilesArgs) -> PageFilesView => page_files,
     segment_places(SegmentPlacesArgs) -> SegmentPlacesView => segment_places,
     all_pages(NoArgs) -> Vec<PageListRow> => all_pages,
     page_property_keys(NoArgs) -> Vec<PageKeyView> => page_property_keys,

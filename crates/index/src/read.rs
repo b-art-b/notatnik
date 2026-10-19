@@ -977,6 +977,25 @@ impl Index {
             .collect())
     }
 
+    /// The file of each page name (relative to the graph), `None` for a page without a file or an unknown name.
+    pub fn files_of_pages(&self, names: &[String]) -> Result<Vec<Option<String>>> {
+        let mut st = self
+            .conn
+            .prepare_cached("SELECT file_path FROM pages WHERE key = ?1 AND is_virtual = 0")?;
+        names
+            .iter()
+            .map(|n| {
+                let Ok(n) = PageName::parse(n) else {
+                    return Ok(None);
+                };
+                Ok(st
+                    .query_row([n.lookup_key()], |r| r.get::<_, Option<String>>(0))
+                    .optional()?
+                    .flatten())
+            })
+            .collect()
+    }
+
     /// For each segment, in how many different places it occurs (see `segment_groups`); one pass over all pages.
     pub fn segment_places(&self, segments: &[String]) -> Result<Vec<usize>> {
         let wanted: Vec<String> = segments

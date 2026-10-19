@@ -3433,6 +3433,21 @@ fn files_on_a_server_are_browsed_and_linked_by_their_id() {
     );
 }
 
+/// `page_files`: the file of each name (any case), none for an unknown page.
+#[test]
+fn page_files_gives_the_file_of_each_page() {
+    let t = start("basic");
+    let r = t.ok(
+        "page_files",
+        json!({"names": ["PEOPLE/Anna", "No Such Page", "people"]}),
+    );
+    assert_eq!(
+        r["files"],
+        json!(["pages/people/anna.md", null, null]),
+        "{r}"
+    );
+}
+
 /// A local graph is connected to an empty server folder and uploaded; a folder with anything in it is refused.
 #[test]
 fn a_local_graph_can_be_connected_to_a_server_folder() {

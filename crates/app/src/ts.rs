@@ -60,6 +60,8 @@ pub fn typescript_bindings() -> String {
         SegmentView,
         SegmentPlacesArgs,
         SegmentPlacesView,
+        PageFilesArgs,
+        PageFilesView,
         PageIconRuleView,
         PageIconView,
         PageGroupsArgs,

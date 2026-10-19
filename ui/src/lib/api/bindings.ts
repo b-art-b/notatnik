@@ -549,6 +549,16 @@ export type SegmentPlacesView = {
  * One number per asked segment, same order.
  */
 places: Array<number>, };
+export type PageFilesArgs = { 
+/**
+ * Page names.
+ */
+names: Array<string>, };
+export type PageFilesView = { 
+/**
+ * One entry per asked name, same order: the file relative to the graph, or none when the page has no file.
+ */
+files: Array<string | null>, };
 export type PageIconRuleView = { 
 /**
  * Page property.
@@ -2273,6 +2283,7 @@ export type Commands = {
   subpages: { args: PageArgs; result: TitleHit[] };
   page_icons: { args: NoArgs; result: PageIconView[] };
   segment_view: { args: SegmentArgs; result: SegmentView };
+  page_files: { args: PageFilesArgs; result: PageFilesView };
   segment_places: { args: SegmentPlacesArgs; result: SegmentPlacesView };
   all_pages: { args: NoArgs; result: PageListRow[] };
   page_property_keys: { args: NoArgs; result: PageKeyView[] };

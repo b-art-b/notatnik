@@ -151,7 +151,7 @@ every file for marker strings), two devices, the locked key, adding and removing
 files that were tampered with, conflict copies, the folder ETag shortcut. `crates/app/tests/app.rs` (`encrypted_*`,
 `marked_*`, `passwords_*`, `tasks_of_encrypted_*`): the vault, marks, previews, rename warnings, the calendar
 exclusion. `ui/tests/encryption.spec.ts`: the Settings section and the page's *Encrypt…* dialog against the fake
-server. `crates/app/tests/nextcloud.rs` (`encrypted_paths_on_a_real_nextcloud`, `--ignored`) against a real server.
+server (also: marking on a local graph, connecting, the lock in the lists). `crates/app/tests/nextcloud.rs` (`encrypted_paths_on_a_real_nextcloud`, `--ignored`) against a real server.
 
 ## Sync with a server
 

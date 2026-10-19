@@ -1526,6 +1526,15 @@ impl AppState {
         })
     }
 
+    /// `page_files`: the file of each page name, for marks such as the lock of an encrypted page.
+    pub fn page_files(&self, a: PageFilesArgs) -> ApiResult<PageFilesView> {
+        self.with_open(|o| {
+            Ok(PageFilesView {
+                files: o.graph.with_index(|i| i.files_of_pages(&a.names))?,
+            })
+        })
+    }
+
     /// `all_pages`: every page with counts, for the all-pages view.
     pub fn all_pages(&self, _a: NoArgs) -> ApiResult<Vec<PageListRow>> {
         self.with_open(|o| {

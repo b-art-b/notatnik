@@ -42,6 +42,7 @@ Done while using the app, each with requirement IDs in [requirements.md](require
 - Settings: four panes (device vs graph), date language/format/custom pattern, link brackets.
 - Encryption: [encryption.md](encryption.md) (EN-1..EN-18). Encrypted backups are built (P0 to P2). Encrypting chosen paths on a WebDAV server is built and tested ([phases/encrypted-sync.md](phases/encrypted-sync.md), E1 to E6; the manual checklist is open); the encrypted replica for folder tools is on hold.
 - Sync with a WebDAV/Nextcloud server is built (plain files; SY-1..SY-8, [webdav.md](webdav.md)); encryption of chosen paths on the server is built (see above); Android background sync is open.
+- Pages and lists (2026-10-19/20): *+ Add subpage* in the Hierarchy (NS-24); archive, unarchive and delete from the All pages rows, the 🔒 of encrypted pages and the *Only encrypted* filter in All pages, the sidebar tree and Recent (NS-25); connecting a local graph to a server in place (SY-9) and encrypting before the first upload (EN-19, [phases/encrypted-sync.md](phases/encrypted-sync.md) E8).
 - Still open from the plans: Phases 4-8, WebKitGTK measurements, AppImage, `tauri-driver` end-to-end tests, the manual acceptance checklists, moving blocks between pages, image attachments other than pictures (P5.5; the unused-images list is built; paste and drop of images are built).
 
 ## Known issues

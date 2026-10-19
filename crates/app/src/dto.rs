@@ -554,6 +554,20 @@ pub struct SegmentPlacesView {
     pub places: Vec<u32>,
 }
 
+/// Arguments of `page_files`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageFilesArgs {
+    /// Page names.
+    pub names: Vec<String>,
+}
+
+/// The file of each page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct PageFilesView {
+    /// One entry per asked name, same order: the file relative to the graph, or none when the page has no file.
+    pub files: Vec<Option<String>>,
+}
+
 /// One node of the namespace tree.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct NamespaceEntry {

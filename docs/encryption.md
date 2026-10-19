@@ -132,6 +132,13 @@ and some encrypted, and you choose which.** Pages of both kinds are edited, sear
 | `.enc` is reserved | A local file whose name ends in `.enc` is not synced and is reported | Otherwise it could not be told from an encrypted copy |
 | Conflict copies | A "conflicted copy" is matched by the path of the file it came from | A copy of a marked single file would otherwise be uploaded plain |
 
+### 6.2a Before the server exists (EN-19)
+
+The vault, the key and the marks do not depend on a server: they are set up in Settings → Sync on a local graph and
+marks are made with *Encrypt…* as usual. *Connect to a server…* (SY-9) keeps the key unlocked across the reopen of the
+graph and the first sync uploads marked files as `.enc`, never plain. Doing it in this order is the only way to keep
+the plain text out of the server's trash bin and file versions (see 6.3); marking after the upload cannot undo them.
+
 ### 6.3 Roads for plain text that must be closed
 
 1. **Calendar.** Tasks of a marked page would reach the CalDAV server in plain. They are left out of the calendar

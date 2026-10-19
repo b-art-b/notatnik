@@ -78,7 +78,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 ### E5 The UI (EN-18)
 - [x] Settings → Sync: an Encryption section (off, locked, unlocked), set up (password twice, recovery key shown once), unlock, lock, the keyring switch, the list of marked paths with *Remove*, the count of files left alone
 - [x] The page's *Encrypt…* button (next to *History*): this page, or with a checkbox also the pages below it, and *Stop encrypting*; the dialog that says what happens, including the warning about older plain copies on the server and the images the page uses
-- [x] A lock mark beside the title of an encrypted page; the sidebar shows "N encrypted files waiting for the key" while the key is locked (the page list in the sidebar has no lock mark)
+- [x] A lock mark beside the title of an encrypted page; the sidebar shows "N encrypted files waiting for the key" while the key is locked (the lock in the page lists came with E8)
 - [x] `docs/keymap.md` updated; strings written as the rest of Settings
 
 **Verify**
@@ -95,6 +95,17 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 **Verify**
 - [x] The tests pass against the Docker instance of `dev/nextcloud/`
 - [ ] Manual: the checklist below
+
+### E8 Before the server exists (EN-19, SY-9)
+- [x] `connect_remote`: a local graph is attached to an empty or new server folder in place; a folder with a graph or other things is refused; the unlocked key survives the reopen
+- [x] Settings → Sync shows the Encryption section and the page's *Encrypt…* button on a graph without a server; the dialog says the page goes up encrypted when the graph is connected
+- [x] Settings → Sync → *Connect to a server…* (the form of the start screen, *Upload this graph*)
+- [x] The lock in All pages (List and Namespaces), the sidebar's page tree and Recent; the *Only encrypted* filter
+
+**Verify**
+- [x] App test: marks made on a local graph, then connect: the fake server holds `.enc` files only for them, a scan finds no marker text, the key is still unlocked
+- [x] Browser tests: the same through the screens; the connect form refuses a folder with something in it; the lock and the filter in each list
+- [ ] Not tried against the real Nextcloud (the connect flow, and how its web UI shows `.enc` files)
 
 ### E7 Later (on hold)
 Hidden file names with a manifest; an encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).

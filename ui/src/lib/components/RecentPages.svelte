@@ -5,11 +5,36 @@
   import { clearRecent, recent } from '../stores/recent.svelte'
   import { archived, isArchived } from '../stores/archived.svelte'
   import { shownDate } from '../stores/format.svelte'
+  import { backend } from '../api'
+  import { bus } from '../stores/events.svelte'
+  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
 
   const SHOWN = 10
   const current = $derived(app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
   const isDate = (n: string) => /^\d{4}-\d{2}-\d{2}$/.test(n)
   import PageIcon from './PageIcon.svelte'
+
+  // the lock: which of the listed pages are stored encrypted (the file is covered by a marked path, EN-12).
+  // Recent keeps names only, so the files are asked for.
+  let files = $state<Record<string, string | null>>({})
+  $effect(() => {
+    void refreshEncryption()
+  })
+  $effect(() => {
+    void bus.version
+    const names = recent.items.slice(0, SHOWN + 5)
+    let cancelled = false
+    void backend.call('page_files', { names }).then((r) => {
+      if (!cancelled) files = Object.fromEntries(names.map((n, i) => [n.toLowerCase(), r.files[i] ?? null]))
+    })
+    return () => {
+      cancelled = true
+    }
+  })
+  const locked = (name: string) => {
+    const f = files[name.toLowerCase()]
+    return !!encryption.status && !!f && pathIsEncrypted(encryption.status.paths, f)
+  }
 </script>
 
 {#if recent.items.length > 0}
@@ -27,7 +52,13 @@
             aria-current={current === name.toLowerCase() ? 'page' : undefined}
             class:on={current === name.toLowerCase()}
             title={name}><PageIcon {name} />{isDate(name) ? shownDate(name) : name}</a
-          >
+          >{#if locked(name)}<span
+              class="lock"
+              data-testid="recent-lock"
+              role="img"
+              aria-label="Stored encrypted on the server"
+              title="Stored encrypted on the server">🔒</span
+            >{/if}
         </li>
       {/each}
     </ul>
@@ -67,6 +98,10 @@
   }
   a {
     text-decoration: none;
+  }
+  .lock {
+    margin-left: 0.3em;
+    font-size: 0.8em;
   }
   a.on {
     font-weight: 600;
