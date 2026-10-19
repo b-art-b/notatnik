@@ -2,7 +2,9 @@
 //! `GET /asset?path=assets/x.png`. Exactly the same `dispatch` the Tauri app uses, so UI tests in a
 //! normal browser exercise the real index, graph and file writes. Never exposed beyond 127.0.0.1.
 
-use std::io::Read;
+mod http;
+
+use http::{Reply, Request};
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
@@ -12,7 +14,6 @@ use clap::Parser;
 use notatnik_app::{AppOptions, AppState, dispatch};
 use notatnik_graph::Dirs;
 use serde_json::{Value, json};
-use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 #[derive(Parser)]
 #[command(about = "HTTP dev backend for the notatnik UI (127.0.0.1 only)")]
@@ -87,78 +88,50 @@ impl Events {
     }
 }
 
-fn header(k: &str, v: &str) -> Header {
-    Header::from_bytes(k.as_bytes(), v.as_bytes()).expect("static header")
-}
-
-fn cors<R: Read>(r: Response<R>) -> Response<R> {
-    r.with_header(header("Access-Control-Allow-Origin", "*"))
-        .with_header(header("Access-Control-Allow-Headers", "content-type"))
-        .with_header(header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"))
-}
-
-fn json_response(status: u16, v: &Value) -> Response<std::io::Cursor<Vec<u8>>> {
-    cors(
-        Response::from_string(v.to_string())
-            .with_status_code(StatusCode(status))
-            .with_header(header("Content-Type", "application/json")),
-    )
-}
-
-fn handle(app: &AppState, events: &Events, mut req: Request) {
-    let url = req.url().to_string();
-    let method = req.method().clone();
-    if method == Method::Options {
-        let _ = req.respond(cors(Response::empty(204)));
-        return;
+fn handle(app: &AppState, events: &Events, req: Request) -> Reply {
+    let url = req.url.as_str();
+    if req.method == "OPTIONS" {
+        return Reply::empty(204);
     }
-    if method == Method::Get && url.starts_with("/poll") {
+    if req.method == "GET" && url.starts_with("/poll") {
         let after: u64 = url
             .split_once("after=")
             .and_then(|x| x.1.split('&').next())
             .and_then(|n| n.parse().ok())
             .unwrap_or(0);
         let (last, evs) = events.poll(after, Duration::from_secs(15));
-        let _ = req.respond(json_response(200, &json!({"last": last, "events": evs})));
-        return;
+        return Reply::json(200, &json!({"last": last, "events": evs}));
     }
-    if method == Method::Get && url.starts_with("/asset") {
+    if req.method == "GET" && url.starts_with("/asset") {
         let path = url.split_once("path=").map(|x| x.1).unwrap_or("");
         let decoded: String = path.replace("%2F", "/").replace("%20", " ");
-        let resp = match app.read_asset(&decoded) {
-            Ok(bytes) => cors(Response::from_data(bytes).with_header(header(
-                "Content-Type",
-                notatnik_app::asset_content_type(&decoded),
-            ))),
-            Err(_) => cors(Response::from_data(Vec::new()).with_status_code(StatusCode(404))),
+        return match app.read_asset(&decoded) {
+            Ok(bytes) => Reply {
+                status: 200,
+                content_type: notatnik_app::asset_content_type(&decoded).to_string(),
+                body: bytes,
+            },
+            Err(_) => Reply::empty(404),
         };
-        let _ = req.respond(resp);
-        return;
     }
-    if method == Method::Get && url == "/health" {
-        let _ = req.respond(json_response(200, &json!({"ok": true})));
-        return;
+    if req.method == "GET" && url == "/health" {
+        return Reply::json(200, &json!({"ok": true}));
     }
-    if method == Method::Post {
+    if req.method == "POST" {
         if let Some(name) = url.strip_prefix("/api/") {
-            let mut body = String::new();
-            let _ = req.as_reader().read_to_string(&mut body);
+            let body = String::from_utf8_lossy(&req.body);
             let args: Value = if body.trim().is_empty() {
                 json!({})
             } else {
                 serde_json::from_str(&body).unwrap_or(Value::Null)
             };
-            let resp = match dispatch(app, name, args) {
-                Ok(v) => json_response(200, &v),
-                Err(e) => json_response(400, &json!({"code": e.code, "message": e.message})),
+            return match dispatch(app, name, args) {
+                Ok(v) => Reply::json(200, &v),
+                Err(e) => Reply::json(400, &json!({"code": e.code, "message": e.message})),
             };
-            let _ = req.respond(resp);
-            return;
         }
     }
-    let _ = req.respond(cors(
-        Response::from_string("not found").with_status_code(StatusCode(404)),
-    ));
+    Reply::text(404, "not found")
 }
 
 fn main() {
@@ -208,16 +181,11 @@ fn main() {
         log::error!("cannot open graph: {e}");
         std::process::exit(1);
     }
-    let server = Server::http(("127.0.0.1", args.port)).expect("bind 127.0.0.1");
-    let addr = server
-        .server_addr()
-        .to_ip()
-        .map_or_else(String::new, |a| a.to_string());
+    let listener = std::net::TcpListener::bind(("127.0.0.1", args.port)).expect("bind 127.0.0.1");
+    let addr = listener
+        .local_addr()
+        .map_or_else(|_| String::new(), |a| a.to_string());
     // the browser tests wait for this line on stdout
     println!("listening on http://{addr}");
-    for req in server.incoming_requests() {
-        let app = app.clone();
-        let events = events.clone();
-        std::thread::spawn(move || handle(&app, &events, req));
-    }
+    http::serve(&listener, move |req| handle(&app, &events, req));
 }

@@ -68,7 +68,9 @@ The UI talks to the backend only through a generated, typed API module (`ui/src/
 
 - `tauri`: `invoke('invoke_api', ...)` calls (the app).
 - `http`: `POST /api/<command>` plus one shared long-poll for events, against `notatnik-dev-server` (tests and
-  `pnpm dev`). Decision D21.
+  `pnpm dev`). Decision D21. The dev server has its own small HTTP server (`crates/dev-server/src/http.rs`, one
+  request per connection): `tiny_http` could leave a request unanswered when a browser opened several connections at
+  once, which showed up as tests that failed one run in thirty (a request pending for the whole test).
 
 Every Playwright test starts its own `notatnik-dev-server` on a temporary copy of a fixture graph (`ui/tests/fixtures.ts`:
 `backend.write/read/exists/open`), so a test asserts the **file on disk** after a UI action and no mock can drift from the

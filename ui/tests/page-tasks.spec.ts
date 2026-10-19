@@ -30,10 +30,14 @@ test('a page lists its tasks: on the page, in subpages and elsewhere mentioning 
   await expect(own).toContainText('own finished task')
   await expect(mentions).toContainText('sent the offer')
   await page.getByTestId('page-tasks-done').uncheck()
+  // the list is read again a moment after the switch: wait until the done task is gone before using it
+  await expect(mentions).not.toContainText('sent the offer')
+  await expect(page.getByTestId('page-tasks-count')).toHaveText('3')
   // a task can be changed right there and the file follows
   await mentions.locator('[data-task="TODO"]').click()
   await expect.poll(() => backend.read('pages/notes.md')).toContain('- DOING call [[Acme]] back')
   // the source link opens the note and flashes the task
+  await expect(mentions.locator('[data-task="DOING"]')).toBeVisible()
   await mentions.getByTestId('page-task-source').click()
   await expect(page).toHaveURL(/#\/page\/notes/)
   await expect(page.locator('.block.flash')).toContainText('call')
