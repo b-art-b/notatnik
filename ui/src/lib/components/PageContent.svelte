@@ -550,7 +550,12 @@
     </div>
     <!-- tasks and references go to the right panel when Settings → Appearance says so and the window is wide -->
     {#if showBacklinks && !compact}
-      <Hierarchy page={view.name} />
+      <Hierarchy
+        page={view.name}
+        lock={!!encryption.status &&
+          !!view.path &&
+          pathIsEncrypted(encryption.status.paths, view.path.replace(/\.md$/, '') + '/x.md')}
+      />
       {#if !onSide('tasks')}<PageTasks page={view.name} />{/if}
       {#if !onSide('refs')}<Backlinks page={view.name} />{/if}
     {/if}

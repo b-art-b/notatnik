@@ -52,6 +52,14 @@ export const commands: Command[] = [
     keys: '',
     run: () => void togglePauseCalendarSync(),
   },
+  {
+    id: 'new-subpage',
+    title: 'New subpage of this page',
+    keys: '',
+    run: () => {
+      if (app.route.kind === 'page') app.subpageFor = app.route.name
+    },
+  },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
   { id: 'settings', title: 'Settings', keys: '', run: () => navigate({ kind: 'settings' }) },

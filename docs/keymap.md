@@ -341,6 +341,8 @@ A page that has tasks shows a **Tasks** section between its content and its refe
 
 A page with subpages ends with a **Hierarchy** list: every page below it at any depth as its path (`Z / Partner Beta / Renewal`), every segment a link to that page.
 
+Every page has the **Hierarchy** section, also without subpages. **+ Add subpage** at its end (or the palette command **New subpage of this page**) opens a name field prefilled with `Page/`; type the rest and press Enter to open the new page ready for typing (the file is written when you type the first block). Escape cancels. A subpage of an encrypted folder shows a 🔒 next to the field.
+
 ## Topics: a name that occurs in several paths
 
 Every segment of a page name is an automatic, indirect tag. With `P/Capgemini/Renewal/Siemens Energy`, `P/EY/Renewal/APotheke` and `X/Renewal/Snowflake`, the Hierarchy of `P` shows **Renewal³**: the count means it occurs in three places. Click it for the **Renewal** view:

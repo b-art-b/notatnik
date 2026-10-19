@@ -21,9 +21,43 @@ test('Hierarchy lists every page below the page as a path of links', async ({ ba
   await expect(page.getByTestId('hierarchy').locator('li')).toHaveCount(1)
 })
 
-test('a page without subpages has no Hierarchy section', async ({ backend, page }) => {
+test('a page without subpages still offers "Add subpage"; the field starts with the page path', async ({
+  backend,
+  page,
+}) => {
   backend.write('pages/Solo.md', '- alone\n')
   await backend.open('/page/Solo')
   await expect(page.getByText('alone')).toBeVisible()
-  await expect(page.getByTestId('hierarchy')).toHaveCount(0)
+  const h = page.getByTestId('hierarchy')
+  await expect(h.locator('li')).toHaveCount(0)
+  await h.getByRole('button', { name: '+ Add subpage' }).click()
+  const field = h.getByLabel('Name of the new subpage')
+  await expect(field).toBeFocused()
+  await expect(field).toHaveValue('Solo/')
+  await page.keyboard.type('Notes')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/Solo%2FNotes/)
+  // the new page opens ready for typing; its parent now lists it
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.type('first')
+  await expect.poll(() => backend.exists('pages/Solo/Notes.md')).toBe(true)
+  await backend.open('/page/Solo')
+  await expect(page.getByTestId('hierarchy').locator('li')).toHaveText('Solo/Notes')
+})
+
+test('the palette command opens the field; Escape closes it; the bare prefix is refused', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Solo.md', '- alone\n')
+  await backend.open('/page/Solo')
+  await page.keyboard.press('Control+k')
+  await page.getByRole('dialog').getByRole('textbox').fill('New subpage')
+  await page.keyboard.press('Enter')
+  const field = page.getByTestId('hierarchy').getByLabel('Name of the new subpage')
+  await expect(field).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('alert').filter({ hasText: 'Type a name' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(field).toHaveCount(0)
 })
