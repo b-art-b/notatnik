@@ -57,7 +57,7 @@
 {#if groupBy}
   <GroupedPages key={groupBy} />
 {:else}
-  <NamespaceTree />
+  <NamespaceTree lock />
 {/if}
 
 <style>

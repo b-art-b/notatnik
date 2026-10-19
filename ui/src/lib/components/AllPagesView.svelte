@@ -159,7 +159,7 @@
 
 {#if mode === 'tree'}
   <div class="tree" data-testid="pages-tree">
-    <NamespaceTree actions only={onlyEncrypted ? encryptedNames : null} />
+    <NamespaceTree actions lock only={onlyEncrypted ? encryptedNames : null} />
   </div>
 {:else if !loaded}
   <p class="muted">Loading…</p>

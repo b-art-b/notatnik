@@ -31,18 +31,20 @@
   import { toggleArchive } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
 
-  // `actions`: All pages shows a lock and Archive / Delete… on each page; the sidebar tree does not
+  // `actions`: All pages shows Archive / Delete… on each page; the sidebar tree does not
+  // `lock`: shows the 🔒 of a page stored encrypted (All pages and the sidebar)
   // `only`: names to keep (lowercase): All pages with "Only encrypted"; every branch is then open
   let {
     parent = null,
     actions = false,
+    lock = false,
     only = null,
-  }: { parent?: string | null; actions?: boolean; only?: Set<string> | null } = $props()
+  }: { parent?: string | null; actions?: boolean; lock?: boolean; only?: Set<string> | null } = $props()
   let deleting = $state('') // the page whose Delete… confirmation is open
   const locked = (e: NamespaceEntry) =>
-    actions && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status.paths, e.path)
+    (actions || lock) && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status.paths, e.path)
   $effect(() => {
-    if (actions) void refreshEncryption()
+    if (actions || lock) void refreshEncryption()
   })
   let all = $state<NamespaceEntry[]>([])
   // archived pages (and what is below them) are not in the tree
@@ -125,7 +127,7 @@
       {#if actions && deleting === e.name}
         <DeleteDialog page={e.name} stay onclose={() => (deleting = '')} />
       {/if}
-      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} {only} />{/if}
+      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} {lock} {only} />{/if}
     </li>
   {/each}
 </ul>

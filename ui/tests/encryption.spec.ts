@@ -236,4 +236,11 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(line('Open')).toHaveCount(0)
   await expect(line('Secret')).toBeVisible()
   await expect(line('vault/Deep')).toBeVisible()
+
+  // the sidebar's page tree has the lock as well
+  const side = page.getByRole('complementary', { name: 'Sidebar' })
+  const sideLine = (name: string) => side.locator('.line', { has: page.locator(`a[data-ns="${name}"]`) })
+  await expect(sideLine('Secret').getByTestId('row-lock')).toBeVisible()
+  await expect(sideLine('Open')).toBeVisible()
+  await expect(sideLine('Open').getByTestId('row-lock')).toHaveCount(0)
 })
