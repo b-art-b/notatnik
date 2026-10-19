@@ -222,6 +222,7 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(page.getByTestId('pages-count')).toHaveText('2')
 
   // the Namespaces view shows the lock too
+  await page.getByTestId('only-encrypted').uncheck()
   await page.getByRole('button', { name: 'Namespaces' }).click()
   const tree = page.getByTestId('pages-tree')
   const line = (name: string) => tree.locator('.line', { has: page.locator(`a[data-ns="${name}"]`) })
@@ -229,4 +230,10 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(line('Open').getByTestId('row-lock')).toHaveCount(0)
   await line('vault').getByRole('button', { name: 'Expand' }).click()
   await expect(line('vault/Deep').getByTestId('row-lock')).toBeVisible()
+
+  // "Only encrypted" in the tree: unencrypted pages go, the folder above an encrypted page stays and is open
+  await page.getByTestId('only-encrypted').check()
+  await expect(line('Open')).toHaveCount(0)
+  await expect(line('Secret')).toBeVisible()
+  await expect(line('vault/Deep')).toBeVisible()
 })

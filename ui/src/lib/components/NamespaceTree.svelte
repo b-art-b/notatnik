@@ -32,7 +32,12 @@
   import DeleteDialog from './DeleteDialog.svelte'
 
   // `actions`: All pages shows a lock and Archive / Delete… on each page; the sidebar tree does not
-  let { parent = null, actions = false }: { parent?: string | null; actions?: boolean } = $props()
+  // `only`: names to keep (lowercase): All pages with "Only encrypted"; every branch is then open
+  let {
+    parent = null,
+    actions = false,
+    only = null,
+  }: { parent?: string | null; actions?: boolean; only?: Set<string> | null } = $props()
   let deleting = $state('') // the page whose Delete… confirmation is open
   const locked = (e: NamespaceEntry) =>
     actions && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status.paths, e.path)
@@ -41,7 +46,10 @@
   })
   let all = $state<NamespaceEntry[]>([])
   // archived pages (and what is below them) are not in the tree
-  const entries = $derived((void archived.names, all.filter((e) => !isArchived(e.name))))
+  const entries = $derived(
+    (void archived.names,
+    all.filter((e) => !isArchived(e.name) && (!only || only.has(e.name.toLowerCase())))),
+  )
   // What was opened or closed by hand; every other branch follows `ns.all` (Collapse all / Expand all).
   // The state is shared by all levels of the tree, so it is read once and saved by whichever level changes it.
 
@@ -55,7 +63,7 @@
       cancelled = true
     }
   })
-  const isOpen = (name: string) => ns.open[name] ?? ns.all
+  const isOpen = (name: string) => !!only || (ns.open[name] ?? ns.all)
   function toggle(name: string) {
     ns.open[name] = !isOpen(name)
     saveNs()
@@ -117,7 +125,7 @@
       {#if actions && deleting === e.name}
         <DeleteDialog page={e.name} stay onclose={() => (deleting = '')} />
       {/if}
-      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} />{/if}
+      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} {only} />{/if}
     </li>
   {/each}
 </ul>

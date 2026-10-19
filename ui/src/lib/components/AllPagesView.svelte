@@ -65,6 +65,17 @@
     }
   })
 
+  // the Namespaces view with "Only encrypted": the encrypted pages and the names above them (lowercase, like page keys)
+  const encryptedNames = $derived.by(() => {
+    const out = new Set<string>()
+    for (const r of rows) {
+      if (!locked(r)) continue
+      const parts = r.name.toLowerCase().split('/')
+      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('/'))
+    }
+    return out
+  })
+
   const visible = $derived.by(() => {
     const q = filter.trim().toLowerCase()
     const out = rows.filter(
@@ -138,16 +149,18 @@
     <label><input type="checkbox" bind:checked={journals} /> Journals</label>
     <label><input type="checkbox" bind:checked={virtual} /> Pages without a file</label>
     <label><input type="checkbox" bind:checked={showArchived} data-testid="show-archived" /> Archived</label>
-    {#if encryption.status?.paths.length}
-      <label
-        ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" /> Only encrypted</label
-      >
-    {/if}
+  {/if}
+  {#if encryption.status?.paths.length}
+    <label
+      ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" /> Only encrypted</label
+    >
   {/if}
 </div>
 
 {#if mode === 'tree'}
-  <div class="tree" data-testid="pages-tree"><NamespaceTree actions /></div>
+  <div class="tree" data-testid="pages-tree">
+    <NamespaceTree actions only={onlyEncrypted ? encryptedNames : null} />
+  </div>
 {:else if !loaded}
   <p class="muted">Loading…</p>
 {:else if visible.length === 0}
