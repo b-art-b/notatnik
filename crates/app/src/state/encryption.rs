@@ -59,7 +59,7 @@ impl AppState {
         }
     }
 
-    fn graph_keys_now(&self) -> Option<Arc<Keys>> {
+    pub(super) fn graph_keys_now(&self) -> Option<Arc<Keys>> {
         self.graph_keys.lock().ok().and_then(|g| g.clone())
     }
 

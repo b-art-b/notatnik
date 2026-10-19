@@ -700,10 +700,15 @@ impl AppState {
         // no sync state from an earlier connection: this is a first sync
         let _ = std::fs::remove_file(state_file(&root));
         let _ = std::fs::remove_dir_all(bases_dir(&root));
+        // opening again forgets the key; the same graph keeps it, so that marked pages go up encrypted at once
+        let keys = self.graph_keys_now();
         let info = self.open_graph(OpenGraphArgs {
             path: root.to_string_lossy().into_owned(),
             create: false,
         })?;
+        if keys.is_some() && self.graph_keys_now().is_none() {
+            self.set_graph_keys(keys);
+        }
         // uploaded now, so that the server has it when this returns
         let _ = self.sync_now(SyncNowArgs {
             allow_mass_delete: false,

@@ -28,7 +28,9 @@ reads and writes files, and the watcher picks up what it writes like any externa
 A graph that is a local folder can move to a server in place: Settings → Sync → **Connect to a server…**, the same
 form. The folder must be empty or new (a folder with a graph or anything else is refused; two graphs are not merged).
 **Upload this graph** keeps the pages where they are and uploads them with the first sync. To encrypt some of them,
-mark them after this upload (docs/encryption.md).
+set up encryption and mark them **before** this upload (Settings → Sync → Encryption works on a local graph too): they
+then go up encrypted and the server never holds their text. Marked after the upload, the server's trash and versions
+keep the plain copies (docs/encryption.md).
 
 Plain `http://` is accepted only for this computer and the local network (`localhost`, `127.*`, `10.*`,
 `192.168.*`, `172.16–31.*`, `*.local`); everything else needs `https://` (SY-2).

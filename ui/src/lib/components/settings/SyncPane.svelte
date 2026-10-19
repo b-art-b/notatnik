@@ -172,6 +172,11 @@
       >Connect to a server…</button
     >
   {/if}
+  <p class="last">
+    You can set up encryption and choose what to encrypt now, before connecting: those pages are then uploaded
+    encrypted from the first sync, and the server never holds their text.
+  </p>
+  <EncryptionSection />
 {/if}
 
 <style>

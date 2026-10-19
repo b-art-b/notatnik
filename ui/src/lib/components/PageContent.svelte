@@ -171,7 +171,7 @@
   )
   $effect(() => {
     // read once per page view; the dialog and Settings keep the store fresh after a change
-    if (!encryption.status && app.graph?.remote) void refreshEncryption()
+    if (!encryption.status && app.graph) void refreshEncryption()
   })
   let showProps = $state(false)
 
@@ -317,15 +317,13 @@
               aria-expanded={history}
               onclick={() => (history = !history)}>History</button
             >
-            {#if app.graph?.remote}
-              <button
-                class="act"
-                data-testid="encrypt-toggle"
-                title="Store this page encrypted on the server"
-                aria-expanded={encrypting}
-                onclick={() => (encrypting = !encrypting)}>{encrypted ? 'Encrypted' : 'Encrypt…'}</button
-              >
-            {/if}
+            <button
+              class="act"
+              data-testid="encrypt-toggle"
+              title="Store this page encrypted on the server (also when the graph is uploaded later)"
+              aria-expanded={encrypting}
+              onclick={() => (encrypting = !encrypting)}>{encrypted ? 'Encrypted' : 'Encrypt…'}</button
+            >
             {#if !view.is_journal}
               <button
                 class="act"

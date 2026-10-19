@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Encrypt a page on the server, or stop doing so (EN-16, EN-17, EN-18). It says what marking means before it
+  // Encrypt a page on the server (or before the graph is connected to one), or stop doing so (EN-16, EN-17, EN-18). It says what marking means before it
   // is done: older plain copies on the server, pictures that stay plain, tasks that leave the calendar.
   import { backend, type EncryptionPreview } from '../api'
   import { errorMessage, toast } from '../stores/app.svelte'
@@ -73,11 +73,6 @@
 <div class="dialog" role="dialog" aria-label="Encrypt page" aria-modal="true" data-testid="encrypt-dialog">
   {#if !st}
     <p class="muted">…</p>
-  {:else if !st.has_server}
-    <p>
-      This graph has no server folder. Encryption applies to the copy on a server (Settings → Sync); on this
-      device the page is a plain file.
-    </p>
   {:else if !st.configured}
     <p>
       Encryption is not set up for this graph yet. <a href="#/settings" data-testid="encrypt-goto-settings"
@@ -112,6 +107,12 @@
     </p>
   {:else}
     <p>Store <strong>{page}</strong> encrypted on the server. On this device it stays a plain page.</p>
+    {#if !st.has_server}
+      <p class="muted" data-testid="encrypt-no-server">
+        This graph has no server yet. When you connect it (Settings → Sync), this page is uploaded encrypted;
+        the server never gets its text.
+      </p>
+    {/if}
     {#if hasSubpages}
       <label class="check"
         ><input type="checkbox" bind:checked={below} data-testid="encrypt-below" /> Also the pages below it</label

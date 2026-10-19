@@ -159,8 +159,41 @@ test('without a vault or with a locked key the dialog sends you to Settings', as
   await expect(page.getByTestId('encrypt-start')).toHaveCount(0)
 })
 
-test('a graph without a server has no encrypt button', async ({ backend, page }) => {
-  await backend.open('/page/inbox')
-  await expect(page.getByTestId('history-toggle')).toBeVisible()
-  await expect(page.getByTestId('encrypt-toggle')).toHaveCount(0)
+test('encryption is set up and a page marked on a local graph; connecting uploads it encrypted', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  backend.write('pages/Secret.md', `- ${SECRET} one\n`)
+  backend.write('pages/Open.md', '- open text\n')
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await page.getByTestId('graph-enc-setup').click()
+  await page.getByLabel('Password (at least 8 characters)').fill('correct horse')
+  await page.getByLabel('Password again').fill('correct horse')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+
+  await page.goto(page.url().replace(/#.*/, '#/page/Secret'))
+  await page.getByTestId('encrypt-toggle').click()
+  await expect(page.getByTestId('encrypt-no-server')).toBeVisible()
+  await expect(page.getByTestId('encrypt-warn-synced')).toHaveCount(0)
+  await page.getByTestId('encrypt-start').click()
+  await expect(page.getByTestId('title-lock')).toBeVisible()
+  expect(await dav.file('Notes/early/pages/Secret.md.enc')).toBeNull() // nothing is uploaded yet
+
+  await backend.call('connect_remote', {
+    server: dav.server,
+    user: dav.user,
+    password: dav.password,
+    folder: 'Notes/early',
+    attach: false,
+  })
+  expect(await dav.file('Notes/early/pages/Open.md')).toContain('open text')
+  expect(await dav.file('Notes/early/pages/Secret.md')).toBeNull()
+  const sealed = await dav.file('Notes/early/pages/Secret.md.enc')
+  expect(sealed).not.toBeNull()
+  expect(sealed).not.toContain(SECRET)
 })

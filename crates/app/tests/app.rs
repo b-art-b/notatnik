@@ -5309,6 +5309,45 @@ fn encrypted_graph() -> (
     )
 }
 
+/// Encryption is set up and pages are marked while the graph is only a local folder: connecting uploads them
+/// encrypted, the server never holds their text, and the key stays unlocked.
+#[test]
+fn pages_marked_before_connecting_to_a_server_are_uploaded_encrypted() {
+    let dav = notatnik_sync::fakedav::FakeDav::start();
+    let t = start("basic");
+    let root = t.tmp.path().join("graph");
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    std::fs::write(root.join("pages/open.md"), "- open text\n").unwrap();
+
+    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok("encryption_confirm", json!({}));
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(st["has_server"], false, "{st}");
+    assert_eq!(st["paths"], json!(["pages/private/"]));
+
+    t.ok(
+        "connect_remote",
+        json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": false}),
+    );
+    assert!(dav.file("Notes/graph/pages/private/diary.md.enc").is_some());
+    assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
+    assert!(dav.file("Notes/graph/pages/open.md").is_some());
+    assert!(
+        !server_has_text(&dav, SECRET),
+        "the server must never hold the text"
+    );
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(
+        (st["unlocked"].clone(), st["has_server"].clone()),
+        (json!(true), json!(true)),
+        "{st}"
+    );
+}
+
 #[test]
 fn marked_paths_are_stored_encrypted_on_the_server_and_a_second_device_unlocks_them() {
     let (t, dav, root, recovery) = encrypted_graph();
