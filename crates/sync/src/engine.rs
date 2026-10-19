@@ -1,11 +1,14 @@
 //! The sync: scan both sides, plan, do it, repeat until nothing is left to do.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDateTime;
 
+use notatnik_core::encrypted::{EncryptedPaths, plain_name};
+
 use crate::Bases;
+use crate::forms::{Encryption, Io, RemoteMaps};
 use crate::local::{self, hash, ignored, mtime_ms, to_trash, write_atomic};
 use crate::plan::{Action, plan};
 use crate::remote::{Cond, Remote};
@@ -30,6 +33,9 @@ pub struct Options {
     pub merge: bool,
     /// The clock, for the names of conflict copies.
     pub now: Box<dyn Fn() -> NaiveDateTime + Send + Sync>,
+    /// Which files are stored encrypted on the server and the key for them (EN-11 to EN-16); `None`: none are, and
+    /// encrypted copies that the server holds are left alone.
+    pub encryption: Option<Encryption>,
 }
 
 impl Options {
@@ -42,6 +48,7 @@ impl Options {
             bases: Bases::default(),
             merge: true,
             now: Box::new(|| chrono::Local::now().naive_local()),
+            encryption: None,
         }
     }
 }
@@ -69,6 +76,12 @@ pub struct Report {
     /// Downloaded pages whose lines look joined together by some other editor (a block ID followed by properties on
     /// the same line, which this app never writes).
     pub suspect: Vec<String>,
+    /// Files stored in another form than the rules ask for (as it is or encrypted) that were stored again (EN-16).
+    pub recoded: Vec<String>,
+    /// Encrypted files left alone because the key is locked (EN-15): neither sent, received nor deleted.
+    pub left_alone: usize,
+    /// Local files whose name ends in `.enc`: the ending is reserved for encrypted copies, so they are not synced.
+    pub reserved: Vec<String>,
     /// Everything is in step: nothing was left to do at the end.
     pub complete: bool,
 }
@@ -105,6 +118,14 @@ pub fn looks_reformatted(text: &str) -> bool {
 }
 
 impl Report {
+    /// Records a file that failed. A file that fails again in the next pass of the same sync is listed once.
+    fn add_error(&mut self, path: &str, message: String) {
+        let entry = (path.to_string(), message);
+        if !self.errors.contains(&entry) {
+            self.errors.push(entry);
+        }
+    }
+
     /// Anything moved.
     pub fn changed(&self) -> bool {
         !(self.pushed.is_empty()
@@ -112,6 +133,7 @@ impl Report {
             && self.deleted_remote.is_empty()
             && self.deleted_local.is_empty()
             && self.merged.is_empty()
+            && self.recoded.is_empty()
             && self.conflicts.is_empty())
     }
 }
@@ -141,12 +163,37 @@ fn conflict_name(path: &str, now: NaiveDateTime, n: usize) -> String {
 
 type RemoteFiles = BTreeMap<String, (String, u64)>;
 
+/// A copy of a file in the form the rules do not ask for goes when it is the same as the one they ask for. When the
+/// two differ nothing is deleted: the person decides which to keep.
+fn remove_stale(io: &Io, stale: &[crate::forms::Stale], report: &mut Report) {
+    for s in stale {
+        let same = (|| -> Result<bool> {
+            let kept = io.get(&s.path)?.0;
+            let other = io.get_form(&s.path, s.enc)?.0;
+            Ok(kept == other)
+        })();
+        match same {
+            Ok(true) => match io.delete(&s.path, s.enc, Some(&s.etag)) {
+                Ok(()) => log::debug!("sync: removed the second copy of {}", s.path),
+                Err(Error::Changed(_)) => {}
+                Err(e) => report.add_error(&s.path, e.to_string()),
+            },
+            Ok(false) => report.add_error(
+                &s.path,
+                "the server holds it both as it is and encrypted, with different contents; nothing was deleted, keep one by hand".into(),
+            ),
+            // locked, or not readable: try again when it is
+            Err(_) => {}
+        }
+    }
+}
+
 fn scan_remote(
     remote: &dyn Remote,
     state: &SyncState,
     trust: bool,
-) -> Result<(RemoteFiles, BTreeMap<String, String>)> {
-    let mut files = BTreeMap::new();
+) -> Result<(RemoteMaps, BTreeMap<String, String>)> {
+    let mut files = RemoteMaps::default();
     let mut dirs = BTreeMap::new();
     walk_remote(remote, state, trust, "", &mut files, &mut dirs)?;
     Ok((files, dirs))
@@ -156,7 +203,7 @@ fn scan_remote(
 fn reuse(
     state: &SyncState,
     dir: &str,
-    files: &mut RemoteFiles,
+    files: &mut RemoteMaps,
     dirs: &mut BTreeMap<String, String>,
 ) {
     let prefix = if dir.is_empty() {
@@ -168,7 +215,12 @@ fn reuse(
         if !p.starts_with(&prefix) {
             break;
         }
-        files.insert(p.clone(), (f.etag.clone(), f.size));
+        let map = if f.enc {
+            &mut files.enc
+        } else {
+            &mut files.plain
+        };
+        map.insert(p.clone(), (f.etag.clone(), f.size));
     }
     for (d, e) in state.dirs.range(prefix.clone()..) {
         if !d.starts_with(&prefix) {
@@ -183,7 +235,7 @@ fn walk_remote(
     state: &SyncState,
     trust: bool,
     dir: &str,
-    files: &mut RemoteFiles,
+    files: &mut RemoteMaps,
     dirs: &mut BTreeMap<String, String>,
 ) -> Result<()> {
     let Some(l) = remote.list(dir)? else {
@@ -217,7 +269,7 @@ fn walk_remote(
                 walk_remote(remote, state, trust, &path, files, dirs)?;
             }
         } else if !ignored(&path) {
-            files.insert(path, (e.etag, e.size));
+            files.add(&path, e.etag, e.size);
         }
     }
     Ok(())
@@ -227,11 +279,26 @@ fn walk_remote(
 /// server's version is kept at the path and the local one is saved beside it (SY-4). Errors that concern one file
 /// are collected in the report; the login failing or the server being unreachable stops the sync.
 pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> {
+    let none = EncryptedPaths::default();
+    let paths = opts.encryption.as_ref().map_or(&none, |e| &e.paths);
+    let keys = opts.encryption.as_ref().and_then(|e| e.keys.as_deref());
     let mut state = SyncState::load(&opts.state_path);
     let mut report = Report::default();
     let mut made_dirs: HashSet<String> = HashSet::new();
     for _pass in 0..5 {
-        let local = local::scan(root, &state)?;
+        let mut local = local::scan(root, &state)?;
+        // `.enc` is the ending of encrypted copies on the server, so a local file with it is not synced
+        for p in local
+            .keys()
+            .filter(|p| plain_name(p).is_some())
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            local.remove(&p);
+            if !report.reserved.contains(&p) {
+                report.reserved.push(p);
+            }
+        }
         // pages that are as they were at the last sync are the base of a later merge (also for files that were
         // synced before bases were kept)
         if opts.merge {
@@ -246,8 +313,65 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
                 }
             }
         }
-        let (rfiles, rdirs) = scan_remote(remote, &state, opts.trust_folder_etags)?;
-        let actions = plan(&local, &rfiles, &state.files);
+        let (maps, rdirs) = scan_remote(remote, &state, opts.trust_folder_etags)?;
+        let (found, stale) = maps.resolve(paths);
+        let io = Io {
+            remote,
+            paths,
+            keys,
+            found: &found,
+        };
+        remove_stale(&io, &stale, &mut report);
+        // while the key is locked, every file that is or should be encrypted is left alone on both sides: no
+        // action, nothing counted for the guard below (EN-15)
+        let left: BTreeSet<String> = if keys.is_some() {
+            BTreeSet::new()
+        } else {
+            local
+                .keys()
+                .chain(found.keys())
+                .chain(state.files.keys())
+                .filter(|p| {
+                    paths.is_encrypted(p)
+                        || found.get(*p).is_some_and(|f| f.enc)
+                        || state.files.get(*p).is_some_and(|f| f.enc)
+                })
+                .cloned()
+                .collect()
+        };
+        report.left_alone = left.len();
+        let local_view: BTreeMap<String, local::LocalFile> = local
+            .iter()
+            .filter(|(p, _)| !left.contains(*p))
+            .map(|(p, l)| (p.clone(), l.clone()))
+            .collect();
+        let rfiles: RemoteFiles = found
+            .iter()
+            .filter(|(p, _)| !left.contains(*p))
+            .map(|(p, f)| (p.clone(), (f.etag.clone(), f.size)))
+            .collect();
+        let files_view: BTreeMap<String, FileState> = state
+            .files
+            .iter()
+            .filter(|(p, _)| !left.contains(*p))
+            .map(|(p, f)| (p.clone(), f.clone()))
+            .collect();
+        let mut actions = plan(&local_view, &rfiles, &files_view);
+        // the same on both sides, but the server holds it in the other form than the rules ask for
+        let planned: BTreeSet<String> = actions.iter().map(|a| a.path().to_string()).collect();
+        for (p, f) in &found {
+            if !left.contains(p)
+                && !planned.contains(p)
+                && f.enc != paths.is_encrypted(p)
+                && local_view.contains_key(p)
+                && files_view.contains_key(p)
+            {
+                actions.push(Action::Recode {
+                    path: p.clone(),
+                    etag: f.etag.clone(),
+                });
+            }
+        }
         if actions.is_empty() {
             if opts.trust_folder_etags {
                 state.dirs = rdirs;
@@ -263,10 +387,10 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             .iter()
             .filter(|a| matches!(a, Action::DeleteLocal { .. } | Action::DeleteRemote { .. }))
             .count();
-        if !opts.allow_mass_delete && deletes > 10 && deletes * 2 > state.files.len() {
+        if !opts.allow_mass_delete && deletes > 10 && deletes * 2 > files_view.len() {
             log::warn!(
                 "sync stopped: it would delete {deletes} of {} files; confirm in the app to go on",
-                state.files.len()
+                files_view.len()
             );
             return Err(Error::MassDelete(deletes));
         }
@@ -274,7 +398,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
         for a in &actions {
             match run(
                 root,
-                remote,
+                &io,
                 opts,
                 &mut state,
                 &local,
@@ -287,7 +411,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
                     state.save(&opts.state_path)?;
                     return Err(e);
                 }
-                Err(e) => report.errors.push((a.path().to_string(), e.to_string())),
+                Err(e) => report.add_error(a.path(), e.to_string()),
             }
         }
         state.save(&opts.state_path)?;
@@ -301,7 +425,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
 #[allow(clippy::too_many_arguments)]
 fn run(
     root: &Path,
-    remote: &dyn Remote,
+    io: &Io,
     opts: &Options,
     state: &mut SyncState,
     local: &BTreeMap<String, local::LocalFile>,
@@ -324,14 +448,14 @@ fn run(
             };
             let parent = path.rsplit_once('/').map_or("", |(p, _)| p);
             if made_dirs.insert(parent.to_string()) {
-                remote.mkdir(parent)?;
+                io.remote.mkdir(parent)?;
             }
             let cond = match etag {
                 Some(e) => Cond::Match(e.clone()),
                 None => Cond::Create,
             };
-            match remote.put(path, &bytes, cond) {
-                Ok(new_etag) => {
+            match io.write(path, &bytes, cond, etag.as_deref()) {
+                Ok((new_etag, enc)) => {
                     opts.bases.save_synced(path, &bytes);
                     state.files.insert(
                         path.clone(),
@@ -340,6 +464,7 @@ fn run(
                             etag: new_etag,
                             size: bytes.len() as u64,
                             mtime_ms: mtime_ms(&md),
+                            enc,
                         },
                     );
                     log::debug!("sync: sent {path}");
@@ -357,7 +482,8 @@ fn run(
                     return Err(Error::Changed(format!("{path} was edited while syncing")));
                 }
             }
-            let (bytes, etag) = remote.get(path)?;
+            let enc = io.form(path).unwrap_or(false);
+            let (bytes, etag) = io.get(path)?;
             // the server gave a file a new ETag without changing it (Nextcloud sometimes does after an upload):
             // remember the new ETag, leave the file alone
             if let Some(l) = local.get(path).filter(|l| l.hash == hash(&bytes)) {
@@ -369,6 +495,7 @@ fn run(
                         etag,
                         size: l.size,
                         mtime_ms: l.mtime_ms,
+                        enc,
                     },
                 );
                 return Ok(true);
@@ -382,6 +509,7 @@ fn run(
                     etag,
                     size: bytes.len() as u64,
                     mtime_ms: mtime,
+                    enc,
                 },
             );
             log::debug!("sync: received {path}");
@@ -392,7 +520,7 @@ fn run(
             Ok(true)
         }
         Action::DeleteRemote { path, etag } => {
-            match remote.delete(path, Some(etag)) {
+            match io.delete(path, io.form(path).unwrap_or(false), Some(etag)) {
                 Ok(()) => {}
                 // it changed there meanwhile: the next pass pulls it
                 Err(Error::Changed(_)) => return Ok(false),
@@ -419,8 +547,40 @@ fn run(
             report.deleted_local.push(path.clone());
             Ok(true)
         }
+        Action::Recode { path, etag } => {
+            let abs = root.join(path);
+            let (Ok(md), Ok(bytes)) = (std::fs::metadata(&abs), std::fs::read(&abs)) else {
+                return Ok(false);
+            };
+            if state.files.get(path).is_none_or(|f| f.hash != hash(&bytes)) {
+                return Err(Error::Changed(format!("{path} was edited while syncing")));
+            }
+            // the server copy is read back first: only what is on the server now may be replaced
+            let (theirs, _) = io.get(path)?;
+            if theirs != bytes {
+                return Ok(false);
+            }
+            let (new_etag, enc) = io.write(path, &bytes, Cond::Match(etag.clone()), Some(etag))?;
+            state.files.insert(
+                path.clone(),
+                FileState {
+                    hash: hash(&bytes),
+                    etag: new_etag,
+                    size: bytes.len() as u64,
+                    mtime_ms: mtime_ms(&md),
+                    enc,
+                },
+            );
+            log::info!(
+                "sync: {path} is stored {} on the server now",
+                if enc { "encrypted" } else { "as it is" }
+            );
+            report.recoded.push(path.clone());
+            Ok(true)
+        }
         Action::Reconcile { path } => {
-            let (bytes, etag) = remote.get(path)?;
+            let enc = io.form(path).unwrap_or(false);
+            let (bytes, etag) = io.get(path)?;
             let remote_hash = hash(&bytes);
             let abs = root.join(path);
             let mine = std::fs::read(&abs).ok();
@@ -436,12 +596,13 @@ fn run(
                         && let Some(base) = &base
                         && let Some(merged) = merged_page(base, mine, &bytes)
                     {
-                        let md = match remote.put(path, &merged, Cond::Match(etag)) {
-                            Ok(new_etag) => new_etag,
-                            // the server changed again: the next pass starts over from the newer version
-                            Err(Error::Changed(_)) => return Ok(false),
-                            Err(e) => return Err(e),
-                        };
+                        let (md, enc) =
+                            match io.write(path, &merged, Cond::Match(etag.clone()), Some(&etag)) {
+                                Ok(done) => done,
+                                // the server changed again: the next pass starts over from the newer version
+                                Err(Error::Changed(_)) => return Ok(false),
+                                Err(e) => return Err(e),
+                            };
                         let mtime = write_atomic(root, path, &merged)?;
                         opts.bases.save_synced(path, &merged);
                         state.files.insert(
@@ -451,6 +612,7 @@ fn run(
                                 etag: md,
                                 size: merged.len() as u64,
                                 mtime_ms: mtime,
+                                enc,
                             },
                         );
                         log::info!("sync: both sides changed {path}; merged without a conflict");
@@ -487,6 +649,7 @@ fn run(
                     etag,
                     size: bytes.len() as u64,
                     mtime_ms: mtime,
+                    enc,
                 },
             );
             if let Some(c) = copy {

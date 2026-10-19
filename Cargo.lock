@@ -3056,6 +3056,7 @@ dependencies = [
  "chrono",
  "log",
  "notatnik-core",
+ "notatnik-crypt",
  "notatnik-sync",
  "quick-xml 0.38.4",
  "serde",

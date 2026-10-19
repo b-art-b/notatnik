@@ -18,6 +18,9 @@ pub enum Action {
     /// Both sides have the file and both differ from the last sync (or there was no last sync): download it and
     /// see whether the contents are the same; if not, it is a conflict.
     Reconcile { path: String },
+    /// The file is the same on both sides, but the server holds it in another form than the rules ask for (as it is
+    /// or encrypted, EN-16): store it in the form the rules ask for, then remove the old copy.
+    Recode { path: String, etag: String },
     /// The file is gone on both sides: drop what is remembered about it.
     Forget { path: String },
 }
@@ -31,6 +34,7 @@ impl Action {
             | Action::DeleteRemote { path, .. }
             | Action::DeleteLocal { path }
             | Action::Reconcile { path }
+            | Action::Recode { path, .. }
             | Action::Forget { path } => path,
         }
     }
@@ -110,6 +114,7 @@ mod tests {
             etag: etag.into(),
             size: 1,
             mtime_ms: 0,
+            enc: false,
         }
     }
 

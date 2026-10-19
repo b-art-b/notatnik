@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 
 pub mod edit;
+pub mod encrypted;
 pub mod frontmatter;
 pub mod hash;
 pub mod identity;

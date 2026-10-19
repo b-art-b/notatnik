@@ -6,6 +6,7 @@
 mod bases;
 mod engine;
 mod error;
+mod forms;
 mod local;
 mod plan;
 mod remote;
@@ -18,6 +19,7 @@ pub mod fakedav;
 pub use bases::Bases;
 pub use engine::{Options, Report, looks_reformatted, sync};
 pub use error::{Error, Result};
+pub use forms::Encryption;
 pub use plan::{Action, plan};
 pub use remote::{Cond, Entry, Listing, Remote, norm_etag};
 pub use state::{FileState, SyncState};

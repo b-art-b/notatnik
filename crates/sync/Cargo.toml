@@ -19,6 +19,7 @@ required-features = ["fakedav"]
 blake3 = "1.8.7"
 log = "0.4"
 notatnik-core = { workspace = true }
+notatnik-crypt = { workspace = true }
 chrono = "0.4.45"
 quick-xml = "0.38"
 serde = { version = "1.0.229", features = ["derive"] }

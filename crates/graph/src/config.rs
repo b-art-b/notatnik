@@ -26,6 +26,9 @@ pub struct Config {
     /// `[calendar]`
     #[serde(default)]
     pub calendar: CalendarSection,
+    /// `[encryption]`: which files are stored encrypted on a WebDAV server (EN-11).
+    #[serde(default, skip_serializing_if = "EncryptionSection::is_default")]
+    pub encryption: EncryptionSection,
     /// `[[saved_queries]]`: queries pinned to the sidebar (they sync with the graph).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub saved_queries: Vec<SavedQuery>,
@@ -235,7 +238,39 @@ impl Default for CalendarSection {
     }
 }
 
+/// `[encryption]` (EN-11, EN-17)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EncryptionSection {
+    /// Paths relative to the graph folder that are stored encrypted on the server: a path ending in `/` is a folder
+    /// with everything below it, any other path is one file.
+    #[serde(default)]
+    pub paths: Vec<String>,
+    /// `exclude` (default): tasks of encrypted pages are not sent to the calendar; `allow` sends them.
+    #[serde(default = "default_encryption_calendar")]
+    pub calendar: String,
+}
+
+fn default_encryption_calendar() -> String {
+    "exclude".into()
+}
+
+impl Default for EncryptionSection {
+    fn default() -> Self {
+        EncryptionSection {
+            paths: Vec::new(),
+            calendar: default_encryption_calendar(),
+        }
+    }
+}
+
+impl EncryptionSection {
+    fn is_default(&self) -> bool {
+        *self == EncryptionSection::default()
+    }
+}
+
 const KNOWN: &[(&str, &[&str])] = &[
+    ("encryption", &["paths", "calendar"]),
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
     ("tasks", &["completed_log_limit", "priorities"]),
@@ -292,6 +327,17 @@ impl Config {
         for (k, v) in &cfg.properties.types {
             if parse_prop_type(v).is_none() {
                 warnings.push(format!("unknown property type `{v}` for `{k}`"));
+            }
+        }
+        if !matches!(cfg.encryption.calendar.as_str(), "exclude" | "allow") {
+            warnings.push(format!(
+                "`encryption.calendar` must be exclude or allow, found `{}`",
+                cfg.encryption.calendar
+            ));
+        }
+        for p in &cfg.encryption.paths {
+            if let Err(why) = notatnik_core::encrypted::check_path(p) {
+                warnings.push(format!("`encryption.paths`: `{p}` {why}; it is ignored"));
             }
         }
         if !matches!(cfg.graph.week_start.as_str(), "monday" | "sunday") {
@@ -760,5 +806,28 @@ mod priority_tests {
         assert_eq!(c.priority_labels().len(), 4);
         // the default is not written out
         assert!(!Config::default().to_toml().contains("priorities"));
+    }
+}
+
+#[cfg(test)]
+mod encryption_tests {
+    use super::*;
+
+    #[test]
+    fn the_section_is_read_written_and_checked() {
+        let text = "[encryption]\npaths = [\"pages/private/\", \"pages/Health.md\"]\ncalendar = \"allow\"\n";
+        let (c, w) = Config::parse(text).unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(c.encryption.paths, ["pages/private/", "pages/Health.md"]);
+        assert_eq!(c.encryption.calendar, "allow");
+        assert_eq!(Config::parse(&c.to_toml()).unwrap().0, c);
+        // the default is not written out, so a graph without encryption keeps its file as it was
+        assert!(!Config::default().to_toml().contains("encryption"));
+        assert_eq!(Config::default().encryption.calendar, "exclude");
+        let (_, w) = Config::parse(
+            "[encryption]\npaths = [\"../x/\", \".notatnik/a\", \"ok/\"]\ncalendar = \"maybe\"\nmore = 1\n",
+        )
+        .unwrap();
+        assert_eq!(w.len(), 4, "{w:?}");
     }
 }

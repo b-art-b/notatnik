@@ -19,6 +19,8 @@ pub enum Error {
     MassDelete(usize),
     /// The address is not allowed (plain http outside the local network).
     Url(String),
+    /// A file could not be encrypted or decrypted (EN-12): the key is wrong, the file is cut short or was moved.
+    Crypt(String),
 }
 
 /// Result alias.
@@ -37,6 +39,7 @@ impl Error {
             Error::Local(_) => "local",
             Error::MassDelete(_) => "mass_delete",
             Error::Url(_) => "url",
+            Error::Crypt(_) => "crypt",
         }
     }
 }
@@ -55,6 +58,7 @@ impl fmt::Display for Error {
                 "the sync would delete {n} files at once and was stopped; check the folder and the server, then sync again with \"Allow\""
             ),
             Error::Url(m) => write!(f, "{m}"),
+            Error::Crypt(m) => write!(f, "encryption: {m}"),
         }
     }
 }

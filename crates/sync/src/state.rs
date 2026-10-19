@@ -17,6 +17,9 @@ pub struct FileState {
     /// Modification time of the local file after the sync, in milliseconds; with the size it lets the next scan
     /// skip hashing a file that did not change.
     pub mtime_ms: i64,
+    /// The server copy is stored encrypted (`<path>.enc`, EN-12).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub enc: bool,
 }
 
 /// The sync state of one replica, kept outside the graph folder (ST-2).
