@@ -1,6 +1,6 @@
 # Graphs on a WebDAV server (Nextcloud)
 
-Status: **built** (plain files; encryption on the server is not built, see [encryption.md](encryption.md)).
+Status: **built** (plain files; encrypting chosen paths on the server is planned, see [encryption.md](encryption.md) §6).
 Requirements SY-1 to SY-8 in [requirements.md](requirements.md), decision D42 in [architecture.md](architecture.md).
 
 ## What it is

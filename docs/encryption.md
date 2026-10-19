@@ -3,8 +3,9 @@
 What is encrypted, how, and in which order it is built. Requirement IDs: EN-1 to EN-10 in
 [requirements.md](requirements.md) §3. The formats are specified in [file-format.md](file-format.md) §11.
 
-Status: **P0 spec, P1 crypto core and P2 encrypted backups are built; the sync parts (P3 to P7) are planned and
-waiting for review.**
+Status: **P0 spec, P1 crypto core and P2 encrypted backups are built. Encrypting chosen paths on a WebDAV server
+(§6, EN-11 to EN-18, tasks E1 to E7 in [phases/encrypted-sync.md](phases/encrypted-sync.md)) is planned and waits for
+review. The encrypted replica for a folder that another tool syncs (EN-7) is on hold.**
 
 ## 1. Goal and threat model
 
@@ -70,9 +71,10 @@ enough to restore it**, on any machine, even with the app gone: `notatnik decryp
 - Fully verifying a sealed file needs the private key. Writing checks the zip before sealing and the header
   after; with an unlocked vault the whole file is read back as well.
 
-## 5. Planned: encrypted sync (EN-7 to EN-10, P3 to P7)
+## 5. Earlier plan: an encrypted replica of the whole graph (EN-7, EN-10; on hold)
 
-Not built. The shape, so the formats of P1 and P2 fit it:
+Not built, and replaced for now by §6, which encrypts only the paths you choose. The shape, so the formats of P1
+and P2 fit it:
 
 - The local graph moves out of any synced folder. An **encrypted replica** (one file per page and asset, names
   from `Keys::file_name`, the path inside the encrypted payload, a marker `vault.json` in the folder) is what
@@ -92,12 +94,74 @@ Not built. The shape, so the formats of P1 and P2 fit it:
 | P1 | `notatnik-crypt`: vault, slots, recovery key, file encryption, names, sealing | done |
 | P2 | Encrypted backups, `notatnik decrypt`, Settings | done |
 | P3 | Sync engine, two-device tests | built without encryption, as the WebDAV sync ([webdav.md](webdav.md)); the folder remote was dropped |
-| P4 | Settings → Sync & encryption (enable, recovery key, unlock, status) | planned |
-| P5 | Moving an existing graph out of the synced folder (wizard, warnings) | planned |
-| P6 | WebDAV remote for Nextcloud | built, plain files; encrypting names and content (`Keys::encrypt`, `file_name`) is the open part |
+| P4 | Settings → Sync & encryption (enable, recovery key, unlock, status) | planned, as E5 of §6 |
+| P5 | Moving an existing graph out of the synced folder (wizard, warnings) | on hold with the replica |
+| P6 | WebDAV remote for Nextcloud | built, plain files; encrypting chosen paths is §6 |
 | P7 | Android | planned (Phase 8) |
 
-## 6. Verification
+## 6. Planned: encrypting chosen paths on a WebDAV server (EN-11 to EN-18)
+
+Not built. The idea in one sentence: **the graph on this device is plain, the server holds some files as they are
+and some encrypted, and you choose which.** Pages of both kinds are edited, searched and synced the same way.
+
+### 6.1 What you get
+
+- A list of paths marks what is encrypted: a folder (`pages/private/`: it and everything below) or one file
+  (`pages/Health.md`). Journals (`journals/`) and assets (`assets/private/`) are marked the same way. Everything
+  else is stored plain, so the Nextcloud web UI, other apps and a phone still read it.
+- A marked file `pages/private/Health.md` is stored on the server as `pages/private/Health.md.enc`. The device
+  keeps `Health.md` as plain Markdown; the index, search, backlinks, queries and the agenda see it as before.
+- Another device that has the password (or the recovery key) downloads the `.enc` file, decrypts it and shows it
+  as an ordinary page; an edit there is encrypted on upload. Merging and conflicts work on the decrypted text,
+  on the device, exactly as for plain files (SY-4).
+- Only WebDAV. A folder that another tool syncs is not covered (EN-7, on hold); local files are not encrypted.
+
+### 6.2 Decisions
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where the marks live | `[encryption] paths = ["pages/private/", "pages/Health.md"]` in `.notatnik/config.toml` (a graph setting that syncs, EN-11) | A page property fails when the page is moved; a path rule is what a person means by "this folder". The list is plain on the server: it shows which names are encrypted, which the file names show anyway |
+| Where the work happens | A wrapper around the WebDAV remote encrypts on `put`, decrypts on `get`, and maps `p.enc` to `p` when listing. The sync engine keeps comparing local plaintext hashes and remote ETags | The engine, its state file, merge and conflict code stay as they are. Re-encrypting unchanged text gives different bytes, but the engine uploads only when the local hash changed and treats a new ETag with equal decrypted content as "nothing to do" (it already does for Nextcloud's ETag changes) |
+| What is visible | File and folder names (with `.enc`), sizes, times, the number of files, and the list of marked paths. Not visible: content. Hiding names needs a manifest and is not part of this | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter |
+| Which vault | One vault per graph, descriptor `.notatnik/vault.json` (public, synced as a plain file); separate from the backup vault, which belongs to the device (EN-13) | A second device needs the same keys; the backup vault is device-wide and not part of the graph. At setup the same password can be typed again, but the keys are different |
+| The key | Unlocked per session, or kept in the system keyring (opt-in, EN-14). The keyring entry holds the data key, not the password, so starting the app needs no Argon2 run | The keyring is the same Secret Service the sync and calendar passwords use (SY-7). Anyone logged in to the desktop session can then read the key, which the settings text says |
+| Locked | Marked files are left alone on both sides (EN-15). The engine gets a "leave these paths alone" set; their state entries stay | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them |
+| Changing a mark | The state records how the server copy of each path is stored. When the rule differs, the engine uploads the new form, then deletes the old one; the second step is retried until it works (EN-16) | An interrupted run leaves both forms, never neither. The next run sees "both exist, rule says encrypted" and removes the plain one |
+| The server's list wins | A server file `p.enc` is an encrypted copy of `p` whatever the rules say; the rules decide how a local file is *uploaded* | A new device reads the rules from `config.toml` in the same sync, and an unmarked path with an `.enc` copy is simply migrated back |
+| `.enc` is reserved | A local file whose name ends in `.enc` is not synced and is reported | Otherwise it could not be told from an encrypted copy |
+| Conflict copies | A "conflicted copy" is matched by the path of the file it came from | A copy of a marked single file would otherwise be uploaded plain |
+
+### 6.3 Roads for plain text that must be closed
+
+1. **Calendar.** Tasks of a marked page would reach the CalDAV server in plain. They are left out of the calendar
+   sync by default (`[encryption] calendar = "exclude"`; `"allow"` is the person's explicit choice). Tasks that were
+   already sent leave the calendar through the normal safe path (completed, not deleted, `on_delete`).
+2. **Old plain copies.** Marking a page that was already synced leaves its earlier text in Nextcloud's file
+   versions and trash bin; plain WebDAV cannot remove them. The app says so before marking such a path and names
+   what to do (empty the trash and delete the versions in Nextcloud). Mark before the first sync when you can.
+3. **Backups.** A backup is a zip of the local, plain graph. With backup encryption off, marked pages are plain in
+   the backup folder and the second folder. Settings → Backup warns while that is so.
+4. **Moves.** Renaming or moving a page into or out of a marked path changes how it is stored. The rename dialog
+   says so.
+5. **Images.** A marked page's pictures stay plain unless their folder is marked too. The page's menu says which
+   images it uses.
+6. **Logs.** Nothing from a note is logged (D49); the log of the sync shows paths, not text.
+
+### 6.4 Parts
+
+| Part | What | Status |
+|---|---|---|
+| E1 | Rules in the config, matching, `.enc` rules | planned |
+| E2 | The graph vault: make, confirm, unlock, lock, keyring switch, join from a second device | planned |
+| E3 | The wrapper around the remote, the "leave alone" set, the migration step | planned |
+| E4 | App: status fields, calendar exclusion, rename and backup warnings | planned |
+| E5 | UI: Settings → Sync encryption, the page menu, the lock mark, keymap | planned |
+| E6 | Real Nextcloud and two-device checks, manual checklist | planned |
+| E7 | Later: hidden names, a replica for folder tools (EN-7), the images of a page | on hold |
+
+The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).
+
+## 7. Verification
 
 - P1: round trip in every chunk shape; wrong password, recovery key, changed password; flipped bytes, truncation
   at a chunk boundary, extension, a file moved to another path; fixtures from an earlier build must keep opening
@@ -105,4 +169,9 @@ Not built. The shape, so the formats of P1 and P2 fit it:
 - P2: a scan of the backup folders for a marker string after a full session with encryption on; compare and
   restore through the API and the UI; `notatnik decrypt` against a snapshot; the locked state; conversion of old
   snapshots; no fallback to plaintext.
-- Later: two simulated devices, interrupted and half-written files, conflicts, and a scan of the replica folder.
+- E1 to E5: a scan of everything the fake server holds for a marker string after a full session; two devices
+  (own device folders, one server); locked and unlocked; a mark added and removed; interrupted migration; a
+  server that swaps two `.enc` files or cuts one short; the calendar test with a marked page; browser tests of
+  the pane and the page menu.
+- E6: the same against a real Nextcloud (`crates/app/tests/nextcloud.rs`), including what its versions and trash
+  keep.
