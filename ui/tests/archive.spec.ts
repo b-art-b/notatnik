@@ -69,3 +69,42 @@ test('deleting a namespace can take its subpages along', async ({ backend, page 
     await expect.poll(() => backend.exists(`pages/${f}`)).toBe(false)
   }
 })
+
+test('All pages: a row archives, unarchives and deletes a page without leaving the list', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Alpha.md', '- alpha\n')
+  backend.write('pages/Beta.md', '- beta\n')
+  await backend.open('/pages')
+  const table = page.getByTestId('pages-table')
+  const row = (name: string) => table.locator('tr', { has: page.locator(`a[data-page="${name}"]`) })
+
+  // archive: the row disappears (archived pages are hidden), the file gets the property, Undo brings it back
+  await row('Alpha').getByTestId('row-archive').click()
+  await expect.poll(() => backend.read('pages/Alpha.md')).toMatch(/^---\narchived: true\n---\n/)
+  await expect(row('Alpha')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(row('Alpha')).toBeVisible()
+  expect(backend.read('pages/Alpha.md')).not.toContain('archived')
+
+  // unarchive from the list when archived pages are shown
+  await row('Alpha').getByTestId('row-archive').click()
+  await page.getByTestId('show-archived').check()
+  await expect(row('Alpha').getByTestId('row-archive')).toHaveText('Unarchive')
+  await row('Alpha').getByTestId('row-archive').click()
+  await expect.poll(() => backend.read('pages/Alpha.md')).not.toContain('archived')
+
+  // delete: asks first, stays on the list, the file goes to the trash, Undo restores it
+  await row('Beta').getByTestId('row-delete').click()
+  await expect(page.getByRole('dialog', { name: 'Delete page' })).toContainText('Beta')
+  await expect(page).toHaveURL(/#\/pages/)
+  await page.getByRole('dialog', { name: 'Delete page' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(page).toHaveURL(/#\/pages/)
+  await expect(row('Beta')).toHaveCount(0)
+  expect(backend.exists('pages/Beta.md')).toBe(false)
+  // earlier toasts may still be up: take the one about this deletion
+  await page.locator('.toast', { hasText: 'Deleted' }).getByRole('button', { name: 'Undo' }).click()
+  await expect(row('Beta')).toBeVisible()
+  expect(backend.exists('pages/Beta.md')).toBe(true)
+})

@@ -6,7 +6,8 @@
   import { openDocs } from '../stores/pages.svelte'
   import { removeRecent } from '../stores/recent.svelte'
 
-  let { page, onclose }: { page: string; onclose: () => void } = $props()
+  // `stay`: opened from a list (All pages): the list stays, nothing navigates away
+  let { page, onclose, stay = false }: { page: string; onclose: () => void; stay?: boolean } = $props()
   let subpages = $state<TitleHit[]>([])
   let linked = $state<number | null>(null)
   let withSub = $state(false)
@@ -36,7 +37,7 @@
       // open documents of the deleted pages are stale now
       for (const d of openDocs()) if (r.deleted.includes(d.name)) void d.load()
       onclose()
-      navigate({ kind: 'journals' })
+      if (!stay) navigate({ kind: 'journals' })
       const what = r.deleted.length === 1 ? `“${r.deleted[0]}”` : `${r.deleted.length} pages`
       toast(`Deleted ${what}`, 'info', {
         label: 'Undo',
@@ -44,7 +45,7 @@
           try {
             const back = await backend.call('restore_pages', { trash_id: r.trash_id })
             toast(`Restored ${back.items.length === 1 ? `“${back.items[0]}”` : `${back.items.length} pages`}`)
-            if (back.items[0]) navigate({ kind: 'page', name: back.items[0], zoom: [] })
+            if (back.items[0] && !stay) navigate({ kind: 'page', name: back.items[0], zoom: [] })
           } catch (e) {
             toast(errorMessage(e), 'error')
           }

@@ -4,7 +4,10 @@
   import { backend, type PageListRow } from '../api'
   import { bus } from '../stores/events.svelte'
   import { pageHash } from '../route'
-  import { isArchived } from '../stores/archived.svelte'
+  import { isArchived, isArchivedItself } from '../stores/archived.svelte'
+  import { getDoc } from '../stores/pages.svelte'
+  import { errorMessage, toast } from '../stores/app.svelte'
+  import DeleteDialog from './DeleteDialog.svelte'
   import NamespaceTree from './NamespaceTree.svelte'
 
   type SortKey = 'name' | 'blocks' | 'backlinks' | 'modified'
@@ -36,6 +39,35 @@
       /* not remembered */
     }
   })
+
+  // the row whose "Delete…" confirmation is open (a page name), if any
+  let deleting = $state('')
+
+  /** Archives a page (the `archived` property, as the page's own Archive button does) or takes it out again. */
+  async function toggleArchive(name: string) {
+    const was = isArchivedItself(name)
+    const change = (on: boolean) =>
+      getDoc(name).apply([
+        on
+          ? { op: 'set_page_property', key: 'archived', value: 'true' }
+          : { op: 'remove_page_property', key: 'archived' },
+      ])
+    try {
+      await change(!was)
+      toast(`${was ? 'Unarchived' : 'Archived'} “${name}”`, 'info', {
+        label: 'Undo',
+        run: async () => {
+          try {
+            await change(was)
+          } catch (e) {
+            toast(errorMessage(e), 'error')
+          }
+        },
+      })
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
 
   $effect(() => {
     void bus.version
@@ -147,6 +179,7 @@
         <th scope="col" aria-sort={ariaSort('modified')}
           ><button onclick={() => sortBy('modified')}>Modified{arrow('modified')}</button></th
         >
+        <th scope="col"><span class="sr-only">Actions</span></th>
       </tr>
     </thead>
     <tbody>
@@ -161,7 +194,35 @@
           <td class="num">{r.is_virtual ? '' : r.blocks}</td>
           <td class="num">{r.backlinks || ''}</td>
           <td class="muted">{r.modified ?? ''}</td>
+          <td class="acts">
+            <!-- a page without a file has nothing to archive or delete; a journal day is neither -->
+            {#if !r.is_virtual && !r.is_journal}
+              {#if isArchivedItself(r.name)}
+                <button class="act" data-testid="row-archive" onclick={() => toggleArchive(r.name)}
+                  >Unarchive</button
+                >
+              {:else if !isArchived(r.name)}
+                <button
+                  class="act"
+                  data-testid="row-archive"
+                  title="Hide this page (and the pages below it) from the sidebar and the agenda"
+                  onclick={() => toggleArchive(r.name)}>Archive</button
+                >
+              {/if}
+              <button
+                class="act danger"
+                data-testid="row-delete"
+                aria-label={`Delete ${r.name}`}
+                onclick={() => (deleting = deleting === r.name ? '' : r.name)}>Delete…</button
+              >
+            {/if}
+          </td>
         </tr>
+        {#if deleting === r.name}
+          <tr class="confirm">
+            <td colspan="5"><DeleteDialog page={r.name} stay onclose={() => (deleting = '')} /></td>
+          </tr>
+        {/if}
       {/each}
     </tbody>
   </table>
@@ -247,5 +308,38 @@
   }
   .tree {
     max-width: 40em;
+  }
+  .acts {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .act {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.1em 0.4em;
+    font: inherit;
+    font-size: 0.85em;
+  }
+  .act:hover,
+  .act:focus-visible {
+    color: var(--accent);
+    background: var(--chip);
+    border-radius: 4px;
+  }
+  .act.danger:hover,
+  .act.danger:focus-visible {
+    color: var(--danger);
+  }
+  .confirm td {
+    background: var(--panel);
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
 </style>
