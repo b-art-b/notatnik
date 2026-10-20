@@ -234,10 +234,17 @@ fn collect(root: &Path, skip: &Path) -> Vec<(String, PathBuf)> {
 }
 
 /// The graph's own encryption rules and vault, for sealing the marked files of a snapshot (EN-23).
-type Marks = (Vault, notatnik_core::encrypted::EncryptedPaths);
+struct Marks {
+    vault: Vault,
+    paths: notatnik_core::encrypted::EncryptedPaths,
+    /// `[encryption] names = "hidden"` (EN-25): the entries carry no path in their name or comment.
+    hidden: bool,
+}
 
 /// Start of the comment of a sealed entry; the rest is the path.
 const ENTRY_COMMENT: &str = "notatnik-entry v1 ";
+/// The comment of a sealed entry with a hidden name: the path is inside, not here.
+const HIDDEN_ENTRY_COMMENT: &str = "notatnik-entry v2 hidden";
 
 fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra], marks: Option<&Marks>) -> String {
     let mut h = blake3::Hasher::new();
@@ -259,8 +266,8 @@ fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra], marks: Option<&Mar
         });
         h.update(format!("{rel}\0{len}\0{mtime}\n").as_bytes());
         // a file that becomes marked (or a new key) is a change, though the file is the same
-        if let Some((v, _)) = marks.filter(|(_, p)| p.is_encrypted(rel)) {
-            h.update(format!("sealed {}\n", v.key_id).as_bytes());
+        if let Some(m) = marks.filter(|m| m.paths.is_encrypted(rel)) {
+            h.update(format!("sealed {} {}\n", m.vault.key_id, m.hidden).as_bytes());
         }
     }
     h.finalize().to_hex().to_string()
@@ -315,6 +322,20 @@ enum Saved {
 /// by [`write_zip`]) is opened with `keys` and named by the path without `.enc`; without keys it is `Locked`.
 /// Anything else, a user's own file called `x.enc` included, is returned as it is.
 fn saved_entry(name: &str, buf: Vec<u8>, keys: Option<&Keys>) -> Result<(String, Saved)> {
+    // an entry with a hidden name: the path is inside (EN-25)
+    if notatnik_core::encrypted::hidden_name(name).is_some()
+        && buf.starts_with(b"NTNKSEAL")
+        && notatnik_crypt::read_header(&mut &buf[..])
+            .is_ok_and(|h| h.comment == HIDDEN_ENTRY_COMMENT.as_bytes())
+    {
+        let Some(keys) = keys else {
+            return Ok((name.to_string(), Saved::Locked));
+        };
+        let mut plain = Vec::new();
+        notatnik_crypt::open(keys, &mut &buf[..], &mut plain)?;
+        let (path, content) = notatnik_crypt::unpack_named(plain)?;
+        return Ok((path, Saved::Bytes(content)));
+    }
     let Some(path) = name.strip_suffix(".enc") else {
         return Ok((name.to_string(), Saved::Bytes(buf)));
     };
@@ -349,7 +370,11 @@ fn marks_of(g: &Graph, opts: &BackupOptions) -> Result<Option<Marks>> {
         return Ok(None);
     }
     match g.read_vault()? {
-        Some(v) => Ok(Some((v, paths))),
+        Some(vault) => Ok(Some(Marks {
+            vault,
+            paths,
+            hidden: g.config().encryption.names == "hidden",
+        })),
         None => Err(Error::Crypt(
             "files are marked as encrypted but .notatnik/vault.json is missing; nothing was written".into(),
         )),
@@ -372,6 +397,21 @@ fn saved_file<R: Read + Seek>(
             (_, Saved::Bytes(b)) => Ok(Some(b)),
             (p, Saved::Locked) => Err(locked_error(&p)),
         };
+    }
+    // entries with hidden names (EN-25) hold their path inside: look at each
+    let hidden: Vec<String> = z
+        .file_names()
+        .filter(|n| notatnik_core::encrypted::hidden_name(n).is_some())
+        .map(str::to_string)
+        .collect();
+    for name in hidden {
+        let mut buf = Vec::new();
+        z.by_name(&name).map_err(zip_err)?.read_to_end(&mut buf)?;
+        match saved_entry(&name, buf, graph_keys)? {
+            (p, Saved::Bytes(b)) if p == path => return Ok(Some(b)),
+            (_, Saved::Locked) => return Err(locked_error(path)),
+            _ => {}
+        }
     }
     Ok(None)
 }
@@ -504,17 +544,26 @@ fn write_zip(
         let Ok(buf) = std::fs::read(abs) else {
             continue;
         };
-        // a marked file is saved sealed, under `<path>.enc` (EN-23)
-        if let Some((vault, _)) = marks.filter(|(_, p)| p.is_encrypted(rel)) {
+        // a marked file is saved sealed, under `<path>.enc` (EN-23); with hidden names (EN-25) under a random name
+        // of the fixed shape, the path being inside
+        if let Some(m) = marks.filter(|m| m.paths.is_encrypted(rel)) {
             let mut sealed = Vec::new();
-            notatnik_crypt::seal(
-                vault,
-                format!("{ENTRY_COMMENT}{rel}").as_bytes(),
-                &mut &buf[..],
-                &mut sealed,
-            )?;
+            let (entry, comment, body) = if m.hidden {
+                (
+                    notatnik_core::encrypted::hidden_object(&notatnik_crypt::random_name()?),
+                    HIDDEN_ENTRY_COMMENT.to_string(),
+                    notatnik_crypt::pack_named(rel, &buf)?.to_vec(),
+                )
+            } else {
+                (
+                    format!("{rel}.enc"),
+                    format!("{ENTRY_COMMENT}{rel}"),
+                    buf.clone(),
+                )
+            };
+            notatnik_crypt::seal(&m.vault, comment.as_bytes(), &mut &body[..], &mut sealed)?;
             z.start_file(
-                format!("{rel}.enc"),
+                entry,
                 zopts.compression_method(zip::CompressionMethod::Stored),
             )
             .map_err(zip_err)?;
@@ -843,6 +892,10 @@ impl Graph {
                     saved.insert(path, b);
                 }
                 (path, Saved::Locked) => {
+                    // an entry with a hidden name does not say which file it holds: nothing can be compared
+                    if notatnik_core::encrypted::hidden_name(&path).is_some() {
+                        return Err(locked_error("some files"));
+                    }
                     locked.insert(path);
                 }
             }

@@ -348,7 +348,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
         remove_stale(&io, &stale, &mut report);
         // while the key is locked, every file that is or should be encrypted is left alone on both sides: no
         // action, nothing counted for the guard below (EN-15)
-        let left: BTreeSet<String> = if keys.is_some() {
+        let mut left: BTreeSet<String> = if keys.is_some() {
             BTreeSet::new()
         } else {
             local
@@ -363,6 +363,15 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
                 .cloned()
                 .collect()
         };
+        // objects that could not be opened (an old key after the graph was re-encrypted elsewhere, a file that is not
+        // ours) may be the new place of files this device has: what the server seems to have lost is not deleted here
+        if !unknown.is_empty() {
+            for (p, f) in &state.files {
+                if f.name.is_some() && !found.contains_key(p) {
+                    left.insert(p.clone());
+                }
+            }
+        }
         // objects whose path is not known and cannot be learned (locked, or not readable) are left alone as well
         report.left_alone = left.len() + unknown.len();
         let local_view: BTreeMap<String, local::LocalFile> = local

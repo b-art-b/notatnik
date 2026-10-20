@@ -369,3 +369,45 @@ fn verify_reads_hidden_objects_and_reports_a_copy_in_the_wrong_place() {
     assert_eq!(r.other_place.len(), 3, "{r:?}");
     assert_eq!(e.names(), before);
 }
+
+#[test]
+fn a_device_with_the_old_key_loses_nothing_when_the_graph_was_re_encrypted_elsewhere() {
+    let e = Env::new();
+    let (a, b) = (Device::new(), Device::new());
+    seed(&a);
+    e.sync(&a);
+    e.sync(&b);
+
+    // A re-encrypts: new names for every marked file
+    let (_, new_keys, _) = Vault::create("another", KdfParams::insecure_for_tests()).unwrap();
+    let new_keys = Arc::new(new_keys);
+    let mut st = SyncState::load(&a.state_path());
+    st.store_encrypted_again();
+    st.save(&a.state_path()).unwrap();
+    e.sync_with(&a, true, &new_keys);
+
+    // B still has the old key: its files look gone from the server, but they are not deleted here, and the new
+    // objects are reported
+    let r = sync(
+        b.root(),
+        &e.remote(),
+        &e.options(&b, true, Some(e.keys.clone())),
+    )
+    .unwrap();
+    assert!(r.deleted_local.is_empty(), "{r:?}");
+    assert_eq!(r.errors.len(), 3, "{r:?}");
+    assert!(b.has("pages/Health.md") && b.has("pages/private/diary.md"));
+    assert_eq!(
+        b.read("pages/private/diary.md"),
+        format!("- {SECRET} one\n")
+    );
+    assert!(!r.complete);
+    // with the new key it carries on as if nothing happened: nothing is lost, no conflict
+    let r = e.sync_with(&b, true, &new_keys);
+    assert!(
+        r.deleted_local.is_empty() && r.conflicts.is_empty(),
+        "{r:?}"
+    );
+    assert!(r.complete, "{r:?}");
+    assert_eq!(b.read("pages/Health.md"), format!("- {SECRET} three\n"));
+}

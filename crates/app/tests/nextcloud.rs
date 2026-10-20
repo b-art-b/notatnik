@@ -638,6 +638,8 @@ fn encrypted_paths_on_a_real_nextcloud() {
         json!({"password": "correct horse"}),
     );
     call(&laptop, "encryption_confirm", json!({}));
+    // this test looks at the visible `.enc` names; hidden names have their own test below
+    call(&laptop, "encryption_names", json!({"hidden": false}));
     let p = call(
         &laptop,
         "encryption_preview",
@@ -732,6 +734,225 @@ fn encrypted_paths_on_a_real_nextcloud() {
     assert!(remote.get("pages/private/diary.md.enc").is_err());
     assert!(
         String::from_utf8_lossy(&remote.get("pages/private/diary.md").unwrap().0).contains("phone")
+    );
+    drop(cleanup);
+}
+
+/// Every file below the synced folder, by its path on the server.
+fn all_files(remote: &notatnik_sync::WebDavRemote, dir: &str) -> Vec<String> {
+    use notatnik_sync::Remote;
+    let mut out = Vec::new();
+    if let Some(l) = remote.list(dir).unwrap() {
+        for e in l.entries {
+            let p = if dir.is_empty() {
+                e.name.clone()
+            } else {
+                format!("{dir}/{}", e.name)
+            };
+            if e.dir {
+                out.extend(all_files(remote, &p));
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// EN-25, EN-26 against a real server: no name of an encrypted file or folder on it, a second device learns the
+/// paths from the objects, a rename arrives, switching the setting and re-encrypting leave no old object.
+#[test]
+#[ignore = "needs a real server, see the header"]
+fn hidden_names_and_re_encrypting_on_a_real_nextcloud() {
+    use notatnik_sync::{Remote, WebDavRemote};
+    let (server, user, password) = (env("NC_SERVER"), env("NC_USER"), env("NC_PASSWORD"));
+    let folder = format!("Notes/notatnik-hid-{}", std::process::id());
+    let marker = "SECRETMARKER-4711";
+    let device = |name: &str| {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = AppState::new(AppOptions {
+            dirs: Dirs::under(&tmp.path().join(name)),
+            emit: Arc::new(|_, _| {}),
+            today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+            watch: false,
+        });
+        (tmp, app)
+    };
+    let (_t1, laptop) = device("laptop");
+    let (_t2, phone) = device("phone");
+    let call = |app: &AppState, name: &str, args: Value| {
+        dispatch(app, name, args).unwrap_or_else(|e| panic!("{name}: {e}"))
+    };
+    let sync = |app: &AppState| {
+        let st = call(app, "sync_now", json!({"allow_mass_delete": false}));
+        assert_eq!(st["state"], "idle", "{st}");
+        st
+    };
+    let args = |attach: bool| json!({"server": server, "user": user, "password": password, "folder": folder, "attach": attach});
+    let info = call(&laptop, "create_remote_graph", args(false));
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    std::fs::create_dir_all(root.join("pages/private/deep")).unwrap();
+    std::fs::write(
+        root.join("pages/private/diary.md"),
+        format!("- {marker} one\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("pages/private/deep/Zażółć.md"),
+        format!("- {marker} two\n"),
+    )
+    .unwrap();
+    std::fs::write(root.join("pages/open.md"), "- open text\n").unwrap();
+    let url = notatnik_sync::folder_url(&server, &user, &folder).unwrap();
+    let remote = WebDavRemote::new(&url, &user, &password).unwrap();
+    let cleanup = Folder(url.clone(), user.clone(), password.clone());
+
+    call(
+        &laptop,
+        "encryption_setup",
+        json!({"password": "correct horse"}),
+    );
+    call(&laptop, "encryption_confirm", json!({}));
+    let st = call(
+        &laptop,
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    assert_eq!(st["names"], "hidden", "{st}");
+    sync(&laptop);
+    let files = all_files(&remote, "");
+    println!("on the server: {files:?}");
+    for f in &files {
+        assert!(
+            !f.contains("private")
+                && !f.contains("diary")
+                && !f.contains("deep")
+                && !f.contains("Zażółć"),
+            "{f}"
+        );
+    }
+    let objects = |files: &[String]| -> Vec<String> {
+        files
+            .iter()
+            .filter(|f| f.starts_with(".notatnik-enc/"))
+            .cloned()
+            .collect()
+    };
+    let first = objects(&files);
+    assert_eq!(first.len(), 2, "{files:?}");
+    for o in &first {
+        let bytes = remote.get(o).unwrap().0;
+        assert!(!bytes.windows(marker.len()).any(|w| w == marker.as_bytes()));
+    }
+    assert!(files.contains(&"pages/open.md".to_string()));
+    // the folder of a marked path was never made
+    assert!(
+        !remote
+            .list("pages")
+            .unwrap()
+            .unwrap()
+            .entries
+            .iter()
+            .any(|e| e.name == "private")
+    );
+    let v = call(&laptop, "sync_verify", json!({}));
+    assert_eq!(v["clean"], true, "{v}");
+
+    // a second device unlocks with the password and learns every path from the objects
+    call(&phone, "create_remote_graph", args(true));
+    let proot = std::path::PathBuf::from(
+        call(&phone, "graph_info", json!({}))["root"]
+            .as_str()
+            .unwrap(),
+    );
+    let st = sync(&phone);
+    assert_eq!(st["left_alone"], 2, "{st}");
+    call(
+        &phone,
+        "encryption_unlock",
+        json!({"secret": "correct horse"}),
+    );
+    sync(&phone);
+    assert!(
+        std::fs::read_to_string(proot.join("pages/private/deep/Zażółć.md"))
+            .unwrap()
+            .contains(marker)
+    );
+
+    // a rename on the phone arrives on the laptop; the objects are replaced, not added to
+    std::fs::rename(
+        proot.join("pages/private/diary.md"),
+        proot.join("pages/private/journal.md"),
+    )
+    .unwrap();
+    sync(&phone);
+    sync(&laptop);
+    assert!(
+        root.join("pages/private/journal.md").exists()
+            && !root.join("pages/private/diary.md").exists()
+    );
+    let second = objects(&all_files(&remote, ""));
+    assert_eq!(second.len(), 2, "{second:?}");
+    assert_ne!(second, first);
+
+    // visible names and back: nothing of the other kind is left
+    call(&laptop, "encryption_names", json!({"hidden": false}));
+    sync(&laptop);
+    let files = all_files(&remote, "");
+    assert!(objects(&files).is_empty(), "{files:?}");
+    assert!(
+        files.contains(&"pages/private/journal.md.enc".to_string()),
+        "{files:?}"
+    );
+    call(&laptop, "encryption_names", json!({"hidden": true}));
+    sync(&laptop);
+    let before = objects(&all_files(&remote, ""));
+    assert_eq!(before.len(), 2);
+    assert!(
+        !all_files(&remote, "")
+            .iter()
+            .any(|f| f.ends_with(".md.enc"))
+    );
+
+    // re-encrypting with a new key: new names, no old object, the other device asks for the new password
+    call(
+        &laptop,
+        "encryption_rotate",
+        json!({"password": "brand new pass"}),
+    );
+    call(&laptop, "encryption_confirm", json!({}));
+    sync(&laptop);
+    let after = objects(&all_files(&remote, ""));
+    assert_eq!(after.len(), 2, "{after:?}");
+    assert!(after.iter().all(|o| !before.contains(o)), "{after:?}");
+    let v = call(&laptop, "sync_verify", json!({}));
+    assert_eq!(v["clean"], true, "{v}");
+    // the phone still has the old key: the new objects are reported, and nothing of its own is deleted
+    let st = call(&phone, "sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(st["error_code"], "files", "{st}");
+    assert_eq!(st["deleted"], 0, "{st}");
+    assert!(proot.join("pages/private/journal.md").exists());
+    // the phone has the new vault now: the old password does not open it
+    call(&phone, "encryption_lock", json!({}));
+    assert!(
+        dispatch(
+            &phone,
+            "encryption_unlock",
+            json!({"secret": "correct horse"})
+        )
+        .is_err()
+    );
+    call(
+        &phone,
+        "encryption_unlock",
+        json!({"secret": "brand new pass"}),
+    );
+    sync(&phone);
+    assert!(
+        std::fs::read_to_string(proot.join("pages/private/journal.md"))
+            .unwrap()
+            .contains(marker)
     );
     drop(cleanup);
 }

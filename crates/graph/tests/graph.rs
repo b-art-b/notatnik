@@ -2033,3 +2033,110 @@ fn a_plain_snapshot_with_marked_files_is_restored_with_the_graphs_secret() {
     restore_backup_file(&made.path, &t, "graph pw").unwrap();
     assert_eq!(std::fs::read(t.join("pages/inbox.md")).unwrap(), inbox);
 }
+
+/// EN-25: with hidden names a plain snapshot holds a marked file under a random name of the fixed shape; its path
+/// is inside. Compare, restoring a page and unpacking need the graph's key and refuse without it.
+#[test]
+fn hidden_names_in_a_plain_snapshot_show_no_path() {
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_graph::{BackupOptions, restore_backup_file};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let (vault, keys, _) = Vault::create("graph pw", KdfParams::insecure_for_tests()).unwrap();
+    let keys = Arc::new(keys);
+    std::fs::write(g.root().join(".notatnik/vault.json"), vault.to_json()).unwrap();
+    g.update_config(|c| {
+        c.encryption.paths = vec!["pages/inbox.md".into()];
+        c.encryption.names = "hidden".into();
+    })
+    .unwrap();
+    let inbox = std::fs::read_to_string(g.root().join("pages/inbox.md")).unwrap();
+    let plain = BackupOptions::default();
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), true, None, &plain)
+        .unwrap()
+        .unwrap();
+    let z = zip::ZipArchive::new(std::fs::File::open(&made.path).unwrap()).unwrap();
+    let inside: Vec<String> = z.file_names().map(str::to_string).collect();
+    assert!(inside.iter().all(|n| !n.contains("inbox")), "{inside:?}");
+    let hidden: Vec<_> = inside
+        .iter()
+        .filter(|n| notatnik_core::encrypted::hidden_name(n).is_some())
+        .collect();
+    assert_eq!(hidden.len(), 1, "{inside:?}");
+    // two snapshots give the object two different names (nothing derived from the path)
+    let again = g
+        .backup_now(&dir, stamp("2026-10-11 09:05:00"), true, None, &plain)
+        .unwrap()
+        .unwrap();
+    let z2 = zip::ZipArchive::new(std::fs::File::open(&again.path).unwrap()).unwrap();
+    assert!(
+        z2.file_names()
+            .any(|n| notatnik_core::encrypted::hidden_name(n).is_some()
+                && !hidden.contains(&&n.to_string()))
+    );
+
+    let open_opts = BackupOptions {
+        graph_keys: Some(keys.clone()),
+        ..BackupOptions::default()
+    };
+    // locked: nothing can be compared, restored or unpacked
+    let r = g.compare_backup(&dir, &made.name, &plain);
+    assert!(matches!(r, Err(Error::Locked(_))), "{r:?}");
+    let target = e.dirs.data.join("unpacked");
+    assert!(matches!(
+        g.restore_backup_to(&dir, &made.name, &target, &plain),
+        Err(Error::Locked(_))
+    ));
+    assert!(!target.exists() || std::fs::read_dir(&target).unwrap().next().is_none());
+    assert!(matches!(
+        g.restore_page_from_backup(
+            &dir,
+            &made.name,
+            "pages/inbox.md",
+            stamp("2026-10-10 10:00:00"),
+            &plain
+        ),
+        Err(Error::Locked(_))
+    ));
+    // unlocked: everything works
+    assert!(
+        g.compare_backup(&dir, &made.name, &open_opts)
+            .unwrap()
+            .is_empty()
+    );
+    g.restore_backup_to(&dir, &made.name, &target, &open_opts)
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(target.join("pages/inbox.md")).unwrap(),
+        inbox
+    );
+    let now = g.read_page("pages/inbox.md").unwrap();
+    g.write_page("pages/inbox.md", "- changed\n", Some(&now.hash))
+        .unwrap();
+    g.restore_page_from_backup(
+        &dir,
+        &made.name,
+        "pages/inbox.md",
+        stamp("2026-10-10 10:00:00"),
+        &open_opts,
+    )
+    .unwrap();
+    assert_eq!(g.read_page("pages/inbox.md").unwrap().text, inbox);
+    // from a file, on another device, with the graph's secret
+    let far = e.dirs.data.join("far");
+    restore_backup_file(&made.path, &far, "graph pw").unwrap();
+    assert_eq!(
+        std::fs::read_to_string(far.join("pages/inbox.md")).unwrap(),
+        inbox
+    );
+    // changing the setting makes a snapshot due
+    g.update_config(|c| c.encryption.names = "visible".into())
+        .unwrap();
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-10 11:00:00"), false, None, &plain)
+            .unwrap()
+            .is_some()
+    );
+}
