@@ -27,6 +27,9 @@ pub struct Vars<'a> {
     /// The page's own properties, `(lower-case key, text)`: `{{prop.<key>}}` and `{{type}}`. Empty for a page that
     /// does not exist yet.
     pub props: &'a [(String, String)],
+    /// `{{selection}}` and `{{clipboard}}`: what `/template` is given; empty elsewhere.
+    pub selection: &'a str,
+    pub clipboard: &'a str,
 }
 
 /// A property value as text for a placeholder: links as `[[Name]]`, lists joined with `, `.
@@ -105,7 +108,15 @@ fn fill(text: &str, v: &Vars) -> String {
         .replace("{{title}}", leaf)
         .replace("{{namespace}}", namespace)
         .replace("{{cursor}}", "");
-    dates(&expand_props(&filled, v.props), v.date, v.time)
+    // last, so that text taken from the page or the clipboard is never read as a placeholder itself
+    let done = dates(&expand_props(&filled, v.props), v.date, v.time);
+    notatnik_core::placeholders::expand_with(&done, |name| {
+        match name.trim().to_lowercase().as_str() {
+            "selection" => Some(v.selection.to_string()),
+            "clipboard" => Some(v.clipboard.to_string()),
+            _ => None,
+        }
+    })
 }
 
 fn collect(
@@ -355,6 +366,8 @@ mod tests {
         date: "2026-10-11",
         time: "09:05",
         props: &[],
+        selection: "",
+        clipboard: "",
     };
 
     #[test]

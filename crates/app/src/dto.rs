@@ -372,6 +372,12 @@ pub struct TemplateBlocksArgs {
     pub name: String,
     /// The page the blocks are inserted into (for `{{title}}`).
     pub page: String,
+    /// What `{{selection}}` stands for: the text of the block the command was typed in.
+    #[serde(default)]
+    pub selection: Option<String>,
+    /// What `{{clipboard}}` stands for. Asked for only when the reply says `uses_clipboard`.
+    #[serde(default)]
+    pub clipboard: Option<String>,
 }
 
 /// What `/template` inserts.
@@ -384,6 +390,8 @@ pub struct TemplateContent {
     pub props: Vec<BlockOp>,
     /// Where the template's `{{cursor}}` was, so the editor can continue there.
     pub cursor: Option<TemplateCursor>,
+    /// The template holds `{{clipboard}}`: the caller reads the clipboard and asks again with it.
+    pub uses_clipboard: bool,
 }
 
 /// The place of `{{cursor}}` in a template.

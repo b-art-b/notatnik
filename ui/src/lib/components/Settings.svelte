@@ -984,6 +984,11 @@
                 >
               </tr>
               <tr>
+                <td><code>{'{{selection}}'}</code>, <code>{'{{clipboard}}'}</code></td><td>templates</td><td
+                  >with <code>/template</code>: the text typed in the block, and the clipboard</td
+                >
+              </tr>
+              <tr>
                 <td><code>{'{{type}}'}</code>, <code>{'{{prop.partner}}'}</code></td><td
                   >templates, queries</td
                 ><td

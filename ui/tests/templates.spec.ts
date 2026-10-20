@@ -105,6 +105,29 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
     .toMatch(/ {2}- Notes\n {2}- Plain item!\n {4}- child\n/)
 })
 
+// `{{selection}}` is the text typed in the block besides the command, `{{clipboard}}` what was copied.
+test('/template fills {{selection}} and {{clipboard}}', async ({ backend, page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  backend.write('templates/snippets/Mail.md', '- Mail to {{selection}}: {{clipboard}}{{cursor}}\n')
+  backend.write('pages/Mails.md', '- Anna Nowak\n')
+  await backend.open('/page/Mails')
+  await page.evaluate(() => navigator.clipboard.writeText('see attachment'))
+  await page.getByRole('tree', { name: 'Blocks' }).getByText('Anna Nowak', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' /template')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Enter')
+  await page.getByTestId('template-picker').getByRole('option', { name: 'Mail' }).click()
+  await expect(page.getByTestId('block-editor')).toContainText('Mail to', { timeout: 5000 })
+  await page.keyboard.type('!')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(readOr(backend.read, 'pages/Mails.md'))
+    .toBe('- Anna Nowak\n- Mail to Anna Nowak: see attachment!\n')
+})
+
 // In an empty block the template takes the block's place; the cursor still goes to {{cursor}} in it.
 test('/template in an empty block fills it and continues at {{cursor}}', async ({ backend, page }) => {
   backend.write('templates/snippets/Meet.md', '- Meet {{cursor}} today\n  - Notes\n')

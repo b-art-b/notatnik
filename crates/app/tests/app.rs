@@ -2732,6 +2732,31 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
             {"op": "set_page_property", "key": "importance", "value": "1"}
         ])
     );
+    // `{{selection}}` and `{{clipboard}}` are what the caller gives; the cursor offset counts them
+    let q = t.ok(
+        "save_snippet",
+        json!({"name": "Quote", "text": "- Re: {{selection}}, {{clipboard}} {{cursor}}!\n", "replace": false}),
+    );
+    assert_eq!(q["blocks"], 1);
+    let b = t.ok(
+        "template_blocks",
+        json!({"name": "snippets/Quote", "page": "people/Eva", "selection": "Anna", "clipboard": "{{date}}"}),
+    );
+    assert_eq!(b["blocks"][0]["text"], "Re: Anna, {{date}} !");
+    assert_eq!(b["cursor"], json!({"block": 0, "offset": 19}));
+    assert_eq!(b["uses_clipboard"], true);
+    let none = t.ok(
+        "template_blocks",
+        json!({"name": "snippets/Quote", "page": "people/Eva"}),
+    );
+    assert_eq!(none["blocks"][0]["text"], "Re: ,  !");
+    assert_eq!(
+        t.ok(
+            "template_blocks",
+            json!({"name": "person", "page": "people/Eva"})
+        )["uses_clipboard"],
+        false
+    );
     // deleted templates can be listed and restored; not over an existing one
     t.ok("delete_template", json!({"name": "person"}));
     let d = t.ok("deleted_templates", json!({}));

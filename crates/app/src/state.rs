@@ -885,6 +885,8 @@ impl AppState {
                 date: &date,
                 time: &templates::now_time(),
                 props: &page_props,
+                selection: "",
+                clipboard: "",
             },
         );
         let mut have: Vec<String> = pending
@@ -987,6 +989,8 @@ impl AppState {
                 date: "",
                 time: "",
                 props: &[],
+                selection: "",
+                clipboard: "",
             },
         );
         TemplateEntry {
@@ -1082,6 +1086,8 @@ impl AppState {
                     date: &date,
                     time: &templates::now_time(),
                     props: &page_props,
+                    selection: a.selection.as_deref().unwrap_or(""),
+                    clipboard: a.clipboard.as_deref().unwrap_or(""),
                 },
             );
             // a snippet has no page properties
@@ -1126,6 +1132,7 @@ impl AppState {
                 blocks,
                 props,
                 cursor,
+                uses_clipboard: text.to_lowercase().contains("{{clipboard}}"),
             })
         })
     }

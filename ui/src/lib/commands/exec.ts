@@ -425,7 +425,19 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
     case 'template': {
       let tpl
       try {
-        tpl = await backend.call('template_blocks', { name: a.name, page: ctx.doc.name })
+        // `{{selection}}` is what was typed in the block besides the command; the clipboard is read only for a
+        // template that has `{{clipboard}}` (the reply says so), because reading it can ask for permission
+        const args = {
+          name: a.name,
+          page: ctx.doc.name,
+          selection: a.text.trim(),
+          clipboard: null as string | null,
+        }
+        tpl = await backend.call('template_blocks', args)
+        if (tpl.uses_clipboard) {
+          args.clipboard = await navigator.clipboard.readText().catch(() => '')
+          tpl = await backend.call('template_blocks', args)
+        }
       } catch (e) {
         toast(errorMessage(e), 'error')
         return true

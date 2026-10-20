@@ -1138,7 +1138,15 @@ name: string,
 /**
  * The page the blocks are inserted into (for `{{title}}`).
  */
-page: string, };
+page: string, 
+/**
+ * What `{{selection}}` stands for: the text of the block the command was typed in.
+ */
+selection: string | null, 
+/**
+ * What `{{clipboard}}` stands for. Asked for only when the reply says `uses_clipboard`.
+ */
+clipboard: string | null, };
 export type TemplateBlockView = { 
 /**
  * Path of the parent within the template (empty = top level).
@@ -1174,7 +1182,11 @@ props: Array<BlockOp>,
 /**
  * Where the template's `{{cursor}}` was, so the editor can continue there.
  */
-cursor: TemplateCursor | null, };
+cursor: TemplateCursor | null, 
+/**
+ * The template holds `{{clipboard}}`: the caller reads the clipboard and asks again with it.
+ */
+uses_clipboard: boolean, };
 export type NamespaceTemplateView = { 
 /**
  * Namespace, e.g. `people`.

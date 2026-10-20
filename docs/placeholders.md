@@ -18,6 +18,8 @@ query text.
 | `{{monday}}` … `{{sunday}}` | templates, queries | That day of the week of `{{date}}` (the week runs Monday to Sunday). `{{next monday}}` is the first such day after `{{date}}`, a week later when it is that day. |
 | `{{weekday}}`, `{{week}}`, `{{month}}`, `{{year}}` | templates, queries | `Wednesday`, `2026-W42` (ISO week), `2026-10`, `2026`. |
 | `{{time}}`, `{{datetime}}` | templates | The time of day now, `09:05`, and `2026-10-14 09:05`. Not known in queries. |
+| `{{selection}}` | `/template` | The text of the block the command was typed in, besides the command: type a name, then `/template`, and the template can use it. Empty in a new page's template. |
+| `{{clipboard}}` | `/template` | The text on the clipboard when the template is inserted. The clipboard is read only for a template that has this placeholder; the browser or system may ask for permission, and without it the placeholder is empty. |
 | `{{page}}` | queries | A link to the page the query block is on (`[[people/Jan]]`). Also written `[[{{page}}]]`. |
 
 The empty link `[[]]` is still accepted in a query and means `{{page}}`.
@@ -42,7 +44,7 @@ They are filled in for the page that the template is applied to, when:
   blocks;
 - a new page is created below a namespace that has a template, or a new journal day is created and a journal
   template is set (Settings → Templates);
-- `/template` inserts a template's blocks, or the blocks saved with *Save as template…* (`templates/snippets/`), into a block.
+- `/template` (the text typed in the block is `{{selection}}`; `{{clipboard}}` is what you copied) inserts a template's blocks, or the blocks saved with *Save as template…* (`templates/snippets/`), into a block.
 
 Only the properties and blocks are filled in. The template file itself is never changed.
 
