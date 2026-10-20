@@ -28,15 +28,14 @@
       toast(errorMessage(e), 'error')
     }
   }
+  import PaneHeader from './PaneHeader.svelte'
 </script>
 
-<h2>Linked files</h2>
-<p class="scope">
-  <span class="badge">This device</span>
+<PaneHeader title="Linked files" scope="device">
   Servers whose files you can link from a note: type <kbd>/file</kbd> in a block and choose one. A link to a
   Nextcloud file is its <code>…/f/&lt;number&gt;</code> address, which keeps working when the file is renamed or
   moved.
-</p>
+</PaneHeader>
 
 <ul class="sources" aria-label="Servers" data-testid="file-sources">
   {#each sources as s (s.id)}

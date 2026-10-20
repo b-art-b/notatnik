@@ -218,14 +218,13 @@
   function toggleRead(href: string, on: boolean) {
     read = on ? [...read.filter((h) => h !== href), href] : read.filter((h) => h !== href)
   }
+  import PaneHeader from './PaneHeader.svelte'
 </script>
 
-<h2>Calendar</h2>
-<p class="scope">
-  <span class="badge">This device</span>
-  Dated tasks go to a Nextcloud calendar as tasks (VTODO), and changes made on the phone (DAVx⁵) or in Nextcloud
-  Tasks come back into your notes. Events of your calendars show in the journal.
-</p>
+<PaneHeader title="Calendar" scope="device">
+  Dated tasks go to a Nextcloud calendar as tasks (VTODO), and changes made on the phone (DAVx⁵) or in
+  Nextcloud Tasks come back into your notes. Events of your calendars show in the journal.
+</PaneHeader>
 
 {#if status}
   <section aria-label="Login">

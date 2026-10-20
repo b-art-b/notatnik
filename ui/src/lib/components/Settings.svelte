@@ -30,6 +30,9 @@
   import { reloadOpenDocs } from '../stores/pages.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
   import SettingRow from './settings/SettingRow.svelte'
+  import PaneHeader from './settings/PaneHeader.svelte'
+  import SettingsNav from './settings/SettingsNav.svelte'
+  import { SECTIONS, type SectionId } from './settings/sections'
   import SyncPane from './settings/SyncPane.svelte'
   import FileSources from './settings/FileSources.svelte'
   import CalendarPane from './settings/CalendarPane.svelte'
@@ -58,22 +61,9 @@
     iso: 'ISO 8601',
     custom: 'Custom pattern',
   }
-  const TABS = [
-    { id: 'appearance', label: 'Appearance', icon: '◐' },
-    { id: 'dates', label: 'Dates & language', icon: '▦' },
-    { id: 'tasks', label: 'Tasks', icon: '☐' },
-    { id: 'icons', label: 'Page icons', icon: '☺' },
-    { id: 'templates', label: 'Templates', icon: '⎘' },
-    { id: 'sync', label: 'Sync', icon: '☁' },
-    { id: 'calendar', label: 'Calendar', icon: '📅' },
-    { id: 'files', label: 'Linked files', icon: '📎' },
-    { id: 'backup', label: 'Backup', icon: '⤓' },
-    { id: 'graph', label: 'Graph', icon: '▤' },
-  ] as const
-  type TabId = (typeof TABS)[number]['id']
 
   let s = $state<SettingsView | null>(null)
-  let tab = $state<TabId>('appearance')
+  let tab = $state<SectionId>('appearance')
   let path = $state('')
   let saved = $state('') // the inline confirmation ("Saved"), cleared after a moment
   let savedTimer: ReturnType<typeof setTimeout> | undefined
@@ -393,7 +383,7 @@
 
   try {
     const t = localStorage.getItem('notatnik-settings-tab')
-    if (TABS.some((x) => x.id === t)) tab = t as TabId
+    if (SECTIONS.some((x) => x.id === t)) tab = t as SectionId
   } catch {
     /* default */
   }
@@ -489,18 +479,6 @@
     zoom = z
   }
 
-  /** Arrow keys move between the categories (roving tabindex, as for any tablist). */
-  function tabKey(e: KeyboardEvent) {
-    const i = TABS.findIndex((t) => t.id === tab)
-    let n = i
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') n = (i + 1) % TABS.length
-    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') n = (i - 1 + TABS.length) % TABS.length
-    else return
-    e.preventDefault()
-    tab = TABS[n].id
-    document.getElementById(`tab-${tab}`)?.focus()
-  }
-
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text)
@@ -518,37 +496,15 @@
   </header>
 
   <div class="layout">
-    <div
-      class="tabs"
-      role="tablist"
-      aria-label="Settings categories"
-      aria-orientation="vertical"
-      tabindex="-1"
-    >
-      {#each TABS as t (t.id)}
-        <button
-          role="tab"
-          id={`tab-${t.id}`}
-          aria-selected={tab === t.id}
-          aria-controls={`pane-${t.id}`}
-          tabindex={tab === t.id ? 0 : -1}
-          class:on={tab === t.id}
-          onclick={() => (tab = t.id)}
-          onkeydown={tabKey}
-        >
-          <span class="ico" aria-hidden="true">{t.icon}</span>{t.label}
-        </button>
-      {/each}
-    </div>
+    <SettingsNav bind:tab />
 
     {#if s}
       <div class="pane" role="tabpanel" id={`pane-${tab}`} aria-labelledby={`tab-${tab}`}>
         {#if tab === 'appearance'}
-          <h2>Appearance</h2>
-          <p class="scope">
-            <span class="badge device">This device</span>
-            Stored in <code>~/.config/notatnik/settings.toml</code> and never synced.
-          </p>
+          <PaneHeader title="Appearance" scope="device">
+            How the app looks and where things are placed. Stored in
+            <code>~/.config/notatnik/settings.toml</code> and never synced.
+          </PaneHeader>
           <SettingRow title="Theme" description="Light, dark, or follow your system setting.">
             <Segmented
               name="theme"
@@ -672,11 +628,9 @@
             />
           </SettingRow>
         {:else if tab === 'dates'}
-          <h2>Dates &amp; language</h2>
-          <p class="scope">
-            <span class="badge device">This device</span>
+          <PaneHeader title="Dates &amp; language" scope="device">
             How dates are <em>shown</em>. Files and date pickers always use <code>YYYY-MM-DD</code>.
-          </p>
+          </PaneHeader>
           <SettingRow
             title="Language"
             description="Used for month and weekday names."
@@ -760,16 +714,14 @@
               onchange={(v) => save({ week_start: v })}
             />
           </SettingRow>
-          <p class="scope inline">
-            <span class="badge graph">This graph</span> The first day of the week belongs to the graph and is synced
-            with it.
+          <p class="note">
+            <span class="pill">This graph</span> The first day of the week belongs to the graph and is synced with
+            it.
           </p>
         {:else if tab === 'tasks'}
-          <h2>Tasks</h2>
-          <p class="scope">
-            <span class="badge graph">This graph</span>
+          <PaneHeader title="Tasks" scope="graph">
             Stored in <code>.notatnik/config.toml</code> and synced with your notes.
-          </p>
+          </PaneHeader>
           <SettingRow
             title="Completion dates to keep"
             description="A repeating task logs the dates it was completed. Keep only the most recent ones; 0 keeps them all."
@@ -834,11 +786,9 @@
             </div>
           </SettingRow>
         {:else if tab === 'icons'}
-          <h2>Page icons</h2>
-          <p class="scope">
-            <span class="badge graph">This graph</span>
+          <PaneHeader title="Page icons" scope="graph">
             Stored in <code>.notatnik/config.toml</code> and synced with your notes.
-          </p>
+          </PaneHeader>
           <p class="intro">
             Give every page with a property value an emoji: <em>type = person</em> → 👤. The icon appears next
             to the page in lists, links and titles. A page can also set its own icon with
@@ -910,32 +860,33 @@
             {/if}
           </div>
         {:else if tab === 'templates'}
-          <h2>Templates</h2>
-          <p class="scope">
-            <span class="badge graph">This graph</span>
+          <PaneHeader title="Templates" scope="graph">
             Template files live in the <code>templates</code> folder of the graph and sync with your notes. Whether
             they are applied automatically is a setting of this device.
-          </p>
-          <p class="intro">
-            A template belongs to a page type: <code>templates/person.md</code> is used by every page with
-            <code>type: person</code>. Its properties are the fields a page of that type should have (an empty
-            value shows the field empty), its blocks are the starting content. The placeholders below are
-            filled in when a template is used.
-          </p>
-          <p class="intro">
-            <code>/template</code> in a block inserts the blocks of a template there.
-          </p>
-          <p class="intro">
-            When you set <code>type</code> on a page, the properties of its template that the page lacks are
-            added. Values you already set are never changed, and the blocks are added only to a page that has
-            none. An existing page can pick up new template fields with <em>Add missing from template</em> in its
-            properties.
-          </p>
-          <p class="intro">
-            To make a template, set up one page the way you want (its <code>type</code>, properties and
-            blocks) and click <em>Save as template…</em> in its properties. Saving again replaces the template after
-            asking.
-          </p>
+          </PaneHeader>
+          <details class="help">
+            <summary>How templates work</summary>
+            <p class="intro">
+              A template belongs to a page type: <code>templates/person.md</code> is used by every page with
+              <code>type: person</code>. Its properties are the fields a page of that type should have (an
+              empty value shows the field empty), its blocks are the starting content. The placeholders below
+              are filled in when a template is used.
+            </p>
+            <p class="intro">
+              <code>/template</code> in a block inserts the blocks of a template there.
+            </p>
+            <p class="intro">
+              When you set <code>type</code> on a page, the properties of its template that the page lacks are
+              added. Values you already set are never changed, and the blocks are added only to a page that
+              has none. An existing page can pick up new template fields with
+              <em>Add missing from template</em> in its properties.
+            </p>
+            <p class="intro">
+              To make a template, set up one page the way you want (its <code>type</code>, properties and
+              blocks) and click <em>Save as template…</em> in its properties. Saving again replaces the template
+              after asking.
+            </p>
+          </details>
           <h3>Placeholders</h3>
           <table class="tokens" data-testid="placeholders">
             <thead>
@@ -1066,13 +1017,11 @@
         {:else if tab === 'files'}
           <FileSources />
         {:else if tab === 'backup'}
-          <h2>Backup</h2>
-          <p class="scope">
-            <span class="badge">This device</span>
-            Snapshots are zip files of this graph's folder and of this device's settings. They are kept outside
-            the graph, so they are never synced.
-          </p>
-          <p class="intro">
+          <PaneHeader title="Backup" scope="device">
+            Snapshots are zip files of this graph's folder and of this device's settings. They are kept
+            outside the graph, so they are never synced.
+          </PaneHeader>
+          <p class="intro callout">
             Sync is not a backup: it copies a deleted or damaged page to every device. A snapshot is a full
             copy at one moment. Keep the folder on another disk, or in a folder that another tool copies
             elsewhere.
@@ -1544,10 +1493,8 @@
             {/each}
           </ul>
         {:else}
-          <h2>Graph</h2>
-          <p class="scope">
-            <span class="badge graph">This graph</span> The folder of Markdown files you are working in.
-          </p>
+          <PaneHeader title="Graph" scope="graph">The folder of Markdown files you are working in.</PaneHeader
+          >
           <SettingRow title="Folder" description="Your notes are plain Markdown files here.">
             <span class="path"
               ><code data-testid="graph-folder">{s.graph_root}</code>
@@ -1607,7 +1554,7 @@
 
 <style>
   .settings {
-    max-width: 52em;
+    max-width: 60em;
   }
   .top {
     display: flex;
@@ -1621,51 +1568,61 @@
   }
   .layout {
     display: grid;
-    grid-template-columns: 13em 1fr;
+    grid-template-columns: 13em minmax(0, 1fr);
     gap: 2em;
     align-items: start;
   }
-  .tabs {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15em;
-    position: sticky;
-    top: 1em;
+  .pane {
+    min-width: 0;
   }
-  .tabs button {
-    display: flex;
-    align-items: center;
-    gap: 0.6em;
-    text-align: left;
-    border: none;
-    background: none;
-    color: inherit;
-    padding: 0.5em 0.8em;
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  .tabs button:hover {
-    background: var(--chip);
-  }
-  .tabs button.on {
+  .pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 0.05em 0.7em;
+    font-size: 0.8em;
+    font-weight: 600;
     background: var(--selection);
+  }
+  .note {
+    margin: 0.8em 0 0;
+    color: var(--muted);
+    font-size: 0.9em;
+  }
+  .help {
+    margin: 0.6em 0 1em;
+    padding: 0.2em 0.9em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .help summary {
+    cursor: pointer;
+    padding: 0.4em 0;
     font-weight: 600;
   }
-  .ico {
-    width: 1.2em;
-    text-align: center;
-    color: var(--muted);
+  .help[open] summary {
+    margin-bottom: 0.3em;
   }
-  .pane h2 {
-    margin: 0.2em 0 0.3em;
+  /* buttons that are not styled by their own component look the same everywhere in Settings */
+  .pane :global(:where(button:not(.plain, .link, .on))) {
+    font: inherit;
+    padding: 0.35em 0.9em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: inherit;
+    cursor: pointer;
   }
-  .scope {
-    margin: 0 0 0.6em;
-    color: var(--muted);
-    font-size: 0.85em;
+  .pane :global(:where(button:not(.plain, .link, .on):hover:not(:disabled))) {
+    background: var(--chip);
   }
-  .scope.inline {
-    margin-top: 0.4em;
+  .pane :global(:where(button:disabled)) {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .pane :global(:where(button:focus-visible)) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .badge {
     display: inline-block;
@@ -1677,13 +1634,22 @@
     color: var(--text);
     background: var(--chip);
   }
-  .badge.graph {
-    background: var(--selection);
-  }
   select,
-  input:not([type='radio']):not([type='checkbox']) {
+  input:not([type='radio']):not([type='checkbox']):not([type='range']) {
     font: inherit;
-    padding: 0.3em 0.5em;
+    padding: 0.35em 0.6em;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  select:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  th {
+    text-align: left;
   }
   .switch {
     appearance: none;
@@ -1804,8 +1770,19 @@
     margin: 0.6em 0;
   }
   .intro {
-    max-width: 38em;
+    max-width: 40em;
     margin: 0.2em 0 1em;
+    color: var(--muted);
+    font-size: 0.92em;
+    line-height: 1.5;
+  }
+  /* advice that should not be skipped */
+  .callout {
+    padding: 0.6em 0.9em;
+    border-left: 3px solid var(--warn);
+    border-radius: 6px;
+    background: var(--warn-bg);
+    color: var(--text);
   }
   .rules {
     display: flex;
@@ -1996,13 +1973,8 @@
   }
   @media (max-width: 760px) {
     .layout {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 0.8em;
-    }
-    .tabs {
-      flex-direction: row;
-      flex-wrap: wrap;
-      position: static;
     }
   }
 </style>

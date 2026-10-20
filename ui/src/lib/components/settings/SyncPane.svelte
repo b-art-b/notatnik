@@ -31,15 +31,14 @@
       toast(errorMessage(e), 'error')
     }
   }
+  import PaneHeader from './PaneHeader.svelte'
 </script>
 
-<h2>Sync</h2>
 {#if app.graph?.remote && st}
-  <p class="scope">
-    <span class="badge">This device</span>
-    This graph is kept in a folder on a server. This device holds a full copy and works without a connection; the
-    two are brought in step in the background.
-  </p>
+  <PaneHeader title="Sync" scope="device">
+    This graph is kept in a folder on a server. This device holds a full copy and works without a connection;
+    the two are brought in step in the background.
+  </PaneHeader>
   <SettingRow
     title="Server folder"
     description="The WebDAV folder of this graph. Files are stored as they are, except the ones you choose to encrypt (see Encryption below)."
@@ -156,10 +155,7 @@
     {/if}
   </SettingRow>
 {:else}
-  <p class="scope">
-    <span class="badge">This graph</span>
-    This graph is a folder on this device only.
-  </p>
+  <PaneHeader title="Sync" scope="graph">This graph is a folder on this device only.</PaneHeader>
   <p>
     To keep this graph on a Nextcloud or other WebDAV server, connect it to an empty folder there. The pages
     stay where they are; they are uploaded, and the same folder can then be opened on other devices.
