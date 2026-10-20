@@ -142,4 +142,6 @@ Hidden file names with a manifest; an encrypted replica for a folder that anothe
 - [ ] Lose the password, use the recovery key; change the password; the other device keeps working after it asks again
 - [ ] Mark a page that was synced before: read the warning, then check the Nextcloud versions and trash of that file
 
+- [x] Settings → Sync → *Verify* runs `verify` from the app; backups seal marked files inside plain snapshots (EN-23); a snapshot file from another device is restored with its own secret (EN-24)
+
 Record: date / commit / notes:
