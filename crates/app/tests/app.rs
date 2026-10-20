@@ -5924,3 +5924,51 @@ fn a_forgotten_backup_password_is_reset() {
         );
     }
 }
+
+/// A template's text can be read and replaced as a whole; the new text is what pages of that type start from,
+/// and a template that does not exist cannot be written.
+#[test]
+fn a_template_is_read_and_replaced_as_text() {
+    let t = start("basic");
+    std::fs::create_dir_all(t.graph().join("templates")).unwrap();
+    std::fs::write(
+        t.graph().join("templates/person.md"),
+        "---\ntype: person\nphone:\n---\n- Contact\n",
+    )
+    .unwrap();
+    let text = t.ok("read_template", json!({"name": "Person"}))["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(text, "---\ntype: person\nphone:\n---\n- Contact\n");
+
+    // replaced: the entry shows the new fields and blocks; a missing final newline is added; CRLF becomes LF
+    let e = t.ok(
+        "write_template",
+        json!({"name": "person", "text": "---\r\ntype: person\r\nphone:\r\nemail:\r\n---\r\n- Contact\r\n- Notes"}),
+    );
+    assert_eq!(e["name"], "person");
+    assert_eq!(e["fields"], json!(["phone", "email"]), "{e}");
+    assert_eq!(e["blocks"], 2);
+    assert_eq!(
+        t.read("templates/person.md"),
+        "---\ntype: person\nphone:\nemail:\n---\n- Contact\n- Notes\n"
+    );
+
+    // only an existing template can be written, and the name cannot leave the folder
+    assert_eq!(
+        t.call("write_template", json!({"name": "nobody", "text": "- x\n"}))
+            .unwrap_err()
+            .code,
+        "not_found"
+    );
+    assert!(
+        t.call(
+            "write_template",
+            json!({"name": "../pages/inbox", "text": "- x\n"})
+        )
+        .is_err()
+    );
+    assert!(t.call("read_template", json!({"name": "nobody"})).is_err());
+    assert!(!t.graph().join("templates/nobody.md").exists());
+}

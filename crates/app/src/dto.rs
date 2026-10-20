@@ -314,6 +314,15 @@ pub struct SaveTemplateArgs {
     pub replace: bool,
 }
 
+/// `write_template`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct WriteTemplateArgs {
+    /// The template (the page type it belongs to); it must exist.
+    pub name: String,
+    /// The whole text of `templates/<name>.md`.
+    pub text: String,
+}
+
 /// One template in `templates/`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct TemplateEntry {

@@ -33,6 +33,7 @@
   import PaneHeader from './settings/PaneHeader.svelte'
   import SettingsNav from './settings/SettingsNav.svelte'
   import SubNav from './settings/SubNav.svelte'
+  import TemplateEditor from './settings/TemplateEditor.svelte'
   import { SECTIONS, type SectionId } from './settings/sections'
   import SyncPane from './settings/SyncPane.svelte'
   import FileSources from './settings/FileSources.svelte'
@@ -74,6 +75,7 @@
   // --- templates: one file per page type (PR-10) ---
   type TemplateRow = { name: string; fields: string[]; blocks: number }
   let templates = $state<TemplateRow[]>([])
+  let editingTpl = $state<string | null>(null) // the template whose text is open
   let deletedTpls = $state<{ id: string; name: string; deleted_ms: number }[]>([])
   let nsTemplates = $state<{ namespace: string; template: string }[]>([])
   let nsLoaded = false
@@ -934,7 +936,21 @@
                   <span class="muted"
                     >{t.fields.length ? t.fields.join(', ') : 'no fields'} · {t.blocks} blocks</span
                   >
+                  <button
+                    class="plain"
+                    aria-expanded={editingTpl === t.name}
+                    onclick={() => (editingTpl = editingTpl === t.name ? null : t.name)}
+                    >{editingTpl === t.name ? 'Close' : 'Edit'}</button
+                  >
                   <button class="plain" onclick={() => deleteTemplate(t.name)}>Delete</button>
+                  {#if editingTpl === t.name}
+                    <TemplateEditor
+                      name={t.name}
+                      onsaved={(entry) =>
+                        (templates = templates.map((x) => (x.name === entry.name ? entry : x)))}
+                      onclose={() => (editingTpl = null)}
+                    />
+                  {/if}
                 </li>
               {/each}
             </ul>

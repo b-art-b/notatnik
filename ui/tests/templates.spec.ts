@@ -81,3 +81,35 @@ test('`{{` in a query offers the variables; the settings list the placeholders',
   await expect(table).toContainText('{{page}}')
   await expect(table).toContainText('{{cursor}}')
 })
+
+// A template is shown and edited as text in Settings → Templates; pages made after the change start from it.
+test('a template is opened as text, edited and saved', async ({ backend, page }) => {
+  backend.write('templates/person.md', PERSON)
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Templates/ }).click()
+  const pane = page.getByRole('tabpanel')
+  const item = pane.getByTestId('template-list').getByRole('listitem').filter({ hasText: 'person' })
+  await item.getByRole('button', { name: 'Edit' }).click()
+  const box = item.getByRole('textbox', { name: 'Text of the template person' })
+  // the file as it is, nothing hidden
+  await expect(box).toHaveValue(PERSON)
+  const save = item.getByTestId('template-save')
+  await expect(save).toBeDisabled()
+
+  await box.fill('---\ntype: person\nimportance: 1\nphone:\n---\n- Contact {{title}}\n  - Phone\n  - Mail\n')
+  await expect(item.getByText('Unsaved changes')).toBeVisible()
+  await save.click()
+  await expect.poll(() => backend.read('templates/person.md')).toContain('  - Mail\n')
+  // the list shows the new fields and blocks, and nothing is unsaved any more
+  await expect(item).toContainText('importance, phone')
+  await expect(item).toContainText('3 blocks')
+  await expect(item.getByText('Unsaved changes')).toHaveCount(0)
+
+  // closing the editor and opening it again shows the saved text
+  await item.getByRole('button', { name: 'Close' }).first().click()
+  await expect(item.getByTestId('template-editor')).toHaveCount(0)
+  await item.getByRole('button', { name: 'Edit' }).click()
+  await expect(item.getByRole('textbox', { name: 'Text of the template person' })).toHaveValue(
+    '---\ntype: person\nimportance: 1\nphone:\n---\n- Contact {{title}}\n  - Phone\n  - Mail\n',
+  )
+})

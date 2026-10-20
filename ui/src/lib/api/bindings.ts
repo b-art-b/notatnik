@@ -1201,6 +1201,15 @@ keep_values: boolean,
  * Replace an existing template of that type (false: error `exists`).
  */
 replace: boolean, };
+export type WriteTemplateArgs = { 
+/**
+ * The template (the page type it belongs to); it must exist.
+ */
+name: string, 
+/**
+ * The whole text of `templates/<name>.md`.
+ */
+text: string, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
@@ -2333,6 +2342,8 @@ export type Commands = {
   apply_template: { args: PageArgs; result: ApplyResult };
   save_template: { args: SaveTemplateArgs; result: TemplateEntry };
   list_templates: { args: NoArgs; result: TemplateEntry[] };
+  read_template: { args: NameArgs; result: StringValue };
+  write_template: { args: WriteTemplateArgs; result: TemplateEntry };
   delete_template: { args: NameArgs; result: TemplateEntry[] };
   deleted_templates: { args: NoArgs; result: DeletedTemplate[] };
   restore_template: { args: RestoreTemplateArgs; result: TemplateEntry[] };

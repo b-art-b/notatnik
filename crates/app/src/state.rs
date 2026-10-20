@@ -1092,6 +1092,32 @@ impl AppState {
         })
     }
 
+    /// `read_template`: the text of `templates/<name>.md`, as it is in the file.
+    pub fn read_template(&self, a: NameArgs) -> ApiResult<StringValue> {
+        self.with_open(|o| {
+            let (_, text) = Self::template_text(o, &a.name).ok_or_else(|| {
+                ApiError::new("not_found", format!("there is no template `{}`", a.name))
+            })?;
+            Ok(StringValue { value: text })
+        })
+    }
+
+    /// `write_template`: replaces the text of an existing template. The text it replaces stays in the version
+    /// history of the file.
+    pub fn write_template(&self, a: WriteTemplateArgs) -> ApiResult<TemplateEntry> {
+        self.with_open(|o| {
+            let (file, _) = Self::template_text(o, &a.name).ok_or_else(|| {
+                ApiError::new("not_found", format!("there is no template `{}`", a.name))
+            })?;
+            let mut text = a.text.replace("\r\n", "\n");
+            if !text.is_empty() && !text.ends_with('\n') {
+                text.push('\n');
+            }
+            o.graph.write_template(&file, &text)?;
+            Ok(Self::template_entry(o, &file, &text))
+        })
+    }
+
     /// `save_template`: makes `templates/<type>.md` from a page.
     pub fn save_template(&self, a: SaveTemplateArgs) -> ApiResult<TemplateEntry> {
         let name = Self::parse_name(&a.page)?;
