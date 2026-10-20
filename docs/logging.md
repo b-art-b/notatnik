@@ -39,7 +39,7 @@ logs a warning the first time, then at `debug`, and `info` when it works again.
 ## Never logged
 
 Text of notes, blocks or titles, arguments and results of commands, passwords, the `Authorization` header, request
-and response bodies, query strings. Page names, file paths and calendar names are logged (they are what you need to find a problem).
+and response bodies, query strings, web addresses pasted into notes (`link_title` logs nothing). Page names, file paths and calendar names are logged (they are what you need to find a problem).
 
 ## Adding a log line
 

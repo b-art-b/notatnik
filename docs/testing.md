@@ -116,6 +116,8 @@ phase doc the date, the commit and anything that failed. Things a human checks: 
 instant, do keyboard flows work without thinking, does the app survive a real Nextcloud sync,
 does it behave on a real Android phone.
 
+**Templates and pasted links.** Snippets (PR-10): `a_snippet_is_saved_listed_inserted_and_deleted` in `crates/app/tests/app.rs`, the *Save as template…* flow, `/template` and Settings → Saved blocks in `ui/tests/templates.spec.ts`. Smart paste (ED-27): the rules as a table in `ui/src/lib/pastelink.test.ts`, the title extraction in `crates/app/src/linktitle.rs`, the refusal while `paste_titles` is off and a lookup against a local listener in `a_link_title_is_looked_up_only_when_allowed`, and the editor with a synthetic paste event (and a local HTTP server for the title) in `ui/tests/paste-links.spec.ts`; that spec reloads the page after changing the setting, because the settings are read at start. The marker of the block being edited is asserted by its computed style in `ui/tests/edit-mode.spec.ts`. In a poll on a file that may not exist yet, wrap `backend.read` (`readOr` in `templates.spec.ts`): a throw inside `expect.poll` fails at once.
+
 ## 7. Data-safety tests (always required)
 
 Because the app edits the user's only copy of their notes, these invariants have dedicated tests and

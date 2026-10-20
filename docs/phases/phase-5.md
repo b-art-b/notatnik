@@ -138,6 +138,8 @@ Namespace-aware autocomplete ranking (NS-7, phase 2) covers the convenience part
 ### P5.14 Smart paste (ED-11)
 - [ ] Paste of Markdown (with headings, nested lists, code), HTML (from a browser, converted to Markdown), plain text with blank-line paragraphs → sensible block trees; a URL pasted over selected text → a Markdown link
 
+- [x] Links (ED-27, D54): an address pasted over selected text → `[text](address)`; a link copied from a page keeps its text; tracking parameters dropped; `notatnik://` and Nextcloud file addresses become `[[Page]]`, `((id))` and `…/f/<id>`; opt-in title lookup (*Settings → Appearance*). The Markdown/HTML-to-blocks conversion above is still open.
+
 **Verify**
 - [ ] Vitest table: ≥ 10 clipboard inputs (incl. a copied Wikipedia section, a copied Logseq/Obsidian outline, a GitHub README section) → expected block trees
 - [ ] Pasting a 1,000-line text completes in < 1 s and is one undo step
