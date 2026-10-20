@@ -1152,6 +1152,15 @@ index: number,
  * Block text, variables filled in.
  */
 text: string, };
+export type TemplateCursor = { 
+/**
+ * Index into `TemplateContent.blocks`.
+ */
+block: number, 
+/**
+ * Characters into that block's text.
+ */
+offset: number, };
 export type TemplateContent = { 
 /**
  * The blocks, in insertion order.
@@ -1161,7 +1170,11 @@ blocks: Array<TemplateBlockView>,
  * Page properties to set: the template's `type` and fields that the page lacks (values as in the template,
  * empty where the template has empty fields).
  */
-props: Array<BlockOp>, };
+props: Array<BlockOp>, 
+/**
+ * Where the template's `{{cursor}}` was, so the editor can continue there.
+ */
+cursor: TemplateCursor | null, };
 export type NamespaceTemplateView = { 
 /**
  * Namespace, e.g. `people`.

@@ -59,6 +59,65 @@ test('/template inserts the blocks of a template after the block', async ({ back
     .toBe('---\ntype: person\nimportance: 1\n---\n\n- note\n- Contact Meeting\n  - Phone\n')
 })
 
+// PR-10: after /template the cursor is in the inserted block: at {{cursor}}, else at the end of the first one.
+test('/template continues editing at {{cursor}}, else in the first inserted block', async ({
+  backend,
+  page,
+}) => {
+  backend.write('templates/snippets/Call.md', '- Call {{date}}\n  - With: {{cursor}} and team\n  - Notes\n')
+  backend.write('templates/snippets/Plain.md', '- Plain item\n  - child\n')
+  backend.write('pages/Calls.md', '- first\n- \n')
+  await backend.open('/page/Calls')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  const start = async (text: string, which: number) => {
+    await blocks.getByText(text, { exact: true }).click()
+    await expect(page.getByTestId('block-editor')).toBeFocused()
+    await page.keyboard.press('End')
+    await page.keyboard.type(' /template')
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Enter')
+    await page.getByTestId('template-picker').getByRole('option').nth(which).click()
+  }
+  // {{cursor}}: typing lands there
+  await start('first', 0)
+  // the editor moves to the inserted block (it holds the text around the cursor)
+  await expect(page.getByTestId('block-editor')).toContainText('With:', { timeout: 5000 })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.type('Ann')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(readOr(backend.read, 'pages/Calls.md'))
+    .toMatch(/- first\n- Call \d{4}-\d\d-\d\d\n {2}- With: Ann and team\n {2}- Notes\n- \n/)
+  // no marker: the first inserted block, at its end
+  await start('Notes', 1)
+  await expect(page.getByTestId('block-editor')).toContainText('Plain item', { timeout: 5000 })
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.type('!')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(readOr(backend.read, 'pages/Calls.md'))
+    .toMatch(/ {2}- Notes\n {2}- Plain item!\n {4}- child\n/)
+})
+
+// In an empty block the template takes the block's place; the cursor still goes to {{cursor}} in it.
+test('/template in an empty block fills it and continues at {{cursor}}', async ({ backend, page }) => {
+  backend.write('templates/snippets/Meet.md', '- Meet {{cursor}} today\n  - Notes\n')
+  backend.write('pages/Empty.md', '- \n')
+  await backend.open('/page/Empty')
+  await page.getByRole('tree', { name: 'Blocks' }).getByRole('treeitem').first().click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.type('/template')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Enter')
+  await page.getByTestId('template-picker').getByRole('option', { name: 'Meet' }).click()
+  await expect(page.getByTestId('block-editor')).toContainText('Meet', { timeout: 5000 })
+  await page.keyboard.type('Capgemini')
+  await page.keyboard.press('Escape')
+  await expect.poll(readOr(backend.read, 'pages/Empty.md')).toBe('- Meet Capgemini today\n  - Notes\n')
+})
+
 // QV-12: the query variables are offered in a query block, and listed in the settings.
 test('`{{` in a query offers the variables; the settings list the placeholders', async ({
   backend,

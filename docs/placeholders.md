@@ -11,7 +11,7 @@ query text.
 | `{{title}}` | templates, queries | The last part of the page name: `Jan` for `people/Jan`. |
 | `{{namespace}}` | templates, queries | The part before it: `people` for `people/Jan`; empty for a page without a namespace. |
 | `{{date}}` | templates, queries | Today as `YYYY-MM-DD`. In a template used for a new journal day: that day. |
-| `{{cursor}}` | templates | Removed. Reserved for placing the cursor. |
+| `{{cursor}}` | templates | Removed; after `/template` inserts the blocks, editing continues there. Without it, editing continues at the end of the first inserted block. The first `{{cursor}}` counts. A new page made from a template ignores it. |
 | `{{page}}` | queries | A link to the page the query block is on (`[[people/Jan]]`). Also written `[[{{page}}]]`. |
 
 The empty link `[[]]` is still accepted in a query and means `{{page}}`.

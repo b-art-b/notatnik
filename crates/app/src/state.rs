@@ -1089,7 +1089,15 @@ impl AppState {
                     text,
                 })
                 .collect();
-            Ok(TemplateContent { blocks, props })
+            let cursor = t.cursor.map(|(block, offset)| TemplateCursor {
+                block: u32::try_from(block).unwrap_or(u32::MAX),
+                offset: u32::try_from(offset).unwrap_or(u32::MAX),
+            });
+            Ok(TemplateContent {
+                blocks,
+                props,
+                cursor,
+            })
         })
     }
 

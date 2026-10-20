@@ -12,6 +12,9 @@ pub struct Template {
     pub props: Vec<(String, String)>,
     /// `(parent path, index, text)` in insertion order (a block's parent comes before its children).
     pub blocks: Vec<(Vec<usize>, usize, String)>,
+    /// Where `{{cursor}}` stood: the position in `blocks` and the offset in characters into that block's text. The
+    /// first one counts.
+    pub cursor: Option<(usize, usize)>,
 }
 
 /// The values the `{{...}}` variables stand for.
@@ -35,12 +38,19 @@ fn collect(
     parent: &[usize],
     v: &Vars,
     out: &mut Vec<(Vec<usize>, usize, String)>,
+    cursor: &mut Option<(usize, usize)>,
 ) {
     for (i, b) in blocks.iter().enumerate() {
-        out.push((parent.to_vec(), i, fill(&b.edit_text(src), v)));
+        let raw = b.edit_text(src);
+        if cursor.is_none() {
+            if let Some((before, _)) = raw.split_once("{{cursor}}") {
+                *cursor = Some((out.len(), fill(before, v).chars().count()));
+            }
+        }
+        out.push((parent.to_vec(), i, fill(&raw, v)));
         let mut path = parent.to_vec();
         path.push(i);
-        collect(src, &b.children, &path, v, out);
+        collect(src, &b.children, &path, v, out, cursor);
     }
 }
 
@@ -60,7 +70,8 @@ pub fn parse_template(text: &str, v: &Vars) -> Template {
         })
         .unwrap_or_default();
     let mut blocks = Vec::new();
-    collect(text, &page.blocks, &[], v, &mut blocks);
+    let mut cursor = None;
+    collect(text, &page.blocks, &[], v, &mut blocks, &mut cursor);
     let ty = page
         .frontmatter
         .as_ref()
@@ -72,7 +83,12 @@ pub fn parse_template(text: &str, v: &Vars) -> Template {
         })
         .map(|e| e.raw.clone())
         .filter(|r| !r.is_empty());
-    Template { ty, props, blocks }
+    Template {
+        ty,
+        props,
+        blocks,
+        cursor,
+    }
 }
 
 /// A template named in the config: `person`, `person.md` or `templates/person.md` all mean `templates/person.md`.
@@ -224,6 +240,17 @@ mod tests {
         title: "people/Jan",
         date: "2026-10-11",
     };
+
+    #[test]
+    fn the_first_cursor_marker_is_remembered_by_block_and_offset() {
+        let t = parse_template(
+            "- Meeting {{title}}\n  - With: {{cursor}} and more\n  - Later {{cursor}}\n",
+            &V,
+        );
+        assert_eq!(t.cursor, Some((1, 6)));
+        assert_eq!(t.blocks[1].2, "With:  and more");
+        assert_eq!(parse_template("- plain\n", &V).cursor, None);
+    }
 
     #[test]
     fn reads_properties_and_nested_blocks_with_variables() {

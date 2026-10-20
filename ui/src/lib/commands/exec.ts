@@ -156,6 +156,24 @@ export function templateOps(
   return ops
 }
 
+/** Where block `i` of a template ends up when `templateOps` inserts it at `path` (the same rules). */
+export function templatedPath(
+  path: Path,
+  typed: string,
+  blocks: { parent: number[]; index: number }[],
+  i: number,
+): Path | undefined {
+  const b = blocks[i]
+  if (!b) return undefined
+  const empty = typed.trim() === ''
+  const parent = path.slice(0, -1)
+  const base = path[path.length - 1] + (empty ? 0 : 1)
+  if (b.parent.length === 0) return empty && b.index === 0 ? path : [...parent, base + b.index]
+  const [top, ...rest] = b.parent
+  const at = empty && top === 0 ? path : [...parent, base + top]
+  return [...at, ...rest, b.index]
+}
+
 /** The `^id` of a block, made when it has none (the page is edited through the queue like any other change).
  * `null` when the block is gone. */
 export async function ensureBlockUid(doc: PageDoc, blockId: number): Promise<string | null> {
@@ -412,13 +430,23 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
         toast(errorMessage(e), 'error')
         return true
       }
-      // built from the page as it is when the request reaches the front of the queue
-      await ctx.doc.applyWith((v) => {
+      // built from the page as it is when the request reaches the front of the queue; `where` is where the first
+      // inserted block went, noted in the same step so it matches the page the ops were made for
+      let where: Path | undefined
+      const after = await ctx.doc.applyWith((v) => {
         const hit = v ? findById(v.blocks, blockId) : undefined
         if (!hit) return null
+        // the template's `{{cursor}}`, else the start of what was inserted
+        where = templatedPath(hit.path, a.text, tpl.blocks, tpl.cursor?.block ?? 0)
         return templateOps(hit.path, hit.block.text, a.text, tpl.blocks, tpl.props)
       })
       stopEditing()
+      // go on typing in the inserted block: at `{{cursor}}`, else at the end of the first one
+      const target = after && where ? getBlock(after.blocks, where) : undefined
+      if (target) {
+        await tick() // let the editor of the old block go first: with the same id it must start afresh
+        startEditing(ctx.viewKey, ctx.doc.name, target.id, tpl.cursor ? tpl.cursor.offset : 'end')
+      }
       return true
     }
     case 'escape': {

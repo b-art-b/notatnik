@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { templateOps } from './exec'
+import { templateOps, templatedPath } from './exec'
 import { rankCommands, setTemplateNames, slashPool, templateChoices } from './slash'
 
 const tpl = [
@@ -37,6 +37,27 @@ describe('templateOps with properties', () => {
   })
 })
 
+describe('templatedPath', () => {
+  const blocks = [
+    { parent: [], index: 0 },
+    { parent: [0], index: 0 },
+    { parent: [], index: 1 },
+  ]
+  it('follows the same rules as templateOps', () => {
+    // after the block at [2]: siblings from [3]
+    expect(templatedPath([2], 'text', blocks, 0)).toEqual([3])
+    expect(templatedPath([2], 'text', blocks, 1)).toEqual([3, 0])
+    expect(templatedPath([2], 'text', blocks, 2)).toEqual([4])
+    // an empty block is taken over by the first one, and by its children
+    expect(templatedPath([2], '', blocks, 0)).toEqual([2])
+    expect(templatedPath([2], '  ', blocks, 1)).toEqual([2, 0])
+    expect(templatedPath([2], '', blocks, 2)).toEqual([3])
+    // below a parent
+    expect(templatedPath([1, 4], 'x', blocks, 0)).toEqual([1, 5])
+    expect(templatedPath([2], 'x', blocks, 9)).toBeUndefined()
+  })
+})
+
 describe('/template commands', () => {
   it('`/template` is one entry that opens the list, however many templates there are', () => {
     setTemplateNames(['person', 'Meeting Notes'], ['Standup'])
@@ -60,9 +81,10 @@ describe('/template commands', () => {
     const pool = slashPool({ typed: 'template-m', midWord: false })
     const hit = rankCommands(pool, 'template-m').find((c) => c.template)
     expect(hit?.template).toBe('Meeting Notes')
-    const snip = rankCommands(slashPool({ typed: 'template-snippet-st', midWord: false }), 'template-snippet-st').find(
-      (c) => c.template,
-    )
+    const snip = rankCommands(
+      slashPool({ typed: 'template-snippet-st', midWord: false }),
+      'template-snippet-st',
+    ).find((c) => c.template)
     expect([snip?.name, snip?.template]).toEqual(['template-snippet-standup', 'snippets/Standup'])
     setTemplateNames([])
   })

@@ -382,6 +382,17 @@ pub struct TemplateContent {
     /// Page properties to set: the template's `type` and fields that the page lacks (values as in the template,
     /// empty where the template has empty fields).
     pub props: Vec<BlockOp>,
+    /// Where the template's `{{cursor}}` was, so the editor can continue there.
+    pub cursor: Option<TemplateCursor>,
+}
+
+/// The place of `{{cursor}}` in a template.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateCursor {
+    /// Index into `TemplateContent.blocks`.
+    pub block: u32,
+    /// Characters into that block's text.
+    pub offset: u32,
 }
 
 /// A block of a template: where it goes relative to the insertion point.
