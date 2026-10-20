@@ -45,3 +45,28 @@ test('arrow keys move between the sections of the list', async ({ backend, page 
   await page.keyboard.press('ArrowDown') // wraps around to the first
   await expect(page.getByRole('tab', { name: /Appearance/ })).toBeFocused()
 })
+
+// Backup is split in three parts under its title; the part that is open is marked for assistive technology.
+test('backup has three parts, one open at a time', async ({ backend, page }) => {
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Backup/ }).click()
+  const parts = page.getByRole('navigation', { name: 'Backup sections' })
+  await expect(parts.getByRole('button')).toHaveText(['Snapshots', 'Where & when', 'Encryption'])
+  await expect(parts.getByRole('button', { name: 'Snapshots' })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByTestId('backup-now')).toBeVisible()
+  await expect(page.getByLabel('Backup folder')).toHaveCount(0)
+
+  await parts.getByRole('button', { name: 'Where & when' }).click()
+  await expect(page.getByLabel('Backup folder')).toBeVisible()
+  await expect(page.getByTestId('backup-now')).toHaveCount(0)
+  await expect(parts.getByRole('button', { name: 'Where & when' })).toHaveAttribute('aria-current', 'page')
+
+  await parts.getByRole('button', { name: 'Encryption' }).click()
+  await expect(page.getByTestId('enc-setup')).toBeVisible()
+  await expect(page.getByLabel('Backup folder')).toHaveCount(0)
+  // the explanation is folded away
+  await parts.getByRole('button', { name: 'Snapshots' }).click()
+  await expect(page.getByText('Restore folder', { exact: false }).first()).toBeHidden()
+  await page.getByText('How to restore', { exact: true }).click()
+  await expect(page.getByText('Restore folder', { exact: false }).first()).toBeVisible()
+})

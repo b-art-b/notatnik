@@ -224,6 +224,8 @@ A block's `key:: value` lines (right after its first line) show as a compact car
 
 Settings → Backup (this device). A snapshot is a zip of the whole graph folder (without temp files) and of this device's configuration (the device settings with the list of graphs, and the graph's window state), kept in a folder outside the graph, so it is never synced.
 
+The page has three parts, chosen in the row under its title: **Snapshots** (*Back up now*, the list with *Restore…*, and *How to restore*, folded away until opened), **Where & when** (automatic backups, the backup folder, the second folder, compression) and **Encryption** (set up, unlock and lock, change password, new recovery key, *Forgot the password…*, *Encrypt N existing backups*). A message about the second folder or a failed backup is shown on *Snapshots*, where a backup is made.
+
 - **Automatic backups** (on by default): one shortly after the app opens a graph and then once a day while it is open, only if something changed. The newest snapshot of each of the last 7 days, 4 weeks and 6 months is kept.
 - **Backup folder:** an absolute path, empty for the default (`~/.local/share/notatnik/backups`). A folder inside the graph is refused. Put it on another disk, or in a folder another tool copies elsewhere; a snapshot on the same disk does not protect against losing the disk. Press Enter or leave the field to apply; **Use default** resets it.
 - **Compression:** *Compressed* (default, about a third of the size) or *Not compressed* (files only stored in the zip: bigger, useful when the target compresses or deduplicates by itself). Both are ordinary zip files; the choice applies to new snapshots.

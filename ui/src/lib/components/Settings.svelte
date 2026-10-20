@@ -32,6 +32,7 @@
   import SettingRow from './settings/SettingRow.svelte'
   import PaneHeader from './settings/PaneHeader.svelte'
   import SettingsNav from './settings/SettingsNav.svelte'
+  import SubNav from './settings/SubNav.svelte'
   import { SECTIONS, type SectionId } from './settings/sections'
   import SyncPane from './settings/SyncPane.svelte'
   import FileSources from './settings/FileSources.svelte'
@@ -64,6 +65,7 @@
 
   let s = $state<SettingsView | null>(null)
   let tab = $state<SectionId>('appearance')
+  let bkTab = $state<'snapshots' | 'storage' | 'encryption'>('snapshots') // the part of Backup that is open
   let path = $state('')
   let saved = $state('') // the inline confirmation ("Saved"), cleared after a moment
   let savedTimer: ReturnType<typeof setTimeout> | undefined
@@ -1026,472 +1028,499 @@
             copy at one moment. Keep the folder on another disk, or in a folder that another tool copies
             elsewhere.
           </p>
-          <SettingRow
-            title="Automatic backups"
-            description="One snapshot when the app starts and then daily while it is open, only when something changed. Kept: the last 7 days, 4 weeks and 6 months."
-            labelFor="backup-auto"
-          >
-            <input
-              id="backup-auto"
-              class="switch"
-              type="checkbox"
-              role="switch"
-              checked={s.backup_auto}
-              onchange={(e) => save({ backup_auto: (e.currentTarget as HTMLInputElement).checked })}
-            />
-          </SettingRow>
-          <SettingRow
-            title="Backup folder"
-            description="An absolute path outside the graph folder. Leave it empty for the default folder."
-            labelFor="backup-dir"
-          >
-            <span class="open"
-              ><input
-                id="backup-dir"
-                bind:value={bkDir}
-                placeholder={bk?.default_dir ?? ''}
-                onchange={() => setBackupDir(bkDir)}
-              />
-              <button class="plain" disabled={!s.backup_dir} onclick={() => setBackupDir('')}
-                >Use default</button
-              ></span
+          <SubNav
+            label="Backup sections"
+            bind:value={bkTab}
+            items={[
+              { id: 'snapshots', label: 'Snapshots' },
+              { id: 'storage', label: 'Where & when' },
+              { id: 'encryption', label: 'Encryption' },
+            ]}
+          />
+          {#if bkTab === 'snapshots'}
+            <SettingRow
+              title="Back up now"
+              description={`${
+                bk?.backups.length
+                  ? `Last: ${bk.backups[0].created}.`
+                  : 'No backup of this graph in the folder yet.'
+              } Also when the app closes, if something changed in the last hour.`}
             >
-          </SettingRow>
-          <SettingRow
-            title="Compression"
-            description="Compressed snapshots are about a third of the size. Not compressed keeps every file as it is inside the zip: bigger, but fine when the target compresses or deduplicates itself. Both are ordinary zip files. Applies to new snapshots."
-          >
-            <Segmented
-              name="backup-compression"
-              legend="Compression"
-              value={s.backup_compression}
-              options={[
-                { value: 'compressed', label: 'Compressed' },
-                { value: 'none', label: 'Not compressed' },
-              ]}
-              onchange={(v) => save({ backup_compression: v })}
-            />
-          </SettingRow>
-          <SettingRow
-            title="Encryption"
-            description="Seal backups with a password so that a backup disk or the second folder only ever holds unreadable files. Backups are written without asking for the password; it is needed to read one. Your notes in the graph folder stay plain text."
-          >
-            {#if enc?.configured}
-              <span class="open">
-                <input
-                  class="switch"
-                  type="checkbox"
-                  role="switch"
-                  aria-label="Encrypt new backups"
-                  checked={s.backup_encrypt}
-                  onchange={(e) => save({ backup_encrypt: (e.currentTarget as HTMLInputElement).checked })}
+              <button disabled={bkBusy} onclick={backupNow} data-testid="backup-now">Back up now</button>
+            </SettingRow>
+            {#if bk?.error}
+              <p class="muted" role="alert" data-testid="backup-error">
+                The last automatic backup failed: {bk.error}
+              </p>
+            {/if}
+            {#if bk?.mirror_error}
+              <p class="muted" role="alert" data-testid="mirror-error">
+                The second folder is not up to date: {bk.mirror_error}
+              </p>
+            {/if}
+            <details class="help">
+              <summary>How to restore</summary>
+              <ol class="howto">
+                <li>
+                  <strong>One page:</strong> choose a snapshot below, <em>Restore…</em>, type the page name
+                  and press
+                  <em>Restore page</em>. That page's file is replaced by its version in the snapshot. Before
+                  that, the page as it is now is saved in a new snapshot, so you can go back.
+                </li>
+                <li>
+                  <strong>Everything:</strong> <em>Restore…</em>, type a new or empty folder (an absolute
+                  path) and press <em>Restore folder</em>. The snapshot is unpacked there. Then open that
+                  folder as a graph (Settings → Graph → <em>Open or create another graph</em>) to look around
+                  or copy files back, or use the folder as your graph from now on. The open graph itself is
+                  never replaced as a whole.
+                </li>
+                <li>
+                  <strong>Device settings:</strong> <em>Restore…</em>, <em>Compare…</em> lists the lines that
+                  differ (<span class="add">+</span> in the snapshot, <span class="del">−</span> now).
+                  <em>Restore settings</em>
+                  replaces <code>~/.config/notatnik/settings.toml</code>; the file it replaces is kept next to
+                  it as
+                  <code>settings.toml.before-restore-…</code>. No page changes. The settings are in the
+                  snapshot under
+                  <code>.notatnik-device/</code> together with the window state of the graph;
+                  <em>Everything</em> does not unpack them into the graph folder.
+                </li>
+                <li>
+                  <strong>Without the app:</strong> a snapshot is a normal zip file. Unzip it with any tool; the
+                  result is a graph folder of Markdown files.
+                </li>
+                <li>
+                  Snapshots marked <em>before a change</em> were taken automatically before a rename or delete
+                  of several pages. For a single page's earlier states use <em>History</em> under the page's title.
+                </li>
+              </ol>
+            </details>
+            <h3>Snapshots</h3>
+            <ul class="snaps" data-testid="backup-list" aria-label="Snapshots">
+              {#each bk?.backups ?? [] as b (b.name)}
+                <li data-testid="backup-item">
+                  <span class="when">{b.created}</span>
+                  <span class="muted">{mb(b.bytes)}</span>
+                  {#if b.encrypted}<span class="badge" title="Sealed with the backup password"
+                      >🔒 encrypted</span
+                    >{/if}
+                  {#if bk?.mirror_dir}<span
+                      class="badge"
+                      title={b.in_mirror
+                        ? 'Also in the second folder'
+                        : 'Not yet copied to the second folder'}>{b.in_mirror ? 'copied' : 'not copied'}</span
+                    >{/if}
+                  {#if b.before}<span
+                      class="badge"
+                      title="Taken automatically before a rename, delete or restore">before a change</span
+                    >{/if}
+                  <button
+                    class="plain"
+                    aria-expanded={restoreOf === b.name}
+                    onclick={() => openRestore(b.name)}>Restore…</button
+                  >
+                  {#if restoreOf === b.name}
+                    <div class="restore">
+                      {#if b.encrypted && !enc?.unlocked}
+                        <form
+                          class="encform"
+                          onsubmit={(e) => {
+                            e.preventDefault()
+                            void encUnlock()
+                          }}
+                        >
+                          <label
+                            >This backup is encrypted. Password or recovery key
+                            <input
+                              type="password"
+                              autocomplete="current-password"
+                              aria-label="Password or recovery key"
+                              bind:value={encPw}
+                            /></label
+                          >
+                          <span class="open"><button type="submit" disabled={!encPw}>Unlock</button></span>
+                        </form>
+                      {:else}
+                        <div class="changes" data-testid="backup-changes">
+                          <strong>Changes since this snapshot</strong>
+                          {#if !changes}
+                            <p class="muted">Comparing…</p>
+                          {:else if !changes.length}
+                            <p class="muted">Nothing differs: all files are the same as in this snapshot.</p>
+                          {:else}
+                            <p class="muted">
+                              {changes.length} file{changes.length === 1 ? '' : 's'} differ.
+                              <span class="add">+</span>
+                              lines in the snapshot (a restore brings them back), <span class="del">−</span>
+                              lines now.
+                              <button class="plain" onclick={() => showAll(b.name, true)}
+                                >Show all changes</button
+                              >
+                              <button class="plain" onclick={() => showAll(b.name, false)}>Hide all</button>
+                            </p>
+                            <ul class="chg">
+                              {#each changes as c (c.path)}
+                                <li>
+                                  <button
+                                    class="plain row"
+                                    aria-expanded={!!openPaths[c.path]}
+                                    disabled={c.binary}
+                                    onclick={() => showDiff(b.name, c.path, !openPaths[c.path])}
+                                  >
+                                    <span class="badge">{CHANGE_LABEL[c.status]}</span>
+                                    <code>{c.path}</code>
+                                    {#if c.binary}<span class="muted">not text</span>{:else}<span
+                                        class="muted"
+                                        ><span class="add">+{c.added}</span>
+                                        <span class="del">−{c.removed}</span></span
+                                      >{/if}
+                                  </button>
+                                  {#if openPaths[c.path] && diffs[c.path]}
+                                    {#if diffs[c.path].too_large}
+                                      <p class="muted">Too long and too different to show line by line.</p>
+                                    {:else}
+                                      <pre
+                                        class="diff"
+                                        aria-label={`Changes in ${c.path}`}>{#each diffs[c.path].lines as l, i (i)}<span
+                                            class:add={l.kind === 'add'}
+                                            class:del={l.kind === 'del'}
+                                            class:gap={l.kind === 'gap'}
+                                            >{l.kind === 'add'
+                                              ? '+ '
+                                              : l.kind === 'del'
+                                                ? '− '
+                                                : l.kind === 'gap'
+                                                  ? '…'
+                                                  : '  '}{l.text}
+</span>{/each}</pre>
+                                    {/if}
+                                  {/if}
+                                </li>
+                              {/each}
+                            </ul>
+                          {/if}
+                        </div>
+                        <label
+                          >One page, replacing the current one
+                          <span class="open"
+                            ><input aria-label="Page name" placeholder="page name" bind:value={restorePage} />
+                            <button disabled={!restorePage.trim()} onclick={() => restoreOnePage(b.name)}
+                              >Restore page</button
+                            ></span
+                          ></label
+                        >
+                        <div>
+                          Device settings of this device (theme, dates, graph list, backup options)
+                          <span class="open">
+                            <button onclick={() => compareDevice(b.name)}>Compare…</button>
+                          </span>
+                          {#if devicePreview}
+                            {#if !devicePreview.available}
+                              <p class="muted">This snapshot has no device settings.</p>
+                            {:else if devicePreview.same}
+                              <p class="muted">The same as now.</p>
+                            {:else}
+                              <pre
+                                class="diff"
+                                data-testid="device-diff"
+                                aria-label="Changed settings">{#each devicePreview.lines as l, i (i)}<span
+                                    class:add={l.kind === 'add'}
+                                    class:del={l.kind === 'del'}
+                                    >{l.kind === 'add' ? '+ ' : '− '}{l.text}
+</span>{/each}</pre>
+                              <button onclick={() => restoreDevice(b.name)}>Restore settings</button>
+                            {/if}
+                          {/if}
+                        </div>
+                        <label
+                          >Everything, into a new folder
+                          <span class="open"
+                            ><input
+                              aria-label="Target folder"
+                              placeholder="/path/to/new-folder"
+                              bind:value={restoreTarget}
+                            />
+                            <button disabled={!restoreTarget.trim()} onclick={() => restoreFolder(b.name)}
+                              >Restore folder</button
+                            ></span
+                          ></label
+                        >
+                      {/if}
+                    </div>
+                  {/if}
+                </li>
+              {:else}
+                <li class="muted">None yet.</li>
+              {/each}
+            </ul>
+          {:else if bkTab === 'storage'}
+            <SettingRow
+              title="Automatic backups"
+              description="One snapshot when the app starts and then daily while it is open, only when something changed. Kept: the last 7 days, 4 weeks and 6 months."
+              labelFor="backup-auto"
+            >
+              <input
+                id="backup-auto"
+                class="switch"
+                type="checkbox"
+                role="switch"
+                checked={s.backup_auto}
+                onchange={(e) => save({ backup_auto: (e.currentTarget as HTMLInputElement).checked })}
+              />
+            </SettingRow>
+            <SettingRow
+              title="Backup folder"
+              description="An absolute path outside the graph folder. Leave it empty for the default folder."
+              labelFor="backup-dir"
+            >
+              <span class="open"
+                ><input
+                  id="backup-dir"
+                  bind:value={bkDir}
+                  placeholder={bk?.default_dir ?? ''}
+                  onchange={() => setBackupDir(bkDir)}
                 />
-                <span class="muted" data-testid="enc-state">{enc.unlocked ? 'Unlocked' : 'Locked'}</span>
-                {#if enc.unlocked}
-                  <button class="plain" onclick={encLock}>Lock</button>
-                {:else}
-                  <button class="plain" onclick={() => (encForm = encForm === 'unlock' ? '' : 'unlock')}
-                    >Unlock…</button
+                <button class="plain" disabled={!s.backup_dir} onclick={() => setBackupDir('')}
+                  >Use default</button
+                ></span
+              >
+            </SettingRow>
+            <SettingRow
+              title="Compression"
+              description="Compressed snapshots are about a third of the size. Not compressed keeps every file as it is inside the zip: bigger, but fine when the target compresses or deduplicates itself. Both are ordinary zip files. Applies to new snapshots."
+            >
+              <Segmented
+                name="backup-compression"
+                legend="Compression"
+                value={s.backup_compression}
+                options={[
+                  { value: 'compressed', label: 'Compressed' },
+                  { value: 'none', label: 'Not compressed' },
+                ]}
+                onchange={(v) => save({ backup_compression: v })}
+              />
+            </SettingRow>
+            <SettingRow
+              title="Second folder"
+              description="Optional. Every snapshot is copied there too, for example to a USB disk or a network share. The folder must exist; while it is missing (disk not plugged in) the copy waits and catches up later."
+              labelFor="backup-mirror"
+            >
+              <span class="open"
+                ><input
+                  id="backup-mirror"
+                  bind:value={bkMirror}
+                  placeholder="none"
+                  onchange={() => setMirrorDir(bkMirror)}
+                />
+                {#if backend.pickFolder}
+                  <button
+                    type="button"
+                    data-testid="browse-mirror"
+                    onclick={async () => {
+                      const picked = await backend.pickFolder?.()
+                      if (picked) await setMirrorDir(picked)
+                    }}>Choose a folder…</button
                   >
                 {/if}
-              </span>
-            {:else}
-              <button data-testid="enc-setup" onclick={() => (encForm = encForm === 'setup' ? '' : 'setup')}
-                >Set up…</button
+                <button class="plain" disabled={!s.backup_mirror_dir} onclick={() => setMirrorDir('')}
+                  >Remove</button
+                ></span
               >
+            </SettingRow>
+            {#if bk?.mirror_error}
+              <p class="muted" role="alert" data-testid="mirror-error">
+                The second folder is not up to date: {bk.mirror_error}
+              </p>
             {/if}
-          </SettingRow>
-          {#if recoveryShown}
-            <div class="recovery" role="group" aria-label="Recovery key" data-testid="recovery-box">
-              <strong>Your recovery key</strong>
-              <p class="muted">
-                It opens your backups if you forget the password. It is shown only now. Write it down or put
-                it in a password manager, and keep it away from the backups. Without the password and this key
-                the backups cannot be read by anyone.
-              </p>
-              <code class="key" data-testid="recovery-key">{recoveryShown}</code>
-              <span class="open">
-                <button class="plain" onclick={() => recoveryShown && copy(recoveryShown)}>Copy</button>
-              </span>
-              {#if enc?.configured && !encResetting}
-                <button onclick={() => ((recoveryShown = null), (recoverySaved = false))}>Done</button>
+          {:else}
+            <SettingRow
+              title="Encryption"
+              description="Seal backups with a password so that a backup disk or the second folder only ever holds unreadable files. Backups are written without asking for the password; it is needed to read one. Your notes in the graph folder stay plain text."
+            >
+              {#if enc?.configured}
+                <span class="open">
+                  <input
+                    class="switch"
+                    type="checkbox"
+                    role="switch"
+                    aria-label="Encrypt new backups"
+                    checked={s.backup_encrypt}
+                    onchange={(e) => save({ backup_encrypt: (e.currentTarget as HTMLInputElement).checked })}
+                  />
+                  <span class="muted" data-testid="enc-state">{enc.unlocked ? 'Unlocked' : 'Locked'}</span>
+                  {#if enc.unlocked}
+                    <button class="plain" onclick={encLock}>Lock</button>
+                  {:else}
+                    <button class="plain" onclick={() => (encForm = encForm === 'unlock' ? '' : 'unlock')}
+                      >Unlock…</button
+                    >
+                  {/if}
+                </span>
               {:else}
-                <label class="check">
-                  <input type="checkbox" bind:checked={recoverySaved} /> I saved the recovery key
-                </label>
-                <button disabled={!recoverySaved} onclick={encConfirm} data-testid="enc-confirm"
-                  >{encResetting ? 'Replace the password' : 'Turn on encryption'}</button
+                <button data-testid="enc-setup" onclick={() => (encForm = encForm === 'setup' ? '' : 'setup')}
+                  >Set up…</button
                 >
               {/if}
-            </div>
-          {/if}
-          {#if encForm === 'setup'}
-            <form
-              class="encform"
-              onsubmit={(e) => {
-                e.preventDefault()
-                if (encPasswordOk()) void encSetup()
-              }}
-            >
-              <label
-                >Password (8 to 200 characters)
-                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
-              >
-              <label
-                >Password again
-                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
-              >
-              <span class="open">
-                <button type="submit" disabled={!encPasswordOk()}>Create</button>
-                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
-              </span>
-            </form>
-          {:else if encForm === 'unlock'}
-            <form
-              class="encform"
-              onsubmit={(e) => {
-                e.preventDefault()
-                void encUnlock()
-              }}
-            >
-              <label
-                >Password or recovery key
-                <input type="password" autocomplete="current-password" bind:value={encPw} /></label
-              >
-              <span class="open">
-                <button type="submit" disabled={!encPw}>Unlock</button>
-                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
-              </span>
-            </form>
-          {:else if encForm === 'password'}
-            <form
-              class="encform"
-              onsubmit={(e) => {
-                e.preventDefault()
-                if (encPw.length >= 8 && encPw === encPw2) void encChange()
-              }}
-            >
-              <label
-                >Current password
-                <input type="password" autocomplete="current-password" bind:value={encOld} /></label
-              >
-              <label
-                >New password (8 to 200 characters)
-                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
-              >
-              <label
-                >New password again
-                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
-              >
-              <span class="open">
-                <button type="submit" disabled={!encOld || !encPasswordOk()}>Change password</button>
-                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
-              </span>
-            </form>
-          {:else if encForm === 'recovery'}
-            <form
-              class="encform"
-              onsubmit={(e) => {
-                e.preventDefault()
-                void encNewRecovery()
-              }}
-            >
-              <label
-                >Current password
-                <input type="password" autocomplete="current-password" bind:value={encOld} /></label
-              >
-              <p class="muted">
-                The old recovery key stops working for new backups. Backups made before keep it.
-              </p>
-              <span class="open">
-                <button type="submit" disabled={!encOld}>Make a new recovery key</button>
-                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
-              </span>
-            </form>
-          {:else if encForm === 'reset'}
-            <form
-              class="encform"
-              data-testid="enc-reset-form"
-              onsubmit={(e) => {
-                e.preventDefault()
-                if (encUnderstood && encPasswordOk()) void encReset()
-              }}
-            >
-              <p class="warn">
-                Use this only if the password and the recovery key are both lost. Backups that are already
-                sealed stay unreadable for good. New backups are sealed with the new password.
-              </p>
-              <label class="check">
-                <input type="checkbox" bind:checked={encUnderstood} data-testid="enc-reset-understood" /> I understand
-                that the encrypted backups made so far are lost
-              </label>
-              <label
-                >New password (8 to 200 characters)
-                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
-              >
-              <label
-                >New password again
-                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
-              >
-              <span class="open">
-                <button type="submit" disabled={!encUnderstood || !encPasswordOk()}>Reset the password</button
-                >
-                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
-              </span>
-            </form>
-          {/if}
-          {#if enc?.configured}
-            <p class="encmore">
-              <button class="plain" onclick={() => (encForm = 'password')}>Change password…</button>
-              <button class="plain" onclick={() => (encForm = 'recovery')}>New recovery key…</button>
-              <button
-                class="plain"
-                data-testid="enc-forgot"
-                onclick={() => (encForm = encForm === 'reset' ? '' : 'reset')}>Forgot the password…</button
-              >
-              {#if enc.plain_snapshots > 0}
-                <button class="plain" onclick={encExisting} data-testid="enc-existing"
-                  >Encrypt {enc.plain_snapshots} existing backup{enc.plain_snapshots === 1 ? '' : 's'}</button
-                >
-              {/if}
-            </p>
-          {/if}
-          <SettingRow
-            title="Second folder"
-            description="Optional. Every snapshot is copied there too, for example to a USB disk or a network share. The folder must exist; while it is missing (disk not plugged in) the copy waits and catches up later."
-            labelFor="backup-mirror"
-          >
-            <span class="open"
-              ><input
-                id="backup-mirror"
-                bind:value={bkMirror}
-                placeholder="none"
-                onchange={() => setMirrorDir(bkMirror)}
-              />
-              {#if backend.pickFolder}
-                <button
-                  type="button"
-                  data-testid="browse-mirror"
-                  onclick={async () => {
-                    const picked = await backend.pickFolder?.()
-                    if (picked) await setMirrorDir(picked)
-                  }}>Choose a folder…</button
-                >
-              {/if}
-              <button class="plain" disabled={!s.backup_mirror_dir} onclick={() => setMirrorDir('')}
-                >Remove</button
-              ></span
-            >
-          </SettingRow>
-          {#if bk?.mirror_error}
-            <p class="muted" role="alert" data-testid="mirror-error">
-              The second folder is not up to date: {bk.mirror_error}
-            </p>
-          {/if}
-          <SettingRow
-            title="Back up now"
-            description={`${
-              bk?.backups.length
-                ? `Last: ${bk.backups[0].created}.`
-                : 'No backup of this graph in the folder yet.'
-            } Also when the app closes, if something changed in the last hour.`}
-          >
-            <button disabled={bkBusy} onclick={backupNow} data-testid="backup-now">Back up now</button>
-          </SettingRow>
-          {#if bk?.error}
-            <p class="muted" role="alert" data-testid="backup-error">
-              The last automatic backup failed: {bk.error}
-            </p>
-          {/if}
-          <h3>How to restore</h3>
-          <ol class="howto">
-            <li>
-              <strong>One page:</strong> choose a snapshot below, <em>Restore…</em>, type the page name and
-              press
-              <em>Restore page</em>. That page's file is replaced by its version in the snapshot. Before that,
-              the page as it is now is saved in a new snapshot, so you can go back.
-            </li>
-            <li>
-              <strong>Everything:</strong> <em>Restore…</em>, type a new or empty folder (an absolute path)
-              and press <em>Restore folder</em>. The snapshot is unpacked there. Then open that folder as a
-              graph (Settings → Graph → <em>Open or create another graph</em>) to look around or copy files
-              back, or use the folder as your graph from now on. The open graph itself is never replaced as a
-              whole.
-            </li>
-            <li>
-              <strong>Device settings:</strong> <em>Restore…</em>, <em>Compare…</em> lists the lines that
-              differ (<span class="add">+</span> in the snapshot, <span class="del">−</span> now).
-              <em>Restore settings</em>
-              replaces <code>~/.config/notatnik/settings.toml</code>; the file it replaces is kept next to it
-              as
-              <code>settings.toml.before-restore-…</code>. No page changes. The settings are in the snapshot
-              under
-              <code>.notatnik-device/</code> together with the window state of the graph; <em>Everything</em> does
-              not unpack them into the graph folder.
-            </li>
-            <li>
-              <strong>Without the app:</strong> a snapshot is a normal zip file. Unzip it with any tool; the result
-              is a graph folder of Markdown files.
-            </li>
-            <li>
-              Snapshots marked <em>before a change</em> were taken automatically before a rename or delete of
-              several pages. For a single page's earlier states use <em>History</em> under the page's title.
-            </li>
-          </ol>
-          <h3>Snapshots</h3>
-          <ul class="snaps" data-testid="backup-list" aria-label="Snapshots">
-            {#each bk?.backups ?? [] as b (b.name)}
-              <li data-testid="backup-item">
-                <span class="when">{b.created}</span>
-                <span class="muted">{mb(b.bytes)}</span>
-                {#if b.encrypted}<span class="badge" title="Sealed with the backup password"
-                    >🔒 encrypted</span
-                  >{/if}
-                {#if bk?.mirror_dir}<span
-                    class="badge"
-                    title={b.in_mirror ? 'Also in the second folder' : 'Not yet copied to the second folder'}
-                    >{b.in_mirror ? 'copied' : 'not copied'}</span
-                  >{/if}
-                {#if b.before}<span
-                    class="badge"
-                    title="Taken automatically before a rename, delete or restore">before a change</span
-                  >{/if}
-                <button class="plain" aria-expanded={restoreOf === b.name} onclick={() => openRestore(b.name)}
-                  >Restore…</button
-                >
-                {#if restoreOf === b.name}
-                  <div class="restore">
-                    {#if b.encrypted && !enc?.unlocked}
-                      <form
-                        class="encform"
-                        onsubmit={(e) => {
-                          e.preventDefault()
-                          void encUnlock()
-                        }}
-                      >
-                        <label
-                          >This backup is encrypted. Password or recovery key
-                          <input
-                            type="password"
-                            autocomplete="current-password"
-                            aria-label="Password or recovery key"
-                            bind:value={encPw}
-                          /></label
-                        >
-                        <span class="open"><button type="submit" disabled={!encPw}>Unlock</button></span>
-                      </form>
-                    {:else}
-                      <div class="changes" data-testid="backup-changes">
-                        <strong>Changes since this snapshot</strong>
-                        {#if !changes}
-                          <p class="muted">Comparing…</p>
-                        {:else if !changes.length}
-                          <p class="muted">Nothing differs: all files are the same as in this snapshot.</p>
-                        {:else}
-                          <p class="muted">
-                            {changes.length} file{changes.length === 1 ? '' : 's'} differ.
-                            <span class="add">+</span>
-                            lines in the snapshot (a restore brings them back), <span class="del">−</span>
-                            lines now.
-                            <button class="plain" onclick={() => showAll(b.name, true)}
-                              >Show all changes</button
-                            >
-                            <button class="plain" onclick={() => showAll(b.name, false)}>Hide all</button>
-                          </p>
-                          <ul class="chg">
-                            {#each changes as c (c.path)}
-                              <li>
-                                <button
-                                  class="plain row"
-                                  aria-expanded={!!openPaths[c.path]}
-                                  disabled={c.binary}
-                                  onclick={() => showDiff(b.name, c.path, !openPaths[c.path])}
-                                >
-                                  <span class="badge">{CHANGE_LABEL[c.status]}</span>
-                                  <code>{c.path}</code>
-                                  {#if c.binary}<span class="muted">not text</span>{:else}<span class="muted"
-                                      ><span class="add">+{c.added}</span>
-                                      <span class="del">−{c.removed}</span></span
-                                    >{/if}
-                                </button>
-                                {#if openPaths[c.path] && diffs[c.path]}
-                                  {#if diffs[c.path].too_large}
-                                    <p class="muted">Too long and too different to show line by line.</p>
-                                  {:else}
-                                    <pre
-                                      class="diff"
-                                      aria-label={`Changes in ${c.path}`}>{#each diffs[c.path].lines as l, i (i)}<span
-                                          class:add={l.kind === 'add'}
-                                          class:del={l.kind === 'del'}
-                                          class:gap={l.kind === 'gap'}
-                                          >{l.kind === 'add'
-                                            ? '+ '
-                                            : l.kind === 'del'
-                                              ? '− '
-                                              : l.kind === 'gap'
-                                                ? '…'
-                                                : '  '}{l.text}
-</span>{/each}</pre>
-                                  {/if}
-                                {/if}
-                              </li>
-                            {/each}
-                          </ul>
-                        {/if}
-                      </div>
-                      <label
-                        >One page, replacing the current one
-                        <span class="open"
-                          ><input aria-label="Page name" placeholder="page name" bind:value={restorePage} />
-                          <button disabled={!restorePage.trim()} onclick={() => restoreOnePage(b.name)}
-                            >Restore page</button
-                          ></span
-                        ></label
-                      >
-                      <div>
-                        Device settings of this device (theme, dates, graph list, backup options)
-                        <span class="open">
-                          <button onclick={() => compareDevice(b.name)}>Compare…</button>
-                        </span>
-                        {#if devicePreview}
-                          {#if !devicePreview.available}
-                            <p class="muted">This snapshot has no device settings.</p>
-                          {:else if devicePreview.same}
-                            <p class="muted">The same as now.</p>
-                          {:else}
-                            <pre
-                              class="diff"
-                              data-testid="device-diff"
-                              aria-label="Changed settings">{#each devicePreview.lines as l, i (i)}<span
-                                  class:add={l.kind === 'add'}
-                                  class:del={l.kind === 'del'}
-                                  >{l.kind === 'add' ? '+ ' : '− '}{l.text}
-</span>{/each}</pre>
-                            <button onclick={() => restoreDevice(b.name)}>Restore settings</button>
-                          {/if}
-                        {/if}
-                      </div>
-                      <label
-                        >Everything, into a new folder
-                        <span class="open"
-                          ><input
-                            aria-label="Target folder"
-                            placeholder="/path/to/new-folder"
-                            bind:value={restoreTarget}
-                          />
-                          <button disabled={!restoreTarget.trim()} onclick={() => restoreFolder(b.name)}
-                            >Restore folder</button
-                          ></span
-                        ></label
-                      >
-                    {/if}
-                  </div>
+            </SettingRow>
+            {#if recoveryShown}
+              <div class="recovery" role="group" aria-label="Recovery key" data-testid="recovery-box">
+                <strong>Your recovery key</strong>
+                <p class="muted">
+                  It opens your backups if you forget the password. It is shown only now. Write it down or put
+                  it in a password manager, and keep it away from the backups. Without the password and this
+                  key the backups cannot be read by anyone.
+                </p>
+                <code class="key" data-testid="recovery-key">{recoveryShown}</code>
+                <span class="open">
+                  <button class="plain" onclick={() => recoveryShown && copy(recoveryShown)}>Copy</button>
+                </span>
+                {#if enc?.configured && !encResetting}
+                  <button onclick={() => ((recoveryShown = null), (recoverySaved = false))}>Done</button>
+                {:else}
+                  <label class="check">
+                    <input type="checkbox" bind:checked={recoverySaved} /> I saved the recovery key
+                  </label>
+                  <button disabled={!recoverySaved} onclick={encConfirm} data-testid="enc-confirm"
+                    >{encResetting ? 'Replace the password' : 'Turn on encryption'}</button
+                  >
                 {/if}
-              </li>
-            {:else}
-              <li class="muted">None yet.</li>
-            {/each}
-          </ul>
+              </div>
+            {/if}
+            {#if encForm === 'setup'}
+              <form
+                class="encform"
+                onsubmit={(e) => {
+                  e.preventDefault()
+                  if (encPasswordOk()) void encSetup()
+                }}
+              >
+                <label
+                  >Password (8 to 200 characters)
+                  <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+                >
+                <label
+                  >Password again
+                  <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+                >
+                <span class="open">
+                  <button type="submit" disabled={!encPasswordOk()}>Create</button>
+                  <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+                </span>
+              </form>
+            {:else if encForm === 'unlock'}
+              <form
+                class="encform"
+                onsubmit={(e) => {
+                  e.preventDefault()
+                  void encUnlock()
+                }}
+              >
+                <label
+                  >Password or recovery key
+                  <input type="password" autocomplete="current-password" bind:value={encPw} /></label
+                >
+                <span class="open">
+                  <button type="submit" disabled={!encPw}>Unlock</button>
+                  <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+                </span>
+              </form>
+            {:else if encForm === 'password'}
+              <form
+                class="encform"
+                onsubmit={(e) => {
+                  e.preventDefault()
+                  if (encPw.length >= 8 && encPw === encPw2) void encChange()
+                }}
+              >
+                <label
+                  >Current password
+                  <input type="password" autocomplete="current-password" bind:value={encOld} /></label
+                >
+                <label
+                  >New password (8 to 200 characters)
+                  <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+                >
+                <label
+                  >New password again
+                  <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+                >
+                <span class="open">
+                  <button type="submit" disabled={!encOld || !encPasswordOk()}>Change password</button>
+                  <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+                </span>
+              </form>
+            {:else if encForm === 'recovery'}
+              <form
+                class="encform"
+                onsubmit={(e) => {
+                  e.preventDefault()
+                  void encNewRecovery()
+                }}
+              >
+                <label
+                  >Current password
+                  <input type="password" autocomplete="current-password" bind:value={encOld} /></label
+                >
+                <p class="muted">
+                  The old recovery key stops working for new backups. Backups made before keep it.
+                </p>
+                <span class="open">
+                  <button type="submit" disabled={!encOld}>Make a new recovery key</button>
+                  <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+                </span>
+              </form>
+            {:else if encForm === 'reset'}
+              <form
+                class="encform"
+                data-testid="enc-reset-form"
+                onsubmit={(e) => {
+                  e.preventDefault()
+                  if (encUnderstood && encPasswordOk()) void encReset()
+                }}
+              >
+                <p class="warn">
+                  Use this only if the password and the recovery key are both lost. Backups that are already
+                  sealed stay unreadable for good. New backups are sealed with the new password.
+                </p>
+                <label class="check">
+                  <input type="checkbox" bind:checked={encUnderstood} data-testid="enc-reset-understood" /> I understand
+                  that the encrypted backups made so far are lost
+                </label>
+                <label
+                  >New password (8 to 200 characters)
+                  <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+                >
+                <label
+                  >New password again
+                  <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+                >
+                <span class="open">
+                  <button type="submit" disabled={!encUnderstood || !encPasswordOk()}
+                    >Reset the password</button
+                  >
+                  <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+                </span>
+              </form>
+            {/if}
+            {#if enc?.configured}
+              <p class="encmore">
+                <button class="plain" onclick={() => (encForm = 'password')}>Change password…</button>
+                <button class="plain" onclick={() => (encForm = 'recovery')}>New recovery key…</button>
+                <button
+                  class="plain"
+                  data-testid="enc-forgot"
+                  onclick={() => (encForm = encForm === 'reset' ? '' : 'reset')}>Forgot the password…</button
+                >
+                {#if enc.plain_snapshots > 0}
+                  <button class="plain" onclick={encExisting} data-testid="enc-existing"
+                    >Encrypt {enc.plain_snapshots} existing backup{enc.plain_snapshots === 1
+                      ? ''
+                      : 's'}</button
+                  >
+                {/if}
+              </p>
+            {/if}
+          {/if}
         {:else}
           <PaneHeader title="Graph" scope="graph">The folder of Markdown files you are working in.</PaneHeader
           >

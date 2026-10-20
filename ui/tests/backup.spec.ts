@@ -1,6 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
+
+// Backup has three parts, chosen in the row under its title: Snapshots (back up now, the list, how to restore),
+// Where & when (automatic, folder, second folder, compression) and Encryption.
+const part = (page: Page, name: 'Snapshots' | 'Where & when' | 'Encryption') =>
+  page.getByRole('navigation', { name: 'Backup sections' }).getByRole('button', { name }).click()
 
 // BK-1..BK-5: the Backup tab of the settings.
 test('backup: set the folder, back up now, restore one page and a whole folder', async ({
@@ -12,11 +18,12 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
   await page.getByRole('tab', { name: /Backup/ }).click()
   const pane = page.getByRole('tabpanel')
   await expect(pane.getByRole('heading', { name: 'Backup' })).toBeVisible()
-  await expect(pane.getByRole('switch', { name: 'Automatic backups' })).toBeChecked()
   await expect(pane.getByTestId('backup-item')).toHaveCount(0)
-  // the way back is explained on the page
-  await expect(pane.getByRole('heading', { name: 'How to restore' })).toBeVisible()
+  // the way back is explained on the page, folded away until it is opened
+  await pane.getByText('How to restore', { exact: true }).click()
   await expect(pane.getByText('Restore folder', { exact: false }).first()).toBeVisible()
+  await part(page, 'Where & when')
+  await expect(pane.getByRole('switch', { name: 'Automatic backups' })).toBeChecked()
 
   // the folder is configurable; a path inside the graph is refused
   const dir = path.join(backend.dir, '..', 'my-backups')
@@ -28,6 +35,7 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
   await folder.press('Enter')
   await expect(pane.getByRole('button', { name: 'Use default' })).toBeEnabled()
 
+  await part(page, 'Snapshots')
   await pane.getByTestId('backup-now').click()
   const items = pane.getByTestId('backup-item')
   await expect(items).toHaveCount(1)
@@ -53,9 +61,11 @@ test('backup: set the folder, back up now, restore one page and a whole folder',
   expect(fs.readFileSync(path.join(target, 'pages/t.md'), 'utf8')).toBe('- original\n')
 
   // the automatic switch is a device setting
+  await part(page, 'Where & when')
   await pane.getByRole('switch', { name: 'Automatic backups' }).uncheck()
   await page.reload()
   await page.getByRole('tab', { name: /Backup/ }).click()
+  await part(page, 'Where & when')
   await expect(
     page.getByRole('tabpanel').getByRole('switch', { name: 'Automatic backups' }),
   ).not.toBeChecked()
@@ -72,12 +82,14 @@ test('backup: compression choice, second folder, and restoring the device settin
   await backend.open('/settings')
   await page.getByRole('tab', { name: /Backup/ }).click()
   const pane = page.getByRole('tabpanel')
+  await part(page, 'Where & when')
   await pane.getByLabel('Backup folder').fill(first)
   await pane.getByLabel('Backup folder').press('Enter')
 
   // the compression choice is saved and used for new snapshots
   await expect(pane.getByRole('radio', { name: 'Compressed', exact: true })).toBeChecked()
   await pane.getByRole('radio', { name: 'Not compressed' }).check()
+  await part(page, 'Snapshots')
   await pane.getByTestId('backup-now').click()
   await expect(pane.getByTestId('backup-item')).toHaveCount(1)
   const zip = fs.readdirSync(first).find((f) => f.endsWith('.zip'))!
@@ -85,9 +97,11 @@ test('backup: compression choice, second folder, and restoring the device settin
   expect(fs.readFileSync(path.join(first, zip)).includes('- original')).toBe(true)
 
   // second folder: a folder that is not there is reported, one that exists gets the copies
+  await part(page, 'Where & when')
   const mirror = pane.getByLabel('Second folder')
   await mirror.fill(second)
   await mirror.press('Enter')
+  await part(page, 'Snapshots')
   await pane.getByTestId('backup-now').click()
   await expect(pane.getByTestId('mirror-error')).toContainText('not available')
   fs.mkdirSync(second)
@@ -96,15 +110,18 @@ test('backup: compression choice, second folder, and restoring the device settin
   await expect(pane.getByTestId('backup-item').first()).toContainText('copied')
   expect(fs.readdirSync(second).filter((f) => f.endsWith('.zip')).length).toBeGreaterThan(0)
   // the same folder twice is refused
+  await part(page, 'Where & when')
   await mirror.fill(first)
   await mirror.press('Enter')
   await expect(page.getByRole('alert').filter({ hasText: /must differ/ })).toBeVisible()
   await mirror.fill(second)
+  await part(page, 'Snapshots')
 
   // device settings: change one after the snapshot, compare, restore
   await page.getByRole('tab', { name: /Appearance/ }).click()
   await page.getByRole('radio', { name: 'Dark', exact: true }).check()
   await page.getByRole('tab', { name: /Backup/ }).click()
+  await part(page, 'Snapshots')
   const item = pane.getByTestId('backup-item').last()
   await item.getByRole('button', { name: 'Restore…' }).click()
   await item.getByRole('button', { name: 'Compare…' }).click()
@@ -122,8 +139,10 @@ test('backup: compare a snapshot with the current state before restoring', async
   await backend.open('/settings')
   await page.getByRole('tab', { name: /Backup/ }).click()
   const pane = page.getByRole('tabpanel')
+  await part(page, 'Where & when')
   await pane.getByLabel('Backup folder').fill(path.join(backend.dir, '..', 'cmp-backups'))
   await pane.getByLabel('Backup folder').press('Enter')
+  await part(page, 'Snapshots')
   await pane.getByTestId('backup-now').click()
   const item = pane.getByTestId('backup-item').first()
   await expect(item).toBeVisible()
@@ -163,10 +182,12 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   await backend.open('/settings')
   await page.getByRole('tab', { name: /Backup/ }).click()
   const pane = page.getByRole('tabpanel')
+  await part(page, 'Where & when')
   await pane.getByLabel('Backup folder').fill(dir)
   await pane.getByLabel('Backup folder').press('Enter')
 
   // set up: two passwords that match, then the recovery key is shown once and must be confirmed
+  await part(page, 'Encryption')
   await pane.getByTestId('enc-setup').click()
   const form = pane.locator('form.encform')
   await form.getByLabel('Password (8 to 200 characters)').fill('correct horse')
@@ -185,6 +206,7 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   await expect(pane.getByTestId('recovery-box')).toHaveCount(0)
 
   // a backup is sealed: a .zip.enc file, a lock badge, nothing readable in the folder
+  await part(page, 'Snapshots')
   await pane.getByTestId('backup-now').click()
   const item = pane.getByTestId('backup-item').first()
   await expect(item).toContainText('encrypted')
@@ -196,8 +218,10 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   }
 
   // locked: opening the snapshot asks for the password; a wrong one is refused
+  await part(page, 'Encryption')
   await pane.getByRole('button', { name: 'Lock', exact: true }).click()
   await expect(pane.getByTestId('enc-state')).toHaveText('Locked')
+  await part(page, 'Snapshots')
   await item.getByRole('button', { name: 'Restore…' }).click()
   const ask = item.getByLabel('Password or recovery key')
   await ask.fill('wrong password')
@@ -208,6 +232,7 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   await expect(item.getByTestId('backup-changes')).toContainText('Nothing differs')
 
   // the recovery key opens it as well
+  await part(page, 'Encryption')
   await pane.getByRole('button', { name: 'Lock', exact: true }).click()
   await pane.getByRole('button', { name: 'Unlock…' }).click()
   // (the open snapshot has an unlock form of its own: this one is the form with a Cancel button)
@@ -219,6 +244,7 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   // the choice survives a reload; the vault and the state are on the device
   await page.reload()
   await page.getByRole('tab', { name: /Backup/ }).click()
+  await part(page, 'Encryption')
   await expect(page.getByRole('tabpanel').getByRole('switch', { name: 'Encrypt new backups' })).toBeChecked()
 })
 
@@ -229,8 +255,10 @@ test('backup encryption: a forgotten password is reset', async ({ backend, page 
   await backend.open('/settings')
   await page.getByRole('tab', { name: /Backup/ }).click()
   const pane = page.getByRole('tabpanel')
+  await part(page, 'Where & when')
   await pane.getByLabel('Backup folder').fill(dir)
   await pane.getByLabel('Backup folder').press('Enter')
+  await part(page, 'Encryption')
   await pane.getByTestId('enc-setup').click()
   const form = pane.locator('form.encform')
   await form.getByLabel('Password (8 to 200 characters)').fill('old password')
