@@ -2,7 +2,7 @@
 import { tick } from 'svelte'
 import { backend, type BlockOp } from '../api'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
-import { undoRedo, type PageDoc } from '../stores/pages.svelte'
+import { getDoc, undoRedo, type PageDoc } from '../stores/pages.svelte'
 import { app, navigate, toast, errorMessage } from '../stores/app.svelte'
 import { doneAt, nextTaskState } from '../tasks'
 import {
@@ -449,6 +449,24 @@ export function selectionMarkdown(ctx: Ctx, withIds = false): string {
     '  ',
     0,
     withIds,
+  )
+}
+
+/** "Save as template…": the selected blocks (or the block being edited) with their children go to the dialog that
+ * names the template. */
+export function saveAsTemplate(): void {
+  const view = editing.docName ? getDoc(editing.docName).view : undefined
+  const ids = editing.mode === 'select' ? editing.selection : editing.mode === 'edit' ? [editing.blockId] : []
+  const roots = view ? rootsIn(view, ids) : []
+  if (!view || roots.length === 0) {
+    toast('Select the blocks first (Esc in a block selects it)', 'info')
+    return
+  }
+  app.snippetText = toMarkdown(
+    roots.map((r) => r.block),
+    '  ',
+    0,
+    false,
   )
 }
 

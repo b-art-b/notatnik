@@ -128,6 +128,8 @@ commands! {
     read_template(NameArgs) -> StringValue => read_template,
     write_template(WriteTemplateArgs) -> TemplateEntry => write_template,
     create_template(NameArgs) -> TemplateEntry => create_template,
+    list_snippets(NoArgs) -> Vec<TemplateEntry> => list_snippets,
+    save_snippet(SaveSnippetArgs) -> TemplateEntry => save_snippet,
     delete_template(NameArgs) -> Vec<TemplateEntry> => delete_template,
     deleted_templates(NoArgs) -> Vec<DeletedTemplate> => deleted_templates,
     restore_template(RestoreTemplateArgs) -> Vec<TemplateEntry> => restore_template,

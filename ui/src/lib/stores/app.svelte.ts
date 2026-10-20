@@ -93,6 +93,8 @@ export const app = $state({
   searchOpen: false,
   /** A page that was just created from the dialog: its first block opens for typing. */
   draftFor: '',
+  /** Blocks (Markdown) waiting for a name in the "Save as template" dialog; `null` when it is closed. */
+  snippetText: null as string | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */
   subpageFor: '',
   /** The left sidebar is shown; remembered on this device. */

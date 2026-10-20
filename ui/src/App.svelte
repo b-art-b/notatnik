@@ -54,6 +54,7 @@
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
+  import SnippetDialog from './lib/components/SnippetDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
   import Settings from './lib/components/Settings.svelte'
   import Welcome from './lib/components/Welcome.svelte'
@@ -504,6 +505,7 @@
 {/if}
 {#if app.searchOpen}<SearchDialog />{/if}
 {#if app.paletteOpen}<Palette />{/if}
+{#if app.snippetText !== null}<SnippetDialog />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
       {t.message}

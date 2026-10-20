@@ -36,7 +36,7 @@ They are filled in for the page that the template is applied to, when:
   blocks;
 - a new page is created below a namespace that has a template, or a new journal day is created and a journal
   template is set (Settings → Templates);
-- `/template` inserts a template's blocks into a block.
+- `/template` inserts a template's blocks, or the blocks saved with *Save as template…* (`templates/snippets/`), into a block.
 
 Only the properties and blocks are filled in. The template file itself is never changed.
 

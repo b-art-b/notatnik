@@ -323,6 +323,17 @@ pub struct WriteTemplateArgs {
     pub text: String,
 }
 
+/// `save_snippet`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SaveSnippetArgs {
+    /// The name of the snippet: one word or phrase, no `/`.
+    pub name: String,
+    /// The blocks as an indented Markdown outline (`- text`, children indented).
+    pub text: String,
+    /// Replace an existing snippet of that name (false: error `exists`).
+    pub replace: bool,
+}
+
 /// One template in `templates/`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct TemplateEntry {

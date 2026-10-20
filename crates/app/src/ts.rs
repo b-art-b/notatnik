@@ -119,6 +119,7 @@ pub fn typescript_bindings() -> String {
         TemplateEntry,
         SaveTemplateArgs,
         WriteTemplateArgs,
+        SaveSnippetArgs,
         AgendaArgs,
         AgendaItem,
         AgendaDay,

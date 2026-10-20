@@ -175,12 +175,20 @@ pub(crate) fn atomic_write(root: &Path, abs: &Path, bytes: &[u8]) -> Result<()> 
     result
 }
 
-/// `templates/<name>.md` for a template name (a page type): one path segment, no hidden or special names.
+/// The folder of the snippets inside `templates/`: blocks saved from a page, not tied to a page type.
+pub const SNIPPETS_DIR: &str = "snippets";
+
+/// `templates/<name>.md` for a template name (a page type): one path segment, no hidden or special names. A
+/// snippet is `snippets/<name>`: the same rules for the name below `templates/snippets/`.
 fn template_rel(name: &str) -> Result<String> {
-    let bad = name.is_empty()
-        || name.starts_with('.')
-        || name.contains(['/', '\\', '\0'])
-        || name.trim() != name;
+    let leaf = name
+        .strip_prefix(SNIPPETS_DIR)
+        .and_then(|r| r.strip_prefix('/'))
+        .unwrap_or(name);
+    let bad = leaf.is_empty()
+        || leaf.starts_with('.')
+        || leaf.contains(['/', '\\', '\0'])
+        || leaf.trim() != leaf;
     if bad {
         return Err(Error::InvalidPath(format!("templates/{name}.md")));
     }
@@ -552,13 +560,15 @@ impl Graph {
                 continue;
             };
             let id = ms.to_string();
-            for f in std::fs::read_dir(e.path().join("templates"))
-                .into_iter()
-                .flatten()
-                .flatten()
-            {
-                if let Some(name) = f.file_name().to_str().and_then(|n| n.strip_suffix(".md")) {
-                    all.push((id.clone(), name.to_string(), ms));
+            for (dir, prefix) in [("templates", ""), ("templates/snippets", "snippets/")] {
+                for f in std::fs::read_dir(e.path().join(dir))
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                {
+                    if let Some(name) = f.file_name().to_str().and_then(|n| n.strip_suffix(".md")) {
+                        all.push((id.clone(), format!("{prefix}{name}"), ms));
+                    }
                 }
             }
         }
@@ -587,9 +597,10 @@ impl Graph {
         atomic_write(&root, &abs, &bytes)?;
         let _ = std::fs::remove_file(&src);
         if let Some(dir) = src.parent() {
-            let _ = std::fs::remove_dir(dir); // only when empty
-            if let Some(up) = dir.parent() {
-                let _ = std::fs::remove_dir(up);
+            // only when empty: the folder, `templates/` and the trash entry (a snippet is one level deeper)
+            let depth = if name.starts_with("snippets/") { 3 } else { 2 };
+            for d in dir.ancestors().take(depth) {
+                let _ = std::fs::remove_dir(d);
             }
         }
         Ok(())

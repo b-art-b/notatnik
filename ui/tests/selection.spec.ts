@@ -205,6 +205,7 @@ test('the right-click menu of a selection copies, duplicates and deletes it', as
     /Cut/,
     /Duplicate/,
     /Copy block references/,
+    /Save as template/,
     /Delete/,
   ])
   await menu.getByRole('menuitem', { name: 'Copy Ctrl+C' }).click()

@@ -36,41 +36,60 @@ export interface SlashCommand {
   file?: boolean
   /** `/followup`: marks the task done and creates the next one, linked with `follows::`. */
   followup?: boolean
-  /** `/template-<name>` inserts the blocks of this template (a page type) after the block. */
+  /** `/template-<name>` inserts the blocks of this template after the block: a page type, or `snippets/<name>`
+   * for blocks saved from a page. */
   template?: string
 }
 
 // The templates of the graph, for `/template`. Refreshed whenever an editor opens (a block is being edited before
 // a command can be typed), so a template saved a moment ago is offered.
 let templateNames: string[] = []
+let snippetNames: string[] = []
 export async function refreshTemplateNames(): Promise<void> {
   try {
     templateNames = (await backend.call('list_templates', {})).map((t) => t.name)
+    snippetNames = (await backend.call('list_snippets', {})).map((t) => t.name)
   } catch {
     templateNames = []
+    snippetNames = []
   }
 }
 /** For tests. */
-export function setTemplateNames(names: string[]): void {
+export function setTemplateNames(names: string[], snippets: string[] = []): void {
   templateNames = names
+  snippetNames = snippets
 }
 
+const nameSlug = (n: string) =>
+  n
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'x'
+
 function templateCommands(): SlashCommand[] {
-  return templateNames.map((n) => ({
-    name: `template-${
-      n
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') || 'x'
-    }`,
-    label: `Template: ${n}`,
-    icon: '⎘',
-    group: 'Insert' as const,
-    keywords: ['template', n.toLowerCase()],
-    title: `Insert the blocks of the template “${n}”`,
-    template: n,
-    insert: () => ({ text: '' }),
-  }))
+  return [
+    ...templateNames.map((n) => ({
+      name: `template-${nameSlug(n)}`,
+      label: `Template: ${n}`,
+      icon: '⎘',
+      group: 'Insert' as const,
+      keywords: ['template', n.toLowerCase()],
+      title: `Insert the blocks of the template “${n}”`,
+      template: n,
+      insert: () => ({ text: '' }),
+    })),
+    // blocks saved from a page (Save as template…): no page type, only blocks
+    ...snippetNames.map((n) => ({
+      name: `template-snippet-${nameSlug(n)}`,
+      label: `Snippet: ${n}`,
+      icon: '⎘',
+      group: 'Insert' as const,
+      keywords: ['template', 'snippet', n.toLowerCase()],
+      title: `Insert the saved blocks “${n}”`,
+      template: `snippets/${n}`,
+      insert: () => ({ text: '' }),
+    })),
+  ]
 }
 
 /** `YYYY-MM-DD HH:MM` for a new logbook line: the app's date and the local time of day. */

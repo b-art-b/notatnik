@@ -6005,3 +6005,100 @@ fn a_new_template_is_created_with_its_type() {
     let list = t.ok("list_templates", json!({}));
     assert_eq!(list.as_array().unwrap().len(), 2, "{list}");
 }
+
+/// A snippet is a file in `templates/snippets/` that holds blocks only. It is listed apart from the page types, can
+/// be inserted with the template calls (as `snippets/<name>`), is refused when it exists, can be deleted and restored,
+/// and never counts as a template of a page type (PR-10).
+#[test]
+fn a_snippet_is_saved_listed_inserted_and_deleted() {
+    let t = start("basic");
+    let text = "- Agenda for {{title}}\n  - Notes\n- Actions\n";
+    let e = t.ok(
+        "save_snippet",
+        json!({"name": " Meeting ", "text": text, "replace": false}),
+    );
+    assert_eq!(
+        (e["name"].as_str(), e["blocks"].as_u64()),
+        (Some("Meeting"), Some(3))
+    );
+    assert_eq!(t.read("templates/snippets/Meeting.md"), text);
+    let again = t.call(
+        "save_snippet",
+        json!({"name": "meeting", "text": text, "replace": false}),
+    );
+    assert_eq!(again.unwrap_err().code, "exists");
+    t.ok(
+        "save_snippet",
+        json!({"name": "meeting", "text": "- Changed", "replace": true}),
+    );
+    assert_eq!(t.read("templates/snippets/Meeting.md"), "- Changed\n");
+    for bad in ["", "a/b", ".x"] {
+        assert!(
+            t.call(
+                "save_snippet",
+                json!({"name": bad, "text": text, "replace": false})
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    assert!(
+        t.call(
+            "save_snippet",
+            json!({"name": "empty", "text": "just text", "replace": false})
+        )
+        .is_err()
+    );
+    // apart from the page types
+    assert_eq!(
+        t.ok("list_templates", json!({})).as_array().unwrap().len(),
+        0
+    );
+    let list = t.ok("list_snippets", json!({}));
+    assert_eq!(list[0]["name"], "Meeting", "{list}");
+    // inserted with the blocks and without page properties; the text is filled in
+    t.ok(
+        "save_snippet",
+        json!({"name": "plan", "text": text, "replace": false}),
+    );
+    let c = t.ok(
+        "template_blocks",
+        json!({"name": "snippets/plan", "page": "Alpha"}),
+    );
+    assert_eq!(c["blocks"].as_array().unwrap().len(), 3, "{c}");
+    assert_eq!(c["blocks"][0]["text"], "Agenda for Alpha");
+    assert!(c["props"].as_array().unwrap().is_empty());
+    // editing goes through the template calls
+    assert_eq!(
+        t.ok("read_template", json!({"name": "snippets/plan"}))["value"],
+        text
+    );
+    t.ok(
+        "write_template",
+        json!({"name": "snippets/plan", "text": "- Other"}),
+    );
+    assert_eq!(t.read("templates/snippets/plan.md"), "- Other\n");
+    // a page type cannot be a snippet
+    assert!(
+        t.call("create_template", json!({"name": "snippets/x"}))
+            .is_err()
+    );
+    // delete and restore
+    t.ok("delete_template", json!({"name": "snippets/plan"}));
+    assert!(
+        t.call("read_template", json!({"name": "snippets/plan"}))
+            .is_err()
+    );
+    let gone = t.ok("deleted_templates", json!({}));
+    let hit = gone
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["name"] == "snippets/plan")
+        .unwrap_or_else(|| panic!("{gone}"));
+    t.ok(
+        "restore_template",
+        json!({"id": hit["id"], "name": "snippets/plan"}),
+    );
+    assert_eq!(t.read("templates/snippets/plan.md"), "- Other\n");
+}

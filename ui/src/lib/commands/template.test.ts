@@ -49,4 +49,16 @@ describe('/template commands', () => {
     expect(slashPool({ typed: 'template', midWord: true }).some((c) => c.template)).toBe(false)
     setTemplateNames([])
   })
+
+  it('saved blocks are offered as snippets, also by `template`', () => {
+    setTemplateNames(['person'], ['Meeting Notes'])
+    const pool = slashPool({ typed: 'template', midWord: false })
+    expect(rankCommands(pool, 'template').map((c) => c.template)).toEqual([
+      'person',
+      'snippets/Meeting Notes',
+    ])
+    const hit = rankCommands(pool, 'meeting')[0]
+    expect([hit.name, hit.label]).toEqual(['template-snippet-meeting-notes', 'Snippet: Meeting Notes'])
+    setTemplateNames([])
+  })
 })

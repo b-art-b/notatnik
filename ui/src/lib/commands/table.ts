@@ -9,7 +9,7 @@ import {
   toggleRightFocus,
 } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
-import { globalUndo } from './exec'
+import { globalUndo, saveAsTemplate } from './exec'
 import { syncNow } from '../stores/sync.svelte'
 import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
 
@@ -51,6 +51,12 @@ export const commands: Command[] = [
     title: 'Pause or resume calendar sync',
     keys: '',
     run: () => void togglePauseCalendarSync(),
+  },
+  {
+    id: 'save-as-template',
+    title: 'Save as template…',
+    keys: '',
+    run: saveAsTemplate,
   },
   {
     id: 'new-subpage',

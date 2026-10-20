@@ -1210,6 +1210,19 @@ name: string,
  * The whole text of `templates/<name>.md`.
  */
 text: string, };
+export type SaveSnippetArgs = { 
+/**
+ * The name of the snippet: one word or phrase, no `/`.
+ */
+name: string, 
+/**
+ * The blocks as an indented Markdown outline (`- text`, children indented).
+ */
+text: string, 
+/**
+ * Replace an existing snippet of that name (false: error `exists`).
+ */
+replace: boolean, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
@@ -2345,6 +2358,8 @@ export type Commands = {
   read_template: { args: NameArgs; result: StringValue };
   write_template: { args: WriteTemplateArgs; result: TemplateEntry };
   create_template: { args: NameArgs; result: TemplateEntry };
+  list_snippets: { args: NoArgs; result: TemplateEntry[] };
+  save_snippet: { args: SaveSnippetArgs; result: TemplateEntry };
   delete_template: { args: NameArgs; result: TemplateEntry[] };
   deleted_templates: { args: NoArgs; result: DeletedTemplate[] };
   restore_template: { args: RestoreTemplateArgs; result: TemplateEntry[] };

@@ -11,6 +11,8 @@
     onclose,
   }: { name: string; onsaved: (entry: TemplateEntry) => void; onclose: () => void } = $props()
 
+  // a snippet is `snippets/<name>`: shown by its plain name
+  const shown = $derived(name.replace(/^snippets\//, ''))
   let original = $state<string | null>(null)
   let text = $state('')
   let busy = $state(false)
@@ -36,7 +38,7 @@
       original = text.endsWith('\n') || !text ? text : text + '\n'
       text = original
       onsaved(entry)
-      toast(`Saved the template “${name}”`)
+      toast(`Saved the template “${shown}”`)
     } catch (e) {
       error = errorMessage(e)
     } finally {
@@ -60,7 +62,7 @@
     <p class="muted">Loading…</p>
   {:else}
     <textarea
-      aria-label={`Text of the template ${name}`}
+      aria-label={`Text of the template ${shown}`}
       bind:value={text}
       onkeydown={key}
       spellcheck="false"

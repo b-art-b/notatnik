@@ -26,6 +26,7 @@
     selectionCut,
     selectionDelete,
     selectionDuplicate,
+    saveAsTemplate,
     selectionCopyRefs,
   } from '../commands/exec'
   import { app } from '../stores/app.svelte'
@@ -196,6 +197,7 @@
       { label: 'Cut', hint: 'Ctrl+X', run: () => void selectionCut(c) },
       { label: 'Duplicate', hint: 'Ctrl+D', run: () => void selectionDuplicate(c) },
       { label: 'Copy block references', hint: 'Ctrl+Shift+C', run: () => void selectionCopyRefs(c) },
+      { label: 'Save as template…', run: () => saveAsTemplate() },
       { label: 'Delete', hint: 'Del', run: () => void selectionDelete(c) },
     ]
   }

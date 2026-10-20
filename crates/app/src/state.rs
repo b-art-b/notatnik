@@ -784,20 +784,23 @@ impl AppState {
             .templates_auto
     }
 
-    /// The template file of a type: `templates/<type>.md`, the name compared without regard to case.
+    /// The template file of a type: `templates/<type>.md`, the name compared without regard to case. A snippet is
+    /// `snippets/<name>`, in `templates/snippets/`; the returned file name keeps that prefix.
     fn template_text(o: &Open, ty: &str) -> Option<(String, String)> {
-        let dir = o.graph.root().join("templates");
-        let file = std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
-            let n = e.file_name().into_string().ok()?;
-            let stem = n.strip_suffix(".md")?;
-            stem.eq_ignore_ascii_case(ty).then(|| stem.to_string())
-        })?;
-        let text = o
-            .graph
-            .read_page(&format!("templates/{file}.md"))
+        let (dir, prefix, leaf) = match ty.strip_prefix("snippets/") {
+            Some(leaf) => ("templates/snippets", "snippets/", leaf),
+            None => ("templates", "", ty),
+        };
+        let file = std::fs::read_dir(o.graph.root().join(dir))
             .ok()?
-            .text;
-        Some((file, text))
+            .flatten()
+            .find_map(|e| {
+                let n = e.file_name().into_string().ok()?;
+                let stem = n.strip_suffix(".md")?;
+                stem.eq_ignore_ascii_case(leaf).then(|| stem.to_string())
+            })?;
+        let text = o.graph.read_page(&format!("{dir}/{file}.md")).ok()?.text;
+        Some((format!("{prefix}{file}"), text))
     }
 
     /// The template for a page that is being created: the journal template for a journal day, otherwise the one of
@@ -1051,23 +1054,28 @@ impl AppState {
             // the page properties the template has and the page lacks
             let rel = Self::page_rel(o, page.as_str())?;
             let exists = o.graph.read_page(&rel).is_ok();
-            let props = Self::template_ops(
-                o,
-                &page,
-                &rel,
-                exists,
-                &a.name,
-                &[],
-                self.today(),
-                TemplateMode::NewPage,
-            )?
-            .map(|t| {
-                t.ops
-                    .into_iter()
-                    .filter(|op| matches!(op, BlockOp::SetPageProperty { .. }))
-                    .collect()
-            })
-            .unwrap_or_default();
+            // a snippet has no page properties
+            let props = if a.name.starts_with("snippets/") {
+                Vec::new()
+            } else {
+                Self::template_ops(
+                    o,
+                    &page,
+                    &rel,
+                    exists,
+                    &a.name,
+                    &[],
+                    self.today(),
+                    TemplateMode::NewPage,
+                )?
+                .map(|t| {
+                    t.ops
+                        .into_iter()
+                        .filter(|op| matches!(op, BlockOp::SetPageProperty { .. }))
+                        .collect()
+                })
+                .unwrap_or_default()
+            };
             let blocks = t
                 .blocks
                 .into_iter()
@@ -1109,6 +1117,12 @@ impl AppState {
         if name.is_empty() {
             return Err(ApiError::new("invalid", "give the page type a name"));
         }
+        if name.contains(['/', '\\']) {
+            return Err(ApiError::new(
+                "invalid",
+                "a page type has no `/` in its name",
+            ));
+        }
         self.with_open(|o| {
             if Self::template_text(o, name).is_some() {
                 return Err(ApiError::new(
@@ -1128,6 +1142,72 @@ impl AppState {
             let text = format!("---\ntype: {value}\n---\n");
             o.graph.write_template(name, &text)?;
             Ok(Self::template_entry(o, name, &text))
+        })
+    }
+
+    /// `list_snippets`: the snippets in `templates/snippets/`, by their plain names (the `snippets/` prefix is for
+    /// the other template calls). `fields` is always empty.
+    pub fn list_snippets(&self, _a: NoArgs) -> ApiResult<Vec<TemplateEntry>> {
+        self.with_open(|o| {
+            let mut out: Vec<TemplateEntry> =
+                std::fs::read_dir(o.graph.root().join("templates/snippets"))
+                    .map(|rd| {
+                        rd.flatten()
+                            .filter_map(|e| {
+                                let n = e.file_name().into_string().ok()?;
+                                let stem = n.strip_suffix(".md")?.to_string();
+                                let text = o
+                                    .graph
+                                    .read_page(&format!("templates/snippets/{n}"))
+                                    .ok()?
+                                    .text;
+                                Some(Self::template_entry(o, &stem, &text))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+            out.sort_by_key(|t| t.name.to_lowercase());
+            Ok(out)
+        })
+    }
+
+    /// `save_snippet`: the blocks of `text` become `templates/snippets/<name>.md` (PR-10). Returns the entry under
+    /// its plain name.
+    pub fn save_snippet(&self, a: SaveSnippetArgs) -> ApiResult<TemplateEntry> {
+        let name = a.name.trim();
+        if name.is_empty() {
+            return Err(ApiError::new("invalid", "give the template a name"));
+        }
+        if name.contains(['/', '\\', '\0']) || name.starts_with('.') {
+            return Err(ApiError::new(
+                "invalid",
+                "a template name has no `/` and does not start with a dot",
+            ));
+        }
+        let mut text = a.text.replace("\r\n", "\n");
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+        if notatnik_core::parse_page(&text).blocks.is_empty() {
+            return Err(ApiError::new("invalid", "there are no blocks to save"));
+        }
+        self.with_open(|o| {
+            let key = format!("snippets/{name}");
+            // an existing snippet keeps its file name when it is replaced (`Notes.md` stays `Notes.md`)
+            let file = match Self::template_text(o, &key) {
+                Some(_) if !a.replace => {
+                    return Err(ApiError::new(
+                        "exists",
+                        format!("the template `{name}` exists already"),
+                    ));
+                }
+                Some((f, _)) => f,
+                None => key,
+            };
+            o.graph.write_template(&file, &text)?;
+            let mut entry = Self::template_entry(o, &file, &text);
+            entry.name = file.trim_start_matches("snippets/").to_string();
+            Ok(entry)
         })
     }
 

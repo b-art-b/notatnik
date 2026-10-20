@@ -49,7 +49,7 @@ test('/template inserts the blocks of a template after the block', async ({ back
   await page.waitForTimeout(150) // CodeMirror ignores an accept within 75 ms of the popup opening
   await page.keyboard.press('Enter')
   await expect
-    .poll(() => backend.read('pages/Meeting.md'))
+    .poll(readOr(backend.read, 'pages/Meeting.md'))
     .toBe('---\ntype: person\nimportance: 1\n---\n\n- note\n- Contact Meeting\n  - Phone\n')
 })
 
@@ -99,7 +99,7 @@ test('a template is opened as text, edited and saved', async ({ backend, page })
   await box.fill('---\ntype: person\nimportance: 1\nphone:\n---\n- Contact {{title}}\n  - Phone\n  - Mail\n')
   await expect(item.getByText('Unsaved changes')).toBeVisible()
   await save.click()
-  await expect.poll(() => backend.read('templates/person.md')).toContain('  - Mail\n')
+  await expect.poll(readOr(backend.read, 'templates/person.md')).toContain('  - Mail\n')
   // the list shows the new fields and blocks, and nothing is unsaved any more
   await expect(item).toContainText('importance, phone')
   await expect(item).toContainText('3 blocks')
@@ -130,7 +130,7 @@ test('a new template is made from a page type name and opens for editing', async
   await form.getByRole('button', { name: 'Create' }).click()
 
   // the file is there and its text is open for editing
-  await expect.poll(() => backend.read('templates/place.md')).toBe('---\ntype: place\n---\n')
+  await expect.poll(readOr(backend.read, 'templates/place.md')).toBe('---\ntype: place\n---\n')
   const item = pane.getByTestId('template-list').getByRole('listitem').filter({ hasText: 'place' })
   const box = item.getByRole('textbox', { name: 'Text of the template place' })
   await expect(box).toHaveValue('---\ntype: place\n---\n')
@@ -138,4 +138,70 @@ test('a new template is made from a page type name and opens for editing', async
   await item.getByTestId('template-save').click()
   await expect(item).toContainText('country')
   await expect(pane.getByTestId('new-template-form')).toHaveCount(0)
+})
+
+// PR-10: blocks saved with "Save as template…" are snippets in templates/snippets/, offered by /template.
+test('selected blocks are saved as a template and inserted with /template', async ({ backend, page }) => {
+  backend.write('pages/Source.md', '- Agenda for {{title}}\n  - Notes\n- Actions\n')
+  backend.write('pages/Target.md', '- empty\n')
+  await backend.open('/page/Source')
+  await page.waitForTimeout(500) // the watcher reports the test's own write once and the page reloads
+  const tree = page.getByRole('tree', { name: 'Blocks' })
+  await expect(async () => {
+    await page.keyboard.press('Escape')
+    await tree.getByText('Agenda for', { exact: false }).first().click()
+    await expect(page.getByTestId('block-editor')).toBeFocused({ timeout: 1500 })
+    await page.keyboard.press('Escape')
+    await expect(tree.locator('[aria-selected="true"]')).toHaveCount(1, { timeout: 1500 })
+  }).toPass({ timeout: 10000 })
+
+  // from the command palette; the block's children come along
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Save as template')
+  await page.keyboard.press('Enter')
+  const dlg = page.getByTestId('snippet-dialog')
+  await expect(dlg.getByLabel('Blocks to save')).toContainText('Notes')
+  await dlg.getByTestId('snippet-name').fill('Meeting')
+  await dlg.getByTestId('snippet-save').click()
+  await expect
+    .poll(readOr(backend.read, 'templates/snippets/Meeting.md'))
+    .toBe('- Agenda for {{title}}\n  - Notes\n')
+
+  // a name that is taken offers to replace it
+  await expect(dlg).toHaveCount(0)
+  await tree.getByText('Actions', { exact: true }).click()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Save as template')
+  await page.keyboard.press('Enter')
+  await dlg.getByTestId('snippet-name').fill('meeting')
+  await dlg.getByTestId('snippet-save').click()
+  await expect(dlg.getByTestId('snippet-exists')).toBeVisible()
+  await dlg.getByRole('button', { name: 'Cancel' }).click()
+
+  // /template offers it on another page and inserts the blocks, with the page's name filled in
+  await backend.open('/page/Target')
+  await page.getByText('empty', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' /template')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Snippet: Meeting', { timeout: 5000 })
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Enter')
+  await expect.poll(readOr(backend.read, 'pages/Target.md')).toBe('- empty\n- Agenda for Target\n  - Notes\n')
+
+  // the settings list it; its text can be edited and it can be deleted
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Templates/ }).click()
+  const pane = page.getByRole('tabpanel')
+  const item = pane.getByTestId('snippet-list').getByRole('listitem').filter({ hasText: 'Meeting' })
+  await item.getByRole('button', { name: 'Edit' }).click()
+  const box = item.getByRole('textbox', { name: 'Text of the template Meeting' })
+  await expect(box).toHaveValue('- Agenda for {{title}}\n  - Notes\n')
+  await box.fill('- Agenda\n')
+  await item.getByTestId('template-save').click()
+  await expect.poll(readOr(backend.read, 'templates/snippets/Meeting.md')).toBe('- Agenda\n')
+  await item.getByRole('button', { name: 'Delete' }).click()
+  await expect(pane.getByTestId('no-snippets')).toBeVisible()
+  await expect(pane.getByTestId('deleted-templates')).toContainText('saved blocks')
 })

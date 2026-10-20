@@ -89,6 +89,24 @@
       toast(errorMessage(e), 'error')
     }
   }
+  // snippets: blocks saved from a page ("Save as template…"), in `templates/snippets/`; the template calls know
+  // them as `snippets/<name>`
+  let snippets = $state<TemplateRow[]>([])
+  let editingSnip = $state<string | null>(null)
+  const loadSnippets = () =>
+    backend.call('list_snippets', {}).then(
+      (r) => (snippets = r),
+      (e) => toast(errorMessage(e), 'error'),
+    )
+  async function deleteSnippet(name: string) {
+    try {
+      await backend.call('delete_template', { name: `snippets/${name}` })
+      await loadSnippets()
+      deletedTpls = await backend.call('deleted_templates', {})
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
   let deletedTpls = $state<{ id: string; name: string; deleted_ms: number }[]>([])
   let nsTemplates = $state<{ namespace: string; template: string }[]>([])
   let nsLoaded = false
@@ -102,6 +120,7 @@
       (r) => (templates = r),
       (e) => toast(errorMessage(e), 'error'),
     )
+    void loadSnippets()
     backend.call('deleted_templates', {}).then((r) => (deletedTpls = r))
   })
   async function deleteTemplate(name: string) {
@@ -116,7 +135,8 @@
     try {
       templates = await backend.call('restore_template', { id, name })
       deletedTpls = await backend.call('deleted_templates', {})
-      toast(`Restored the template “${name}”`)
+      await loadSnippets()
+      toast(`Restored the template “${name.replace(/^snippets\//, '')}”`)
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -998,14 +1018,49 @@
               {/each}
             </ul>
           {/if}
+          <h3>Saved blocks</h3>
+          <p class="intro">
+            Blocks you saved with <em>Save as template…</em> (select them, then right-click or Ctrl+K). They
+            have no page type: <code>/template</code> inserts them wherever the cursor is.
+          </p>
+          {#if snippets.length === 0}
+            <p class="intro" data-testid="no-snippets">None yet.</p>
+          {:else}
+            <ul class="snaps" data-testid="snippet-list">
+              {#each snippets as t (t.name)}
+                <li>
+                  <strong>{t.name}</strong>
+                  <span class="muted">{t.blocks} blocks</span>
+                  <button
+                    class="plain"
+                    aria-expanded={editingSnip === t.name}
+                    onclick={() => (editingSnip = editingSnip === t.name ? null : t.name)}
+                    >{editingSnip === t.name ? 'Close' : 'Edit'}</button
+                  >
+                  <button class="plain" onclick={() => deleteSnippet(t.name)}>Delete</button>
+                  {#if editingSnip === t.name}
+                    <TemplateEditor
+                      name={`snippets/${t.name}`}
+                      onsaved={() => void loadSnippets()}
+                      onclose={() => (editingSnip = null)}
+                    />
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#if deletedTpls.length}
             <h3>Deleted templates</h3>
             <p class="intro">Kept for 30 days on this device.</p>
             <ul class="snaps" data-testid="deleted-templates">
               {#each deletedTpls as d (d.id + d.name)}
                 <li>
-                  <strong>{d.name}</strong>
-                  <span class="muted">deleted {new Date(d.deleted_ms).toLocaleString()}</span>
+                  <strong>{d.name.replace(/^snippets\//, '')}</strong>
+                  <span class="muted"
+                    >{d.name.startsWith('snippets/') ? 'saved blocks · ' : ''}deleted {new Date(
+                      d.deleted_ms,
+                    ).toLocaleString()}</span
+                  >
                   <button class="plain" onclick={() => restoreTemplate(d.id, d.name)}>Restore</button>
                 </li>
               {/each}
