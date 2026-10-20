@@ -2925,6 +2925,7 @@ dependencies = [
  "notatnik-graph",
  "notatnik-index",
  "notatnik-log",
+ "notatnik-sync",
  "rpassword",
  "serde",
  "serde_json",

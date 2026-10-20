@@ -333,3 +333,82 @@ fn decrypt_opens_a_sealed_file_with_the_password_or_the_recovery_key() {
         .failure()
         .code(1);
 }
+
+/// EN-20: `verify` reads the server copy back (decrypting what is stored encrypted), compares it with the graph
+/// folder, changes nothing and exits 2 when something differs.
+#[test]
+fn verify_checks_the_server_copy_against_the_graph() {
+    use notatnik_core::encrypted::EncryptedPaths;
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_sync::fakedav::FakeDav;
+    use notatnik_sync::{Encryption, Options, WebDavRemote, sync};
+    use std::sync::Arc;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    for (rel, text) in [
+        ("pages/open.md", "- open OPENMARKER\n"),
+        ("pages/private/diary.md", "- SECRETMARKER\n"),
+        (
+            ".notatnik/config.toml",
+            "[encryption]\npaths = [\"pages/private/\"]\n",
+        ),
+    ] {
+        let p = graph.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, text).unwrap();
+    }
+    let (vault, keys, _) =
+        Vault::create("graph password", KdfParams::insecure_for_tests()).unwrap();
+    std::fs::write(graph.join(".notatnik/vault.json"), vault.to_json()).unwrap();
+
+    // opening a folder gives it a graph ID in its config: do that before the first sync, as the app does
+    Command::cargo_bin("notatnik")
+        .unwrap()
+        .env("XDG_CONFIG_HOME", tmp.path().join("cfg"))
+        .env("XDG_DATA_HOME", tmp.path().join("data"))
+        .args(["index"])
+        .arg(&graph)
+        .assert()
+        .success();
+    let dav = FakeDav::start();
+    let url = dav.folder_url("Notes/g");
+    let remote = WebDavRemote::new(&url, &dav.user, &dav.password).unwrap();
+    let mut opts = Options::new(tmp.path().join("state.json"));
+    opts.encryption = Some(Encryption {
+        paths: EncryptedPaths::new(&["pages/private/".to_string()]),
+        keys: Some(Arc::new(keys)),
+    });
+    let report = sync(&graph, &remote, &opts).unwrap();
+    assert!(report.complete && report.errors.is_empty(), "{report:?}");
+
+    let run = |password: &str| {
+        Command::cargo_bin("notatnik")
+            .unwrap()
+            .env("XDG_CONFIG_HOME", tmp.path().join("cfg"))
+            .env("XDG_DATA_HOME", tmp.path().join("data"))
+            .env("NOTATNIK_PASSWORD", password)
+            .env("NOTATNIK_WEBDAV_PASSWORD", &dav.password)
+            .arg("verify")
+            .arg(&graph)
+            .args(["--url", &url, "--user", &dav.user])
+            .assert()
+    };
+    let out = run("graph password").success();
+    let text = String::from_utf8_lossy(&out.get_output().stdout).to_string();
+    assert!(text.contains("the server copy matches"), "{text}");
+    assert!(text.contains("stored encrypted"), "{text}");
+
+    // a wrong password stops before anything is read
+    run("wrong wrong wrong").failure().code(1);
+
+    // an edit that was not synced yet: exit 2, the file is named
+    std::fs::write(graph.join("pages/private/diary.md"), "- edited\n").unwrap();
+    let out = run("graph password").failure().code(2);
+    let text = String::from_utf8_lossy(&out.get_output().stdout).to_string();
+    assert!(text.contains("pages/private/diary.md"), "{text}");
+    assert_eq!(
+        std::fs::read_to_string(graph.join("pages/private/diary.md")).unwrap(),
+        "- edited\n"
+    );
+}

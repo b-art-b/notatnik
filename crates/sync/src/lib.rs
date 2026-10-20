@@ -11,6 +11,7 @@ mod local;
 mod plan;
 mod remote;
 mod state;
+mod verify;
 mod webdav;
 
 #[cfg(feature = "fakedav")]
@@ -23,6 +24,7 @@ pub use forms::Encryption;
 pub use plan::{Action, plan};
 pub use remote::{Cond, Entry, Listing, Remote, norm_etag};
 pub use state::{FileState, SyncState};
+pub use verify::{VerifyReport, verify};
 pub use webdav::{
     Probe, WebDavRemote, basic_auth, check_url, folder_url, item_url, probe, web_base,
 };

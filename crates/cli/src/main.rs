@@ -127,6 +127,24 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
+    /// Check the server copy of a synced graph against the local folder, decrypting what is stored encrypted
+    ///
+    /// Reads every file on the server and changes nothing, on either side. The server and the login come from the
+    /// device settings (the graph's sync), or from --url and --user. The server password comes from the
+    /// environment variable NOTATNIK_WEBDAV_PASSWORD, or is asked for. The graph's password or recovery key
+    /// (NOTATNIK_PASSWORD, or asked for) is needed only when the graph has a vault. Exit code 2: something differs.
+    Verify {
+        /// Graph folder
+        graph: PathBuf,
+        /// The server folder (default: the one the graph syncs with)
+        #[arg(long)]
+        url: Option<String>,
+        /// The login name (default: the one the graph syncs with)
+        #[arg(long)]
+        user: Option<String>,
+        #[command(flatten)]
+        common: Common,
+    },
     /// Developer tools
     #[command(subcommand, hide = true)]
     Dev(Dev),
@@ -445,6 +463,12 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             }
         }
         Command::Decrypt { file, out, force } => decrypt(&file, out, force)?,
+        Command::Verify {
+            graph,
+            url,
+            user,
+            common,
+        } => return verify(&graph, url, user, common.json),
         Command::Dev(Dev::GenGraph {
             seed,
             pages,
@@ -464,6 +488,93 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// `notatnik verify` (EN-20): reads the server copy back and compares it with the graph folder.
+fn verify(
+    graph: &Path,
+    url: Option<String>,
+    user: Option<String>,
+    json: bool,
+) -> Result<ExitCode, String> {
+    let g = open(graph)?;
+    let dirs = Dirs::from_env();
+    let known = notatnik_graph::DeviceSettings::load(&dirs)
+        .map_err(|e| e.to_string())?
+        .remote_of(&g.id());
+    let url = url
+        .or(known.as_ref().map(|r| r.url.clone()))
+        .ok_or("this graph has no server folder here: give --url and --user")?;
+    let user = user
+        .or(known.map(|r| r.user))
+        .ok_or("give the login name with --user")?;
+    let password = match std::env::var("NOTATNIK_WEBDAV_PASSWORD") {
+        Ok(s) if !s.is_empty() => s,
+        _ => rpassword::prompt_password(format!("Password of {user} on the server: "))
+            .map_err(|e| e.to_string())?,
+    };
+    let keys = match g.read_vault().map_err(|e| e.to_string())? {
+        None => None,
+        Some(vault) => {
+            let secret = match std::env::var("NOTATNIK_PASSWORD") {
+                Ok(s) if !s.is_empty() => s,
+                _ => rpassword::prompt_password("Graph password or recovery key: ")
+                    .map_err(|e| e.to_string())?,
+            };
+            Some(vault.unlock(&secret).map_err(|e| e.to_string())?)
+        }
+    };
+    let remote =
+        notatnik_sync::WebDavRemote::new(&url, &user, &password).map_err(|e| e.to_string())?;
+    let paths = notatnik_core::encrypted::EncryptedPaths::new(&g.config().encryption.paths);
+    let r = notatnik_sync::verify(g.root(), &remote, &paths, keys.as_ref())
+        .map_err(|e| e.to_string())?;
+    if json {
+        print_json(&serde_json::json!({
+            "same": r.same,
+            "same_encrypted": r.same_encrypted,
+            "differ": r.differ,
+            "only_server": r.only_server,
+            "only_local": r.only_local,
+            "unreadable": r.unreadable,
+            "locked": r.locked,
+            "plain_but_marked": r.plain_but_marked,
+            "encrypted_but_unmarked": r.encrypted_but_unmarked,
+            "both_forms": r.both_forms,
+            "clean": r.is_clean(),
+        }));
+    } else {
+        println!(
+            "{} files match ({} of them stored encrypted and decrypted here)",
+            r.same, r.same_encrypted
+        );
+        let list = |what: &str, items: &[String]| {
+            for i in items {
+                println!("{what}: {i}");
+            }
+        };
+        list("differs from the local file", &r.differ);
+        list("only on the server", &r.only_server);
+        list("only in the graph folder", &r.only_local);
+        for (p, why) in &r.unreadable {
+            println!("cannot be read: {p}: {why}");
+        }
+        list("encrypted, not checked (no key)", &r.locked);
+        list(
+            "marked as encrypted but stored as plain text",
+            &r.plain_but_marked,
+        );
+        list("stored encrypted but not marked", &r.encrypted_but_unmarked);
+        list("stored in both forms", &r.both_forms);
+        if r.is_clean() {
+            println!("the server copy matches the graph folder");
+        }
+    }
+    Ok(if r.is_clean() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
+    })
 }
 
 /// `notatnik decrypt`: opens a sealed file with the password or recovery key and writes what is inside.

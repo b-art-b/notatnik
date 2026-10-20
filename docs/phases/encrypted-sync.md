@@ -107,6 +107,15 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] Browser tests: the same through the screens; the connect form refuses a folder with something in it; the lock and the filter in each list
 - [ ] Not tried against the real Nextcloud (the connect flow, and how its web UI shows `.enc` files)
 
+### E9 Verify the server copy (EN-20)
+- [x] `notatnik_sync::verify`: lists, downloads, decrypts and compares; nothing is written
+- [x] `notatnik verify <graph>`: login from the device settings or `--url`/`--user`, passwords from the environment or asked for, `--json`, exit 2 when not clean
+
+**Verify**
+- [x] Sync test: clean, locked, unsynced edit, one-sided files, damaged `.enc`, marked path stored plain
+- [x] CLI test: output, exit codes, wrong password, the graph folder untouched
+- [ ] Run once against the real Nextcloud
+
 ### E7 Later (on hold)
 Hidden file names with a manifest; an encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
 

@@ -139,6 +139,17 @@ marks are made with *Encrypt…* as usual. *Connect to a server…* (SY-9) keeps
 graph and the first sync uploads marked files as `.enc`, never plain. Doing it in this order is the only way to keep
 the plain text out of the server's trash bin and file versions (see 6.3); marking after the upload cannot undo them.
 
+### 6.2b Checking the server copy (EN-20)
+
+`notatnik verify <graph>` (also `--url`, `--user`, `--json`) lists the server folder, downloads every file, decrypts
+the `.enc` copies and compares each with the file in the graph folder by hash. Nothing is written on either side.
+The server login comes from the device settings of the graph (or `--url`/`--user`) and its password from
+`NOTATNIK_WEBDAV_PASSWORD`; the graph's password or recovery key comes from `NOTATNIK_PASSWORD`. Both are asked for
+when the variables are not set. It reports: files that match (and how many of them were decrypted), files that
+differ (an edit not synced yet, or damage), files only on one side, copies that cannot be decrypted, marked paths
+that the server holds as plain text, encrypted copies that are not marked, and paths stored in both forms. The exit
+code is 2 unless all of that is empty. Run it after a sync: a local edit made since then shows as "differs".
+
 ### 6.3 Roads for plain text that must be closed
 
 1. **Calendar.** Tasks of a marked page would reach the CalDAV server in plain. They are left out of the calendar
@@ -181,5 +192,6 @@ The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encryp
   (own device folders, one server); locked and unlocked; a mark added and removed; interrupted migration; a
   server that swaps two `.enc` files or cuts one short; the calendar test with a marked page; browser tests of
   the pane and the page menu.
+- EN-20: `notatnik verify` against the fake server: a clean graph, no key, an unsynced edit, a file on one side only, a flipped byte in an `.enc` file, a marked path stored as plain text (`crates/sync/tests/encrypted.rs`); the command with its exit codes and a wrong password (`crates/cli/tests/cli.rs`).
 - E6: the same against a real Nextcloud (`crates/app/tests/nextcloud.rs`), including what its versions and trash
   keep.

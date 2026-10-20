@@ -567,3 +567,53 @@ fn a_file_left_alone_is_not_hidden_by_the_folder_etag_shortcut() {
         .count();
     assert_eq!(lists, 1, "{:?}", e.dav.requests());
 }
+
+/// EN-20: the check reads every server file back, decrypts it and compares it with the replica, and reports
+/// what is off without changing anything.
+#[test]
+fn verify_compares_the_server_copy_with_the_replica() {
+    use notatnik_sync::verify;
+    let e = Env::new();
+    let a = Device::new();
+    a.write("pages/private/diary.md", &format!("- {SECRET} one\n"));
+    a.write("pages/Health.md", &format!("- {SECRET} three\n"));
+    a.write("pages/open.md", &format!("- {OPEN}\n"));
+    e.sync(&a, PATHS);
+    let paths = EncryptedPaths::new(&PATHS.iter().map(|s| (*s).to_string()).collect::<Vec<_>>());
+    let check = |keys: Option<&Keys>| verify(a.root(), &e.remote(), &paths, keys).unwrap();
+
+    // in step: all three match, two of them through decryption
+    let r = check(Some(&e.keys));
+    assert!(r.is_clean(), "{r:?}");
+    assert_eq!((r.same, r.same_encrypted), (3, 2));
+
+    // no key: the encrypted copies are named, not read
+    let r = check(None);
+    assert_eq!(r.locked.len(), 2, "{r:?}");
+    assert_eq!(r.same, 1);
+
+    // a local edit not synced yet, a new local file, a file only on the server
+    a.write("pages/Health.md", "- changed here\n");
+    a.write("pages/new.md", "- new\n");
+    e.dav.put_file("Notes/g/pages/remote.md", b"- remote\n");
+    let r = check(Some(&e.keys));
+    assert_eq!(r.differ, ["pages/Health.md"], "{r:?}");
+    assert_eq!(r.only_local, ["pages/new.md"]);
+    assert_eq!(r.only_server, ["pages/remote.md"]);
+
+    // a damaged server file, and a marked path that sits there as plain text
+    a.write("pages/Health.md", &format!("- {SECRET} three\n"));
+    let mut bytes = e.dav.file("Notes/g/pages/private/diary.md.enc").unwrap();
+    let last = bytes.len() - 1;
+    bytes[last] ^= 1;
+    e.dav.put_file("Notes/g/pages/private/diary.md.enc", &bytes);
+    e.dav
+        .put_file("Notes/g/pages/open.md", format!("- {OPEN}\n").as_bytes());
+    let marked_open = EncryptedPaths::new(&["pages/open.md".to_string()]);
+    let r = verify(a.root(), &e.remote(), &marked_open, Some(&e.keys)).unwrap();
+    assert_eq!(r.plain_but_marked, ["pages/open.md"], "{r:?}");
+    assert_eq!(r.unreadable.len(), 1, "{r:?}");
+    assert_eq!(r.unreadable[0].0, "pages/private/diary.md");
+    // verifying wrote nothing
+    assert!(!a.has("pages/remote.md"));
+}

@@ -230,7 +230,7 @@ fn reuse(
     }
 }
 
-fn walk_remote(
+pub(crate) fn walk_remote(
     remote: &dyn Remote,
     state: &SyncState,
     trust: bool,
