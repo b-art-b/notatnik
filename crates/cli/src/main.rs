@@ -142,6 +142,9 @@ enum Command {
         /// The login name (default: the one the graph syncs with)
         #[arg(long)]
         user: Option<String>,
+        /// Do not unlock the graph's vault: encrypted copies on the server are listed, not read
+        #[arg(long)]
+        no_key: bool,
         #[command(flatten)]
         common: Common,
     },
@@ -467,8 +470,9 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             graph,
             url,
             user,
+            no_key,
             common,
-        } => return verify(&graph, url, user, common.json),
+        } => return verify(&graph, url, user, no_key, common.json),
         Command::Dev(Dev::GenGraph {
             seed,
             pages,
@@ -495,6 +499,7 @@ fn verify(
     graph: &Path,
     url: Option<String>,
     user: Option<String>,
+    no_key: bool,
     json: bool,
 ) -> Result<ExitCode, String> {
     let g = open(graph)?;
@@ -513,7 +518,12 @@ fn verify(
         _ => rpassword::prompt_password(format!("Password of {user} on the server: "))
             .map_err(|e| e.to_string())?,
     };
-    let keys = match g.read_vault().map_err(|e| e.to_string())? {
+    let vault = if no_key {
+        None
+    } else {
+        g.read_vault().map_err(|e| e.to_string())?
+    };
+    let keys = match vault {
         None => None,
         Some(vault) => {
             let secret = match std::env::var("NOTATNIK_PASSWORD") {
