@@ -121,6 +121,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 
 **Verify**
 - [x] Browser test: not offered before the key is set up; the confirmation; after a sync the server holds `.enc` only, `.notatnik/vault.json` stays plain, local files untouched
+- [x] Real Nextcloud (2026-10-20): all pages, journals and templates stored as `.enc`, `notatnik verify` decrypts and matches 8 of 10 files (the other 2 are the plain `.notatnik` files); `--no-key` lists the 8 as encrypted
 
 ### E11 Forgotten password (EN-22)
 - [x] `encryption_setup` / `backup_encryption_setup` with `reset`: a new vault, valid only when confirmed; the keyring entry is removed

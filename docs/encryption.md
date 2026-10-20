@@ -139,6 +139,14 @@ marks are made with *Encrypt…* as usual. *Connect to a server…* (SY-9) keeps
 graph and the first sync uploads marked files as `.enc`, never plain. Doing it in this order is the only way to keep
 the plain text out of the server's trash bin and file versions (see 6.3); marking after the upload cannot undo them.
 
+### 6.2a1 Encrypt everything (EN-21)
+
+Settings → Sync → Encryption → *Encrypt everything…* (key unlocked) marks `pages/`, `journals/`, `assets/` and
+`templates/` in one step, after the same preview as for a page (number of pages, old plain copies on the server,
+tasks leaving the calendar, plain backups). Only folders not covered by a rule yet are added, so the button is
+replaced by "Everything is encrypted" afterwards. `.notatnik/` stays plain: the vault and the settings must be
+readable to unlock. Stopping is per rule in the list below it.
+
 ### 6.2b Checking the server copy (EN-20)
 
 `notatnik verify <graph>` (also `--url`, `--user`, `--json`) lists the server folder, downloads every file, decrypts
@@ -195,6 +203,10 @@ still works, and closing the app changes nothing).
 | E4 | App: status fields, calendar exclusion, rename and backup warnings | built |
 | E5 | UI: Settings → Sync → Encryption, the page's *Encrypt…* button, the lock mark, keymap | built |
 | E6 | Real Nextcloud and two-device checks, manual checklist | tests built; manual checklist open |
+| E8 | Before the server exists (EN-19), the lock in the page lists | built |
+| E9 | `notatnik verify` (EN-20) | built; tried on the real Nextcloud |
+| E10 | *Encrypt everything…* (EN-21) | built; tried on the real Nextcloud |
+| E11 | *Forgot the password…* (EN-22) | built; not tried on the real Nextcloud |
 | E7 | Later: hidden names, a replica for folder tools (EN-7), the images of a page | on hold |
 
 The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).

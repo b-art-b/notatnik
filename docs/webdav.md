@@ -122,6 +122,7 @@ before. What differs:
   contents are equal. Different contents are reported and nothing is deleted.
 - While the key is locked, marked files and server files that end in `.enc` are left alone, and the folder ETag
   shortcut is not used at the next sync.
+- `notatnik verify <graph>` reads the whole server folder back, decrypts the `.enc` copies and compares them with the graph folder; it changes nothing (EN-20, docs/encryption.md §6.2b). `--no-key` only lists the encrypted copies.
 - A copy that fails to decrypt (wrong key, cut short, swapped with another path) is an error of that file; the sync
   goes on with the others.
 - What the server learns: names, folders, sizes and times of encrypted files, and that they exist. What stays on it
