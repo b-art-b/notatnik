@@ -39,6 +39,28 @@ export interface SlashCommand {
   /** `/template-<name>` inserts the blocks of this template after the block: a page type, or `snippets/<name>`
    * for blocks saved from a page. */
   template?: string
+  /** `/template` opens a list of the templates and saved blocks, so the menu holds one entry, not one per template. */
+  pickTemplate?: boolean
+}
+
+/** One entry of the template list: a page-type template, or blocks saved from a page. */
+export interface TemplateChoice {
+  /** What `template` of a command takes: the type name, or `snippets/<name>`. */
+  template: string
+  /** The name shown. */
+  name: string
+  kind: 'template' | 'snippet'
+}
+
+/** Everything `/template` can insert, templates first, each group sorted by name. */
+export function templateChoices(): TemplateChoice[] {
+  const by = (a: TemplateChoice, b: TemplateChoice) => a.name.localeCompare(b.name)
+  return [
+    ...templateNames.map((n): TemplateChoice => ({ template: n, name: n, kind: 'template' })).sort(by),
+    ...snippetNames
+      .map((n): TemplateChoice => ({ template: `snippets/${n}`, name: n, kind: 'snippet' }))
+      .sort(by),
+  ]
 }
 
 // The templates of the graph, for `/template`. Refreshed whenever an editor opens (a block is being edited before
@@ -288,7 +310,10 @@ export function slashAt(before: string): { typed: string; midWord: boolean } | n
 /** The commands offered for a `/command` typed at `at`. In the middle of a word only metadata commands, and only
  * those whose name or keyword *starts* with what was typed (so `km/h` or `and/or` stay quiet). */
 export function slashPool(at: { typed: string; midWord: boolean }): SlashCommand[] {
-  const all = slashCommands()
+  // `/template` is one entry that opens the list; a template is offered by name only once you type it after
+  // `template-` (or `template `), so twenty templates do not make the menu twenty entries longer
+  const named = !at.midWord && /^template[- ].+/.test(at.typed)
+  const all = [...baseCommands(), ...(named ? templateCommands() : [])]
   if (!at.midWord) return all
   return all
     .filter(isMetadataCommand)
@@ -474,6 +499,16 @@ function baseCommands(): SlashCommand[] {
       title: 'Pick an emoji',
       emoji: true,
       insert: none,
+    },
+    {
+      name: 'template',
+      label: 'Template…',
+      icon: '⎘',
+      group: 'Insert',
+      keywords: ['snippet', 'saved blocks', 'insert blocks'],
+      title: 'Pick a template or saved blocks to insert after this block',
+      pickTemplate: true,
+      insert: () => ({ text: '' }),
     },
     {
       name: 'file',

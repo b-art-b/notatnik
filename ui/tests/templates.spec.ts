@@ -44,9 +44,15 @@ test('/template inserts the blocks of a template after the block', async ({ back
   await expect(page.getByTestId('block-editor')).toBeFocused()
   await page.keyboard.press('End')
   await page.keyboard.type(' /template')
+  // one entry opens the list, whatever the number of templates
   const tip = page.locator('.cm-tooltip-autocomplete')
-  await expect(tip).toContainText('Template: person', { timeout: 5000 })
+  await expect(tip).toContainText('Template…', { timeout: 5000 })
+  await expect(tip).not.toContainText('Template: person')
   await page.waitForTimeout(150) // CodeMirror ignores an accept within 75 ms of the popup opening
+  await page.keyboard.press('Enter')
+  const list = page.getByTestId('template-picker')
+  await expect(list.getByRole('option', { name: 'person' })).toBeVisible()
+  await expect(page.getByLabel('Filter templates')).toBeFocused()
   await page.keyboard.press('Enter')
   await expect
     .poll(readOr(backend.read, 'pages/Meeting.md'))
@@ -185,9 +191,17 @@ test('selected blocks are saved as a template and inserted with /template', asyn
   await expect(page.getByTestId('block-editor')).toBeFocused()
   await page.keyboard.press('End')
   await page.keyboard.type(' /template')
-  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Snippet: Meeting', { timeout: 5000 })
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
   await page.waitForTimeout(150)
   await page.keyboard.press('Enter')
+  // saved blocks are their own group in the list; typing filters it
+  const picker = page.getByTestId('template-picker')
+  await expect(picker.getByRole('heading', { name: 'Saved blocks' })).toBeVisible()
+  await page.keyboard.type('zzz')
+  await expect(picker).toContainText('No template matches.')
+  await page.keyboard.press('Control+a')
+  await page.keyboard.type('meet')
+  await picker.getByRole('option', { name: 'Meeting' }).click()
   await expect.poll(readOr(backend.read, 'pages/Target.md')).toBe('- empty\n- Agenda for Target\n  - Notes\n')
 
   // the settings list it; its text can be edited and it can be deleted

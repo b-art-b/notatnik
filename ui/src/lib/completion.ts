@@ -292,6 +292,7 @@ export function wikiCompletions(
   ontemplate: (name: string) => void = () => {},
   onfollowup: () => void = () => {},
   onfile: (at: number) => void = () => {},
+  onpicktemplate: (at: number) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -551,6 +552,13 @@ export function wikiCompletions(
                     const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
                     view.dispatch({ changes: { from: cut, to: t, insert: '' } })
                     onfollowup()
+                    return
+                  }
+                  if (c.pickTemplate) {
+                    // the command goes away (with the space before it); the list opens where it was
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    onpicktemplate(cut)
                     return
                   }
                   if (c.template) {

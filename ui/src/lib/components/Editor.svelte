@@ -44,6 +44,7 @@
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
+  import TemplatePicker from './TemplatePicker.svelte'
   import FilePicker from './FilePicker.svelte'
 
   interface Props {
@@ -69,7 +70,12 @@
   // the text the editor starts with; updated as changes are sent (not reactive on purpose)
   let lastSent = untrack(() => text)
   /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
-  let picker = $state<{ kind: DateKind | 'emoji' | 'file'; at: number; x: number; y: number } | null>(null)
+  let picker = $state<{
+    kind: DateKind | 'emoji' | 'file' | 'template'
+    at: number
+    x: number
+    y: number
+  } | null>(null)
 
   /** Stores pasted or dropped images as assets (ST-8) and writes their links into the text: replacing the
    * selection, or at `at` for a drop. The editor may be gone when the backend answers; then only the files remain. */
@@ -134,7 +140,7 @@
     v.focus()
   }
 
-  function openPicker(kind: DateKind | 'emoji' | 'file', at: number) {
+  function openPicker(kind: DateKind | 'emoji' | 'file' | 'template', at: number) {
     if (!view) return
     const c = view.coordsAtPos(at)
     const h = host.getBoundingClientRect()
@@ -167,10 +173,19 @@
   }
 
   function pickDate(iso: string) {
-    if (!picker || !view || picker.kind === 'emoji' || picker.kind === 'file') return
+    if (!picker || !view || picker.kind === 'emoji' || picker.kind === 'file' || picker.kind === 'template')
+      return
     const { kind, at } = picker
     view.dispatch({ changes: dateChanges(view.state.doc.toString(), at, kind, iso) })
     closePicker()
+  }
+
+  /** A template from the list: its blocks are inserted after this block, like `/template-<name>` always did. */
+  function pickTemplate(template: string) {
+    if (!view) return
+    closePicker()
+    clearTimeout(idle)
+    void onaction({ kind: 'template', name: template, text: view.state.doc.toString(), prev: lastSent })
   }
 
   /** A file link from the picker, written where `/file` was typed. */
@@ -452,6 +467,7 @@
               void onaction({ kind: 'followup', text: view.state.doc.toString(), prev: lastSent })
             },
             (at) => openPicker('file', at),
+            (at) => openPicker('template', at),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
@@ -587,6 +603,8 @@
     >
       {#if picker.kind === 'emoji'}
         <EmojiPicker onpick={pickEmoji} oncancel={cancelEmoji} />
+      {:else if picker.kind === 'template'}
+        <TemplatePicker onpick={pickTemplate} oncancel={closePicker} />
       {:else if picker.kind === 'file'}
         <FilePicker {pageName} oninsert={pickFile} oncancel={closePicker} />
       {:else}

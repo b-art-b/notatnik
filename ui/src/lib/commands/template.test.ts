@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { templateOps } from './exec'
-import { rankCommands, setTemplateNames, slashCommands, slashPool } from './slash'
+import { rankCommands, setTemplateNames, slashPool, templateChoices } from './slash'
 
 const tpl = [
   { parent: [], index: 0, text: 'Contact' },
@@ -38,27 +38,43 @@ describe('templateOps with properties', () => {
 })
 
 describe('/template commands', () => {
-  it('there is one per template, found by `template` and by the name', () => {
-    setTemplateNames(['person', 'Meeting Notes'])
-    const cmds = slashCommands().filter((c) => c.template)
-    expect(cmds.map((c) => c.name)).toEqual(['template-person', 'template-meeting-notes'])
-    const pool = slashPool({ typed: 'template', midWord: false })
-    expect(rankCommands(pool, 'template').map((c) => c.template)).toEqual(['person', 'Meeting Notes'])
-    expect(rankCommands(pool, 'meeting')[0].template).toBe('Meeting Notes')
+  it('`/template` is one entry that opens the list, however many templates there are', () => {
+    setTemplateNames(['person', 'Meeting Notes'], ['Standup'])
+    for (const typed of ['', 'temp', 'template']) {
+      const pool = slashPool({ typed, midWord: false })
+      expect(pool.filter((c) => c.template)).toEqual([])
+      expect(rankCommands(pool, typed).filter((c) => c.pickTemplate).length).toBe(1)
+    }
+    expect(rankCommands(slashPool({ typed: 'template', midWord: false }), 'template')[0].pickTemplate).toBe(
+      true,
+    )
     // never in the middle of a word
-    expect(slashPool({ typed: 'template', midWord: true }).some((c) => c.template)).toBe(false)
+    expect(slashPool({ typed: 'template', midWord: true }).some((c) => c.pickTemplate || c.template)).toBe(
+      false,
+    )
     setTemplateNames([])
   })
 
-  it('saved blocks are offered as snippets, also by `template`', () => {
-    setTemplateNames(['person'], ['Meeting Notes'])
-    const pool = slashPool({ typed: 'template', midWord: false })
-    expect(rankCommands(pool, 'template').map((c) => c.template)).toEqual([
-      'person',
-      'snippets/Meeting Notes',
+  it('a template is still found by name after `template-`, saved blocks as snippets', () => {
+    setTemplateNames(['person', 'Meeting Notes'], ['Standup'])
+    const pool = slashPool({ typed: 'template-m', midWord: false })
+    const hit = rankCommands(pool, 'template-m').find((c) => c.template)
+    expect(hit?.template).toBe('Meeting Notes')
+    const snip = rankCommands(slashPool({ typed: 'template-snippet-st', midWord: false }), 'template-snippet-st').find(
+      (c) => c.template,
+    )
+    expect([snip?.name, snip?.template]).toEqual(['template-snippet-standup', 'snippets/Standup'])
+    setTemplateNames([])
+  })
+
+  it('the list holds templates first, then saved blocks, each sorted', () => {
+    setTemplateNames(['person', 'Meeting Notes'], ['Standup', 'Agenda'])
+    expect(templateChoices().map((c) => [c.kind, c.template])).toEqual([
+      ['template', 'Meeting Notes'],
+      ['template', 'person'],
+      ['snippet', 'snippets/Agenda'],
+      ['snippet', 'snippets/Standup'],
     ])
-    const hit = rankCommands(pool, 'meeting')[0]
-    expect([hit.name, hit.label]).toEqual(['template-snippet-meeting-notes', 'Snippet: Meeting Notes'])
     setTemplateNames([])
   })
 })
