@@ -514,6 +514,36 @@ impl Keys {
         Ok(out)
     }
 
+    /// Encrypts a file together with its path, for an object whose name reveals nothing (EN-25): the plaintext is
+    /// `path length (u16) | path | content`. It opens only with [`Keys::decrypt_named`].
+    pub fn encrypt_named(&self, path: &str, plain: &[u8]) -> Result<Vec<u8>> {
+        let p = path.as_bytes();
+        let len = u16::try_from(p.len()).map_err(|_| Error::Unsupported("path too long".into()))?;
+        let mut buf = zeroize::Zeroizing::new(Vec::with_capacity(2 + p.len() + plain.len()));
+        buf.extend_from_slice(&len.to_le_bytes());
+        buf.extend_from_slice(p);
+        buf.extend_from_slice(plain);
+        self.encrypt(&buf, HIDDEN_AAD)
+    }
+
+    /// Opens what [`Keys::encrypt_named`] made: the path and the content. The caller checks that `file_name(path)`
+    /// is the name the object was found under, so an object moved to another name is noticed.
+    pub fn decrypt_named(&self, data: &[u8]) -> Result<(String, Vec<u8>)> {
+        let mut buf = zeroize::Zeroizing::new(self.decrypt(data, HIDDEN_AAD)?);
+        let bad = || Error::Corrupt("not a named file".into());
+        let len = usize::from(u16::from_le_bytes(
+            buf.get(..2)
+                .ok_or_else(bad)?
+                .try_into()
+                .map_err(|_| bad())?,
+        ));
+        let path = std::str::from_utf8(buf.get(2..2 + len).ok_or_else(bad)?)
+            .map_err(|_| bad())?
+            .to_string();
+        let content = buf.split_off(2 + len);
+        Ok((path, content))
+    }
+
     /// Decrypts what [`Keys::encrypt`] made.
     pub fn decrypt(&self, data: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
         if data.len() < FILE_HEADER || &data[..8] != FILE_MAGIC {
@@ -537,6 +567,8 @@ impl Keys {
         Ok(out)
     }
 }
+
+const HIDDEN_AAD: &[u8] = b"notatnik hidden v1";
 
 /// The key a file was made with (hex), read from its header without decrypting; None when it is not one of ours.
 pub fn file_key_id(data: &[u8]) -> Option<String> {

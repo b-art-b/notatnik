@@ -29,6 +29,31 @@ pub fn remote_name(path: &str) -> String {
     format!("{path}{ENC_SUFFIX}")
 }
 
+/// The folder on the server that holds the objects of marked files when their names are hidden (EN-25). A local
+/// file below it is never synced.
+pub const HIDDEN_DIR: &str = ".notatnik-enc";
+
+/// Where the object `name` (the 32 hex characters of `Keys::file_name`) lives on the server.
+pub fn hidden_object(name: &str) -> String {
+    format!(
+        "{HIDDEN_DIR}/{}/{name}{ENC_SUFFIX}",
+        &name[..2.min(name.len())]
+    )
+}
+
+/// The object name of a server path that has the shape of [`hidden_object`], else `None`.
+pub fn hidden_name(remote: &str) -> Option<&str> {
+    let rest = remote.strip_prefix(HIDDEN_DIR)?.strip_prefix('/')?;
+    let (shard, file) = rest.split_once('/')?;
+    let name = file.strip_suffix(ENC_SUFFIX)?;
+    let hex = |s: &str| {
+        s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    (shard.len() == 2 && name.len() == 32 && hex(shard) && hex(name) && name.starts_with(shard))
+        .then_some(name)
+}
+
 /// The path an encrypted server file is the copy of, or `None` for a name that does not end in `.enc`.
 pub fn plain_name(remote: &str) -> Option<&str> {
     remote.strip_suffix(ENC_SUFFIX).filter(|p| !p.is_empty())
@@ -101,6 +126,23 @@ impl EncryptedPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_objects_have_a_fixed_shape() {
+        let n = "ab0123456789abcdef0123456789abcd";
+        let o = hidden_object(n);
+        assert_eq!(o, ".notatnik-enc/ab/ab0123456789abcdef0123456789abcd.enc");
+        assert_eq!(hidden_name(&o), Some(n));
+        for bad in [
+            "pages/a.md.enc",
+            ".notatnik-enc/ab/short.enc",
+            ".notatnik-enc/cd/ab0123456789abcdef0123456789abcd.enc",
+            ".notatnik-enc/ab/AB0123456789abcdef0123456789abcd.enc",
+            ".notatnik-enc/ab0123456789abcdef0123456789abcd.enc",
+        ] {
+            assert_eq!(hidden_name(bad), None, "{bad}");
+        }
+    }
 
     fn rules(p: &[&str]) -> EncryptedPaths {
         EncryptedPaths::new(&p.iter().map(|s| (*s).to_string()).collect::<Vec<_>>())

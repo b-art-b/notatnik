@@ -313,3 +313,36 @@ fn exported_keys_open_the_same_vault_again_and_only_that_one() {
     assert!(vault.unlock_exported("zz").is_err());
     assert!(vault.unlock_exported(&text[..text.len() - 2]).is_err());
 }
+
+#[test]
+fn a_named_file_carries_its_path_and_opens_only_as_one() {
+    let (_, keys, _) = vault();
+    let (_, other, _) = vault();
+    for (path, body) in [
+        ("pages/a.md", pattern(10)),
+        ("pages/Zażółć gęślą jaźń/日本語 😀.md", pattern(0)),
+        ("a", pattern(70_000)),
+    ] {
+        let sealed = keys.encrypt_named(path, &body).unwrap();
+        assert!(path.len() < 4 || !sealed.windows(path.len()).any(|w| w == path.as_bytes()));
+        assert_eq!(
+            keys.decrypt_named(&sealed).unwrap(),
+            (path.to_string(), body)
+        );
+    }
+    let sealed = keys.encrypt_named("pages/a.md", b"text").unwrap();
+    // another key, a changed byte, and a file that is not a named one
+    assert!(other.decrypt_named(&sealed).is_err());
+    let mut bad = sealed.clone();
+    let last = bad.len() - 1;
+    bad[last] ^= 1;
+    assert!(keys.decrypt_named(&bad).is_err());
+    let plain_file = keys.encrypt(b"\x00\x05hello", b"pages/a.md").unwrap();
+    assert!(keys.decrypt_named(&plain_file).is_err());
+    assert!(
+        keys.decrypt_named(&keys.encrypt(b"\xff", HIDDEN_AAD).unwrap())
+            .is_err()
+    );
+    // a path too long for the length field
+    assert!(keys.encrypt_named(&"x".repeat(70_000), b"").is_err());
+}

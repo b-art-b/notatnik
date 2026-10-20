@@ -248,6 +248,14 @@ pub struct EncryptionSection {
     /// `exclude` (default): tasks of encrypted pages are not sent to the calendar; `allow` sends them.
     #[serde(default = "default_encryption_calendar")]
     pub calendar: String,
+    /// `visible` (default): an encrypted file is stored as `<path>.enc`; `hidden`: as an object with a name that
+    /// reveals nothing, the path being inside (EN-25).
+    #[serde(default = "default_encryption_names")]
+    pub names: String,
+}
+
+fn default_encryption_names() -> String {
+    "visible".into()
 }
 
 fn default_encryption_calendar() -> String {
@@ -259,6 +267,7 @@ impl Default for EncryptionSection {
         EncryptionSection {
             paths: Vec::new(),
             calendar: default_encryption_calendar(),
+            names: default_encryption_names(),
         }
     }
 }
@@ -270,7 +279,7 @@ impl EncryptionSection {
 }
 
 const KNOWN: &[(&str, &[&str])] = &[
-    ("encryption", &["paths", "calendar"]),
+    ("encryption", &["paths", "calendar", "names"]),
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
     ("tasks", &["completed_log_limit", "priorities"]),
@@ -333,6 +342,12 @@ impl Config {
             warnings.push(format!(
                 "`encryption.calendar` must be exclude or allow, found `{}`",
                 cfg.encryption.calendar
+            ));
+        }
+        if !matches!(cfg.encryption.names.as_str(), "visible" | "hidden") {
+            warnings.push(format!(
+                "`encryption.names` must be visible or hidden, found `{}`",
+                cfg.encryption.names
             ));
         }
         for p in &cfg.encryption.paths {
@@ -820,19 +835,21 @@ mod encryption_tests {
 
     #[test]
     fn the_section_is_read_written_and_checked() {
-        let text = "[encryption]\npaths = [\"pages/private/\", \"pages/Health.md\"]\ncalendar = \"allow\"\n";
+        let text = "[encryption]\npaths = [\"pages/private/\", \"pages/Health.md\"]\ncalendar = \"allow\"\nnames = \"hidden\"\n";
         let (c, w) = Config::parse(text).unwrap();
         assert!(w.is_empty(), "{w:?}");
         assert_eq!(c.encryption.paths, ["pages/private/", "pages/Health.md"]);
         assert_eq!(c.encryption.calendar, "allow");
+        assert_eq!(c.encryption.names, "hidden");
+        assert_eq!(Config::default().encryption.names, "visible");
         assert_eq!(Config::parse(&c.to_toml()).unwrap().0, c);
         // the default is not written out, so a graph without encryption keeps its file as it was
         assert!(!Config::default().to_toml().contains("encryption"));
         assert_eq!(Config::default().encryption.calendar, "exclude");
         let (_, w) = Config::parse(
-            "[encryption]\npaths = [\"../x/\", \".notatnik/a\", \"ok/\"]\ncalendar = \"maybe\"\nmore = 1\n",
+            "[encryption]\npaths = [\"../x/\", \".notatnik/a\", \"ok/\"]\ncalendar = \"maybe\"\nnames = \"secret\"\nmore = 1\n",
         )
         .unwrap();
-        assert_eq!(w.len(), 4, "{w:?}");
+        assert_eq!(w.len(), 5, "{w:?}");
     }
 }
