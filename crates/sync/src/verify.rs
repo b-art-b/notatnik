@@ -9,7 +9,7 @@ use notatnik_crypt::Keys;
 
 use crate::Result;
 use crate::engine::walk_remote;
-use crate::forms::{Io, RemoteMaps};
+use crate::forms::{Io, RemoteMaps, learn_names};
 use crate::local::{self, hash};
 use crate::remote::Remote;
 use crate::state::SyncState;
@@ -37,6 +37,9 @@ pub struct VerifyReport {
     pub encrypted_but_unmarked: Vec<String>,
     /// The server holds both forms of the file.
     pub both_forms: Vec<String>,
+    /// Stored encrypted, but not where the settings ask for (visible name or hidden object, EN-25, or under the
+    /// name of an older key): the next sync moves it.
+    pub other_place: Vec<String>,
 }
 
 impl VerifyReport {
@@ -50,6 +53,7 @@ impl VerifyReport {
             && self.plain_but_marked.is_empty()
             && self.encrypted_but_unmarked.is_empty()
             && self.both_forms.is_empty()
+            && self.other_place.is_empty()
     }
 }
 
@@ -59,23 +63,33 @@ pub fn verify(
     root: &Path,
     remote: &dyn Remote,
     paths: &EncryptedPaths,
+    hidden: bool,
     keys: Option<&Keys>,
 ) -> Result<VerifyReport> {
     let state = SyncState::default();
     let mut maps = RemoteMaps::default();
     walk_remote(remote, &state, false, "", &mut maps, &mut BTreeMap::new())?;
-    let (found, stale) = maps.resolve(paths);
+    let mut names = BTreeMap::new();
+    let (learned, failed) = learn_names(remote, keys, &maps.unknown(&names));
+    names.extend(learned);
+    let (found, stale, unknown) = maps.resolve(paths, hidden, &names);
     let local = local::scan(root, &state)?;
     let io = Io {
         remote,
         paths,
         keys,
         found: &found,
+        hidden,
     };
     let mut r = VerifyReport {
         both_forms: stale.into_iter().map(|s| s.path).collect(),
+        unreadable: failed,
         ..VerifyReport::default()
     };
+    // objects with a hidden name whose path cannot be read without the key
+    if keys.is_none() {
+        r.locked.extend(unknown.into_iter().map(|u| u.object));
+    }
     for (path, f) in &found {
         let Some(mine) = local.get(path) else {
             r.only_server.push(path.clone());
@@ -90,7 +104,10 @@ pub fn verify(
             (true, false) => r.encrypted_but_unmarked.push(path.clone()),
             _ => {}
         }
-        match io.get_form(path, f.enc) {
+        if f.enc && io.target(path) && io.target_name(path).is_ok_and(|(n, _)| n != f.name) {
+            r.other_place.push(path.clone());
+        }
+        match io.get(path) {
             Ok((bytes, _)) if hash(&bytes) == mine.hash => {
                 r.same += 1;
                 r.same_encrypted += usize::from(f.enc);

@@ -327,6 +327,7 @@ impl SyncCtx {
                 &self.graph.config().encryption.paths,
             ),
             keys: self.keys.lock().ok().and_then(|g| g.clone()),
+            hidden: self.graph.config().encryption.names == "hidden",
         });
         notatnik_sync::sync(&self.root, &remote, &opts)
     }
@@ -499,8 +500,14 @@ impl AppState {
         let paths =
             notatnik_core::encrypted::EncryptedPaths::new(&ctx.graph.config().encryption.paths);
         let keys = ctx.keys.lock().ok().and_then(|g| g.clone());
-        let r = notatnik_sync::verify(&ctx.root, &remote, &paths, keys.as_deref())
-            .map_err(|e| api_err(&e))?;
+        let r = notatnik_sync::verify(
+            &ctx.root,
+            &remote,
+            &paths,
+            ctx.graph.config().encryption.names == "hidden",
+            keys.as_deref(),
+        )
+        .map_err(|e| api_err(&e))?;
         log::info!(
             "verify with {}: {} match, {} differ, {} only on the server, {} only here",
             ctx.cfg.url,
@@ -525,6 +532,7 @@ impl AppState {
             plain_but_marked: r.plain_but_marked,
             encrypted_but_unmarked: r.encrypted_but_unmarked,
             both_forms: r.both_forms,
+            other_place: r.other_place,
         })
     }
 

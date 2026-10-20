@@ -378,6 +378,7 @@ fn verify_checks_the_server_copy_against_the_graph() {
     opts.encryption = Some(Encryption {
         paths: EncryptedPaths::new(&["pages/private/".to_string()]),
         keys: Some(Arc::new(keys)),
+        hidden: false,
     });
     let report = sync(&graph, &remote, &opts).unwrap();
     assert!(report.complete && report.errors.is_empty(), "{report:?}");

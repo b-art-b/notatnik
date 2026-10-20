@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 
 use chrono::NaiveDateTime;
 
-use notatnik_core::encrypted::{EncryptedPaths, plain_name};
+use notatnik_core::encrypted::{EncryptedPaths, HIDDEN_DIR, plain_name};
 
 use crate::Bases;
-use crate::forms::{Encryption, Io, RemoteMaps};
+use crate::forms::{Encryption, Io, RemoteMaps, learn_names};
 use crate::local::{self, hash, ignored, mtime_ms, to_trash, write_atomic};
 use crate::plan::{Action, plan};
 use crate::remote::{Cond, Remote};
@@ -169,11 +169,11 @@ fn remove_stale(io: &Io, stale: &[crate::forms::Stale], report: &mut Report) {
     for s in stale {
         let same = (|| -> Result<bool> {
             let kept = io.get(&s.path)?.0;
-            let other = io.get_form(&s.path, s.enc)?.0;
+            let other = io.get_at(&s.path, &s.name, s.enc)?.0;
             Ok(kept == other)
         })();
         match same {
-            Ok(true) => match io.delete(&s.path, s.enc, Some(&s.etag)) {
+            Ok(true) => match io.delete_at(&s.name, Some(&s.etag)) {
                 Ok(()) => log::debug!("sync: removed the second copy of {}", s.path),
                 Err(Error::Changed(_)) => {}
                 Err(e) => report.add_error(&s.path, e.to_string()),
@@ -215,12 +215,23 @@ fn reuse(
         if !p.starts_with(&prefix) {
             break;
         }
+        // a hidden object is not below the folder of its path: it comes with the folder of hidden objects
+        if f.name.is_some() {
+            continue;
+        }
         let map = if f.enc {
             &mut files.enc
         } else {
             &mut files.plain
         };
         map.insert(p.clone(), (f.etag.clone(), f.size));
+    }
+    if dir.is_empty() || dir == HIDDEN_DIR || dir.starts_with(&format!("{HIDDEN_DIR}/")) {
+        for f in state.files.values() {
+            if let Some(n) = f.name.as_ref().filter(|n| n.starts_with(&prefix)) {
+                files.hidden.insert(n.clone(), (f.etag.clone(), f.size));
+            }
+        }
     }
     for (d, e) in state.dirs.range(prefix.clone()..) {
         if !d.starts_with(&prefix) {
@@ -282,6 +293,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
     let none = EncryptedPaths::default();
     let paths = opts.encryption.as_ref().map_or(&none, |e| &e.paths);
     let keys = opts.encryption.as_ref().and_then(|e| e.keys.as_deref());
+    let hidden = opts.encryption.as_ref().is_some_and(|e| e.hidden);
     let mut state = SyncState::load(&opts.state_path);
     let mut report = Report::default();
     let mut made_dirs: HashSet<String> = HashSet::new();
@@ -314,12 +326,24 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             }
         }
         let (maps, rdirs) = scan_remote(remote, &state, opts.trust_folder_etags)?;
-        let (found, stale) = maps.resolve(paths);
+        // hidden objects: the path is inside; the state knows the ones this device has seen, the others are opened
+        let mut names: BTreeMap<String, String> = state
+            .files
+            .iter()
+            .filter_map(|(p, f)| f.name.as_ref().map(|n| (n.clone(), p.clone())))
+            .collect();
+        let (learned, failed) = learn_names(remote, keys, &maps.unknown(&names));
+        names.extend(learned);
+        for (object, why) in failed {
+            report.add_error(&object, why);
+        }
+        let (found, stale, unknown) = maps.resolve(paths, hidden, &names);
         let io = Io {
             remote,
             paths,
             keys,
             found: &found,
+            hidden,
         };
         remove_stale(&io, &stale, &mut report);
         // while the key is locked, every file that is or should be encrypted is left alone on both sides: no
@@ -339,7 +363,8 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
                 .cloned()
                 .collect()
         };
-        report.left_alone = left.len();
+        // objects whose path is not known and cannot be learned (locked, or not readable) are left alone as well
+        report.left_alone = left.len() + unknown.len();
         let local_view: BTreeMap<String, local::LocalFile> = local
             .iter()
             .filter(|(p, _)| !left.contains(*p))
@@ -362,7 +387,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
         for (p, f) in &found {
             if !left.contains(p)
                 && !planned.contains(p)
-                && f.enc != paths.is_encrypted(p)
+                && io.target_name(p).is_ok_and(|(name, _)| name != f.name)
                 && local_view.contains_key(p)
                 && files_view.contains_key(p)
             {
@@ -376,7 +401,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             if opts.trust_folder_etags {
                 // folders are skipped at the next sync only when everything in them was dealt with: a file that
                 // was left alone (locked key) or could not be dealt with must be seen again, not hidden by the ETag
-                if left.is_empty() && report.errors.is_empty() {
+                if left.is_empty() && unknown.is_empty() && report.errors.is_empty() {
                     state.dirs = rdirs;
                 } else {
                     state.dirs.clear();
@@ -452,8 +477,13 @@ fn run(
             let Ok(bytes) = std::fs::read(&abs) else {
                 return Ok(false);
             };
-            let parent = path.rsplit_once('/').map_or("", |(p, _)| p);
-            if made_dirs.insert(parent.to_string()) {
+            // the folder of the path, on the server, unless the file goes into a hidden object: its folders must
+            // not exist there
+            let (place, _) = io.target_name(path)?;
+            let parent = place.rsplit_once('/').map_or("", |(p, _)| p);
+            if notatnik_core::encrypted::hidden_name(&place).is_none()
+                && made_dirs.insert(parent.to_string())
+            {
                 io.remote.mkdir(parent)?;
             }
             let cond = match etag {
@@ -461,7 +491,7 @@ fn run(
                 None => Cond::Create,
             };
             match io.write(path, &bytes, cond, etag.as_deref()) {
-                Ok((new_etag, enc)) => {
+                Ok((new_etag, enc, name)) => {
                     opts.bases.save_synced(path, &bytes);
                     state.files.insert(
                         path.clone(),
@@ -471,6 +501,7 @@ fn run(
                             size: bytes.len() as u64,
                             mtime_ms: mtime_ms(&md),
                             enc,
+                            name: hidden_of(&name),
                         },
                     );
                     log::debug!("sync: sent {path}");
@@ -488,7 +519,7 @@ fn run(
                     return Err(Error::Changed(format!("{path} was edited while syncing")));
                 }
             }
-            let enc = io.form(path).unwrap_or(false);
+            let (enc, name) = io.copy_of(path);
             let (bytes, etag) = io.get(path)?;
             // the server gave a file a new ETag without changing it (Nextcloud sometimes does after an upload):
             // remember the new ETag, leave the file alone
@@ -502,6 +533,7 @@ fn run(
                         size: l.size,
                         mtime_ms: l.mtime_ms,
                         enc,
+                        name: name.clone(),
                     },
                 );
                 return Ok(true);
@@ -516,6 +548,7 @@ fn run(
                     size: bytes.len() as u64,
                     mtime_ms: mtime,
                     enc,
+                    name,
                 },
             );
             log::debug!("sync: received {path}");
@@ -526,7 +559,7 @@ fn run(
             Ok(true)
         }
         Action::DeleteRemote { path, etag } => {
-            match io.delete(path, io.form(path).unwrap_or(false), Some(etag)) {
+            match io.delete(path, Some(etag)) {
                 Ok(()) => {}
                 // it changed there meanwhile: the next pass pulls it
                 Err(Error::Changed(_)) => return Ok(false),
@@ -566,7 +599,8 @@ fn run(
             if theirs != bytes {
                 return Ok(false);
             }
-            let (new_etag, enc) = io.write(path, &bytes, Cond::Match(etag.clone()), Some(etag))?;
+            let (new_etag, enc, name) =
+                io.write(path, &bytes, Cond::Match(etag.clone()), Some(etag))?;
             state.files.insert(
                 path.clone(),
                 FileState {
@@ -575,6 +609,7 @@ fn run(
                     size: bytes.len() as u64,
                     mtime_ms: mtime_ms(&md),
                     enc,
+                    name: hidden_of(&name),
                 },
             );
             log::info!(
@@ -585,7 +620,7 @@ fn run(
             Ok(true)
         }
         Action::Reconcile { path } => {
-            let enc = io.form(path).unwrap_or(false);
+            let (enc, name) = io.copy_of(path);
             let (bytes, etag) = io.get(path)?;
             let remote_hash = hash(&bytes);
             let abs = root.join(path);
@@ -602,7 +637,7 @@ fn run(
                         && let Some(base) = &base
                         && let Some(merged) = merged_page(base, mine, &bytes)
                     {
-                        let (md, enc) =
+                        let (md, enc, name) =
                             match io.write(path, &merged, Cond::Match(etag.clone()), Some(&etag)) {
                                 Ok(done) => done,
                                 // the server changed again: the next pass starts over from the newer version
@@ -619,6 +654,7 @@ fn run(
                                 size: merged.len() as u64,
                                 mtime_ms: mtime,
                                 enc,
+                                name: hidden_of(&name),
                             },
                         );
                         log::info!("sync: both sides changed {path}; merged without a conflict");
@@ -656,6 +692,7 @@ fn run(
                     size: bytes.len() as u64,
                     mtime_ms: mtime,
                     enc,
+                    name,
                 },
             );
             if let Some(c) = copy {
@@ -668,6 +705,11 @@ fn run(
             Ok(true)
         }
     }
+}
+
+/// The name to remember in the state for a copy at `name`: only a hidden object needs one.
+fn hidden_of(name: &str) -> Option<String> {
+    notatnik_core::encrypted::hidden_name(name).map(|_| name.to_string())
 }
 
 /// The merge of two versions of a page, when it is clean and parses as well as the inputs did.

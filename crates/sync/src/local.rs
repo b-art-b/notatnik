@@ -70,7 +70,8 @@ fn walk(
             continue;
         }
         if ft.is_dir() {
-            if !ignored(&format!("{path}/")) {
+            // the folder of hidden objects exists on the server only
+            if path != notatnik_core::encrypted::HIDDEN_DIR && !ignored(&format!("{path}/")) {
                 walk(&e.path(), &path, state, out)?;
             }
         } else if ft.is_file() && !ignored(&path) {

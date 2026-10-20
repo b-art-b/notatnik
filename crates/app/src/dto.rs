@@ -1591,6 +1591,8 @@ pub struct SyncVerify {
     pub encrypted_but_unmarked: Vec<String>,
     /// The server holds both forms.
     pub both_forms: Vec<String>,
+    /// Stored encrypted, but not under the name the settings ask for: the next sync moves it.
+    pub other_place: Vec<String>,
     /// Nothing to report.
     pub clean: bool,
 }

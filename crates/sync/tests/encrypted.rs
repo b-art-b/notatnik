@@ -68,6 +68,7 @@ impl Env {
         o.encryption = Some(Encryption {
             paths: EncryptedPaths::new(&paths.iter().map(|s| (*s).to_string()).collect::<Vec<_>>()),
             keys,
+            hidden: false,
         });
         o.now = Box::new(|| {
             chrono::NaiveDate::from_ymd_opt(2026, 10, 17)
@@ -580,7 +581,7 @@ fn verify_compares_the_server_copy_with_the_replica() {
     a.write("pages/open.md", &format!("- {OPEN}\n"));
     e.sync(&a, PATHS);
     let paths = EncryptedPaths::new(&PATHS.iter().map(|s| (*s).to_string()).collect::<Vec<_>>());
-    let check = |keys: Option<&Keys>| verify(a.root(), &e.remote(), &paths, keys).unwrap();
+    let check = |keys: Option<&Keys>| verify(a.root(), &e.remote(), &paths, false, keys).unwrap();
 
     // in step: all three match, two of them through decryption
     let r = check(Some(&e.keys));
@@ -610,7 +611,7 @@ fn verify_compares_the_server_copy_with_the_replica() {
     e.dav
         .put_file("Notes/g/pages/open.md", format!("- {OPEN}\n").as_bytes());
     let marked_open = EncryptedPaths::new(&["pages/open.md".to_string()]);
-    let r = verify(a.root(), &e.remote(), &marked_open, Some(&e.keys)).unwrap();
+    let r = verify(a.root(), &e.remote(), &marked_open, false, Some(&e.keys)).unwrap();
     assert_eq!(r.plain_but_marked, ["pages/open.md"], "{r:?}");
     assert_eq!(r.unreadable.len(), 1, "{r:?}");
     assert_eq!(r.unreadable[0].0, "pages/private/diary.md");
@@ -660,7 +661,8 @@ fn a_replaced_key_stores_the_encrypted_files_again() {
     assert_ne!(sealed, old);
     assert!(!contains(&sealed, SECRET));
     let paths = EncryptedPaths::new(&PATHS.iter().map(|s| (*s).to_string()).collect::<Vec<_>>());
-    let check = notatnik_sync::verify(a.root(), &e.remote(), &paths, Some(&new_keys)).unwrap();
+    let check =
+        notatnik_sync::verify(a.root(), &e.remote(), &paths, false, Some(&new_keys)).unwrap();
     assert!(check.is_clean(), "{check:?}");
 
     // a second device with the new key receives the file

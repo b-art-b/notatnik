@@ -537,8 +537,14 @@ fn verify(
     let remote =
         notatnik_sync::WebDavRemote::new(&url, &user, &password).map_err(|e| e.to_string())?;
     let paths = notatnik_core::encrypted::EncryptedPaths::new(&g.config().encryption.paths);
-    let r = notatnik_sync::verify(g.root(), &remote, &paths, keys.as_ref())
-        .map_err(|e| e.to_string())?;
+    let r = notatnik_sync::verify(
+        g.root(),
+        &remote,
+        &paths,
+        g.config().encryption.names == "hidden",
+        keys.as_ref(),
+    )
+    .map_err(|e| e.to_string())?;
     if json {
         print_json(&serde_json::json!({
             "same": r.same,
@@ -551,6 +557,7 @@ fn verify(
             "plain_but_marked": r.plain_but_marked,
             "encrypted_but_unmarked": r.encrypted_but_unmarked,
             "both_forms": r.both_forms,
+            "other_place": r.other_place,
             "clean": r.is_clean(),
         }));
     } else {
@@ -576,6 +583,10 @@ fn verify(
         );
         list("stored encrypted but not marked", &r.encrypted_but_unmarked);
         list("stored in both forms", &r.both_forms);
+        list(
+            "stored under another name than the settings ask for",
+            &r.other_place,
+        );
         if r.is_clean() {
             println!("the server copy matches the graph folder");
         }

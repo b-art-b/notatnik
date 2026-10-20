@@ -20,6 +20,10 @@ pub struct FileState {
     /// The server copy is stored encrypted (`<path>.enc`, EN-12).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub enc: bool,
+    /// The server copy is a hidden object (EN-25): its name on the server. The path is inside the object, so this
+    /// is how the device finds its way from a name to a path without opening the object again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// The sync state of one replica, kept outside the graph folder (ST-2).

@@ -115,6 +115,7 @@ mod tests {
             size: 1,
             mtime_ms: 0,
             enc: false,
+            name: None,
         }
     }
 
