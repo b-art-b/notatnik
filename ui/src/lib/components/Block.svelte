@@ -444,7 +444,13 @@
         onclose={() => (menu = null)}
       />
     {/if}
-    <div class="body" role="presentation" onclick={edit} oncontextmenu={(e) => multi && openMenu(e)}>
+    <div
+      class="body"
+      class:editing={isEditing}
+      role="presentation"
+      onclick={edit}
+      oncontextmenu={(e) => multi && openMenu(e)}
+    >
       {#if isEditing && ctx && editing.conflict && editing.conflict.blockId === block.id}
         <div class="conflict" role="alert" data-testid="block-conflict">
           <strong>This block changed on disk while you were editing it.</strong>
@@ -799,6 +805,14 @@
     min-height: 1.6em;
     cursor: text;
     line-height: 1.6;
+  }
+  /* the block being edited: the editor looks like the rendered text on purpose (nothing may move), so it gets a tint
+     and an outline, which take no room */
+  .body.editing {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
   .content {
     display: flex;

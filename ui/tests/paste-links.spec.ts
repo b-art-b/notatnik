@@ -115,7 +115,7 @@ test('the setting is in Settings → Appearance and is off by default', async ({
   const sw = page.getByRole('switch', { name: 'Look up titles of pasted links' })
   await expect(sw).not.toBeChecked()
   await sw.click()
-  await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
+  await expect(page.getByText('✓ Saved', { exact: true })).toBeVisible()
   const s = await backend.call<{ paste_titles: boolean }>('get_settings', {})
   expect(s.paste_titles).toBe(true)
 })

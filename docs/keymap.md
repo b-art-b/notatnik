@@ -5,6 +5,8 @@ this page mirrors it. Editor keys are handled in `Editor.svelte`, selection keys
 
 ## Editing a block
 
+The block being edited is marked with a light blue tint and a thin outline (they take no room, so the text does not move); the other blocks have neither. A block that holds only a link looks the same in both states otherwise.
+
 | Keys | Action |
 |---|---|
 | Enter | Split the block at the cursor (new sibling; first child if the block has expanded children). Newline inside a code fence or below the first line |
