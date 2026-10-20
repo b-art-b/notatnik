@@ -12,6 +12,11 @@
 //! out, because that folder is a graph and holds nothing that is not meant to be synced (ST-2). Entries are
 //! compressed (deflate) or only stored (BK-7); both are ordinary zip files.
 //!
+//! Files that the graph marks as encrypted (`[encryption] paths`, EN-11) are never stored plain in a snapshot
+//! (EN-23): each is an entry `<path>.enc` holding a sealed file (EN-5) for the graph's vault, so writing needs no
+//! password; reading needs the graph's password or recovery key. A snapshot that is sealed as a whole is not
+//! sealed again entry by entry.
+//!
 //! A second folder keeps copies of the snapshots (BK-9, [`sync_mirror`]).
 
 use std::collections::BTreeSet;
@@ -61,6 +66,9 @@ pub struct BackupOptions {
     /// The unlocked vault, needed to read an encrypted snapshot (compare, restore) and used to read a new one
     /// back completely. `None` while the backups are locked.
     pub keys: Option<Arc<Keys>>,
+    /// The unlocked key of the graph's own vault (EN-13), needed to read the files that a snapshot holds sealed
+    /// (EN-23). Writing them needs no key.
+    pub graph_keys: Option<Arc<Keys>>,
 }
 
 impl Default for BackupOptions {
@@ -70,6 +78,7 @@ impl Default for BackupOptions {
             extras: Vec::new(),
             seal_to: None,
             keys: None,
+            graph_keys: None,
         }
     }
 }
@@ -224,7 +233,13 @@ fn collect(root: &Path, skip: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
-fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra]) -> String {
+/// The graph's own encryption rules and vault, for sealing the marked files of a snapshot (EN-23).
+type Marks = (Vault, notatnik_core::encrypted::EncryptedPaths);
+
+/// Start of the comment of a sealed entry; the rest is the path.
+const ENTRY_COMMENT: &str = "notatnik-entry v1 ";
+
+fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra], marks: Option<&Marks>) -> String {
     let mut h = blake3::Hasher::new();
     // tracked device files by content: their modification time changes without the content changing
     for x in extras.iter().filter(|x| x.tracked) {
@@ -243,6 +258,10 @@ fn fingerprint(files: &[(String, PathBuf)], extras: &[Extra]) -> String {
             (m.len(), t)
         });
         h.update(format!("{rel}\0{len}\0{mtime}\n").as_bytes());
+        // a file that becomes marked (or a new key) is a change, though the file is the same
+        if let Some((v, _)) = marks.filter(|(_, p)| p.is_encrypted(rel)) {
+            h.update(format!("sealed {}\n", v.key_id).as_bytes());
+        }
     }
     h.finalize().to_hex().to_string()
 }
@@ -285,6 +304,78 @@ fn open_zip(path: &Path, keys: Option<&Keys>) -> Result<zip::ZipArchive<std::fs:
     zip::ZipArchive::new(f).map_err(zip_err)
 }
 
+/// A file of a snapshot as it was saved.
+enum Saved {
+    Bytes(Vec<u8>),
+    /// A sealed entry and no key to open it.
+    Locked,
+}
+
+/// What a zip entry holds for the graph path it names: `(path, content)`. A sealed entry (`<path>.enc`, written
+/// by [`write_zip`]) is opened with `keys` and named by the path without `.enc`; without keys it is `Locked`.
+/// Anything else, a user's own file called `x.enc` included, is returned as it is.
+fn saved_entry(name: &str, buf: Vec<u8>, keys: Option<&Keys>) -> Result<(String, Saved)> {
+    let Some(path) = name.strip_suffix(".enc") else {
+        return Ok((name.to_string(), Saved::Bytes(buf)));
+    };
+    let ours = buf.starts_with(b"NTNKSEAL")
+        && notatnik_crypt::read_header(&mut &buf[..])
+            .is_ok_and(|h| h.comment == format!("{ENTRY_COMMENT}{path}").as_bytes());
+    if !ours {
+        return Ok((name.to_string(), Saved::Bytes(buf)));
+    }
+    let Some(keys) = keys else {
+        return Ok((path.to_string(), Saved::Locked));
+    };
+    let mut plain = Vec::new();
+    notatnik_crypt::open(keys, &mut &buf[..], &mut plain)?;
+    Ok((path.to_string(), Saved::Bytes(plain)))
+}
+
+fn locked_error(path: &str) -> Error {
+    Error::Locked(format!(
+        "{path} is saved encrypted: unlock the graph's encryption first (Settings → Sync → Encryption)"
+    ))
+}
+
+/// The marked files of the graph and its vault, for a snapshot that is not sealed as a whole. An error when files
+/// are marked and the vault is missing: a snapshot must never hold them in plain by accident.
+fn marks_of(g: &Graph, opts: &BackupOptions) -> Result<Option<Marks>> {
+    if opts.seal_to.is_some() {
+        return Ok(None);
+    }
+    let paths = notatnik_core::encrypted::EncryptedPaths::new(&g.config().encryption.paths);
+    if paths.is_empty() {
+        return Ok(None);
+    }
+    match g.read_vault()? {
+        Some(v) => Ok(Some((v, paths))),
+        None => Err(Error::Crypt(
+            "files are marked as encrypted but .notatnik/vault.json is missing; nothing was written".into(),
+        )),
+    }
+}
+
+/// The content of `path` in a snapshot, whether it was saved plain or sealed (None when it has no such entry).
+fn saved_file<R: Read + Seek>(
+    z: &mut zip::ZipArchive<R>,
+    path: &str,
+    graph_keys: Option<&Keys>,
+) -> Result<Option<Vec<u8>>> {
+    for name in [path.to_string(), format!("{path}.enc")] {
+        let Ok(mut e) = z.by_name(&name) else {
+            continue;
+        };
+        let mut buf = Vec::new();
+        e.read_to_end(&mut buf)?;
+        return match saved_entry(&name, buf, graph_keys)? {
+            (_, Saved::Bytes(b)) => Ok(Some(b)),
+            (p, Saved::Locked) => Err(locked_error(&p)),
+        };
+    }
+    Ok(None)
+}
+
 /// A restore target must be a folder that does not exist yet or is empty.
 fn check_target(target: &Path) -> Result<()> {
     match std::fs::read_dir(target) {
@@ -304,9 +395,31 @@ fn check_target(target: &Path) -> Result<()> {
 
 /// Unpacks a snapshot into `target` (a new or empty folder). Returns the number of files.
 /// The result opens as a graph. Entries with unsafe names are skipped.
-pub fn restore_backup(zip_path: &Path, target: &Path, keys: Option<&Keys>) -> Result<usize> {
+/// `keys` opens a sealed snapshot, `graph_keys` the files in it that are sealed for the graph's vault (EN-23): the
+/// result holds them in plain, as the graph did. Without `graph_keys` a snapshot with such files is not unpacked.
+pub fn restore_backup(
+    zip_path: &Path,
+    target: &Path,
+    keys: Option<&Keys>,
+    graph_keys: Option<&Keys>,
+) -> Result<usize> {
     check_target(target)?;
     let mut z = open_zip(zip_path, keys)?;
+    if graph_keys.is_none() {
+        // refuse before anything is written
+        for i in 0..z.len() {
+            let mut entry = z.by_index(i).map_err(zip_err)?;
+            let name = entry.name().to_string();
+            if entry.is_dir() || !name.ends_with(".enc") {
+                continue;
+            }
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            if let (path, Saved::Locked) = saved_entry(&name, buf, None)? {
+                return Err(locked_error(&path));
+            }
+        }
+    }
     std::fs::create_dir_all(target)?;
     let mut n = 0;
     for i in 0..z.len() {
@@ -317,12 +430,28 @@ pub fn restore_backup(zip_path: &Path, target: &Path, keys: Option<&Keys>) -> Re
         if entry.is_dir() || rel.starts_with(DEVICE_DIR) {
             continue;
         }
-        let dest = target.join(rel);
+        let name = rel.to_string_lossy().replace('\\', "/");
+        let (rel, content) = if name.ends_with(".enc") {
+            let mut buf = Vec::new();
+            entry.read_to_end(&mut buf)?;
+            match saved_entry(&name, buf, graph_keys)? {
+                (p, Saved::Bytes(b)) => (PathBuf::from(p), Some(b)),
+                (p, Saved::Locked) => return Err(locked_error(&p)),
+            }
+        } else {
+            (rel, None)
+        };
+        let dest = target.join(&rel);
         if let Some(d) = dest.parent() {
             std::fs::create_dir_all(d)?;
         }
         let mut out = std::fs::File::create(&dest)?;
-        std::io::copy(&mut entry, &mut out)?;
+        match content {
+            Some(b) => out.write_all(&b)?,
+            None => {
+                std::io::copy(&mut entry, &mut out)?;
+            }
+        }
         n += 1;
     }
     Ok(n)
@@ -335,6 +464,7 @@ fn write_zip(
     device: &[(String, PathBuf)],
     method: zip::CompressionMethod,
     comment: &str,
+    marks: Option<&Marks>,
 ) -> Result<usize> {
     let mut z = zip::ZipWriter::new(std::io::BufWriter::new(out));
     z.set_comment(comment);
@@ -345,6 +475,24 @@ fn write_zip(
         let Ok(buf) = std::fs::read(abs) else {
             continue;
         };
+        // a marked file is saved sealed, under `<path>.enc` (EN-23)
+        if let Some((vault, _)) = marks.filter(|(_, p)| p.is_encrypted(rel)) {
+            let mut sealed = Vec::new();
+            notatnik_crypt::seal(
+                vault,
+                format!("{ENTRY_COMMENT}{rel}").as_bytes(),
+                &mut &buf[..],
+                &mut sealed,
+            )?;
+            z.start_file(
+                format!("{rel}.enc"),
+                zopts.compression_method(zip::CompressionMethod::Stored),
+            )
+            .map_err(zip_err)?;
+            z.write_all(&sealed)?;
+            count += 1;
+            continue;
+        }
         // pictures are compressed already: deflating them costs time and saves nothing (ST-8)
         let opts = if crate::sniff_image(&buf).is_some() {
             zopts.compression_method(zip::CompressionMethod::Stored)
@@ -496,6 +644,8 @@ pub enum ChangeStatus {
     OnlySnapshot,
     /// Only now (created since the snapshot).
     OnlyNow,
+    /// Saved sealed (EN-23) and the graph's key is locked: not compared.
+    Locked,
 }
 
 /// One file that differs (BK-10). Line counts are from the snapshot's point of view: `added` lines are in the
@@ -647,6 +797,7 @@ impl Graph {
         check_name(name)?;
         let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
         let mut saved: std::collections::BTreeMap<String, Vec<u8>> = Default::default();
+        let mut locked: BTreeSet<String> = BTreeSet::new();
         for i in 0..z.len() {
             let mut e = z.by_index(i).map_err(zip_err)?;
             let Some(rel) = e.enclosed_name() else {
@@ -657,7 +808,15 @@ impl Graph {
             }
             let mut buf = Vec::new();
             e.read_to_end(&mut buf)?;
-            saved.insert(rel.to_string_lossy().replace('\\', "/"), buf);
+            let name = rel.to_string_lossy().replace('\\', "/");
+            match saved_entry(&name, buf, opts.graph_keys.as_deref())? {
+                (path, Saved::Bytes(b)) => {
+                    saved.insert(path, b);
+                }
+                (path, Saved::Locked) => {
+                    locked.insert(path);
+                }
+            }
         }
         let mut paths: BTreeSet<String> = saved.keys().cloned().collect();
         for (rel, _) in collect(self.root(), dir) {
@@ -670,6 +829,16 @@ impl Graph {
         }
         let mut out = Vec::new();
         for path in paths {
+            if locked.contains(&path) {
+                out.push(FileChange {
+                    path,
+                    status: ChangeStatus::Locked,
+                    binary: true,
+                    added: 0,
+                    removed: 0,
+                });
+                continue;
+            }
             let now = self.current_bytes(&path, opts)?;
             let then = saved.get(&path);
             let (status, a, b) = match (&now, then) {
@@ -719,14 +888,7 @@ impl Graph {
     ) -> Result<FileDiff> {
         check_name(name)?;
         let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
-        let then = match z.by_name(path) {
-            Ok(mut e) => {
-                let mut buf = Vec::new();
-                e.read_to_end(&mut buf)?;
-                Some(buf)
-            }
-            Err(_) => None,
-        };
+        let then = saved_file(&mut z, path, opts.graph_keys.as_deref())?;
         let now = self.current_bytes(path, opts)?;
         let text = |v: Option<Vec<u8>>| match v {
             None => Some(String::new()),
@@ -802,7 +964,8 @@ impl Graph {
         }
         let existing = list_backups(dir, &id);
         let files = collect(&root, dir);
-        let fp = fingerprint(&files, &opts.extras);
+        let marks = marks_of(self, opts)?;
+        let fp = fingerprint(&files, &opts.extras, marks.as_ref());
         if !force {
             if let Some(newest) = existing.first() {
                 if min_age.is_some_and(|a| now.signed_duration_since(newest.created) < a) {
@@ -842,7 +1005,7 @@ impl Graph {
             match &opts.seal_to {
                 None => {
                     let f = std::fs::File::create(&partial)?;
-                    let count = write_zip(&f, &files, &device, method, &comment)?;
+                    let count = write_zip(&f, &files, &device, method, &comment, marks.as_ref())?;
                     f.sync_all()?;
                     drop(f);
                     verify(&partial, count)
@@ -850,7 +1013,7 @@ impl Graph {
                 Some(vault) => {
                     // the plain zip exists only in an unnamed temporary file, never in the backup folder
                     let mut tmp = tempfile::tempfile()?;
-                    let count = write_zip(&tmp, &files, &device, method, &comment)?;
+                    let count = write_zip(&tmp, &files, &device, method, &comment, marks.as_ref())?;
                     tmp.rewind()?;
                     verify_zip(&tmp, count)?;
                     tmp.rewind()?;
@@ -905,13 +1068,10 @@ impl Graph {
         check_name(name)?;
         crate::check_rel(rel)?;
         let mut z = open_zip(&dir.join(name), opts.keys.as_deref())?;
-        let mut text = String::new();
-        {
-            let mut entry = z
-                .by_name(rel)
-                .map_err(|_| Error::NotFound(format!("{rel} in {name}")))?;
-            entry.read_to_string(&mut text)?;
-        }
+        let text = saved_file(&mut z, rel, opts.graph_keys.as_deref())?
+            .ok_or_else(|| Error::NotFound(format!("{rel} in {name}")))?;
+        let text = String::from_utf8(text)
+            .map_err(|_| Error::InvalidPath(format!("{rel} in {name} is not text")))?;
         self.snapshot(dir, now, true, None, Some(name), true, opts)?;
         let current = match self.read_page(rel) {
             Ok(p) => Some(p.hash),
@@ -938,7 +1098,12 @@ impl Graph {
                 "restore into a folder outside the graph folder".into(),
             ));
         }
-        restore_backup(&dir.join(name), target, opts.keys.as_deref())
+        restore_backup(
+            &dir.join(name),
+            target,
+            opts.keys.as_deref(),
+            opts.graph_keys.as_deref(),
+        )
     }
 
     /// The snapshots of this graph in `dir`, newest first.

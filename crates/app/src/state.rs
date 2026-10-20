@@ -235,6 +235,7 @@ fn backup_options(
         ],
         seal_to,
         keys,
+        graph_keys: None,
     })
 }
 
@@ -3218,8 +3219,11 @@ impl AppState {
     /// Options for reading snapshots (compare, restore, device settings): the keys if unlocked, no sealing.
     fn read_options(&self, graph_id: &str) -> ApiResult<notatnik_graph::BackupOptions> {
         let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
-        backup_options(&self.dirs, &dev, graph_id, self.unlocked_keys(), false)
-            .map_err(|m| ApiError::new("invalid", m))
+        let mut opts = backup_options(&self.dirs, &dev, graph_id, self.unlocked_keys(), false)
+            .map_err(|m| ApiError::new("invalid", m))?;
+        // the files a snapshot holds sealed for the graph (EN-23) open with the graph's key
+        opts.graph_keys = self.graph_keys_now();
+        Ok(opts)
     }
 
     fn encryption_status(&self) -> BackupEncryption {
@@ -3457,6 +3461,7 @@ impl AppState {
                         ChangeStatus::Changed => "changed",
                         ChangeStatus::OnlySnapshot => "only_snapshot",
                         ChangeStatus::OnlyNow => "only_now",
+                        ChangeStatus::Locked => "locked",
                     }
                     .into(),
                     binary: c.binary,
@@ -3546,13 +3551,16 @@ impl AppState {
         self.with_open(|o| {
             let rel = page_to_path(&name);
             let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+            let mut opts =
+                backup_options(&self.dirs, &dev, &o.graph.id(), self.unlocked_keys(), true)
+                    .map_err(|m| ApiError::new("invalid", m))?;
+            opts.graph_keys = self.graph_keys_now();
             o.graph.restore_page_from_backup(
                 &primary_dir(&self.dirs, &dev),
                 &a.name,
                 &rel,
                 chrono::Local::now().naive_local(),
-                &backup_options(&self.dirs, &dev, &o.graph.id(), self.unlocked_keys(), true)
-                    .map_err(|m| ApiError::new("invalid", m))?,
+                &opts,
             )?;
             // undo cannot follow a replaced file
             o.undo.retain(|e| e.rel != rel);

@@ -5731,18 +5731,6 @@ fn tasks_of_encrypted_pages_stay_out_of_the_calendar_unless_allowed() {
     assert!(all_task_text(&server, &tasks).contains("secret errand"));
 }
 
-#[test]
-fn the_status_warns_when_backups_are_plain_while_paths_are_marked() {
-    let (t, _dav, _root, _r) = encrypted_graph();
-    let st = t.ok("encryption_status", json!({}));
-    assert_eq!(st["backups_plain"], false);
-    let st = t.ok(
-        "encryption_mark",
-        json!({"paths": ["pages/private/"], "encrypted": true}),
-    );
-    assert_eq!(st["backups_plain"], true, "{st}");
-}
-
 /// A keyring that refuses everything (no Secret Service running).
 struct RefusingSecrets;
 

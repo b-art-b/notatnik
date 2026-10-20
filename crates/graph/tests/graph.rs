@@ -1068,6 +1068,7 @@ fn a_snapshot_carries_the_device_files() {
         compress: true,
         seal_to: None,
         keys: None,
+        graph_keys: None,
         extras: vec![
             Extra {
                 name: "settings.toml".into(),
@@ -1802,4 +1803,158 @@ fn moving_a_page_rewrites_its_relative_image_paths() {
     g.apply_rename(&plan).unwrap();
     let moved = g.read_page("pages/photos/trip/gallery.md").unwrap().text;
     assert_eq!(&moved, new);
+}
+
+/// EN-23: in a snapshot that is not sealed as a whole, the files the graph marks as encrypted are saved sealed for the
+/// graph's vault, written without a password, and compared and restored only with the graph's key.
+#[test]
+fn marked_files_are_saved_sealed_in_a_plain_snapshot() {
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_graph::{BackupOptions, ChangeStatus};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let (vault, keys, _rk) = Vault::create("pw", KdfParams::insecure_for_tests()).unwrap();
+    let keys = Arc::new(keys);
+    let page = g.read_page("pages/inbox.md").unwrap();
+    g.write_page(
+        "pages/inbox.md",
+        &format!("{}- ZEBRA-MARKER-4711\n", page.text),
+        Some(&page.hash),
+    )
+    .unwrap();
+    let secret_text = g.read_page("pages/inbox.md").unwrap().text;
+    let plain = BackupOptions::default();
+
+    // a first snapshot with nothing marked is as before
+    let first = g
+        .backup_now(&dir, stamp("2026-10-10 09:00:00"), false, None, &plain)
+        .unwrap()
+        .unwrap();
+    let entries = |name: &str| -> Vec<String> {
+        let z = zip::ZipArchive::new(std::fs::File::open(dir.join(name)).unwrap()).unwrap();
+        z.file_names().map(str::to_string).collect()
+    };
+    assert!(entries(&first.name).contains(&"pages/inbox.md".to_string()));
+
+    // marking a file is a change: a snapshot that is not forced is taken
+    std::fs::write(g.root().join(".notatnik/vault.json"), vault.to_json()).unwrap();
+    g.update_config(|c| c.encryption.paths = vec!["pages/inbox.md".into()])
+        .unwrap();
+    let made = g
+        .backup_now(&dir, stamp("2026-10-10 09:05:00"), false, None, &plain)
+        .unwrap()
+        .expect("marking a file makes a snapshot due");
+    let inside = entries(&made.name);
+    assert!(
+        inside.contains(&"pages/inbox.md.enc".to_string()),
+        "{inside:?}"
+    );
+    assert!(
+        !inside.contains(&"pages/inbox.md".to_string()),
+        "{inside:?}"
+    );
+    // the other files stay plain
+    assert!(
+        inside
+            .iter()
+            .any(|n| n.starts_with("pages/") && !n.ends_with(".enc")),
+        "{inside:?}"
+    );
+    // the text is not in the snapshot, whatever the compression
+    let raw = std::fs::read(dir.join(&made.name)).unwrap();
+    assert!(!raw.windows(15).any(|w| w == b"ZEBRA-MARKER-47"));
+    // nothing changed since: the next snapshot is not due
+    assert!(
+        g.backup_now(&dir, stamp("2026-10-10 09:10:00"), false, None, &plain)
+            .unwrap()
+            .is_none()
+    );
+
+    // without the graph's key the file is listed, not compared; with it, nothing differs
+    let changes = g.compare_backup(&dir, &made.name, &plain).unwrap();
+    assert_eq!(changes.len(), 1, "{changes:?}");
+    assert_eq!(changes[0].path, "pages/inbox.md");
+    assert_eq!(changes[0].status, ChangeStatus::Locked);
+    let open_opts = BackupOptions {
+        graph_keys: Some(keys.clone()),
+        ..BackupOptions::default()
+    };
+    assert!(
+        g.compare_backup(&dir, &made.name, &open_opts)
+            .unwrap()
+            .is_empty()
+    );
+
+    // unpacking: refused without the key (and nothing written), plain with it
+    let target = e.dirs.data.join("restored");
+    assert!(matches!(
+        g.restore_backup_to(&dir, &made.name, &target, &plain),
+        Err(Error::Locked(_))
+    ));
+    assert!(!target.exists() || std::fs::read_dir(&target).unwrap().next().is_none());
+    g.restore_backup_to(&dir, &made.name, &target, &open_opts)
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(target.join("pages/inbox.md")).unwrap(),
+        secret_text
+    );
+    assert!(!target.join("pages/inbox.md.enc").exists());
+
+    // one page back: needs the key too
+    let now = g.read_page("pages/inbox.md").unwrap();
+    g.write_page("pages/inbox.md", "- changed\n", Some(&now.hash))
+        .unwrap();
+    assert!(matches!(
+        g.restore_page_from_backup(
+            &dir,
+            &made.name,
+            "pages/inbox.md",
+            stamp("2026-10-10 10:00:00"),
+            &plain
+        ),
+        Err(Error::Locked(_))
+    ));
+    g.restore_page_from_backup(
+        &dir,
+        &made.name,
+        "pages/inbox.md",
+        stamp("2026-10-10 10:00:00"),
+        &open_opts,
+    )
+    .unwrap();
+    assert_eq!(g.read_page("pages/inbox.md").unwrap().text, secret_text);
+
+    // a key of another vault is refused
+    let (_, other, _) = Vault::create("x", KdfParams::insecure_for_tests()).unwrap();
+    let wrong = BackupOptions {
+        graph_keys: Some(Arc::new(other)),
+        ..BackupOptions::default()
+    };
+    assert!(g.compare_backup(&dir, &made.name, &wrong).is_err());
+
+    // marked files and no vault: nothing is written, never a plain fallback
+    std::fs::remove_file(g.root().join(".notatnik/vault.json")).unwrap();
+    let before = names(&dir);
+    assert!(matches!(
+        g.backup_now(&dir, stamp("2026-10-11 09:00:00"), true, None, &plain),
+        Err(Error::Crypt(_))
+    ));
+    assert_eq!(names(&dir), before);
+
+    // a snapshot sealed as a whole is not sealed entry by entry
+    std::fs::write(g.root().join(".notatnik/vault.json"), vault.to_json()).unwrap();
+    let (bvault, bkeys, _) = Vault::create("bk", KdfParams::insecure_for_tests()).unwrap();
+    let whole = BackupOptions {
+        seal_to: Some(bvault),
+        keys: Some(Arc::new(bkeys)),
+        ..BackupOptions::default()
+    };
+    let sealed = g
+        .backup_now(&dir, stamp("2026-10-12 09:00:00"), true, None, &whole)
+        .unwrap()
+        .unwrap();
+    assert!(sealed.encrypted);
+    let c = g.compare_backup(&dir, &sealed.name, &whole).unwrap();
+    assert!(c.is_empty(), "{c:?}");
 }

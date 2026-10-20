@@ -431,4 +431,9 @@ key is the data key of the graph's vault, `.notatnik/vault.json` (the vault JSON
 entries end in `/`; matching is on the path relative to the graph folder, and a conflict copy is matched by the
 path of the file it came from. Local files are never encrypted.
 
+**Marked files in a snapshot** (EN-23): in a zip that is not sealed as a whole, a path listed under `[encryption]
+paths` is the entry `<path>.enc` (stored, not deflated), an `NTNKSEAL` file for the vault `.notatnik/vault.json`
+whose comment is `notatnik-entry v1 <path>`. The entry `<path>` itself is absent. An entry is taken for sealed
+only when it carries that comment, so a user's own file called `x.enc` is left alone.
+
 Fixtures made by an earlier build live in `fixtures/crypt/` and must keep opening.

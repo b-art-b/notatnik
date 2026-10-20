@@ -95,7 +95,6 @@ impl AppState {
         let cfg = o.graph.config().encryption;
         let vault = o.graph.read_vault().ok().flatten();
         let id = o.graph.id();
-        let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         let sync = o.sync.as_ref().map(|t| t.status());
         EncryptionStatus {
             configured: vault.is_some(),
@@ -107,7 +106,6 @@ impl AppState {
             key_id: vault.map(|v| v.key_id).unwrap_or_default(),
             keyring: self.secrets.get(&keyring_key(&id)).is_some(),
             has_server: sync.is_some(),
-            backups_plain: !cfg.paths.is_empty() && !dev.ui.backup_encrypt,
             paths: cfg.paths,
             calendar: cfg.calendar,
             left_alone: sync.as_ref().map_or(0, |s| s.left_alone),

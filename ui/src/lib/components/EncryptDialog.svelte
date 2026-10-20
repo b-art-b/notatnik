@@ -140,12 +140,6 @@
             : 'these pages'} will not be sent to the calendar.
         </p>
       {/if}
-      {#if st.backups_plain || (!st.paths.length && !preview.synced_before)}
-        <p class="note" data-testid="encrypt-warn-backups">
-          Backups are made from the plain files here: turn on encrypted backups (Settings → Backup) so that
-          this page is not plain there.
-        </p>
-      {/if}
     {/if}
     <button
       type="button"

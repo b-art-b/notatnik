@@ -819,11 +819,7 @@ left_alone: number,
 /**
  * Files whose name ends in `.enc` (reserved), not synced.
  */
-reserved: Array<string>, 
-/**
- * Paths are marked while the backups are not encrypted: the backups hold those pages as plain text.
- */
-backups_plain: boolean, };
+reserved: Array<string>, };
 export type EncryptionSetupArgs = { 
 /**
  * 8 to 200 characters.
@@ -1640,7 +1636,8 @@ export type BackupChange = {
  */
 path: string, 
 /**
- * `changed`, `only_snapshot` (restoring would bring it back) or `only_now` (created since the snapshot).
+ * `changed`, `only_snapshot` (restoring would bring it back) `only_now` (created since the snapshot) or `locked` (saved encrypted for the graph, whose key is locked:
+ * not compared).
  */
 status: string, 
 /**

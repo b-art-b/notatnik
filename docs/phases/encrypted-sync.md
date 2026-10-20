@@ -66,7 +66,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] Marking and unmarking go through API commands that change `config.toml` (written back from the parsed settings like every other settings change, not as a text patch), and a preview says whether the paths were synced before, and start a sync
 - [x] The calendar sync leaves out tasks of marked pages when `calendar = "exclude"`; tasks sent earlier leave the calendar by the usual safe way
 - [x] The rename and move plan lists a warning when a page enters or leaves a marked path
-- [x] Backup: the status says when backups are plain while paths are marked
+- [x] Backup: marked files are saved sealed in plain snapshots too (EN-23; this replaced the "backups are plain" status)
 - [x] The log (D49) says what happened at `info` (paths, never text): a path marked, the vault unlocked or locked, files left alone because of the lock
 
 **Verify**

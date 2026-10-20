@@ -365,12 +365,6 @@
             will not be sent to the calendar.
           </p>
         {/if}
-        {#if st.backups_plain || !st.paths.length}
-          <p class="muted">
-            Backups are made from the plain files here: turn on encrypted backups (Settings → Backup) so that
-            they are not plain there.
-          </p>
-        {/if}
         <p class="muted">
           Other apps (the Nextcloud web viewer, its mobile apps) can no longer read the notes. Keep the
           recovery key somewhere safe.
@@ -392,10 +386,10 @@
       usual.
     </p>
   {/if}
-  {#if st.backups_plain}
-    <p class="warn" role="note" data-testid="enc-backups-plain">
-      Your backups are not encrypted, so they hold the encrypted pages as plain text. Turn on encryption for
-      backups in Settings → Backup.
+  {#if st.paths.length}
+    <p class="muted" role="note" data-testid="enc-backups-note">
+      Backups save these files encrypted with this graph's key too. Restoring one of them, or comparing it,
+      needs the key unlocked.
     </p>
   {/if}
   {#if st.reserved.length}

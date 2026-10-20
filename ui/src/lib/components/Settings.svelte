@@ -322,6 +322,7 @@
     changed: 'changed',
     only_snapshot: 'deleted since',
     only_now: 'new since',
+    locked: 'encrypted, not compared (unlock the graph)',
   }
   async function compareDevice(name: string) {
     try {

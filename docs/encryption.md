@@ -185,8 +185,12 @@ still works, and closing the app changes nothing).
 2. **Old plain copies.** Marking a page that was already synced leaves its earlier text in Nextcloud's file
    versions and trash bin; plain WebDAV cannot remove them. The app says so before marking such a path and names
    what to do (empty the trash and delete the versions in Nextcloud). Mark before the first sync when you can.
-3. **Backups.** A backup is a zip of the local, plain graph. With backup encryption off, marked pages are plain in
-   the backup folder and the second folder. Settings → Backup warns while that is so.
+3. **Backups (EN-23).** A backup is a zip of the local graph. The marked files are in it as `<path>.enc`, sealed
+   to the graph's vault, with backup encryption on or off, so a plain backup folder or second folder holds no
+   marked text. Writing needs no password; comparing a snapshot, restoring a page and unpacking a snapshot need the
+   graph's key unlocked. The rest of a plain snapshot is plain; turn on backup encryption (Settings → Backup) to
+   seal all of it. Without the app: take the `<path>.enc` entry out of the zip and run `notatnik decrypt` on it
+   with the graph's password or recovery key.
 4. **Moves.** Renaming or moving a page into or out of a marked path changes how it is stored. The rename dialog
    says so.
 5. **Images.** A marked page's pictures stay plain unless their folder is marked too. The page's menu says which

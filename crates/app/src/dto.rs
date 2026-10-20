@@ -1269,7 +1269,8 @@ pub struct DeviceRestorePreview {
 pub struct BackupChange {
     /// Path in the graph folder, or `.notatnik-device/<name>` for a device file.
     pub path: String,
-    /// `changed`, `only_snapshot` (restoring would bring it back) or `only_now` (created since the snapshot).
+    /// `changed`, `only_snapshot` (restoring would bring it back) `only_now` (created since the snapshot) or `locked` (saved encrypted for the graph, whose key is locked:
+    /// not compared).
     pub status: String,
     /// Not text: no lines are compared.
     pub binary: bool,
@@ -1922,8 +1923,6 @@ pub struct EncryptionStatus {
     pub left_alone: u32,
     /// Files whose name ends in `.enc` (reserved), not synced.
     pub reserved: Vec<String>,
-    /// Paths are marked while the backups are not encrypted: the backups hold those pages as plain text.
-    pub backups_plain: bool,
 }
 
 /// `encryption_setup`
