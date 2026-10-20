@@ -92,6 +92,8 @@ test('a page is encrypted from its menu: the lock shows and the server holds no 
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  // these tests look at the visible `.enc` names; the hidden ones have their own test below
+  await backend.call('encryption_names', { hidden: false })
 
   // the page: the dialog warns that the server has the text from earlier syncs
   await page.goto(page.url().replace(/#.*/, '#/page/Secret'))
@@ -175,6 +177,8 @@ test('encryption is set up and a page marked on a local graph; connecting upload
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  // these tests look at the visible `.enc` names; the hidden ones have their own test below
+  await backend.call('encryption_names', { hidden: false })
 
   await page.goto(page.url().replace(/#.*/, '#/page/Secret'))
   await page.getByTestId('encrypt-toggle').click()
@@ -280,6 +284,8 @@ test('Encrypt everything marks every content folder in one step; the settings st
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  // these tests look at the visible `.enc` names; the hidden ones have their own test below
+  await backend.call('encryption_names', { hidden: false })
 
   // the confirmation says how much, and warns that the server has the text from before
   await page.getByTestId('enc-all').click()
@@ -324,6 +330,8 @@ test('a forgotten graph password is reset: the new vault replaces the old, the f
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  // these tests look at the visible `.enc` names; the hidden ones have their own test below
+  await backend.call('encryption_names', { hidden: false })
   await backend.call('encryption_mark', { paths: ['pages/'], encrypted: true })
   await backend.call('sync_now', { allow_mass_delete: false })
   const before = await dav.file('Notes/reset/pages/Secret.md.enc')
@@ -357,6 +365,72 @@ test('a forgotten graph password is reset: the new vault replaces the old, the f
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
   await expect(page.getByRole('alert').filter({ hasText: /not the password/ })).toBeVisible()
   await page.getByLabel('Password or recovery key').fill('new password')
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+})
+
+// EN-25, EN-26: a new vault hides the names; the switch moves the files; re-encrypting replaces the key.
+test('names are hidden by default, the switch moves the files, and a new key re-encrypts everything', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/')
+  const dir = await graphOnServer(backend, dav, 'Notes/hid')
+  fs.writeFileSync(path.join(dir, 'pages/Secret.md'), `- ${SECRET}\n`)
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.reload()
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await page.getByTestId('graph-enc-setup').click()
+  await page.getByLabel('Password (8 to 200 characters)').fill('first password')
+  await page.getByLabel('Password again').fill('first password')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  await backend.call('encryption_mark', { paths: ['pages/'], encrypted: true })
+  await backend.call('sync_now', { allow_mass_delete: false })
+
+  // hidden by default: neither the plain name nor `<name>.enc` is on the server, and Verify reads the object
+  const names = page.getByRole('switch', { name: 'Hide file and folder names' })
+  await expect(names).toBeChecked()
+  expect(await dav.file('Notes/hid/pages/Secret.md')).toBeNull()
+  expect(await dav.file('Notes/hid/pages/Secret.md.enc')).toBeNull()
+  const verify = async () => {
+    await page.getByRole('button', { name: 'Verify', exact: true }).click()
+    await expect(page.getByTestId('verify-result')).toContainText('The server copy matches this device')
+  }
+  await verify()
+
+  // switched off: `<name>.enc`; on again: hidden
+  await names.uncheck()
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/hid/pages/Secret.md.enc')).not.toBeNull()
+  await names.check()
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/hid/pages/Secret.md.enc')).toBeNull()
+  await verify()
+
+  // re-encrypting needs the unlocked key; then a new password, a confirmed recovery key, and the files are stored again
+  await page.getByTestId('graph-enc-rotate').click()
+  const form = page.getByTestId('graph-enc-rotate-form')
+  await form.getByLabel('New password (8 to 200 characters)').fill('second password')
+  await form.getByLabel('New password again').fill('second password')
+  await expect(form.getByRole('button', { name: 'Re-encrypt with a new key' })).toBeDisabled()
+  await page.getByTestId('graph-enc-rotate-understood').check()
+  await form.getByRole('button', { name: 'Re-encrypt with a new key' }).click()
+  await expect(page.getByTestId('graph-enc-confirm')).toHaveText('Replace the key')
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  await backend.call('sync_now', { allow_mass_delete: false })
+  await verify()
+  await page.getByTestId('graph-enc-lock').click()
+  await page.getByTestId('graph-enc-unlock').click()
+  await page.getByLabel('Password or recovery key').fill('first password')
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await expect(page.getByRole('alert').filter({ hasText: /not the password/ })).toBeVisible()
+  await page.getByLabel('Password or recovery key').fill('second password')
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
 })

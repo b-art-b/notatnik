@@ -41,6 +41,7 @@
             ['Marked as encrypted but stored as plain text', report.plain_but_marked],
             ['Stored encrypted but not marked', report.encrypted_but_unmarked],
             ['Stored in both forms', report.both_forms],
+            ['Stored under another name than the settings ask (the next sync moves it)', report.other_place],
           ] as [string, string[]][]
         ).filter(([, files]) => files.length)
       : [],

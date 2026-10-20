@@ -813,6 +813,10 @@ paths: Array<string>,
  */
 calendar: string, 
 /**
+ * `visible` or `hidden`: whether the server sees the names of encrypted files (EN-25).
+ */
+names: string, 
+/**
  * Encrypted files the last sync left alone because the key was locked.
  */
 left_alone: number, 
@@ -860,6 +864,16 @@ export type EncryptionCalendarArgs = {
  * Send the tasks of encrypted pages to the calendar anyway.
  */
 allow: boolean, };
+export type EncryptionNamesArgs = { 
+/**
+ * Store encrypted files under names that reveal nothing.
+ */
+hidden: boolean, };
+export type EncryptionRotateArgs = { 
+/**
+ * The password of the new vault, 8 to 200 characters.
+ */
+password: string, };
 export type EncryptionPagePathsArgs = { 
 /**
  * The page.
@@ -2049,6 +2063,10 @@ encrypted_but_unmarked: Array<string>,
  */
 both_forms: Array<string>, 
 /**
+ * Stored encrypted, but not under the name the settings ask for: the next sync moves it.
+ */
+other_place: Array<string>, 
+/**
  * Nothing to report.
  */
 clean: boolean, };
@@ -2445,6 +2463,8 @@ export type Commands = {
   encryption_new_recovery_key: { args: EncryptionPasswordArgs; result: RecoveryKeyResult };
   encryption_keyring: { args: EncryptionKeyringArgs; result: EncryptionStatus };
   encryption_calendar: { args: EncryptionCalendarArgs; result: EncryptionStatus };
+  encryption_names: { args: EncryptionNamesArgs; result: EncryptionStatus };
+  encryption_rotate: { args: EncryptionRotateArgs; result: RecoveryKeyResult };
   encryption_page_paths: { args: EncryptionPagePathsArgs; result: StringList };
   encryption_preview: { args: EncryptionPathsArgs; result: EncryptionPreview };
   encryption_mark: { args: EncryptionPathsArgs; result: EncryptionStatus };

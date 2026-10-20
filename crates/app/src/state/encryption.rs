@@ -108,6 +108,7 @@ impl AppState {
             has_server: sync.is_some(),
             paths: cfg.paths,
             calendar: cfg.calendar,
+            names: cfg.names,
             left_alone: sync.as_ref().map_or(0, |s| s.left_alone),
             reserved: sync.map(|s| s.reserved).unwrap_or_default(),
         }
@@ -182,8 +183,14 @@ impl AppState {
                     "the encryption was set up for another graph",
                 ));
             }
+            let first = o.graph.read_vault()?.is_none();
             self.set_graph_keys(Some(p.keys.clone()));
             o.graph.write_vault(&p.vault)?;
+            // a graph that gets encryption now hides the names from the start (EN-25); one that has it keeps its choice
+            if first {
+                o.graph
+                    .update_config(|c| c.encryption.names = "hidden".into())?;
+            }
             log::info!(
                 "encryption: the vault of the graph was {} (key {})",
                 if p.reset { "replaced" } else { "made" },
@@ -284,6 +291,46 @@ impl AppState {
             log::info!("encryption: the key was removed from the keyring");
         }
         self.status_now()
+    }
+
+    /// `encryption_names`: whether the server sees the names of encrypted files (EN-25). The files are moved by the
+    /// next sync that has the key: written at the new place first, the old copy removed afterwards.
+    pub fn encryption_names(&self, a: EncryptionNamesArgs) -> ApiResult<EncryptionStatus> {
+        self.with_open(|o| {
+            if o.graph.read_vault()?.is_none() {
+                return Err(ApiError::new(
+                    "invalid",
+                    "this graph has no encryption set up",
+                ));
+            }
+            o.graph.update_config(|c| {
+                c.encryption.names = if a.hidden { "hidden" } else { "visible" }.into();
+            })?;
+            log::info!(
+                "encryption: names of encrypted files are {} on the server",
+                if a.hidden { "hidden" } else { "visible" }
+            );
+            Ok(())
+        })?;
+        self.kick_sync(1);
+        self.status_now()
+    }
+
+    /// `encryption_rotate` (EN-26): re-encrypts the graph with a new key. Needs the key unlocked, so that it is the
+    /// owner who does it. It makes the new vault like a reset does (`encryption_confirm` finishes it); the files
+    /// stored encrypted are then stored again from the plain local copies under the new key and the old copies are
+    /// removed. Plain text never leaves the device.
+    pub fn encryption_rotate(&self, a: EncryptionRotateArgs) -> ApiResult<RecoveryKeyResult> {
+        if self.graph_keys_now().is_none() {
+            return Err(ApiError::new(
+                "locked",
+                "unlock the encryption first: only someone who can open the files re-encrypts them",
+            ));
+        }
+        self.encryption_setup(EncryptionSetupArgs {
+            password: a.password,
+            reset: Some(true),
+        })
     }
 
     /// `encryption_calendar`: whether the tasks of encrypted pages go to the calendar.

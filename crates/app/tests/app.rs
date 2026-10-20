@@ -5397,6 +5397,21 @@ fn server_has_text(dav: &notatnik_sync::fakedav::FakeDav, marker: &str) -> bool 
         .any(|d| d.windows(marker.len()).any(|w| w == marker.as_bytes()))
 }
 
+/// The objects with hidden names the server holds (EN-25), by their path on it. Also checks that no file name on the
+/// server shows the marked folder or page.
+fn objects(dav: &notatnik_sync::fakedav::FakeDav) -> Vec<String> {
+    let all = dav.files("Notes/graph");
+    for n in &all {
+        assert!(
+            !n.contains("private") && !n.contains("diary"),
+            "the server lists {n}"
+        );
+    }
+    all.into_iter()
+        .filter(|n| n.contains("/.notatnik-enc/"))
+        .collect()
+}
+
 /// A graph on a fake server with a marked folder, and the recovery key of its vault.
 fn encrypted_graph() -> (
     T,
@@ -5455,7 +5470,7 @@ fn pages_marked_before_connecting_to_a_server_are_uploaded_encrypted() {
         "connect_remote",
         json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": false}),
     );
-    assert!(dav.file("Notes/graph/pages/private/diary.md.enc").is_some());
+    assert_eq!(objects(&dav).len(), 1);
     assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
     assert!(dav.file("Notes/graph/pages/open.md").is_some());
     assert!(
@@ -5483,7 +5498,7 @@ fn marked_paths_are_stored_encrypted_on_the_server_and_a_second_device_unlocks_t
     assert_eq!(st["paths"], json!(["pages/private/"]));
     let sync = t.ok("sync_now", json!({"allow_mass_delete": false}));
     assert_eq!(sync["state"], "idle", "{sync}");
-    assert!(dav.file("Notes/graph/pages/private/diary.md.enc").is_some());
+    assert_eq!(objects(&dav).len(), 1);
     assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
     assert!(dav.file("Notes/graph/pages/open.md").is_some());
     assert!(!server_has_text(&dav, SECRET));
@@ -5903,7 +5918,9 @@ fn a_forgotten_graph_password_is_reset_and_the_files_are_stored_again() {
         json!({"paths": ["pages/private/"], "encrypted": true}),
     );
     t.ok("sync_now", json!({"allow_mass_delete": false}));
-    let before = dav.file("Notes/graph/pages/private/diary.md.enc").unwrap();
+    let old_objects = objects(&dav);
+    assert_eq!(old_objects.len(), 1);
+    let before = dav.file(&old_objects[0]).unwrap();
 
     // without `reset` a second setup is refused; with it the old vault stays valid until the key is confirmed
     assert!(
@@ -5937,7 +5954,11 @@ fn a_forgotten_graph_password_is_reset_and_the_files_are_stored_again() {
 
     // the file is stored again with the new key; the text here is as it was
     t.ok("sync_now", json!({"allow_mass_delete": false}));
-    let after = dav.file("Notes/graph/pages/private/diary.md.enc").unwrap();
+    // under a new name (names depend on the key); the old object is gone
+    let new_objects = objects(&dav);
+    assert_eq!(new_objects.len(), 1, "{new_objects:?}");
+    assert_ne!(new_objects, old_objects);
+    let after = dav.file(&new_objects[0]).unwrap();
     assert_ne!(before, after);
     assert!(!server_has_text(&dav, SECRET));
     assert_eq!(
@@ -6233,4 +6254,69 @@ fn a_link_title_is_looked_up_only_when_allowed() {
     let r = t.ok("link_title", json!({"url": url(port)}));
     assert_eq!(r["value"], "Hello & welcome");
     server.join().unwrap();
+}
+
+/// EN-25, EN-26: a graph that gets encryption hides the names; the setting can be switched back and forth, and
+/// *rotate* re-encrypts with a new key, only for someone who has the key unlocked.
+#[test]
+fn names_can_be_switched_and_the_graph_re_encrypted_with_a_new_key() {
+    let (t, dav, root, _recovery) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    // a new vault hides the names from the start
+    assert_eq!(st["names"], "hidden", "{st}");
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    let first = objects(&dav);
+    assert_eq!(first.len(), 1);
+
+    // back to visible names: the file moves to `<path>.enc`, no object is left (the check for names is lifted)
+    let st = t.ok("encryption_names", json!({"hidden": false}));
+    assert_eq!(st["names"], "visible");
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(dav.file("Notes/graph/pages/private/diary.md.enc").is_some());
+    assert!(
+        !dav.files("Notes/graph")
+            .iter()
+            .any(|n| n.contains("/.notatnik-enc/"))
+    );
+    let st = t.ok("encryption_names", json!({"hidden": true}));
+    assert_eq!(st["names"], "hidden");
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(objects(&dav), first);
+
+    // re-encrypting needs the key
+    t.ok("encryption_lock", json!({}));
+    assert_eq!(
+        t.call("encryption_rotate", json!({"password": "a new password"}))
+            .unwrap_err()
+            .code,
+        "locked"
+    );
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    let recovery = t.ok("encryption_rotate", json!({"password": "a new password"}));
+    assert!(recovery["recovery_key"].as_str().unwrap().contains('-'));
+    // nothing changes until the new recovery key is confirmed
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(objects(&dav), first);
+    t.ok("encryption_confirm", json!({}));
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    let second = objects(&dav);
+    assert_eq!(second.len(), 1, "{second:?}");
+    assert_ne!(second, first);
+    assert!(!server_has_text(&dav, SECRET));
+    assert_eq!(
+        std::fs::read_to_string(root.join("pages/private/diary.md")).unwrap(),
+        format!("- {SECRET}\n")
+    );
+    // a graph without encryption cannot switch
+    let plain = start("basic");
+    assert!(
+        plain
+            .call("encryption_names", json!({"hidden": true}))
+            .is_err()
+    );
 }

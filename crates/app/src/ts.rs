@@ -92,6 +92,8 @@ pub fn typescript_bindings() -> String {
         EncryptionPasswordArgs,
         EncryptionKeyringArgs,
         EncryptionCalendarArgs,
+        EncryptionNamesArgs,
+        EncryptionRotateArgs,
         EncryptionPagePathsArgs,
         EncryptionPathsArgs,
         EncryptionPreview,

@@ -113,6 +113,8 @@ commands! {
     encryption_new_recovery_key(EncryptionPasswordArgs) -> RecoveryKeyResult => encryption_new_recovery_key,
     encryption_keyring(EncryptionKeyringArgs) -> EncryptionStatus => encryption_keyring,
     encryption_calendar(EncryptionCalendarArgs) -> EncryptionStatus => encryption_calendar,
+    encryption_names(EncryptionNamesArgs) -> EncryptionStatus => encryption_names,
+    encryption_rotate(EncryptionRotateArgs) -> RecoveryKeyResult => encryption_rotate,
     encryption_page_paths(EncryptionPagePathsArgs) -> StringList => encryption_page_paths,
     encryption_preview(EncryptionPathsArgs) -> EncryptionPreview => encryption_preview,
     encryption_mark(EncryptionPathsArgs) -> EncryptionStatus => encryption_mark,

@@ -1970,6 +1970,8 @@ pub struct EncryptionStatus {
     pub paths: Vec<String>,
     /// `exclude` or `allow`: whether tasks of encrypted pages go to the calendar.
     pub calendar: String,
+    /// `visible` or `hidden`: whether the server sees the names of encrypted files (EN-25).
+    pub names: String,
     /// Encrypted files the last sync left alone because the key was locked.
     pub left_alone: u32,
     /// Files whose name ends in `.enc` (reserved), not synced.
@@ -2017,6 +2019,20 @@ pub struct EncryptionPasswordArgs {
 pub struct EncryptionKeyringArgs {
     /// Keep the key in the system keyring (on) or remove it from there (off).
     pub on: bool,
+}
+
+/// `encryption_names`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionNamesArgs {
+    /// Store encrypted files under names that reveal nothing.
+    pub hidden: bool,
+}
+
+/// `encryption_rotate`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionRotateArgs {
+    /// The password of the new vault, 8 to 200 characters.
+    pub password: String,
 }
 
 /// `encryption_calendar`

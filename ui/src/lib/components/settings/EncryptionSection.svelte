@@ -10,7 +10,7 @@
 
   const st = $derived(encryption.status)
   // `$state` fields are plain variables that the template follows; a form is one of these names or none
-  let form = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery' | 'reset'>('')
+  let form = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery' | 'reset' | 'rotate'>('')
   let pw = $state('')
   let pw2 = $state('')
   let old = $state('')
@@ -18,6 +18,8 @@
   let saved = $state(false)
   // the password was forgotten and a new vault is being made (EN-22): its recovery key has to be confirmed
   let resetting = $state(false)
+  // the vault is being replaced on purpose, with the old key unlocked (EN-26), not because the password was lost
+  let rotating = $state(false)
   let understood = $state(false)
 
   $effect(() => {
@@ -48,8 +50,28 @@
     run(async () => {
       encryption.status = await backend.call('encryption_confirm', {})
       recoveryShown = null
-      toast(resetting ? 'The password was reset' : 'Encryption is on for this graph')
+      toast(
+        rotating
+          ? 'The key was replaced; the files are encrypted again at the next sync'
+          : resetting
+            ? 'The password was reset'
+            : 'Encryption is on for this graph',
+      )
       resetting = false
+      rotating = false
+    })
+  const rotate = () =>
+    run(async () => {
+      recoveryShown = (await backend.call('encryption_rotate', { password: pw })).recovery_key
+      saved = false
+      resetting = true
+      rotating = true
+      close()
+      await refreshEncryption()
+    })
+  const hideNames = (hidden: boolean) =>
+    run(async () => {
+      encryption.status = await backend.call('encryption_names', { hidden })
     })
   const reset = () =>
     run(async () => {
@@ -126,7 +148,8 @@
     Some files can be stored <strong>encrypted</strong> on the server while the rest stays as it is. On this
     device everything is plain Markdown, so you edit, search and link both kinds the same way. Choose what to
     encrypt from a page (<em>Encrypt…</em> next to <em>History</em>), or everything at once below. File names,
-    folders and sizes stay visible on the server; the text does not.
+    folders stay hidden too when <em>Hide file and folder names</em> is on (the default for new encryption); sizes
+    and times stay visible on the server, the text does not.
   </p>
   <SettingRow
     title="Key"
@@ -177,7 +200,7 @@
           ><input type="checkbox" bind:checked={saved} data-testid="graph-enc-saved" /> I saved the recovery key</label
         >
         <button type="button" disabled={!saved} onclick={confirm} data-testid="graph-enc-confirm"
-          >{resetting ? 'Replace the password' : 'Turn on encryption'}</button
+          >{rotating ? 'Replace the key' : resetting ? 'Replace the password' : 'Turn on encryption'}</button
         >
       {/if}
     </div>
@@ -256,6 +279,41 @@
         <button type="button" class="plain" onclick={close}>Cancel</button>
       </span>
     </form>
+  {:else if form === 'rotate'}
+    <form
+      class="encform"
+      data-testid="graph-enc-rotate-form"
+      onsubmit={(e) => {
+        e.preventDefault()
+        if (understood && passwordOk() && st.unlocked) void rotate()
+      }}
+    >
+      <p>
+        Makes a new key and a new password, then stores every encrypted file on the server again with it and
+        removes the old copies. The text is encrypted on this device and never leaves it as plain text. Use it
+        when the old key or password may have been seen by someone. Other devices need the new password.
+      </p>
+      <p class="warn">
+        Earlier versions of the files stay in Nextcloud's file versions and trash, and backups made before
+        keep the old key: anyone who has the old key can still read those. Empty the versions and the trash in
+        Nextcloud afterwards.
+      </p>
+      {#if !st.unlocked}<p class="warn">Unlock the key first.</p>{/if}
+      <label class="check"
+        ><input type="checkbox" bind:checked={understood} data-testid="graph-enc-rotate-understood" /> I understand</label
+      >
+      <label
+        >New password (8 to 200 characters)
+        <input type="password" autocomplete="new-password" bind:value={pw} /></label
+      >
+      <label>New password again <input type="password" autocomplete="new-password" bind:value={pw2} /></label>
+      <span class="open">
+        <button type="submit" disabled={!understood || !passwordOk() || !st.unlocked}
+          >Re-encrypt with a new key</button
+        >
+        <button type="button" class="plain" onclick={close}>Cancel</button>
+      </span>
+    </form>
   {:else if form === 'reset'}
     <form
       class="encform"
@@ -294,6 +352,12 @@
       <button
         type="button"
         class="plain"
+        data-testid="graph-enc-rotate"
+        onclick={() => (form = form === 'rotate' ? '' : 'rotate')}>Re-encrypt with a new key…</button
+      >
+      <button
+        type="button"
+        class="plain"
         data-testid="graph-enc-forgot"
         onclick={() => (form = form === 'reset' ? '' : 'reset')}>Forgot the password…</button
       >
@@ -311,6 +375,20 @@
         checked={st.keyring}
         disabled={!st.keyring && !st.unlocked}
         onchange={(e) => void keyring((e.currentTarget as HTMLInputElement).checked)}
+      />
+    </SettingRow>
+    <SettingRow
+      title="Hide file and folder names"
+      description="On: each encrypted file is one object on the server with a name that tells nothing, and its real name and folder are inside, so the server sees no page titles. Off: the server sees the names (with .enc). Switching stores every encrypted file again at the next sync, which needs the key unlocked. The list of encrypted folders in the settings file stays readable, so use Encrypt everything below if you do not want it to name private folders."
+      labelFor="graph-enc-names"
+    >
+      <input
+        id="graph-enc-names"
+        class="switch"
+        type="checkbox"
+        role="switch"
+        checked={st.names === 'hidden'}
+        onchange={(e) => void hideNames((e.currentTarget as HTMLInputElement).checked)}
       />
     </SettingRow>
     <SettingRow
