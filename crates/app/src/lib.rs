@@ -127,6 +127,7 @@ commands! {
     list_templates(NoArgs) -> Vec<TemplateEntry> => list_templates,
     read_template(NameArgs) -> StringValue => read_template,
     write_template(WriteTemplateArgs) -> TemplateEntry => write_template,
+    create_template(NameArgs) -> TemplateEntry => create_template,
     delete_template(NameArgs) -> Vec<TemplateEntry> => delete_template,
     deleted_templates(NoArgs) -> Vec<DeletedTemplate> => deleted_templates,
     restore_template(RestoreTemplateArgs) -> Vec<TemplateEntry> => restore_template,

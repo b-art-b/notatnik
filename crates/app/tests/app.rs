@@ -5972,3 +5972,36 @@ fn a_template_is_read_and_replaced_as_text() {
     assert!(t.call("read_template", json!({"name": "nobody"})).is_err());
     assert!(!t.graph().join("templates/nobody.md").exists());
 }
+
+/// A new template is a file with the `type` line; an existing one (any case) is refused, a name that would leave the
+/// folder is refused, and a name with YAML characters is quoted.
+#[test]
+fn a_new_template_is_created_with_its_type() {
+    let t = start("basic");
+    let e = t.ok("create_template", json!({"name": " Person "}));
+    assert_eq!(
+        (e["name"].as_str(), e["blocks"].as_u64()),
+        (Some("Person"), Some(0))
+    );
+    assert_eq!(t.read("templates/Person.md"), "---\ntype: Person\n---\n");
+    assert_eq!(
+        t.call("create_template", json!({"name": "person"}))
+            .unwrap_err()
+            .code,
+        "exists"
+    );
+    assert!(t.call("create_template", json!({"name": "  "})).is_err());
+    assert!(t.call("create_template", json!({"name": "a/b"})).is_err());
+    assert!(
+        t.call("create_template", json!({"name": ".hidden"}))
+            .is_err()
+    );
+    t.ok("create_template", json!({"name": "to: do"}));
+    assert_eq!(
+        t.read("templates/to: do.md"),
+        "---\ntype: \"to: do\"\n---\n"
+    );
+    // it shows in the list, and is a template for pages of that type
+    let list = t.ok("list_templates", json!({}));
+    assert_eq!(list.as_array().unwrap().len(), 2, "{list}");
+}

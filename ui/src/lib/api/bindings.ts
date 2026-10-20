@@ -2344,6 +2344,7 @@ export type Commands = {
   list_templates: { args: NoArgs; result: TemplateEntry[] };
   read_template: { args: NameArgs; result: StringValue };
   write_template: { args: WriteTemplateArgs; result: TemplateEntry };
+  create_template: { args: NameArgs; result: TemplateEntry };
   delete_template: { args: NameArgs; result: TemplateEntry[] };
   deleted_templates: { args: NoArgs; result: DeletedTemplate[] };
   restore_template: { args: RestoreTemplateArgs; result: TemplateEntry[] };

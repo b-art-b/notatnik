@@ -76,6 +76,19 @@
   type TemplateRow = { name: string; fields: string[]; blocks: number }
   let templates = $state<TemplateRow[]>([])
   let editingTpl = $state<string | null>(null) // the template whose text is open
+  let newTpl = $state<string | null>(null) // the name typed in the form for a new template; null: no form
+  async function createTemplate() {
+    const name = (newTpl ?? '').trim()
+    if (!name) return
+    try {
+      await backend.call('create_template', { name })
+      templates = await backend.call('list_templates', {})
+      newTpl = null
+      editingTpl = templates.find((t) => t.name.toLowerCase() === name.toLowerCase())?.name ?? name
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
   let deletedTpls = $state<{ id: string; name: string; deleted_ms: number }[]>([])
   let nsTemplates = $state<{ namespace: string; template: string }[]>([])
   let nsLoaded = false
@@ -926,6 +939,36 @@
             </tbody>
           </table>
           <h3>Your templates</h3>
+          {#if newTpl === null}
+            <p class="newtpl">
+              <button type="button" data-testid="new-template" onclick={() => (newTpl = '')}
+                >New template…</button
+              >
+            </p>
+          {:else}
+            <form
+              class="newtpl"
+              data-testid="new-template-form"
+              onsubmit={(e) => {
+                e.preventDefault()
+                void createTemplate()
+              }}
+            >
+              <label
+                >Page type
+                <!-- svelte-ignore a11y_autofocus -->
+                <input
+                  bind:value={newTpl}
+                  autofocus
+                  placeholder="person"
+                  onkeydown={(e) => e.key === 'Escape' && ((newTpl = null), e.stopPropagation())}
+                /></label
+              >
+              <button type="submit" disabled={!newTpl.trim()}>Create</button>
+              <button type="button" class="plain" onclick={() => (newTpl = null)}>Cancel</button>
+              <span class="muted">Pages with <code>type: …</code> of this name start from it.</span>
+            </form>
+          {/if}
           {#if templates.length === 0}
             <p class="intro" data-testid="no-templates">None yet.</p>
           {:else}
@@ -1631,6 +1674,18 @@
   .note {
     margin: 0.8em 0 0;
     color: var(--muted);
+    font-size: 0.9em;
+  }
+  .newtpl {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 0.5em 0.8em;
+    margin: 0.2em 0 0.8em;
+  }
+  .newtpl label {
+    display: grid;
+    gap: 0.2em;
     font-size: 0.9em;
   }
   .help {

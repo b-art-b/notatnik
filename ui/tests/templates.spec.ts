@@ -113,3 +113,29 @@ test('a template is opened as text, edited and saved', async ({ backend, page })
     '---\ntype: person\nimportance: 1\nphone:\n---\n- Contact {{title}}\n  - Phone\n  - Mail\n',
   )
 })
+
+test('a new template is made from a page type name and opens for editing', async ({ backend, page }) => {
+  backend.write('templates/person.md', PERSON)
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: /Templates/ }).click()
+  const pane = page.getByRole('tabpanel')
+  await pane.getByTestId('new-template').click()
+  const form = pane.getByTestId('new-template-form')
+  await expect(form.getByRole('button', { name: 'Create' })).toBeDisabled()
+  // a name that exists (any case) is refused with the reason
+  await form.getByLabel('Page type').fill('Person')
+  await form.getByRole('button', { name: 'Create' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: /exists already/ })).toBeVisible()
+  await form.getByLabel('Page type').fill('place')
+  await form.getByRole('button', { name: 'Create' }).click()
+
+  // the file is there and its text is open for editing
+  await expect.poll(() => backend.read('templates/place.md')).toBe('---\ntype: place\n---\n')
+  const item = pane.getByTestId('template-list').getByRole('listitem').filter({ hasText: 'place' })
+  const box = item.getByRole('textbox', { name: 'Text of the template place' })
+  await expect(box).toHaveValue('---\ntype: place\n---\n')
+  await box.fill('---\ntype: place\ncountry:\n---\n- About {{title}}\n')
+  await item.getByTestId('template-save').click()
+  await expect(item).toContainText('country')
+  await expect(pane.getByTestId('new-template-form')).toHaveCount(0)
+})

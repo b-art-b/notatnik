@@ -1102,6 +1102,35 @@ impl AppState {
         })
     }
 
+    /// `create_template`: a new template for a page type, with the `type` line and nothing else. The name is
+    /// compared without regard to case (`Person` and `person` are one template).
+    pub fn create_template(&self, a: NameArgs) -> ApiResult<TemplateEntry> {
+        let name = a.name.trim();
+        if name.is_empty() {
+            return Err(ApiError::new("invalid", "give the page type a name"));
+        }
+        self.with_open(|o| {
+            if Self::template_text(o, name).is_some() {
+                return Err(ApiError::new(
+                    "exists",
+                    format!("the template `{name}` exists already"),
+                ));
+            }
+            // a name with characters that mean something in YAML is quoted
+            let plain = name
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '_' | '-' | '.'));
+            let value = if plain {
+                name.to_string()
+            } else {
+                format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
+            };
+            let text = format!("---\ntype: {value}\n---\n");
+            o.graph.write_template(name, &text)?;
+            Ok(Self::template_entry(o, name, &text))
+        })
+    }
+
     /// `write_template`: replaces the text of an existing template. The text it replaces stays in the version
     /// history of the file.
     pub fn write_template(&self, a: WriteTemplateArgs) -> ApiResult<TemplateEntry> {
