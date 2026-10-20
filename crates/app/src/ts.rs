@@ -115,6 +115,8 @@ pub fn typescript_bindings() -> String {
         TemplateBlocksArgs,
         TemplateBlockView,
         TemplateCursor,
+        AskAnswer,
+        TemplateAsk,
         TemplateContent,
         NamespaceTemplateView,
         TemplateEntry,

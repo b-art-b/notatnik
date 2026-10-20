@@ -1,6 +1,7 @@
 // Runs block commands: turns a Plan from tree.ts into a request and moves the cursor afterwards.
 import { tick } from 'svelte'
 import { backend, type BlockOp } from '../api'
+import { askQuestions } from './asks'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
 import { getDoc, undoRedo, type PageDoc } from '../stores/pages.svelte'
 import { app, navigate, toast, errorMessage } from '../stores/app.svelte'
@@ -432,11 +433,24 @@ export async function editorAction(ctx: Ctx, blockId: number, a: EditorAction): 
           page: ctx.doc.name,
           selection: a.text.trim(),
           clipboard: null as string | null,
+          answers: null as { label: string; value: string }[] | null,
         }
         tpl = await backend.call('template_blocks', args)
         if (tpl.uses_clipboard) {
           args.clipboard = await navigator.clipboard.readText().catch(() => '')
           tpl = await backend.call('template_blocks', args)
+        }
+        // `{{ask:…}}`: a dialog asks, then the blocks are made again with the answers
+        if (tpl.asks.length) {
+          const answers = await askQuestions(a.name, tpl.asks)
+          if (!answers) {
+            // cancelled: nothing is inserted; the block goes on being edited
+            stopEditing()
+            await tick()
+            startEditing(ctx.viewKey, ctx.doc.name, blockId, 'end')
+            return true
+          }
+          tpl = await backend.call('template_blocks', { ...args, answers })
         }
       } catch (e) {
         toast(errorMessage(e), 'error')

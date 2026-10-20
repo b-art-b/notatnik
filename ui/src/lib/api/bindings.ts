@@ -1146,7 +1146,11 @@ selection: string | null,
 /**
  * What `{{clipboard}}` stands for. Asked for only when the reply says `uses_clipboard`.
  */
-clipboard: string | null, };
+clipboard: string | null, 
+/**
+ * The answers to the template's `{{ask:Label}}` questions (the reply's `asks`).
+ */
+answers: Array<AskAnswer> | null, };
 export type TemplateBlockView = { 
 /**
  * Path of the parent within the template (empty = top level).
@@ -1169,6 +1173,8 @@ block: number,
  * Characters into that block's text.
  */
 offset: number, };
+export type AskAnswer = { label: string, value: string, };
+export type TemplateAsk = { label: string, default: string, };
 export type TemplateContent = { 
 /**
  * The blocks, in insertion order.
@@ -1186,7 +1192,11 @@ cursor: TemplateCursor | null,
 /**
  * The template holds `{{clipboard}}`: the caller reads the clipboard and asks again with it.
  */
-uses_clipboard: boolean, };
+uses_clipboard: boolean, 
+/**
+ * The questions the template asks, in order; the caller shows them and asks again with the `answers`.
+ */
+asks: Array<TemplateAsk>, };
 export type NamespaceTemplateView = { 
 /**
  * Namespace, e.g. `people`.

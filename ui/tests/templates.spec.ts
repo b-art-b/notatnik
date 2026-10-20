@@ -128,6 +128,47 @@ test('/template fills {{selection}} and {{clipboard}}', async ({ backend, page, 
     .toBe('- Anna Nowak\n- Mail to Anna Nowak: see attachment!\n')
 })
 
+// `{{ask:Label}}` and `{{ask:Label|default}}` ask before the blocks are inserted.
+test('/template asks the questions of a template; Cancel inserts nothing', async ({ backend, page }) => {
+  backend.write(
+    'templates/snippets/Meeting.md',
+    '- Meeting with {{ask:Who}} about {{ask:Topic|status}}\n  - {{ask:Who}}: {{cursor}}\n',
+  )
+  backend.write('pages/Asks.md', '- start\n')
+  await backend.open('/page/Asks')
+  const insert = async () => {
+    await page.getByRole('tree', { name: 'Blocks' }).getByText('start', { exact: true }).click()
+    await expect(page.getByTestId('block-editor')).toBeFocused()
+    await page.keyboard.press('End')
+    await page.keyboard.type(' /template')
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Enter')
+    await page.getByTestId('template-picker').getByRole('option', { name: 'Meeting' }).click()
+  }
+  // cancelled: the page is unchanged and the block can be edited
+  await insert()
+  const dialog = page.getByTestId('template-ask')
+  await expect(dialog.getByLabel('Who')).toBeFocused()
+  await expect(dialog.getByLabel('Topic')).toHaveValue('status')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  expect(backend.read('pages/Asks.md')).toBe('- start\n')
+  // answered: one question asked once, used twice; the default is the starting text
+  await insert()
+  await dialog.getByLabel('Who').fill('Anna')
+  await dialog.getByLabel('Topic').fill('budget')
+  await dialog.getByRole('button', { name: 'Insert' }).click()
+  await expect(page.getByTestId('block-editor')).toContainText('Anna:', { timeout: 5000 })
+  await page.keyboard.type('hello')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(readOr(backend.read, 'pages/Asks.md'))
+    .toBe('- start\n- Meeting with Anna about budget\n  - Anna: hello\n')
+})
+
 // In an empty block the template takes the block's place; the cursor still goes to {{cursor}} in it.
 test('/template in an empty block fills it and continues at {{cursor}}', async ({ backend, page }) => {
   backend.write('templates/snippets/Meet.md', '- Meet {{cursor}} today\n  - Notes\n')

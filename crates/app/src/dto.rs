@@ -378,6 +378,23 @@ pub struct TemplateBlocksArgs {
     /// What `{{clipboard}}` stands for. Asked for only when the reply says `uses_clipboard`.
     #[serde(default)]
     pub clipboard: Option<String>,
+    /// The answers to the template's `{{ask:Label}}` questions (the reply's `asks`).
+    #[serde(default)]
+    pub answers: Option<Vec<AskAnswer>>,
+}
+
+/// An answer to `{{ask:Label}}`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct AskAnswer {
+    pub label: String,
+    pub value: String,
+}
+
+/// A question of a template: `{{ask:Label}}` or `{{ask:Label|default}}`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct TemplateAsk {
+    pub label: String,
+    pub default: String,
 }
 
 /// What `/template` inserts.
@@ -392,6 +409,8 @@ pub struct TemplateContent {
     pub cursor: Option<TemplateCursor>,
     /// The template holds `{{clipboard}}`: the caller reads the clipboard and asks again with it.
     pub uses_clipboard: bool,
+    /// The questions the template asks, in order; the caller shows them and asks again with the `answers`.
+    pub asks: Vec<TemplateAsk>,
 }
 
 /// The place of `{{cursor}}` in a template.

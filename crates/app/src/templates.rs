@@ -30,6 +30,44 @@ pub struct Vars<'a> {
     /// `{{selection}}` and `{{clipboard}}`: what `/template` is given; empty elsewhere.
     pub selection: &'a str,
     pub clipboard: &'a str,
+    /// The answers to `{{ask:Label}}`, `(label, text)`; a question without one gets its default, else nothing.
+    pub answers: &'a [(String, String)],
+}
+
+/// A question of a template: `{{ask:Label}}` or `{{ask:Label|default}}`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ask {
+    pub label: String,
+    pub default: String,
+}
+
+/// `Label`, `default` of the placeholder `name` if it is a question (the text between the braces).
+fn parse_ask(name: &str) -> Option<(&str, &str)> {
+    let rest = name.trim_start();
+    let rest = rest
+        .get(..4)
+        .filter(|p| p.eq_ignore_ascii_case("ask:"))
+        .map(|_| &rest[4..])?;
+    let (label, default) = rest.split_once('|').unwrap_or((rest, ""));
+    let label = label.trim();
+    (!label.is_empty()).then_some((label, default.trim()))
+}
+
+/// The distinct questions of `text`, in the order they first appear (a label asked twice is asked once).
+pub fn asks(text: &str) -> Vec<Ask> {
+    let mut out: Vec<Ask> = Vec::new();
+    notatnik_core::placeholders::expand_with(text, |name| {
+        if let Some((label, default)) = parse_ask(name) {
+            if !out.iter().any(|a| a.label == label) {
+                out.push(Ask {
+                    label: label.to_string(),
+                    default: default.to_string(),
+                });
+            }
+        }
+        None
+    });
+    out
 }
 
 /// A property value as text for a placeholder: links as `[[Name]]`, lists joined with `, `.
@@ -114,7 +152,16 @@ fn fill(text: &str, v: &Vars) -> String {
         match name.trim().to_lowercase().as_str() {
             "selection" => Some(v.selection.to_string()),
             "clipboard" => Some(v.clipboard.to_string()),
-            _ => None,
+            _ => {
+                let (label, default) = parse_ask(name)?;
+                Some(
+                    v.answers
+                        .iter()
+                        .find(|(l, _)| l == label)
+                        .map_or(default, |(_, a)| a.as_str())
+                        .to_string(),
+                )
+            }
         }
     })
 }
@@ -368,6 +415,7 @@ mod tests {
         props: &[],
         selection: "",
         clipboard: "",
+        answers: &[],
     };
 
     #[test]
@@ -439,6 +487,42 @@ mod tests {
             "prop.partner: [[part. EY]]"
         );
         assert!(expand_query("x: {{type}}", None, "2026-10-11", &[]).is_err());
+    }
+
+    #[test]
+    fn questions_are_listed_once_and_answered_last() {
+        let tpl = "- Meeting with {{ask:Who}} about {{ Ask: Topic | status }}\n  - {{ask:Who}} said {{cursor}}\n";
+        assert_eq!(
+            asks(tpl),
+            vec![
+                Ask {
+                    label: "Who".into(),
+                    default: String::new()
+                },
+                Ask {
+                    label: "Topic".into(),
+                    default: "status".into()
+                },
+            ]
+        );
+        assert!(asks("{{ask:}} {{ask}} {{date}}").is_empty());
+        let answers = vec![("Who".to_string(), "Ann {{date}}".to_string())];
+        let t = parse_template(
+            tpl,
+            &Vars {
+                answers: &answers,
+                ..V
+            },
+        );
+        // an answer is text, never a placeholder; an unanswered question gets its default
+        assert_eq!(t.blocks[0].2, "Meeting with Ann {{date}} about status");
+        assert_eq!(t.blocks[1].2, "Ann {{date}} said ");
+        assert_eq!(t.cursor, Some((1, 18)));
+        // nothing answered: defaults, else empty
+        assert_eq!(
+            parse_template(tpl, &V).blocks[0].2,
+            "Meeting with  about status"
+        );
     }
 
     #[test]

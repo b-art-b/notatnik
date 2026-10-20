@@ -95,6 +95,8 @@ export const app = $state({
   draftFor: '',
   /** Blocks (Markdown) waiting for a name in the "Save as template" dialog; `null` when it is closed. */
   snippetText: null as string | null,
+  /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
+  templateAsks: null as { name: string; asks: { label: string; default: string }[] } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */
   subpageFor: '',
   /** The left sidebar is shown; remembered on this device. */

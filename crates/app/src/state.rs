@@ -887,6 +887,7 @@ impl AppState {
                 props: &page_props,
                 selection: "",
                 clipboard: "",
+                answers: &[],
             },
         );
         let mut have: Vec<String> = pending
@@ -991,6 +992,7 @@ impl AppState {
                 props: &[],
                 selection: "",
                 clipboard: "",
+                answers: &[],
             },
         );
         TemplateEntry {
@@ -1079,6 +1081,12 @@ impl AppState {
             } else {
                 Vec::new()
             };
+            let answers: Vec<(String, String)> = a
+                .answers
+                .iter()
+                .flatten()
+                .map(|x| (x.label.clone(), x.value.clone()))
+                .collect();
             let t = templates::parse_template(
                 &text,
                 &templates::Vars {
@@ -1088,6 +1096,7 @@ impl AppState {
                     props: &page_props,
                     selection: a.selection.as_deref().unwrap_or(""),
                     clipboard: a.clipboard.as_deref().unwrap_or(""),
+                    answers: &answers,
                 },
             );
             // a snippet has no page properties
@@ -1133,6 +1142,13 @@ impl AppState {
                 props,
                 cursor,
                 uses_clipboard: text.to_lowercase().contains("{{clipboard}}"),
+                asks: templates::asks(&text)
+                    .into_iter()
+                    .map(|q| TemplateAsk {
+                        label: q.label,
+                        default: q.default,
+                    })
+                    .collect(),
             })
         })
     }

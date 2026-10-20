@@ -984,6 +984,10 @@
                 >
               </tr>
               <tr>
+                <td><code>{'{{ask:Who}}'}</code>, <code>{'{{ask:Who|default}}'}</code></td><td>templates</td
+                ><td>with <code>/template</code>: asks a question first and uses the answer</td>
+              </tr>
+              <tr>
                 <td><code>{'{{selection}}'}</code>, <code>{'{{clipboard}}'}</code></td><td>templates</td><td
                   >with <code>/template</code>: the text typed in the block, and the clipboard</td
                 >
