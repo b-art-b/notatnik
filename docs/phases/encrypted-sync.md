@@ -114,7 +114,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 **Verify**
 - [x] Sync test: clean, locked, unsynced edit, one-sided files, damaged `.enc`, marked path stored plain
 - [x] CLI test: output, exit codes, wrong password, the graph folder untouched
-- [ ] Run once against the real Nextcloud
+- [x] Run against the real Nextcloud (2026-10-20): plain graph, then everything encrypted: 10 files match, 8 decrypted; `--no-key` lists the 8 as encrypted
 
 ### E10 Encrypt everything (EN-21)
 - [x] *Encrypt everything…* in Settings → Sync → Encryption: confirmation with the page count and the warnings; marks `pages/`, `journals/`, `assets/`, `templates/`; the row shows "Everything is encrypted" afterwards

@@ -148,7 +148,7 @@ The server login comes from the device settings of the graph (or `--url`/`--user
 when the variables are not set. It reports: files that match (and how many of them were decrypted), files that
 differ (an edit not synced yet, or damage), files only on one side, copies that cannot be decrypted, marked paths
 that the server holds as plain text, encrypted copies that are not marked, and paths stored in both forms. The exit
-code is 2 unless all of that is empty. Run it after a sync: a local edit made since then shows as "differs". `--no-key` skips the graph's password: encrypted copies are then only listed (as not checked), which is enough to see that none are left.
+code is 2 unless all of that is empty. To type the passwords without echo in zsh or bash use `read -rs` (without `-r` a backslash in a password is swallowed and the unlock fails with "wrong password"). Run it after a sync: a local edit made since then shows as "differs". `--no-key` skips the graph's password: encrypted copies are then only listed (as not checked), which is enough to see that none are left.
 
 ### 6.3 Roads for plain text that must be closed
 
