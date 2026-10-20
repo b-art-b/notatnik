@@ -868,6 +868,7 @@ impl AppState {
             &templates::Vars {
                 title: page.as_str(),
                 date: &date,
+                time: &templates::now_time(),
             },
         );
         let mut have: Vec<String> = pending
@@ -968,6 +969,7 @@ impl AppState {
             &templates::Vars {
                 title: "",
                 date: "",
+                time: "",
             },
         );
         TemplateEntry {
@@ -1050,6 +1052,7 @@ impl AppState {
                 &templates::Vars {
                     title: page.as_str(),
                     date: &date,
+                    time: &templates::now_time(),
                 },
             );
             // the page properties the template has and the page lacks

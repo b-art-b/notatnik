@@ -20,6 +20,7 @@ pub mod merge;
 pub mod model;
 pub mod names;
 pub mod outline;
+pub mod placeholders;
 pub mod props;
 pub mod query;
 pub mod repeat;

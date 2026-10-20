@@ -64,7 +64,10 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
   backend,
   page,
 }) => {
-  backend.write('templates/snippets/Call.md', '- Call {{date}}\n  - With: {{cursor}} and team\n  - Notes\n')
+  backend.write(
+    'templates/snippets/Call.md',
+    '- Call {{date}} follow up {{date+7d}}\n  - With: {{cursor}} and team\n  - Notes\n',
+  )
   backend.write('templates/snippets/Plain.md', '- Plain item\n  - child\n')
   backend.write('pages/Calls.md', '- first\n- \n')
   await backend.open('/page/Calls')
@@ -88,7 +91,9 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
   await page.keyboard.press('Escape')
   await expect
     .poll(readOr(backend.read, 'pages/Calls.md'))
-    .toMatch(/- first\n- Call \d{4}-\d\d-\d\d\n {2}- With: Ann and team\n {2}- Notes\n- \n/)
+    .toMatch(
+      /- first\n- Call \d{4}-\d\d-\d\d follow up \d{4}-\d\d-\d\d\n {2}- With: Ann and team\n {2}- Notes\n- \n/,
+    )
   // no marker: the first inserted block, at its end
   await start('Notes', 1)
   await expect(page.getByTestId('block-editor')).toContainText('Plain item', { timeout: 5000 })

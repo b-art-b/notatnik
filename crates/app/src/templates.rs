@@ -21,15 +21,35 @@ pub struct Template {
 pub struct Vars<'a> {
     pub title: &'a str,
     pub date: &'a str,
+    /// The time of day, `HH:MM` (`{{time}}`); empty where there is none.
+    pub time: &'a str,
+}
+
+/// The local time of day as `HH:MM`, for `{{time}}`.
+pub fn now_time() -> String {
+    chrono::Local::now().format("%H:%M").to_string()
+}
+
+/// The date and time placeholders (`{{date+7d}}`, `{{tomorrow}}`, `{{monday}}`, `{{time}}`...), relative to `date`.
+fn dates(text: &str, date: &str, time: &str) -> String {
+    match chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+        Ok(day) => notatnik_core::placeholders::expand_dates(
+            text,
+            day,
+            Some(time).filter(|t| !t.is_empty()),
+        ),
+        Err(_) => text.to_string(),
+    }
 }
 
 fn fill(text: &str, v: &Vars) -> String {
     let namespace = v.title.rsplit_once('/').map_or("", |(ns, _)| ns);
     let leaf = v.title.rsplit('/').next().unwrap_or(v.title);
-    text.replace("{{title}}", leaf)
+    let filled = text
+        .replace("{{title}}", leaf)
         .replace("{{namespace}}", namespace)
-        .replace("{{date}}", v.date)
-        .replace("{{cursor}}", "")
+        .replace("{{cursor}}", "");
+    dates(&filled, v.date, v.time)
 }
 
 fn collect(
@@ -218,18 +238,18 @@ pub fn expand_query(text: &str, page: Option<&str>, today: &str) -> Result<Strin
                 ));
             }
         }
-        return Ok(text.replace("{{date}}", today));
+        return Ok(dates(text, today, ""));
     };
     let link = format!("[[{p}]]");
     let leaf = p.rsplit('/').next().unwrap_or(p);
     let ns = p.rsplit_once('/').map_or("", |(ns, _)| ns);
-    Ok(text
+    let filled = text
         .replace("[[{{page}}]]", &link)
         .replace("{{page}}", &link)
         .replace("[[]]", &link)
         .replace("{{title}}", leaf)
-        .replace("{{namespace}}", ns)
-        .replace("{{date}}", today))
+        .replace("{{namespace}}", ns);
+    Ok(dates(&filled, today, ""))
 }
 
 #[cfg(test)]
@@ -239,7 +259,35 @@ mod tests {
     const V: Vars = Vars {
         title: "people/Jan",
         date: "2026-10-11",
+        time: "09:05",
     };
+
+    #[test]
+    fn date_placeholders_work_in_templates_and_queries() {
+        let t = parse_template(
+            "---\ntype: x\ndue: {{date+7d}}\n---\n- At {{time}} on {{weekday}}, review {{next monday}}\n",
+            &V,
+        );
+        assert_eq!(t.props, vec![("due".into(), "2026-10-18".into())]);
+        assert_eq!(t.blocks[0].2, "At 09:05 on Sunday, review 2026-10-12");
+        // in a query, relative to today; with or without a page
+        for page in [Some("a"), None] {
+            assert_eq!(
+                expand_query(
+                    "deadline: {{tomorrow}}\nscheduled: {{date-1w}}",
+                    page,
+                    "2026-10-11"
+                )
+                .unwrap(),
+                "deadline: 2026-10-12\nscheduled: 2026-10-04"
+            );
+        }
+        // no time of day in a query
+        assert_eq!(
+            expand_query("x: {{time}}", None, "2026-10-11").unwrap(),
+            "x: {{time}}"
+        );
+    }
 
     #[test]
     fn the_first_cursor_marker_is_remembered_by_block_and_offset() {

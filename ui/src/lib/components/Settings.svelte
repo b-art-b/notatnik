@@ -980,7 +980,36 @@
               </tr>
               <tr>
                 <td><code>{'{{cursor}}'}</code></td><td>templates</td><td
-                  >removed (reserved for the cursor position)</td
+                  >removed; after <code>/template</code> you go on typing there</td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{date+7d}}'}</code></td><td>templates, queries</td><td
+                  >today plus or minus days (<code>d</code>), weeks (<code>w</code>), months (<code>m</code>)
+                  or years (<code>y</code>): <code>{'{{date-1w}}'}</code>, <code>{'{{date+1m}}'}</code></td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{yesterday}}'}</code>, <code>{'{{tomorrow}}'}</code></td><td
+                  >templates, queries</td
+                ><td>the day before or after</td>
+              </tr>
+              <tr>
+                <td><code>{'{{monday}}'}</code> … <code>{'{{sunday}}'}</code></td><td>templates, queries</td
+                ><td>that day of this week; <code>{'{{next monday}}'}</code> is the first one after today</td>
+              </tr>
+              <tr>
+                <td
+                  ><code>{'{{weekday}}'}</code>, <code>{'{{week}}'}</code>, <code>{'{{month}}'}</code>,
+                  <code>{'{{year}}'}</code></td
+                ><td>templates, queries</td><td
+                  >the day's name (<code>Wednesday</code>), <code>2026-W42</code>, <code>2026-10</code>,
+                  <code>2026</code></td
+                >
+              </tr>
+              <tr>
+                <td><code>{'{{time}}'}</code>, <code>{'{{datetime}}'}</code></td><td>templates</td><td
+                  >the time now (<code>09:05</code>) and the date with it</td
                 >
               </tr>
               <tr>

@@ -152,6 +152,14 @@ export const QUERY_VARS: { label: string; info: string }[] = [
   { label: '{{title}}', info: 'last part of its name' },
   { label: '{{namespace}}', info: 'the part before it' },
   { label: '{{date}}', info: 'today' },
+  { label: '{{yesterday}}', info: 'the day before today' },
+  { label: '{{tomorrow}}', info: 'the day after today' },
+  { label: '{{date+7d}}', info: 'today plus 7 days (also -2w, +1m, +1y)' },
+  { label: '{{date-7d}}', info: 'today minus 7 days' },
+  { label: '{{monday}}', info: 'Monday of this week (also tuesday ... sunday)' },
+  { label: '{{next monday}}', info: 'the next Monday after today' },
+  { label: '{{week}}', info: 'this week, 2026-W42' },
+  { label: '{{month}}', info: 'this month, 2026-10' },
 ]
 const queryVarOptions = (q = ''): Completion[] =>
   QUERY_VARS.filter((v) => !q || v.label.slice(2).startsWith(q.toLowerCase())).map((v) => ({
