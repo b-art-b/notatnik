@@ -1145,6 +1145,24 @@ impl AppState {
         })
     }
 
+    /// `link_title`: the title of a web page, for a pasted address (ED-27). Refused while the device setting
+    /// `paste_titles` is off, so the app never contacts a site the user did not allow. An empty value: no title.
+    pub fn link_title(&self, a: UrlArgs) -> ApiResult<StringValue> {
+        if !notatnik_graph::DeviceSettings::load(&self.dirs)?
+            .ui
+            .paste_titles
+        {
+            return Err(ApiError::new(
+                "disabled",
+                "looking up titles is off (Settings → Appearance)",
+            ));
+        }
+        let value = crate::linktitle::fetch_title(a.url.trim())
+            .map_err(|m| ApiError::new("unreachable", m))?
+            .unwrap_or_default();
+        Ok(StringValue { value })
+    }
+
     /// `list_snippets`: the snippets in `templates/snippets/`, by their plain names (the `snippets/` prefix is for
     /// the other template calls). `fields` is always empty.
     pub fn list_snippets(&self, _a: NoArgs) -> ApiResult<Vec<TemplateEntry>> {
@@ -2666,6 +2684,7 @@ impl AppState {
             theme: dev.ui.theme,
             date_locale: dev.ui.date_locale,
             link_brackets: dev.ui.link_brackets,
+            paste_titles: dev.ui.paste_titles,
             task_details: dev.ui.task_details,
             block_properties: dev.ui.block_properties,
             date_format: dev.ui.date_format,
@@ -2832,6 +2851,7 @@ impl AppState {
             if a.theme.is_some()
                 || a.date_locale.is_some()
                 || a.link_brackets.is_some()
+                || a.paste_titles.is_some()
                 || a.task_details.is_some()
                 || a.block_properties.is_some()
                 || a.date_format.is_some()
@@ -2871,6 +2891,9 @@ impl AppState {
                 }
                 if let Some(b) = a.link_brackets {
                     dev.ui.link_brackets = b;
+                }
+                if let Some(b) = a.paste_titles {
+                    dev.ui.paste_titles = b;
                 }
                 if let Some(m) = a.task_details {
                     dev.ui.task_details = m;

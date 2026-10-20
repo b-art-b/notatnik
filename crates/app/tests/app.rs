@@ -6102,3 +6102,40 @@ fn a_snippet_is_saved_listed_inserted_and_deleted() {
     );
     assert_eq!(t.read("templates/snippets/plan.md"), "- Other\n");
 }
+
+/// ED-27: the title of a pasted address is looked up only when the device setting allows it, and only for web
+/// addresses; the answer is the page's `<title>`.
+#[test]
+fn a_link_title_is_looked_up_only_when_allowed() {
+    use std::io::{Read, Write};
+    let t = start("basic");
+    let url = |p: u16| format!("http://127.0.0.1:{p}/page");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        // one request is expected (the refused calls never reach the network)
+        let (mut s, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 1024];
+        let _ = s.read(&mut buf).unwrap();
+        let body = "<html><head><title>Hello &amp; welcome</title></head></html>";
+        write!(
+            s,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    // off by default: refused without contacting anything
+    let off = t.call("link_title", json!({"url": url(port)}));
+    assert_eq!(off.unwrap_err().code, "disabled");
+    t.ok("set_settings", json!({"paste_titles": true}));
+    assert_eq!(t.ok("get_settings", json!({}))["paste_titles"], true);
+    // not a web address
+    assert!(
+        t.call("link_title", json!({"url": "file:///etc/passwd"}))
+            .is_err()
+    );
+    let r = t.ok("link_title", json!({"url": url(port)}));
+    assert_eq!(r["value"], "Hello & welcome");
+    server.join().unwrap();
+}

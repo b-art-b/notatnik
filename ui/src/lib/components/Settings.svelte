@@ -441,6 +441,7 @@
     date_format: string
     date_pattern: string
     link_brackets: boolean
+    paste_titles: boolean
     task_details: string
     block_properties: string
     backup_dir: string
@@ -474,6 +475,7 @@
         date_format: null,
         date_pattern: null,
         link_brackets: null,
+        paste_titles: null,
         task_details: null,
         block_properties: null,
         backup_dir: null,
@@ -496,6 +498,7 @@
       app.dateVersion++
       applyTheme(s.theme as Theme)
       applyLinkBrackets(s.link_brackets)
+      app.pasteTitles = s.paste_titles
       app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
       app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'
       app.graph = await backend.call('graph_info', {})
@@ -602,6 +605,20 @@
               role="switch"
               checked={s.link_brackets}
               onchange={(e) => save({ link_brackets: (e.currentTarget as HTMLInputElement).checked })}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Look up titles of pasted links"
+            description="Paste a web address on its own and it becomes [page title](address). The app then asks that site for the page: leave this off if you do not want that. An address pasted over selected text, a link copied from a web page, and Nextcloud and Notatnik addresses are always turned into links, with no request."
+            labelFor="paste-titles"
+          >
+            <input
+              id="paste-titles"
+              class="switch"
+              type="checkbox"
+              role="switch"
+              checked={s.paste_titles}
+              onchange={(e) => save({ paste_titles: (e.currentTarget as HTMLInputElement).checked })}
             />
           </SettingRow>
           <SettingRow

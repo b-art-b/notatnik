@@ -1,0 +1,147 @@
+// Smart paste of links (ED-27): what a pasted address or a copied link becomes in the text of a block. Pure
+// functions; the editor decides where the result goes (`Editor.svelte`).
+import { fileLink } from './filelinks'
+
+/** Query parameters that only track where a click came from; they are dropped from pasted web addresses. */
+const TRACKING =
+  /^(utm_[a-z0-9_]+|fbclid|gclid|dclid|msclkid|yclid|igshid|mc_cid|mc_eid|_hsenc|_hsmi|mkt_tok)$/i
+
+/** A pasted text that is one web, mail or app address and nothing else. */
+export function pastedUrl(text: string): string | null {
+  const t = text.trim()
+  if (/^https?:\/\/[^\s/?#]+\S*$/i.test(t) || /^(mailto:|notatnik:\/\/page\/)[^\s]+$/i.test(t)) return t
+  return null
+}
+
+/** The address without tracking parameters (`?utm_source=x&id=3` becomes `?id=3`); the rest stays as typed. */
+export function cleanUrl(url: string): string {
+  if (!/^https?:\/\//i.test(url)) return url
+  const hash = url.indexOf('#')
+  const base = hash < 0 ? url : url.slice(0, hash)
+  const frag = hash < 0 ? '' : url.slice(hash)
+  const q = base.indexOf('?')
+  if (q < 0) return url
+  const kept = base
+    .slice(q + 1)
+    .split('&')
+    .filter((p) => p !== '' && !TRACKING.test(p.split('=')[0]))
+  return base.slice(0, q) + (kept.length ? `?${kept.join('&')}` : '') + frag
+}
+
+/** What an address of this app points to: `notatnik://page/Plan#abc123` (the link a task has in the calendar). */
+export function appTarget(url: string): { page: string; block: string | null } | null {
+  const m = /^notatnik:\/\/page\/([^#\s]+)(?:#(\S+))?$/i.exec(url.trim())
+  if (!m) return null
+  try {
+    return { page: decodeURIComponent(m[1]), block: m[2] ?? null }
+  } catch {
+    return null
+  }
+}
+
+/** A Nextcloud address of a file in the Files app (`…/apps/files/?dir=/x&fileid=123`, `…/apps/files/files/123`)
+ * as the address that keeps working when the file is renamed or moved: `…/f/123`. `null` for anything else. */
+export function nextcloudFile(url: string): string | null {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return null
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+  const at = u.pathname.indexOf('/apps/files')
+  if (at < 0) return null
+  const id =
+    u.searchParams.get('fileid') ?? /^\/apps\/files\/files\/(\d+)\/?$/.exec(u.pathname.slice(at))?.[1]
+  if (!id || !/^\d+$/.test(id)) return null
+  return `${u.origin}${u.pathname.slice(0, at)}/f/${id}`
+}
+
+/** A link copied from a web page: the clipboard's HTML holds exactly one `<a>` and nothing but its text. */
+export function htmlLink(html: string, plain: string): { text: string; href: string } | null {
+  if (!html || typeof DOMParser === 'undefined') return null
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const links = doc.querySelectorAll('a[href]')
+  if (links.length !== 1) return null
+  const a = links[0]
+  const text = (a.textContent ?? '').replace(/\s+/g, ' ').trim()
+  const href = a.getAttribute('href') ?? ''
+  const all = (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim()
+  const copied = plain.replace(/\s+/g, ' ').trim()
+  // the copied text is the link's text: a sentence with a link in it is pasted as it is
+  if (!text || text !== all || (copied && copied !== text)) return null
+  if (!/^(https?:\/\/[^\s/?#]+\S*|mailto:\S+)$/i.test(href)) return null
+  return { text, href }
+}
+
+/** The cursor is inside the address or the target of a link, a reference or code: nothing is converted there. */
+export function insideLink(before: string): boolean {
+  return (
+    /\]\([^)]*$/.test(before) ||
+    /\[\[[^\]]*$/.test(before) ||
+    /\(\([^)]*$/.test(before) ||
+    /<[^>\s]*$/.test(before) ||
+    ((before.match(/`/g) ?? []).length & 1) === 1
+  )
+}
+
+export interface PasteInput {
+  /** `text/plain` of the clipboard. */
+  plain: string
+  /** `text/html` of the clipboard (may be empty). */
+  html: string
+  /** The text selected in the block. */
+  selected: string
+  /** The line up to the cursor. */
+  before: string
+  /** Look up the title of a lone web address (the device setting). */
+  titles: boolean
+}
+
+export interface PasteResult {
+  /** Replaces the selection. */
+  insert: string
+  /** The inserted text is this bare address; its title is to be looked up and written as `[title](address)`. */
+  fetchTitle?: string
+}
+
+/** The link to write for `href` with this text: pages and blocks of the app become `[[Page]]` / `((id))`, a
+ * Nextcloud file the stable address, tracking parameters are dropped. `text` empty: no link text known. */
+function link(href: string, text: string): { md: string; bare: boolean } {
+  const app = appTarget(href)
+  if (app) {
+    if (app.block && !text) return { md: `((${app.block}))`, bare: false }
+    if (!app.block)
+      return { md: text && text !== app.page ? `[[${app.page}|${text}]]` : `[[${app.page}]]`, bare: false }
+  }
+  const cloud = nextcloudFile(href)
+  if (cloud) return { md: fileLink(text || 'Nextcloud file', cleanUrl(cloud)), bare: false }
+  const clean = cleanUrl(href)
+  return text ? { md: fileLink(text, clean), bare: false } : { md: clean, bare: true }
+}
+
+/** What a paste becomes, or `null` when the editor should paste the text as it is. */
+export function smartPaste(i: PasteInput): PasteResult | null {
+  if (insideLink(i.before)) return null
+  const sel = i.selected
+  const oneLineSelection = sel.trim() !== '' && !sel.includes('\n')
+  if (sel !== '' && !oneLineSelection) return null
+
+  const url = pastedUrl(i.plain)
+  if (url) {
+    const text = oneLineSelection ? sel : ''
+    const r = link(url, text)
+    if (r.bare) {
+      // a plain address: pasted as it is unless it changed or its title is wanted
+      const wantTitle = i.titles && /^https?:/i.test(r.md)
+      if (r.md === url && !wantTitle) return null
+      return wantTitle ? { insert: r.md, fetchTitle: r.md } : { insert: r.md }
+    }
+    return { insert: r.md }
+  }
+
+  // a link copied from a page: its text and address
+  const h = oneLineSelection ? null : htmlLink(i.html, i.plain)
+  if (h) return { insert: link(h.href, h.text).md }
+  return null
+}

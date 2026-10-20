@@ -105,6 +105,8 @@ export const app = $state({
   savedVersion: 0,
   /** Bumped when the date language/format change, so shown dates re-render (see `shownDate`). */
   dateVersion: 0,
+  /** Device setting: a pasted web address gets the page's title as link text (the app contacts the site). */
+  pasteTitles: false,
   /** Device setting: `compact` shows a task's schedule, repeat and logbook as small indicators (details on hover). */
   taskDetails: 'full' as 'full' | 'compact',
   /** Device setting: `compact` shows a block's properties as one small indicator (the card opens on hover). */
@@ -273,6 +275,7 @@ export async function loadDeviceSettings() {
     app.dateVersion++
     applyTheme(s.theme as Theme)
     applyLinkBrackets(s.link_brackets)
+    app.pasteTitles = s.paste_titles
     app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
     app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'
   } catch {

@@ -17,6 +17,7 @@
     defaultKeymap,
     history,
     historyKeymap,
+    isolateHistory,
     cursorLineEnd,
     cursorLineStart,
     selectLineEnd,
@@ -36,7 +37,9 @@
   import type { EditorAction } from '../commands/exec'
   import { wikiCompletions } from '../completion'
   import { backend } from '../api'
-  import { toast } from '../stores/app.svelte'
+  import { app, toast } from '../stores/app.svelte'
+  import { fileLink } from '../filelinks'
+  import { smartPaste } from '../pastelink'
   import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
@@ -88,6 +91,31 @@
     }
     if (view !== v || links.length === 0) return
     insertLinks(v, links, at)
+  }
+
+  /** Looks up the title of the web address that was just pasted and turns the bare address into `[title](address)`.
+   * Nothing happens when the lookup fails, the editor is gone or the address has been edited meanwhile. */
+  async function addTitle(v: EditorView, url: string, from: number) {
+    let title = ''
+    try {
+      title = (await backend.call('link_title', { url })).value
+    } catch {
+      return // offline, refused, not a page: the address stays as it is
+    }
+    if (!title || view !== v) return
+    // where it was pasted, if the text before it did not change; else the first bare copy of the address
+    const doc = v.state.doc.toString()
+    const bare = (i: number) => !/\]\($|<$/.test(doc.slice(Math.max(0, i - 2), i))
+    let at = doc.startsWith(url, from) && bare(from) ? from : doc.indexOf(url)
+    while (at >= 0 && !bare(at)) at = doc.indexOf(url, at + 1)
+    if (at < 0) return
+    const insert = fileLink(title, url)
+    // its own undo step: one Ctrl+Z gives the plain address back
+    v.dispatch({
+      changes: { from: at, to: at + url.length, insert },
+      userEvent: 'input.paste',
+      annotations: isolateHistory.of('full'),
+    })
   }
 
   /** Writes image links at the selection (or at `at`), with a space in front if they would stick to a word. */
@@ -405,7 +433,8 @@
           history(),
           keys(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
-          markdown(),
+          // pasting an address is handled below (ED-27); the built-in version would not clean it
+          markdown({ pasteURLAsLink: false }),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           wikiPlugin,
           wikiCompletions(
@@ -485,6 +514,28 @@
                   if (view === v0) insertLinks(v0, [r.value])
                 })
                 return true
+              }
+              // an address, or a link copied from a page: written as a link (ED-27)
+              if (!plain) {
+                const sel = v.state.selection.main
+                const line = v.state.doc.lineAt(sel.from)
+                const r = smartPaste({
+                  plain: data,
+                  html: e.clipboardData?.getData('text/html') ?? '',
+                  selected: v.state.sliceDoc(sel.from, sel.to),
+                  before: v.state.sliceDoc(line.from, sel.from),
+                  titles: app.pasteTitles,
+                })
+                if (r) {
+                  e.preventDefault()
+                  v.dispatch({
+                    changes: { from: sel.from, to: sel.to, insert: r.insert },
+                    selection: { anchor: sel.from + r.insert.length },
+                    userEvent: 'input.paste',
+                  })
+                  if (r.fetchTitle) void addTitle(v, r.fetchTitle, sel.from)
+                  return true
+                }
               }
               if (plain || !/\n/.test(data.trim())) return false
               e.preventDefault()

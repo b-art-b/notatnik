@@ -2,6 +2,7 @@
 //! the UI tests run against. Both call [`dispatch`], so there is exactly one implementation.
 
 pub mod dto;
+mod linktitle;
 pub mod render;
 mod state;
 mod templates;
@@ -128,6 +129,7 @@ commands! {
     read_template(NameArgs) -> StringValue => read_template,
     write_template(WriteTemplateArgs) -> TemplateEntry => write_template,
     create_template(NameArgs) -> TemplateEntry => create_template,
+    link_title(UrlArgs) -> StringValue => link_title,
     list_snippets(NoArgs) -> Vec<TemplateEntry> => list_snippets,
     save_snippet(SaveSnippetArgs) -> TemplateEntry => save_snippet,
     delete_template(NameArgs) -> Vec<TemplateEntry> => delete_template,

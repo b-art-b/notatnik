@@ -1223,6 +1223,11 @@ text: string,
  * Replace an existing snippet of that name (false: error `exists`).
  */
 replace: boolean, };
+export type UrlArgs = { 
+/**
+ * A web address (`http` or `https`).
+ */
+url: string, };
 export type AgendaArgs = { 
 /**
  * Only tasks in this namespace (and below).
@@ -1351,6 +1356,10 @@ date_locale: string,
  */
 link_brackets: boolean, 
 /**
+ * Device: pasting a web address looks up the page's title (the app contacts the site).
+ */
+paste_titles: boolean, 
+/**
  * Device: `full` or `compact` task details on pages.
  */
 task_details: string, 
@@ -1435,6 +1444,10 @@ date_locale: string | null,
  * Device: show brackets around rendered links.
  */
 link_brackets: boolean | null, 
+/**
+ * Device: look up the title of a pasted web address.
+ */
+paste_titles: boolean | null, 
 /**
  * Device: `full` or `compact` task details.
  */
@@ -2358,6 +2371,7 @@ export type Commands = {
   read_template: { args: NameArgs; result: StringValue };
   write_template: { args: WriteTemplateArgs; result: TemplateEntry };
   create_template: { args: NameArgs; result: TemplateEntry };
+  link_title: { args: UrlArgs; result: StringValue };
   list_snippets: { args: NoArgs; result: TemplateEntry[] };
   save_snippet: { args: SaveSnippetArgs; result: TemplateEntry };
   delete_template: { args: NameArgs; result: TemplateEntry[] };

@@ -558,6 +558,10 @@ pub struct UiSettings {
     /// Show `[[ ]]` around rendered page links (they are always visible while a block is edited).
     #[serde(default)]
     pub link_brackets: bool,
+    /// Pasting a web address on its own looks up the page's title and writes `[title](address)`. Off by default:
+    /// the app then contacts the site.
+    #[serde(default)]
+    pub paste_titles: bool,
     /// Task details (schedule, deadline, repeat, logbook) under a task on pages: `full` (always shown) or `compact`
     /// (one small indicator in the task's row, the details on hover, focus or tap).
     #[serde(default = "default_task_details")]
@@ -630,6 +634,7 @@ impl Default for UiSettings {
             theme: default_theme(),
             date_locale: default_date_locale(),
             link_brackets: false,
+            paste_titles: false,
             task_details: default_task_details(),
             block_properties: default_task_details(),
             date_format: default_date_format(),

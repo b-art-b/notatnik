@@ -31,7 +31,7 @@ export const SETTINGS_GROUPS: { label: string; items: Section[] }[] = [
         // Lucide-style half circle (theme)
         icon: 'M12 3a9 9 0 1 0 0 18V3z M12 3a9 9 0 0 1 0 18',
         words:
-          'theme dark light zoom sidebar width brackets links references side panel task details properties compact',
+          'theme dark light zoom sidebar width brackets links paste title references side panel task details properties compact',
       },
       {
         id: 'dates',

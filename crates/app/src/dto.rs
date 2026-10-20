@@ -887,6 +887,13 @@ pub struct StringList {
     pub items: Vec<String>,
 }
 
+/// `link_title`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct UrlArgs {
+    /// A web address (`http` or `https`).
+    pub url: String,
+}
+
 /// A single string.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct StringValue {
@@ -1070,6 +1077,8 @@ pub struct SettingsView {
     pub date_locale: String,
     /// Device: show `[[ ]]` around rendered links.
     pub link_brackets: bool,
+    /// Device: pasting a web address looks up the page's title (the app contacts the site).
+    pub paste_titles: bool,
     /// Device: `full` or `compact` task details on pages.
     pub task_details: String,
     /// Device: `full` or `compact` block properties on pages.
@@ -1117,6 +1126,8 @@ pub struct SetSettingsArgs {
     pub date_locale: Option<String>,
     /// Device: show brackets around rendered links.
     pub link_brackets: Option<bool>,
+    /// Device: look up the title of a pasted web address.
+    pub paste_titles: Option<bool>,
     /// Device: `full` or `compact` task details.
     pub task_details: Option<String>,
     /// Device: `full` or `compact` block properties.
