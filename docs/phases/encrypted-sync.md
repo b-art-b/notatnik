@@ -19,7 +19,7 @@ folders and files that you choose.
 
 ## Not in this phase
 
-Hidden file names, an encrypted replica for a folder that another tool syncs (EN-7), encrypting local files, Android.
+Hidden file names are done in [hidden-names.md](hidden-names.md). An encrypted replica for a folder that another tool syncs (EN-7), encrypting local files, Android.
 Pictures used by a marked page are only listed (E5); marking them is the person's choice.
 
 ## Tasks
@@ -133,7 +133,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [ ] On the real Nextcloud: reset, one sync, `notatnik verify` with the new password; a second device unlocks with the new password
 
 ### E7 Later (on hold)
-Hidden file names with a manifest; an encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
+Hidden file names are built in [hidden-names.md](hidden-names.md) (no manifest needed). An encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
 
 ## Manual acceptance checklist
 

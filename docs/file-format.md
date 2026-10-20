@@ -429,7 +429,14 @@ the whole header. The comment holds `notatnik-backup v1 <fingerprint>` for a sna
 `.notatnik/config.toml` is stored as `<path>.enc`, an `NTNKFILE` whose context is `<path>` (without `.enc`). The
 key is the data key of the graph's vault, `.notatnik/vault.json` (the vault JSON of EN-2, plain, synced). Folder
 entries end in `/`; matching is on the path relative to the graph folder, and a conflict copy is matched by the
-path of the file it came from. Local files are never encrypted.
+path of the file it came from. Local files are never encrypted. With hidden names, a marked file in a snapshot is `.notatnik-enc/<aa>/<random>.enc` (an `NTNKSEAL` file with the comment `notatnik-entry v2 hidden` and the same `path length | path | content` inside); `<random>` is 32 random hex characters, unrelated to the path.
+
+**Hidden object** (EN-25): with `[encryption] names = "hidden"` a marked file is stored on the server at
+`.notatnik-enc/<aa>/<name>.enc`, `<name>` being `Keys::file_name(path)` (32 hex characters) and `<aa>` its first two.
+The object is an `NTNKFILE` whose plaintext is `path length (u16) | path (UTF-8) | content` and whose associated
+data is `"notatnik hidden v1"`. The reader checks that the name is the one `file_name(path)` gives. A name that does
+not have this shape inside `.notatnik-enc/` is not ours and is ignored. Locally the folder `.notatnik-enc/` is never
+synced.
 
 **Marked files in a snapshot** (EN-23): in a zip that is not sealed as a whole, a path listed under `[encryption]
 paths` is the entry `<path>.enc` (stored, not deflated), an `NTNKSEAL` file for the vault `.notatnik/vault.json`

@@ -413,3 +413,39 @@ fn verify_checks_the_server_copy_against_the_graph() {
         "- edited\n"
     );
 }
+
+/// EN-25: `decrypt` of an entry of a snapshot with a hidden name writes the content under the path inside.
+#[test]
+fn decrypt_writes_a_hidden_snapshot_entry_under_its_own_name() {
+    use notatnik_crypt::{KdfParams, Vault, pack_named, seal};
+    let tmp = tempfile::tempdir().unwrap();
+    let (vault, _keys, _) =
+        Vault::create("graph password", KdfParams::insecure_for_tests()).unwrap();
+    let body = pack_named("pages/private/Diary.md", b"- secret text\n").unwrap();
+    let mut out = Vec::new();
+    seal(
+        &vault,
+        b"notatnik-entry v2 hidden",
+        &mut &body[..],
+        &mut out,
+    )
+    .unwrap();
+    let file = tmp.path().join("0123456789abcdef0123456789abcdef.enc");
+    std::fs::write(&file, out).unwrap();
+    let run = |secret: &str| {
+        Command::cargo_bin("notatnik")
+            .unwrap()
+            .current_dir(tmp.path())
+            .env("NOTATNIK_PASSWORD", secret)
+            .arg("decrypt")
+            .arg(&file)
+            .assert()
+    };
+    run("wrong wrong").failure().code(1);
+    assert!(!tmp.path().join("Diary.md").exists());
+    run("graph password").success();
+    assert_eq!(
+        std::fs::read_to_string(tmp.path().join("Diary.md")).unwrap(),
+        "- secret text\n"
+    );
+}

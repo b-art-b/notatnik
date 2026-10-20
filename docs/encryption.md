@@ -123,7 +123,7 @@ and some encrypted, and you choose which.** Pages of both kinds are edited, sear
 |---|---|---|
 | Where the marks live | `[encryption] paths = ["pages/private/", "pages/Health.md"]` in `.notatnik/config.toml` (a graph setting that syncs, EN-11) | A page property fails when the page is moved; a path rule is what a person means by "this folder". The list is plain on the server: it shows which names are encrypted, which the file names show anyway |
 | Where the work happens | In the sync engine, in one place (`crates/sync/src/forms.rs`): it lists the server by the path a file is the copy of (`p` or `p.enc`), reads and writes the form each file has or should have, and decrypts after `get` and encrypts before `put`. The engine keeps comparing local plaintext hashes and remote ETags | Merge, conflicts, the state file and the plan stay as they are. Re-encrypting unchanged text gives different bytes, but the engine uploads only when the local hash changed and treats a new ETag with equal decrypted content as "nothing to do" (it already did for Nextcloud's ETag changes). A wrapper around the remote could not see that a path exists in both forms, so the engine does the mapping |
-| What is visible | File and folder names (with `.enc`), sizes, times, the number of files, and the list of marked paths. Not visible: content. Hiding names needs a manifest and is not part of this | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter |
+| What is visible | Sizes, times, the number of files, the names of unmarked files and the list of marked paths in `config.toml`. With `names = "hidden"` (EN-25, §7) no file or folder name of a marked file; with `visible`, those names with `.enc`. Not visible: content | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter |
 | Which vault | One vault per graph, descriptor `.notatnik/vault.json` (public, synced as a plain file); separate from the backup vault, which belongs to the device (EN-13) | A second device needs the same keys; the backup vault is device-wide and not part of the graph. At setup the same password can be typed again, but the keys are different |
 | The key | Unlocked per session, or kept in the system keyring (opt-in, EN-14). The keyring entry holds the data key, not the password, so starting the app needs no Argon2 run | The keyring is the same Secret Service the sync and calendar passwords use (SY-7). Anyone logged in to the desktop session can then read the key, which the settings text says |
 | Locked | Marked files are left alone on both sides (EN-15). The engine computes a "leave these paths alone" set; their state entries stay, and the folder ETag shortcut is not saved while any file is left alone | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them. Without the second rule an encrypted file that was left alone would stay hidden behind an unchanged folder ETag even after unlocking (found by a test) |
@@ -211,7 +211,8 @@ still works, and closing the app changes nothing).
 | E9 | `notatnik verify` (EN-20) | built; tried on the real Nextcloud |
 | E10 | *Encrypt everything…* (EN-21) | built; tried on the real Nextcloud |
 | E11 | *Forgot the password…* (EN-22) | built; not tried on the real Nextcloud |
-| E7 | Later: hidden names, a replica for folder tools (EN-7), the images of a page | on hold |
+| E7 | Hidden names and re-encrypting (EN-25, EN-26): [phases/hidden-names.md](phases/hidden-names.md), §7 | built |
+| E10 | Later: a replica for folder tools (EN-7), the images of a page | on hold |
 
 The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).
 
@@ -231,3 +232,35 @@ The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encryp
 - EN-22: the stored-again sync (`crates/sync/tests/encrypted.rs`: an old copy is never read, the new key opens everything, a second device gets the files), the reset through the API for graph and backups (`crates/app/tests/app.rs`), and through the screens (`ui/tests/encryption.spec.ts`, `ui/tests/backup.spec.ts`).
 - E6: the same against a real Nextcloud (`crates/app/tests/nextcloud.rs`), including what its versions and trash
   keep.
+
+## 7. Hidden names and re-encrypting (EN-25, EN-26)
+
+With `[encryption] names = "hidden"` (the default for a vault made from now on) a marked file is stored on the server
+as **one object** `.notatnik-enc/<aa>/<name>.enc`. `<name>` is `Keys::file_name(path)`: 32 hex characters of a keyed
+hash, so the same file keeps its name (a change overwrites the object) and nobody without the key can test a guess
+such as "is there a page called Health?". `<aa>` is its first two characters, so no folder grows huge. The folders of
+the graph do not exist on the server for these files. The path is inside the encrypted content
+(`path length | path | content`, file-format §11).
+
+- **Finding what is new.** A name the device does not know is downloaded and opened to learn its path, which a new
+  file needs anyway; the check `file_name(path) == name` refuses an object that was moved to another name. Known
+  names are kept in the sync state. A rename elsewhere is a new name plus a missing old one, a deletion is a missing
+  name. While the key is locked, unknown objects are left alone and counted.
+- **A file the server seems to have lost is not deleted here** when objects exist that this device could not open
+  (an old key after the graph was re-encrypted elsewhere, a file that is not ours): the new objects may hold it.
+- **Changing the place is one rule.** The sync compares where the copy *is* with where it *should be* (plain path,
+  `<path>.enc`, hidden object). They differ after the setting is switched or the key was replaced (names depend on
+  the key): the file is written at the new place first, then the old copy is removed, so a failure leaves both,
+  never neither. That one rule is the migration both ways and the re-encryption.
+- **Re-encrypting (EN-26)** needs the unlocked key. It makes a new vault (like the reset of EN-22, confirmed with the
+  new recovery key), marks every stored copy to be stored again, and the next sync writes each marked file from the
+  plain local copy under its new name and deletes the old object. Nothing is ever uploaded in plain text. Copies
+  made earlier remain in the server's versions and trash and in earlier backups, readable with the old key; the app
+  says so. Switching encryption off and on is **not** a way to do this: the files would be plain on the server in
+  between.
+- **Backups.** A plain snapshot stores a marked file as `.notatnik-enc/<aa>/<random>.enc`, sealed to the graph's
+  vault with the path inside; the name is random because writing a backup needs no key. Compare, restoring a page
+  and unpacking open every such entry, so they need the key unlocked.
+- **Still visible:** the list of marked paths in `.notatnik/config.toml` (so use *Encrypt everything…*, whose list
+  names only the standard folders, rather than marking a private folder by name), sizes, times, the number of files
+  and the names of unmarked files.

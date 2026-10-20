@@ -6,6 +6,7 @@ sending plain text, so a key that may have leaked can be retired.
 
 **Requirements covered:** EN-25 (hidden names), EN-26 (re-encrypting).
 **Depends on:** [encrypted-sync.md](encrypted-sync.md) (E1 to E9), `notatnik-crypt`.
+**Status:** built and tested (fake server, browser, real Nextcloud 35 on a local test server).
 **Design and decisions:** [encryption.md](../encryption.md) §6, D57.
 
 ## Design
@@ -43,40 +44,40 @@ Hiding the list of marked paths; padding sizes; hiding the times; hiding the nam
 ## Tasks
 
 ### H1 Names and objects (EN-25)
-- [ ] `notatnik-crypt`: `Keys::encrypt_named(path, data)` / `decrypt_named(bytes)` (path inside, bound to the hidden-object context)
-- [ ] `notatnik-core::encrypted`: the hidden folder, `hidden_object(name)`, its parts; `.notatnik-enc/` is reserved locally
-- [ ] Config: `[encryption] names = "visible" | "hidden"` (default `visible`; a vault made from now on sets `hidden`)
+- [x] `notatnik-crypt`: `Keys::encrypt_named(path, data)` / `decrypt_named(bytes)` (path inside, bound to the hidden-object context)
+- [x] `notatnik-core::encrypted`: the hidden folder, `hidden_object(name)`, its parts; `.notatnik-enc/` is reserved locally
+- [x] Config: `[encryption] names = "visible" | "hidden"` (default `visible`; a vault made from now on sets `hidden`)
 
 **Verify**
-- [ ] Round trip; a changed byte, a wrong key and a wrong context are refused; the path survives any characters
-- [ ] Config round trip and a warning for an unknown value
+- [x] Round trip; a changed byte, a wrong key and a wrong context are refused; the path survives any characters
+- [x] Config round trip and a warning for an unknown value
 
 ### H2 The sync (EN-25)
-- [ ] `Found` knows where the copy is; `Io` reads, writes and deletes at that place; the engine plans a `Recode` when the place differs from the wanted one
-- [ ] The state keeps the object name of a hidden copy; unknown objects are opened to learn their path (key unlocked), left alone when locked
-- [ ] `verify` and the folder-ETag shortcut understand hidden objects
+- [x] `Found` knows where the copy is; `Io` reads, writes and deletes at that place; the engine plans a `Recode` when the place differs from the wanted one
+- [x] The state keeps the object name of a hidden copy; unknown objects are opened to learn their path (key unlocked), left alone when locked
+- [x] `verify` and the folder-ETag shortcut understand hidden objects
 
 **Verify** (fake server)
-- [ ] After a session the server holds no path segment of a marked file; a second device gets every file
-- [ ] Rename and delete on one device arrive on the other; an object swapped for another is refused
-- [ ] Locked device: hidden objects are left alone and counted
-- [ ] Switching visible to hidden and back stores every marked file again and leaves no old copy
+- [x] After a session the server holds no path segment of a marked file; a second device gets every file
+- [x] Rename and delete on one device arrive on the other; an object swapped for another is refused
+- [x] Locked device: hidden objects are left alone and counted
+- [x] Switching visible to hidden and back stores every marked file again and leaves no old copy
 
 ### H3 Re-encrypting (EN-26)
-- [ ] `encryption_rotate`: needs the unlocked key; makes the new vault like EN-22 (confirmation of the recovery key) and marks the stored copies to be stored again
-- [ ] The next sync stores them under the new key and deletes the old objects
+- [x] `encryption_rotate`: needs the unlocked key; makes the new vault like EN-22 (confirmation of the recovery key) and marks the stored copies to be stored again
+- [x] The next sync stores them under the new key and deletes the old objects
 
 **Verify**
-- [ ] After a rotation no object of the old key is left; the other device, with the new password, reads everything; with the old key nothing opens
+- [x] After a rotation no object of the old key is left; the other device, with the new password, reads everything; with the old key nothing opens
 
 ### H4 The app and UI (EN-25, EN-26)
-- [ ] Status: `names`; command to switch; Settings → Sync → Encryption: *Hide file names* switch, *Re-encrypt with a new key…*, wording about versions and trash
+- [x] Status: `names`; command to switch; Settings → Sync → Encryption: *Hide file names* switch, *Re-encrypt with a new key…*, wording about versions and trash
 
 ### H5 Backups (EN-25)
-- [ ] Plain snapshots store marked files as hidden objects with the path inside; compare, page restore and unpacking read them; locked: refused
+- [x] Plain snapshots store marked files as hidden objects with the path inside; compare, page restore and unpacking read them; locked: refused
 
 ### H6 Docs and tests
-- [ ] requirements, encryption.md (§6, threat model), file-format.md §11, keymap, architecture D57, testing, logging
+- [x] requirements, encryption.md (§6, threat model), file-format.md §11, keymap, architecture D57, testing, logging
 
 ### H7 Real Nextcloud
-- [ ] Migration, a second device, a rename and a rotation against the test Nextcloud
+- [x] Migration, a second device, a rename and a rotation against the test Nextcloud

@@ -601,6 +601,14 @@ fn verify(
 /// `notatnik decrypt`: opens a sealed file with the password or recovery key and writes what is inside.
 fn decrypt(file: &Path, out: Option<PathBuf>, force: bool) -> Result<(), String> {
     use std::io::Write;
+    // a file of a snapshot whose name is hidden (EN-25) holds its own path: it is written under that name
+    let hidden_entry = std::fs::File::open(file)
+        .ok()
+        .and_then(|f| notatnik_crypt::read_header(&mut std::io::BufReader::new(f)).ok())
+        .is_some_and(|h| h.comment == b"notatnik-entry v2 hidden");
+    if hidden_entry {
+        return decrypt_hidden_entry(file, out, force);
+    }
     let out = match out {
         Some(o) => o,
         None => match file.to_str().and_then(|f| f.strip_suffix(".enc")) {
@@ -643,6 +651,39 @@ fn decrypt(file: &Path, out: Option<PathBuf>, force: bool) -> Result<(), String>
     }
     std::fs::rename(&partial, &out).map_err(|e| e.to_string())?;
     println!("wrote {}", out.display());
+    Ok(())
+}
+
+/// `decrypt` for an entry of a snapshot with a hidden name: the path is inside, and the content is written to `--out`,
+/// or to the last part of that path in the current folder.
+fn decrypt_hidden_entry(file: &Path, out: Option<PathBuf>, force: bool) -> Result<(), String> {
+    let open_file = || std::fs::File::open(file).map_err(|e| format!("{}: {e}", file.display()));
+    let header = notatnik_crypt::read_header(&mut std::io::BufReader::new(open_file()?))
+        .map_err(|e| e.to_string())?;
+    let secret = match std::env::var("NOTATNIK_PASSWORD") {
+        Ok(s) if !s.is_empty() => s,
+        _ => rpassword::prompt_password("Password or recovery key of the graph: ")
+            .map_err(|e| e.to_string())?,
+    };
+    let keys = header.vault.unlock(&secret).map_err(|e| e.to_string())?;
+    let mut plain = Vec::new();
+    notatnik_crypt::open(
+        &keys,
+        &mut std::io::BufReader::new(open_file()?),
+        &mut plain,
+    )
+    .map_err(|e| e.to_string())?;
+    let (path, content) = notatnik_crypt::unpack_named(plain).map_err(|e| e.to_string())?;
+    let out =
+        out.unwrap_or_else(|| PathBuf::from(path.rsplit('/').next().unwrap_or("file").to_string()));
+    if out.exists() && !force {
+        return Err(format!(
+            "{} exists (use --force to replace it)",
+            out.display()
+        ));
+    }
+    std::fs::write(&out, content).map_err(|e| format!("{}: {e}", out.display()))?;
+    println!("{path}: wrote {}", out.display());
     Ok(())
 }
 
