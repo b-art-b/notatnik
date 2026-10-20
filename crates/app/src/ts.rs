@@ -168,6 +168,7 @@ pub fn typescript_bindings() -> String {
         OrphanAssets,
         DeleteAssetsArgs,
         SyncNowArgs,
+        RestoreBackupFileArgs,
         SyncVerify,
         SyncPasswordArgs,
         WebdavArgs,

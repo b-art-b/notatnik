@@ -148,6 +148,7 @@ commands! {
     list_backups(NoArgs) -> BackupList => list_backups,
     backup_now(NoArgs) -> BackupList => backup_now,
     restore_backup(RestoreBackupArgs) -> StringValue => restore_backup,
+    restore_backup_file(RestoreBackupFileArgs) -> StringValue => restore_backup_file,
     restore_backup_page(RestoreBackupPageArgs) -> StringList => restore_backup_page,
     backup_encryption_status(NoArgs) -> BackupEncryption => backup_encryption_status,
     backup_encryption_setup(BackupSetupArgs) -> RecoveryKeyResult => backup_encryption_setup,

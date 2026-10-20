@@ -241,6 +241,26 @@ test('backup encryption: set up with a recovery key, seal, lock and unlock', asy
   await top.getByRole('button', { name: 'Unlock', exact: true }).click()
   await expect(pane.getByTestId('enc-state')).toHaveText('Unlocked')
 
+  // a snapshot file copied to another device opens with its own recovery key, with nothing else of this device
+  await part(page, 'Snapshots')
+  const sealedFile = path.join(
+    dir,
+    files.find((f) => f.endsWith('.zip.enc'))!,
+  )
+  const elsewhere = path.join(backend.dir, '..', 'new-device')
+  const fromFile = pane.getByTestId('restore-file')
+  await fromFile.getByText('Restore a backup file').click()
+  await fromFile.getByLabel('Snapshot file').fill(sealedFile)
+  await fromFile.getByLabel('Password or recovery key').fill('wrong key')
+  await fromFile.getByLabel('Folder to restore into').fill(elsewhere)
+  await fromFile.getByRole('button', { name: 'Restore folder' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: /wrong password or recovery key/ })).toBeVisible()
+  expect(fs.existsSync(elsewhere)).toBe(false)
+  await fromFile.getByLabel('Password or recovery key').fill(key)
+  await fromFile.getByRole('button', { name: 'Restore folder' }).click()
+  await expect.poll(() => fs.existsSync(path.join(elsewhere, 'pages/t.md'))).toBe(true)
+  expect(fs.readFileSync(path.join(elsewhere, 'pages/t.md'), 'utf8')).toContain('NARWHAL-MARKER-7')
+
   // the choice survives a reload; the vault and the state are on the device
   await page.reload()
   await page.getByRole('tab', { name: /Backup/ }).click()

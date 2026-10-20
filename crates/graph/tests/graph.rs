@@ -1958,3 +1958,78 @@ fn marked_files_are_saved_sealed_in_a_plain_snapshot() {
     let c = g.compare_backup(&dir, &sealed.name, &whole).unwrap();
     assert!(c.is_empty(), "{c:?}");
 }
+
+/// A snapshot copied from another device opens with nothing but its own secret: the sealed file carries its vault.
+#[test]
+fn a_snapshot_file_from_another_device_is_restored_with_its_password_or_recovery_key() {
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_graph::{BackupOptions, restore_backup_file};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let (vault, keys, rk) = Vault::create("backup pw", KdfParams::insecure_for_tests()).unwrap();
+    let sealed = g
+        .backup_now(
+            &dir,
+            stamp("2026-10-10 09:00:00"),
+            true,
+            None,
+            &BackupOptions {
+                seal_to: Some(vault),
+                keys: Some(Arc::new(keys)),
+                ..BackupOptions::default()
+            },
+        )
+        .unwrap()
+        .unwrap();
+    let inbox = std::fs::read(g.root().join("pages/inbox.md")).unwrap();
+
+    // a wrong secret is refused and writes nothing
+    let wrong = e.dirs.data.join("wrong");
+    assert!(restore_backup_file(&sealed.path, &wrong, "nope").is_err());
+    assert!(!wrong.exists());
+    // the password, and the recovery key, open it
+    for (i, secret) in ["backup pw".to_string(), rk.to_string()].iter().enumerate() {
+        let target = e.dirs.data.join(format!("new-device-{i}"));
+        restore_backup_file(&sealed.path, &target, secret).unwrap();
+        assert_eq!(std::fs::read(target.join("pages/inbox.md")).unwrap(), inbox);
+    }
+    // not a snapshot file
+    assert!(
+        restore_backup_file(&g.root().join("pages/inbox.md"), &e.dirs.data.join("x"), "").is_err()
+    );
+}
+
+/// EN-23 on a plain zip: its marked files open with the graph's secret, found in the snapshot itself.
+#[test]
+fn a_plain_snapshot_with_marked_files_is_restored_with_the_graphs_secret() {
+    use notatnik_crypt::{KdfParams, Vault};
+    use notatnik_graph::{BackupOptions, restore_backup_file};
+    let e = env_with(Some("basic"));
+    let g = open(&e);
+    let dir = e.dirs.data.join("backups");
+    let (vault, _keys, _rk) = Vault::create("graph pw", KdfParams::insecure_for_tests()).unwrap();
+    std::fs::write(g.root().join(".notatnik/vault.json"), vault.to_json()).unwrap();
+    g.update_config(|c| c.encryption.paths = vec!["pages/inbox.md".into()])
+        .unwrap();
+    let inbox = std::fs::read(g.root().join("pages/inbox.md")).unwrap();
+    let made = g
+        .backup_now(
+            &dir,
+            stamp("2026-10-10 09:00:00"),
+            true,
+            None,
+            &BackupOptions::default(),
+        )
+        .unwrap()
+        .unwrap();
+    // without the graph's secret nothing is written
+    let t = e.dirs.data.join("t");
+    assert!(matches!(
+        restore_backup_file(&made.path, &t, ""),
+        Err(Error::Locked(_))
+    ));
+    assert!(!t.exists() || std::fs::read_dir(&t).unwrap().next().is_none());
+    restore_backup_file(&made.path, &t, "graph pw").unwrap();
+    assert_eq!(std::fs::read(t.join("pages/inbox.md")).unwrap(), inbox);
+}

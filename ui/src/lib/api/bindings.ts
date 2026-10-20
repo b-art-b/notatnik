@@ -1959,6 +1959,19 @@ export type SyncNowArgs = {
  * Let a sync that was stopped for wanting to delete most of the graph go ahead.
  */
 allow_mass_delete: boolean, };
+export type RestoreBackupFileArgs = { 
+/**
+ * Absolute path of the `.zip` or `.zip.enc` file.
+ */
+file: string, 
+/**
+ * Password or recovery key of the backup encryption (of the graph's, for a plain zip with encrypted files).
+ */
+secret: string, 
+/**
+ * Folder to create or fill; must be empty.
+ */
+target: string, };
 export type SyncVerify = { 
 /**
  * Files whose server copy has the content of the local file.
@@ -2432,6 +2445,7 @@ export type Commands = {
   list_backups: { args: NoArgs; result: BackupList };
   backup_now: { args: NoArgs; result: BackupList };
   restore_backup: { args: RestoreBackupArgs; result: StringValue };
+  restore_backup_file: { args: RestoreBackupFileArgs; result: StringValue };
   restore_backup_page: { args: RestoreBackupPageArgs; result: StringList };
   backup_encryption_status: { args: NoArgs; result: BackupEncryption };
   backup_encryption_setup: { args: BackupSetupArgs; result: RecoveryKeyResult };

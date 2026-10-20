@@ -457,6 +457,35 @@ pub fn restore_backup(
     Ok(n)
 }
 
+/// Unpacks a snapshot file from anywhere (another device, a USB disk) into `target`, with no vault of this device
+/// involved. A sealed one (`.zip.enc`) carries the descriptor of its vault: `secret` is that vault's password or
+/// recovery key. Files in it that are sealed for the graph's vault (EN-23) are opened with the same `secret` when
+/// it also fits the graph's vault, which is read from the snapshot itself. Returns the number of files.
+pub fn restore_backup_file(zip_path: &Path, target: &Path, secret: &str) -> Result<usize> {
+    let sealed = zip_path.extension().is_some_and(|e| e == "enc");
+    let plain_zip = zip_path.extension().is_some_and(|e| e == "zip");
+    if !sealed && !plain_zip {
+        return Err(Error::InvalidPath(
+            "a snapshot is a .zip or .zip.enc file".into(),
+        ));
+    }
+    let keys = if sealed {
+        let header = notatnik_crypt::read_header(&mut std::io::BufReader::new(
+            std::fs::File::open(zip_path)?,
+        ))?;
+        Some(header.vault.unlock(secret)?)
+    } else {
+        None
+    };
+    let graph_keys = {
+        let mut z = open_zip(zip_path, keys.as_ref())?;
+        let vault = saved_file(&mut z, ".notatnik/vault.json", None)?
+            .and_then(|b| Vault::from_json(&b).ok());
+        vault.and_then(|v| v.unlock(secret).ok())
+    };
+    restore_backup(zip_path, target, keys.as_ref(), graph_keys.as_ref())
+}
+
 /// Writes the zip of a snapshot into `out` and returns the number of entries.
 fn write_zip(
     out: &std::fs::File,

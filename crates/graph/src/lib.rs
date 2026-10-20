@@ -18,7 +18,7 @@ mod watch;
 pub use assets::{MAX_ASSET_BYTES, is_risky_file, relative_asset_path, sniff_image};
 pub use backup::{
     BackupFile, BackupOptions, ChangeStatus, DEVICE_DIR, DiffOp, Extra, FileChange, FileDiff,
-    diff_lines, read_entry, seal_existing, sync_mirror,
+    diff_lines, read_entry, restore_backup_file, seal_existing, sync_mirror,
 };
 pub use config::{
     CalendarAccount, CalendarConfig, CalendarSection, Config, DATE_FORMATS, DeviceSettings, Dirs,

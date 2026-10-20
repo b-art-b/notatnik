@@ -153,6 +153,8 @@
   let bkDir = $state('') // the folder field is a draft until it is changed (on blur / Enter)
   let restoreOf = $state<string | null>(null) // the snapshot whose restore form is open
   let restoreTarget = $state('')
+  // "Restore a backup file": a snapshot copied from another device, opened with its own password or recovery key
+  let fileRestore = $state({ file: '', secret: '', target: '' })
   let restorePage = $state('')
   let bkMirror = $state('') // the second folder, a draft like the first
   let devicePreview = $state<DeviceRestorePreview | null>(null) // the device settings of the open restore form
@@ -351,6 +353,19 @@
       await backend.call('restore_backup', { name, target: restoreTarget.trim() })
       toast(`Restored to ${restoreTarget.trim()}. Open that folder as a graph to look around.`)
       restoreOf = null
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
+  async function restoreFromFile() {
+    try {
+      await backend.call('restore_backup_file', {
+        file: fileRestore.file.trim(),
+        secret: fileRestore.secret,
+        target: fileRestore.target.trim(),
+      })
+      toast(`Restored to ${fileRestore.target.trim()}. Open that folder as a graph.`)
+      fileRestore = { file: '', secret: '', target: '' }
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -1222,10 +1237,55 @@
                   result is a graph folder of Markdown files.
                 </li>
                 <li>
+                  <strong>On a new device:</strong> a sealed snapshot (<code>.zip.enc</code>) brings what it
+                  needs to be opened, so copy the file over and use <em>Restore a backup file</em> below with
+                  its password or recovery key (the backup's, not the graph's). The backup settings of the old
+                  device are not needed. A graph kept on a server is opened on a new device from the start
+                  screen (<em>Connect to a server</em>, then attach the folder); encrypted pages wait until
+                  you unlock the graph with <em>Unlock…</em> in Settings → Sync → Encryption.
+                </li>
+                <li>
                   Snapshots marked <em>before a change</em> were taken automatically before a rename or delete
                   of several pages. For a single page's earlier states use <em>History</em> under the page's title.
                 </li>
               </ol>
+            </details>
+            <details class="help" data-testid="restore-file">
+              <summary>Restore a backup file</summary>
+              <p class="muted">
+                For a snapshot that is not in this device's backup folder, for example one copied from another
+                computer. The password or recovery key is the one of the backup encryption. For a plain
+                <code>.zip</code> it is left empty, or it is the graph's, when pages in it are encrypted.
+              </p>
+              <label
+                >Snapshot file
+                <input
+                  aria-label="Snapshot file"
+                  placeholder="/path/to/notatnik-….zip.enc"
+                  bind:value={fileRestore.file}
+                /></label
+              >
+              <label
+                >Password or recovery key
+                <input
+                  type="password"
+                  autocomplete="off"
+                  aria-label="Password or recovery key"
+                  bind:value={fileRestore.secret}
+                /></label
+              >
+              <label
+                >Into a new folder
+                <input
+                  aria-label="Folder to restore into"
+                  placeholder="/path/to/new-folder"
+                  bind:value={fileRestore.target}
+                /></label
+              >
+              <button
+                disabled={!fileRestore.file.trim() || !fileRestore.target.trim()}
+                onclick={restoreFromFile}>Restore folder</button
+              >
             </details>
             <h3>Snapshots</h3>
             <ul class="snaps" data-testid="backup-list" aria-label="Snapshots">

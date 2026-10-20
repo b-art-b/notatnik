@@ -3428,6 +3428,26 @@ impl AppState {
         })
     }
 
+    /// `restore_backup_file`: unpacks a snapshot file from anywhere into a new or empty folder. Nothing of this
+    /// device is needed: the file brings the descriptor of its vault, the secret opens it.
+    pub fn restore_backup_file(&self, a: RestoreBackupFileArgs) -> ApiResult<StringValue> {
+        let (file, target) = (PathBuf::from(a.file.trim()), PathBuf::from(a.target.trim()));
+        if !file.is_absolute() || !target.is_absolute() {
+            return Err(ApiError::new("invalid", "give absolute paths"));
+        }
+        if !file.is_file() {
+            return Err(ApiError::new(
+                "not_found",
+                format!("{} is not a file", file.display()),
+            ));
+        }
+        let n = notatnik_graph::restore_backup_file(&file, &target, &a.secret)?;
+        log::info!("backup file restored: {n} files to {}", target.display());
+        Ok(StringValue {
+            value: target.to_string_lossy().into_owned(),
+        })
+    }
+
     /// The device settings stored in a snapshot (None for a snapshot without them).
     fn snapshot_settings(&self, name: &str) -> ApiResult<Option<String>> {
         if name.contains(['/', '\\'])

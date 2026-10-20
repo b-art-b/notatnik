@@ -1227,6 +1227,17 @@ pub struct RestoreBackupArgs {
     pub target: String,
 }
 
+/// `restore_backup_file`: unpack a snapshot file from anywhere, e.g. one copied from another device.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RestoreBackupFileArgs {
+    /// Absolute path of the `.zip` or `.zip.enc` file.
+    pub file: String,
+    /// Password or recovery key of the backup encryption (of the graph's, for a plain zip with encrypted files).
+    pub secret: String,
+    /// Folder to create or fill; must be empty.
+    pub target: String,
+}
+
 /// `restore_backup_page`: replace one page with its version in a snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct RestoreBackupPageArgs {
