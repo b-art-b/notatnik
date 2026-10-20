@@ -1,7 +1,7 @@
 <script lang="ts">
   // Settings → Sync: the server folder of the open graph and how the sync is doing. A graph that is only a local
   // folder shows how to get one on a server. The sync itself runs in the backend (see stores/sync.svelte.ts).
-  import { backend } from '../../api'
+  import { backend, type SyncVerify } from '../../api'
   import { app, errorMessage, adoptGraph, toast } from '../../stores/app.svelte'
   import { refreshSync, sync, syncLine, syncNow } from '../../stores/sync.svelte'
   import SettingRow from './SettingRow.svelte'
@@ -12,6 +12,39 @@
   let confirmDisconnect = $state(false)
   let connecting = $state(false)
   const st = $derived(sync.status)
+  // the result of "Verify": null until asked; `checking` while the server copy is being read back
+  let report = $state<SyncVerify | null>(null)
+  let checking = $state(false)
+
+  async function verify() {
+    checking = true
+    report = null
+    try {
+      report = await backend.call('sync_verify', {})
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    } finally {
+      checking = false
+    }
+  }
+
+  // what is wrong, as [heading, files] pairs (nothing for an empty list)
+  const problems = $derived(
+    report
+      ? (
+          [
+            ['Different on the server', report.differ],
+            ['Only on the server', report.only_server],
+            ['Only on this device', report.only_local],
+            ['Cannot be read', report.unreadable],
+            ['Encrypted, not checked (the key is locked)', report.locked],
+            ['Marked as encrypted but stored as plain text', report.plain_but_marked],
+            ['Stored encrypted but not marked', report.encrypted_but_unmarked],
+            ['Stored in both forms', report.both_forms],
+          ] as [string, string[]][]
+        ).filter(([, files]) => files.length)
+      : [],
+  )
 
   async function signIn() {
     try {
@@ -84,6 +117,32 @@
       >
     </div>
   </SettingRow>
+  <SettingRow
+    title="Verify"
+    description="Reads every file back from the server and compares it with this device, decrypting what is stored encrypted. Nothing is changed on either side. Files changed a moment ago may show as different until the next sync."
+  >
+    <button type="button" class="plain" disabled={checking || st.state === 'syncing'} onclick={verify}
+      >{checking ? 'Verifying…' : 'Verify'}</button
+    >
+  </SettingRow>
+  {#if report}
+    <div class="box" role="status" data-testid="verify-result">
+      <p>
+        {report.same} file{report.same === 1 ? '' : 's'} match{report.same === 1
+          ? 'es'
+          : ''}{report.same_encrypted ? `, ${report.same_encrypted} of them stored encrypted` : ''}.
+        {#if report.clean}The server copy matches this device.{/if}
+      </p>
+      {#each problems as [heading, files] (heading)}
+        <div>
+          <strong>{heading} ({files.length})</strong>
+          <ul class="errors">
+            {#each files as f (f)}<li><code>{f}</code></li>{/each}
+          </ul>
+        </div>
+      {/each}
+    </div>
+  {/if}
   {#if st.last_sync}
     <p class="last" data-testid="sync-last">
       Last complete sync {new Date(st.last_sync).toLocaleString()}: {st.pushed} sent, {st.pulled} received,

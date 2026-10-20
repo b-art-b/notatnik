@@ -127,6 +127,21 @@ test('a new graph on a server is created, shows its sync status, and can be disc
   await expect(page.getByTestId('sync-user')).toHaveText(dav.user)
   await expect(page.getByTestId('sync-line')).toContainText('Synced')
 
+  // EN-20: Verify reads the server copy back; a file that only the server has (another device, not synced here
+  // yet) shows up
+  await page.getByRole('button', { name: 'Verify', exact: true }).click()
+  const result = page.getByTestId('verify-result')
+  await expect(result).toContainText('The server copy matches this device')
+  const put = await fetch(`${dir(dav.server, dav.user, 'Notes/e2e')}/Elsewhere.md`, {
+    method: 'PUT',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${dav.user}:${dav.password}`).toString('base64') },
+    body: '- written on another device\n',
+  })
+  expect(put.ok).toBe(true)
+  await page.getByRole('button', { name: 'Verify', exact: true }).click()
+  await expect(result).toContainText('Only on the server (1)')
+  await expect(result.getByText('Elsewhere.md')).toBeVisible()
+
   // disconnect: the graph stays, the indicator and the pane go back to "local"
   await page.getByRole('button', { name: 'Disconnect…' }).click()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()

@@ -3553,6 +3553,23 @@ fn a_graph_kept_in_a_server_folder_syncs_both_ways() {
     let page = t.ok("get_page", json!({"name": "from-phone"}));
     assert_eq!(page["exists"], true);
 
+    // EN-20: verify reads the server copy back and changes nothing
+    let v = t.ok("sync_verify", json!({}));
+    assert_eq!(v["clean"], true, "{v}");
+    assert_eq!(v["same"], 3, "{v}");
+    std::fs::write(root.join("pages/shopping.md"), "- milk\n- tea\n- eggs\n").unwrap();
+    std::fs::write(root.join("pages/new.md"), "- new\n").unwrap();
+    let v = t.ok("sync_verify", json!({}));
+    assert_eq!(v["clean"], false, "{v}");
+    assert_eq!(v["differ"], json!(["pages/shopping.md"]), "{v}");
+    assert_eq!(v["only_local"], json!(["pages/new.md"]), "{v}");
+    assert_eq!(
+        dav.file("Notes/graph/pages/shopping.md").unwrap(),
+        b"- milk\n- tea\n"
+    );
+    std::fs::write(root.join("pages/shopping.md"), "- milk\n- tea\n").unwrap();
+    std::fs::remove_file(root.join("pages/new.md")).unwrap();
+
     // the folder holds a graph now: starting another one there is refused, attaching downloads it
     let seen = t.ok("webdav_test", args("Notes/graph", false));
     assert_eq!(seen["has_graph"], true);

@@ -161,6 +161,7 @@ commands! {
     sync_status(NoArgs) -> SyncStatus => sync_status,
     sync_set_merge(SyncMergeArgs) -> SyncStatus => sync_set_merge,
     sync_now(SyncNowArgs) -> SyncStatus => sync_now,
+    sync_verify(NoArgs) -> SyncVerify => sync_verify,
     sync_set_password(SyncPasswordArgs) -> SyncStatus => sync_set_password,
     webdav_browse(WebdavArgs) -> WebdavFolders => webdav_browse,
     file_sources(NoArgs) -> Vec<FileSourceView> => file_sources,

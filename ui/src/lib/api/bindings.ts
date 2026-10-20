@@ -1962,6 +1962,51 @@ export type SyncNowArgs = {
  * Let a sync that was stopped for wanting to delete most of the graph go ahead.
  */
 allow_mass_delete: boolean, };
+export type SyncVerify = { 
+/**
+ * Files whose server copy has the content of the local file.
+ */
+same: number, 
+/**
+ * Of `same`, the files that the server holds encrypted.
+ */
+same_encrypted: number, 
+/**
+ * The server copy has other content (not synced yet, or damaged).
+ */
+differ: Array<string>, 
+/**
+ * On the server only.
+ */
+only_server: Array<string>, 
+/**
+ * In the graph folder only.
+ */
+only_local: Array<string>, 
+/**
+ * Could not be read or decrypted, with the reason.
+ */
+unreadable: Array<string>, 
+/**
+ * Stored encrypted but not checked: the key is locked.
+ */
+locked: Array<string>, 
+/**
+ * Marked as encrypted, yet the server holds the plain text.
+ */
+plain_but_marked: Array<string>, 
+/**
+ * Stored encrypted, though no rule asks for it any more.
+ */
+encrypted_but_unmarked: Array<string>, 
+/**
+ * The server holds both forms.
+ */
+both_forms: Array<string>, 
+/**
+ * Nothing to report.
+ */
+clean: boolean, };
 export type SyncPasswordArgs = { 
 /**
  * The password (an app password on Nextcloud).
@@ -2403,6 +2448,7 @@ export type Commands = {
   sync_status: { args: NoArgs; result: SyncStatus };
   sync_set_merge: { args: SyncMergeArgs; result: SyncStatus };
   sync_now: { args: SyncNowArgs; result: SyncStatus };
+  sync_verify: { args: NoArgs; result: SyncVerify };
   sync_set_password: { args: SyncPasswordArgs; result: SyncStatus };
   webdav_browse: { args: WebdavArgs; result: WebdavFolders };
   file_sources: { args: NoArgs; result: FileSourceView[] };

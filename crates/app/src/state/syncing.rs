@@ -481,6 +481,53 @@ impl AppState {
         Ok(ctx.run(a.allow_mass_delete))
     }
 
+    /// `sync_verify` (EN-20): reads the server copy back and compares it with the graph folder; nothing is written
+    /// on either side. Waits for a sync that is running. Encrypted files are opened while the key is unlocked,
+    /// otherwise they are listed as not checked.
+    pub fn sync_verify(&self, _a: NoArgs) -> ApiResult<SyncVerify> {
+        let ctx = self.sync_ctx()?;
+        let _one_at_a_time = ctx
+            .gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let password = ctx
+            .secrets
+            .get(&secret_key(&ctx.cfg))
+            .ok_or_else(|| ApiError::new("auth", "the password is not known on this device"))?;
+        let remote =
+            WebDavRemote::new(&ctx.cfg.url, &ctx.cfg.user, &password).map_err(|e| api_err(&e))?;
+        let paths =
+            notatnik_core::encrypted::EncryptedPaths::new(&ctx.graph.config().encryption.paths);
+        let keys = ctx.keys.lock().ok().and_then(|g| g.clone());
+        let r = notatnik_sync::verify(&ctx.root, &remote, &paths, keys.as_deref())
+            .map_err(|e| api_err(&e))?;
+        log::info!(
+            "verify with {}: {} match, {} differ, {} only on the server, {} only here",
+            ctx.cfg.url,
+            r.same,
+            r.differ.len(),
+            r.only_server.len(),
+            r.only_local.len()
+        );
+        Ok(SyncVerify {
+            clean: r.is_clean(),
+            same: r.same as u32,
+            same_encrypted: r.same_encrypted as u32,
+            differ: r.differ,
+            only_server: r.only_server,
+            only_local: r.only_local,
+            unreadable: r
+                .unreadable
+                .into_iter()
+                .map(|(p, why)| format!("{p}: {why}"))
+                .collect(),
+            locked: r.locked,
+            plain_but_marked: r.plain_but_marked,
+            encrypted_but_unmarked: r.encrypted_but_unmarked,
+            both_forms: r.both_forms,
+        })
+    }
+
     /// `sync_set_password`: remembers a (new) password and syncs with it.
     pub fn sync_set_password(&self, a: SyncPasswordArgs) -> ApiResult<SyncStatus> {
         let ctx = self.sync_ctx()?;

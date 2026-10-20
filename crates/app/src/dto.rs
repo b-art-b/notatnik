@@ -1518,6 +1518,33 @@ pub struct SyncNowArgs {
     pub allow_mass_delete: bool,
 }
 
+/// `sync_verify` (EN-20): how the server copy compares with the graph folder. Paths are those of the graph.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct SyncVerify {
+    /// Files whose server copy has the content of the local file.
+    pub same: u32,
+    /// Of `same`, the files that the server holds encrypted.
+    pub same_encrypted: u32,
+    /// The server copy has other content (not synced yet, or damaged).
+    pub differ: Vec<String>,
+    /// On the server only.
+    pub only_server: Vec<String>,
+    /// In the graph folder only.
+    pub only_local: Vec<String>,
+    /// Could not be read or decrypted, with the reason.
+    pub unreadable: Vec<String>,
+    /// Stored encrypted but not checked: the key is locked.
+    pub locked: Vec<String>,
+    /// Marked as encrypted, yet the server holds the plain text.
+    pub plain_but_marked: Vec<String>,
+    /// Stored encrypted, though no rule asks for it any more.
+    pub encrypted_but_unmarked: Vec<String>,
+    /// The server holds both forms.
+    pub both_forms: Vec<String>,
+    /// Nothing to report.
+    pub clean: bool,
+}
+
 /// `sync_set_password`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SyncPasswordArgs {
