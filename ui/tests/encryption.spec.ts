@@ -305,3 +305,58 @@ test('Encrypt everything marks every content folder in one step; the settings st
   await page.getByTestId('graph-enc-lock').click()
   await expect(page.getByTestId('enc-all-done')).toBeVisible()
 })
+
+test('a forgotten graph password is reset: the new vault replaces the old, the files are stored again', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/')
+  const dir = await graphOnServer(backend, dav, 'Notes/reset')
+  fs.writeFileSync(path.join(dir, 'pages/Secret.md'), `- ${SECRET} one\n`)
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.reload()
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await page.getByTestId('graph-enc-setup').click()
+  await page.getByLabel('Password (8 to 200 characters)').fill('old password')
+  await page.getByLabel('Password again').fill('old password')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  await backend.call('encryption_mark', { paths: ['pages/'], encrypted: true })
+  await backend.call('sync_now', { allow_mass_delete: false })
+  const before = await dav.file('Notes/reset/pages/Secret.md.enc')
+  expect(before).not.toBeNull()
+  await page.getByTestId('graph-enc-lock').click()
+
+  // forgot: the checkbox is needed, then the new recovery key is confirmed
+  await page.getByTestId('graph-enc-forgot').click()
+  const form = page.getByTestId('graph-enc-reset-form')
+  await form.getByLabel('New password (8 to 200 characters)').fill('new password')
+  await form.getByLabel('New password again').fill('new password')
+  await expect(form.getByRole('button', { name: 'Reset the password' })).toBeDisabled()
+  await page.getByTestId('graph-enc-reset-understood').check()
+  await form.getByRole('button', { name: 'Reset the password' }).click()
+  await expect(page.getByTestId('graph-enc-confirm')).toHaveText('Replace the password')
+  await expect(page.getByTestId('graph-enc-confirm')).toBeDisabled()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+
+  // the file is stored again with the new key; the old password no longer unlocks
+  await backend.call('sync_now', { allow_mass_delete: false })
+  const after = await dav.file('Notes/reset/pages/Secret.md.enc')
+  expect(after).not.toBeNull()
+  expect(after).not.toBe(before)
+  expect(after).not.toContain(SECRET)
+  expect(fs.readFileSync(path.join(dir, 'pages/Secret.md'), 'utf8')).toContain(SECRET)
+  await page.getByTestId('graph-enc-lock').click()
+  await page.getByTestId('graph-enc-unlock').click()
+  await page.getByLabel('Password or recovery key').fill('old password')
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await expect(page.getByRole('alert').filter({ hasText: /not the password/ })).toBeVisible()
+  await page.getByLabel('Password or recovery key').fill('new password')
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+})

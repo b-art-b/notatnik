@@ -150,6 +150,25 @@ differ (an edit not synced yet, or damage), files only on one side, copies that 
 that the server holds as plain text, encrypted copies that are not marked, and paths stored in both forms. The exit
 code is 2 unless all of that is empty. To type the passwords without echo in zsh or bash use `read -rs` (without `-r` a backslash in a password is swallowed and the unlock fails with "wrong password"). Run it after a sync: a local edit made since then shows as "differs". `--no-key` skips the graph's password: encrypted copies are then only listed (as not checked), which is enough to see that none are left.
 
+### 6.2c Forgotten password (EN-22)
+
+*Forgot the password…* in Settings → Sync → Encryption (and, separately, in Settings → Backup → Encryption) is for the
+case where the password **and** the recovery key are lost. It asks for the checkbox "I understand…" and a new
+password, shows a new recovery key, and replaces the vault when that key is confirmed (until then the old vault
+still works, and closing the app changes nothing).
+
+- **Notes.** The new vault has new keys, so every `.enc` copy on the server is unreadable to it. The sync state of
+  those files is marked as changed (`SyncState::store_encrypted_again`, the server's ETags are kept), so the next
+  sync stores each of them again from the **plain file on this device** with the new key, without reading the old
+  copy. A copy someone else changed meanwhile is a conflict, as usual. The key in the keyring is removed. Other
+  devices receive the new `.notatnik/vault.json`, must unlock again with the **new** password, and then receive the
+  re-encrypted files. **Lost:** files that exist encrypted only on the server or only on another device. They
+  stay on the server as copies that cannot be opened (the sync reports them for each run); delete them in
+  Nextcloud.
+- **Backups.** The device's backup vault is replaced. Snapshots sealed before keep the old descriptor, which no
+  password you still know opens, so they stay unreadable. New snapshots are sealed with the new vault.
+- The old vault descriptor is not kept anywhere.
+
 ### 6.3 Roads for plain text that must be closed
 
 1. **Calendar.** Tasks of a marked page would reach the CalDAV server in plain. They are left out of the calendar
@@ -193,5 +212,6 @@ The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encryp
   server that swaps two `.enc` files or cuts one short; the calendar test with a marked page; browser tests of
   the pane and the page menu.
 - EN-20: `notatnik verify` against the fake server: a clean graph, no key, an unsynced edit, a file on one side only, a flipped byte in an `.enc` file, a marked path stored as plain text (`crates/sync/tests/encrypted.rs`); the command with its exit codes and a wrong password (`crates/cli/tests/cli.rs`).
+- EN-22: the stored-again sync (`crates/sync/tests/encrypted.rs`: an old copy is never read, the new key opens everything, a second device gets the files), the reset through the API for graph and backups (`crates/app/tests/app.rs`), and through the screens (`ui/tests/encryption.spec.ts`, `ui/tests/backup.spec.ts`).
 - E6: the same against a real Nextcloud (`crates/app/tests/nextcloud.rs`), including what its versions and trash
   keep.

@@ -166,12 +166,15 @@
   }
   // --- encryption of the backups (EN-2, EN-5, EN-6): the keys live in memory only and lock after 15 idle minutes ---
   let enc = $state<BackupEncryption | null>(null)
-  let encForm = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery'>('')
+  let encForm = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery' | 'reset'>('')
   let encPw = $state('')
   let encPw2 = $state('')
   let encOld = $state('')
   let recoveryShown = $state<string | null>(null) // the recovery key, right after it was made: shown once
   let recoverySaved = $state(false)
+  // the password was forgotten and a new vault is being made (EN-22): its recovery key has to be confirmed
+  let encResetting = $state(false)
+  let encUnderstood = $state(false)
   async function loadEnc() {
     try {
       enc = await backend.call('backup_encryption_status', {})
@@ -182,6 +185,7 @@
   function closeEncForm() {
     encForm = ''
     encPw = encPw2 = encOld = ''
+    encUnderstood = false
   }
   const encPasswordOk = () => encPw.length >= 8 && encPw === encPw2
   async function encRun(work: () => Promise<void>) {
@@ -199,9 +203,19 @@
       closeEncForm()
       await loadEnc()
     })
+  const encReset = () =>
+    encRun(async () => {
+      const r = await backend.call('backup_encryption_setup', { password: encPw, reset: true })
+      recoveryShown = r.recovery_key
+      recoverySaved = false
+      encResetting = true
+      closeEncForm()
+      await loadEnc()
+    })
   const encConfirm = () =>
     encRun(async () => {
       enc = await backend.call('backup_encryption_confirm', {})
+      encResetting = false
       recoveryShown = null
       s = await backend.call('get_settings', {})
       await loadBackups()
@@ -1150,14 +1164,14 @@
               <span class="open">
                 <button class="plain" onclick={() => recoveryShown && copy(recoveryShown)}>Copy</button>
               </span>
-              {#if enc?.configured}
+              {#if enc?.configured && !encResetting}
                 <button onclick={() => ((recoveryShown = null), (recoverySaved = false))}>Done</button>
               {:else}
                 <label class="check">
                   <input type="checkbox" bind:checked={recoverySaved} /> I saved the recovery key
                 </label>
                 <button disabled={!recoverySaved} onclick={encConfirm} data-testid="enc-confirm"
-                  >Turn on encryption</button
+                  >{encResetting ? 'Replace the password' : 'Turn on encryption'}</button
                 >
               {/if}
             </div>
@@ -1245,11 +1259,47 @@
                 <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
               </span>
             </form>
+          {:else if encForm === 'reset'}
+            <form
+              class="encform"
+              data-testid="enc-reset-form"
+              onsubmit={(e) => {
+                e.preventDefault()
+                if (encUnderstood && encPasswordOk()) void encReset()
+              }}
+            >
+              <p class="warn">
+                Use this only if the password and the recovery key are both lost. Backups that are already
+                sealed stay unreadable for good. New backups are sealed with the new password.
+              </p>
+              <label class="check">
+                <input type="checkbox" bind:checked={encUnderstood} data-testid="enc-reset-understood" /> I understand
+                that the encrypted backups made so far are lost
+              </label>
+              <label
+                >New password (8 to 200 characters)
+                <input type="password" autocomplete="new-password" bind:value={encPw} /></label
+              >
+              <label
+                >New password again
+                <input type="password" autocomplete="new-password" bind:value={encPw2} /></label
+              >
+              <span class="open">
+                <button type="submit" disabled={!encUnderstood || !encPasswordOk()}>Reset the password</button
+                >
+                <button type="button" class="plain" onclick={closeEncForm}>Cancel</button>
+              </span>
+            </form>
           {/if}
           {#if enc?.configured}
             <p class="encmore">
               <button class="plain" onclick={() => (encForm = 'password')}>Change password…</button>
               <button class="plain" onclick={() => (encForm = 'recovery')}>New recovery key…</button>
+              <button
+                class="plain"
+                data-testid="enc-forgot"
+                onclick={() => (encForm = encForm === 'reset' ? '' : 'reset')}>Forgot the password…</button
+              >
               {#if enc.plain_snapshots > 0}
                 <button class="plain" onclick={encExisting} data-testid="enc-existing"
                   >Encrypt {enc.plain_snapshots} existing backup{enc.plain_snapshots === 1 ? '' : 's'}</button
@@ -1894,6 +1944,11 @@
     display: flex;
     gap: 0.5em;
     align-items: center;
+  }
+  .encform .warn {
+    color: var(--danger);
+    font-size: 0.9em;
+    margin: 0;
   }
   .encform {
     display: grid;

@@ -423,6 +423,25 @@ impl AppState {
             .remote_of(id)
     }
 
+    /// After the graph's key was replaced (EN-22): the files that the server holds encrypted are stored again from
+    /// the plain files here at the next sync. Waits for a sync that is running.
+    pub(super) fn store_encrypted_again(&self) {
+        let Ok(ctx) = self.sync_ctx() else {
+            return; // no server: nothing is stored there
+        };
+        let _one_at_a_time = ctx
+            .gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let path = state_file(&ctx.root);
+        let mut state = notatnik_sync::SyncState::load(&path);
+        let n = state.store_encrypted_again();
+        match state.save(&path) {
+            Ok(()) => log::info!("encryption: {n} files will be stored again with the new key"),
+            Err(e) => log::error!("encryption: the sync state could not be saved: {e}"),
+        }
+    }
+
     fn sync_ctx(&self) -> ApiResult<Arc<SyncCtx>> {
         self.with_open(|o| {
             o.sync

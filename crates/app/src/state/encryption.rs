@@ -17,6 +17,8 @@ pub(super) struct PendingVault {
     graph: String,
     vault: Vault,
     keys: Arc<Keys>,
+    /// Replaces the vault that the graph has (EN-22).
+    reset: bool,
 }
 
 /// The unlocked key of the open graph, shared with the sync thread.
@@ -137,7 +139,7 @@ impl AppState {
     pub fn encryption_setup(&self, a: EncryptionSetupArgs) -> ApiResult<RecoveryKeyResult> {
         Self::check_new_password(&a.password)?;
         let id = self.with_open(|o| {
-            if o.graph.read_vault()?.is_some() {
+            if o.graph.read_vault()?.is_some() && a.reset != Some(true) {
                 return Err(ApiError::new(
                     "invalid",
                     "this graph has encryption already: unlock it, or change the password",
@@ -154,6 +156,7 @@ impl AppState {
             graph: id,
             vault,
             keys: Arc::new(keys),
+            reset: a.reset == Some(true),
         });
         Ok(RecoveryKeyResult {
             recovery_key: recovery.to_string(),
@@ -173,6 +176,7 @@ impl AppState {
                 "there is no encryption to confirm",
             ));
         };
+        // the new key is in place before anything else, so that no sync stores a file with the old one
         let status = self.with_open(|o| {
             if o.graph.id() != p.graph {
                 return Err(ApiError::new(
@@ -180,15 +184,21 @@ impl AppState {
                     "the encryption was set up for another graph",
                 ));
             }
+            self.set_graph_keys(Some(p.keys.clone()));
             o.graph.write_vault(&p.vault)?;
             log::info!(
-                "encryption: the vault of the graph was made (key {})",
+                "encryption: the vault of the graph was {} (key {})",
+                if p.reset { "replaced" } else { "made" },
                 p.vault.key_id
             );
             Ok(())
         });
         status?;
-        self.set_graph_keys(Some(p.keys));
+        if p.reset {
+            // the key in the keyring and the encrypted copies on the server belong to the old vault
+            self.forget_graph_key(&p.graph);
+            self.store_encrypted_again();
+        }
         self.kick_sync(1);
         self.status_now()
     }

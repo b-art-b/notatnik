@@ -5795,3 +5795,132 @@ fn a_missing_vault_uploads_nothing_of_the_marked_files_and_says_so() {
     assert!(dav.file("Notes/graph/pages/private/diary.md").is_none());
     assert!(!server_has_text(&dav, SECRET));
 }
+
+/// EN-22: a forgotten graph password is reset: a new vault replaces the old one, the files here are stored on the
+/// server again with the new key, and a second device unlocks them with the new password only.
+#[test]
+fn a_forgotten_graph_password_is_reset_and_the_files_are_stored_again() {
+    let (t, dav, root, old_recovery) = encrypted_graph();
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/private/"], "encrypted": true}),
+    );
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    let before = dav.file("Notes/graph/pages/private/diary.md.enc").unwrap();
+
+    // without `reset` a second setup is refused; with it the old vault stays valid until the key is confirmed
+    assert!(
+        t.call("encryption_setup", json!({"password": "brand new pass"}))
+            .is_err()
+    );
+    let new_recovery = t.ok(
+        "encryption_setup",
+        json!({"password": "brand new pass", "reset": true}),
+    )["recovery_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(new_recovery, old_recovery);
+    let st = t.ok("encryption_lock", json!({}));
+    assert_eq!(st["configured"], true);
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    t.ok("encryption_confirm", json!({}));
+
+    // only the new password opens the vault now
+    assert!(
+        t.call("encryption_unlock", json!({"secret": "correct horse"}))
+            .is_err()
+    );
+    assert!(
+        t.call("encryption_unlock", json!({"secret": old_recovery}))
+            .is_err()
+    );
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(st["unlocked"], true, "{st}");
+
+    // the file is stored again with the new key; the text here is as it was
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    let after = dav.file("Notes/graph/pages/private/diary.md.enc").unwrap();
+    assert_ne!(before, after);
+    assert!(!server_has_text(&dav, SECRET));
+    assert_eq!(
+        std::fs::read_to_string(root.join("pages/private/diary.md")).unwrap(),
+        format!("- {SECRET}\n")
+    );
+
+    // a second device: the old password is refused, the new one brings the page
+    let phone = start("basic");
+    let info = phone.ok(
+        "create_remote_graph",
+        json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": true}),
+    );
+    let phone_root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    assert!(
+        phone
+            .call("encryption_unlock", json!({"secret": "correct horse"}))
+            .is_err()
+    );
+    phone.ok("encryption_unlock", json!({"secret": "brand new pass"}));
+    let sync = phone.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert_eq!(sync["file_errors"], json!([]), "{sync}");
+    assert_eq!(
+        std::fs::read_to_string(phone_root.join("pages/private/diary.md")).unwrap(),
+        format!("- {SECRET}\n")
+    );
+}
+
+/// EN-22: a forgotten backup password is reset: the new vault seals new snapshots, the old password and recovery
+/// key open nothing that is sealed from then on.
+#[test]
+fn a_forgotten_backup_password_is_reset() {
+    let t = start("basic");
+    let dir = t.tmp.path().join("backups");
+    t.ok("set_settings", json!({"backup_dir": dir.to_str().unwrap()}));
+    let old = t.ok(
+        "backup_encryption_setup",
+        json!({"password": "old password"}),
+    )["recovery_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    t.ok("backup_encryption_confirm", json!({}));
+    let l = t.ok("backup_now", json!({}));
+    let old_snapshot = l["backups"][0]["name"].as_str().unwrap().to_string();
+
+    let new = t.ok(
+        "backup_encryption_setup",
+        json!({"password": "new password", "reset": true}),
+    )["recovery_key"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // until confirmed the old vault is the vault
+    t.ok("backup_lock", json!({}));
+    t.ok("backup_unlock", json!({"secret": "old password"}));
+    let st = t.ok("backup_encryption_confirm", json!({}));
+    assert_eq!(st["enabled"], true, "{st}");
+    t.ok("backup_lock", json!({}));
+    assert!(
+        t.call("backup_unlock", json!({"secret": "old password"}))
+            .is_err()
+    );
+    assert!(t.call("backup_unlock", json!({"secret": old})).is_err());
+    t.ok("backup_unlock", json!({"secret": new}));
+    t.ok("backup_lock", json!({}));
+    t.ok("backup_unlock", json!({"secret": "new password"}));
+
+    // a new snapshot is sealed with the new vault and opens with it; the old one does not open any more
+    std::fs::write(t.graph().join("pages/inbox.md"), "- after the reset\n").unwrap();
+    let l = t.ok("backup_now", json!({}));
+    let newest = l["backups"][0]["name"].as_str().unwrap().to_string();
+    assert!(newest.ends_with(".zip.enc"), "{newest}");
+    t.ok("backup_compare", json!({"name": newest}));
+    if newest != old_snapshot {
+        assert!(
+            t.call("backup_compare", json!({"name": old_snapshot}))
+                .is_err()
+        );
+    }
+}

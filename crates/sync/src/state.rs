@@ -42,6 +42,20 @@ impl SyncState {
             .unwrap_or_default()
     }
 
+    /// Makes every file that the server holds encrypted look changed here, so that the next sync stores it again with
+    /// the key that is current then, without reading the old copy (EN-22: the key was replaced, the old copies cannot
+    /// be opened any more). The server's ETags are kept, so a copy that someone else changed meanwhile is still a
+    /// conflict, not overwritten. Returns how many files.
+    pub fn store_encrypted_again(&mut self) -> usize {
+        let mut n = 0;
+        for f in self.files.values_mut().filter(|f| f.enc) {
+            f.hash = "store-again".into();
+            f.mtime_ms = -1; // the scan reads the file again instead of trusting this hash
+            n += 1;
+        }
+        n
+    }
+
     /// Saves the state atomically.
     pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(p) = path.parent() {

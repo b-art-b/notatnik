@@ -826,9 +826,15 @@ reserved: Array<string>,
 backups_plain: boolean, };
 export type EncryptionSetupArgs = { 
 /**
- * At least 8 characters.
+ * 8 to 200 characters.
  */
-password: string, };
+password: string, 
+/**
+ * Replace the vault that exists (the password is forgotten): files stored encrypted on the server with the old
+ * key are stored again from this device's plain files at the next sync; copies that exist only on the server
+ * are lost. The old vault stays valid until `encryption_confirm`.
+ */
+reset?: boolean, };
 export type EncryptionUnlockArgs = { 
 /**
  * What the user typed.
@@ -1670,7 +1676,12 @@ export type BackupSetupArgs = {
 /**
  * 8 to 200 characters.
  */
-password: string, };
+password: string, 
+/**
+ * Replace the vault that exists (the password is forgotten): snapshots sealed with the old one stay unreadable.
+ * The old vault stays valid until `backup_encryption_confirm`.
+ */
+reset?: boolean, };
 export type RecoveryKeyResult = { 
 /**
  * 14 groups of four letters and digits.

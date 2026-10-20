@@ -1297,6 +1297,11 @@ pub struct BackupEncryption {
 pub struct BackupSetupArgs {
     /// 8 to 200 characters.
     pub password: String,
+    /// Replace the vault that exists (the password is forgotten): snapshots sealed with the old one stay unreadable.
+    /// The old vault stays valid until `backup_encryption_confirm`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub reset: Option<bool>,
 }
 
 /// `backup_encryption_setup`, `backup_encryption_new_recovery_key`: shown to the user once.
@@ -1866,8 +1871,14 @@ pub struct EncryptionStatus {
 /// `encryption_setup`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct EncryptionSetupArgs {
-    /// At least 8 characters.
+    /// 8 to 200 characters.
     pub password: String,
+    /// Replace the vault that exists (the password is forgotten): files stored encrypted on the server with the old
+    /// key are stored again from this device's plain files at the next sync; copies that exist only on the server
+    /// are lost. The old vault stays valid until `encryption_confirm`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub reset: Option<bool>,
 }
 
 /// `encryption_unlock`: the password, or the recovery key.

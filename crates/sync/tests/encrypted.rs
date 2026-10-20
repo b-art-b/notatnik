@@ -617,3 +617,55 @@ fn verify_compares_the_server_copy_with_the_replica() {
     // verifying wrote nothing
     assert!(!a.has("pages/remote.md"));
 }
+
+/// EN-22: after the key was replaced, the encrypted files are stored again from the plain files here: the old
+/// copies are never read, the new key opens everything, and a second device with the new key gets the files.
+#[test]
+fn a_replaced_key_stores_the_encrypted_files_again() {
+    let e = Env::new();
+    let a = Device::new();
+    a.write("pages/private/diary.md", &format!("- {SECRET} one\n"));
+    a.write("pages/open.md", &format!("- {OPEN}\n"));
+    e.sync(&a, PATHS);
+    let old = e.dav.file("Notes/g/pages/private/diary.md.enc").unwrap();
+
+    // a new vault with new keys; the old copy cannot be opened with them
+    let (_, new_keys, _) = Vault::create("other", KdfParams::insecure_for_tests()).unwrap();
+    let new_keys = Arc::new(new_keys);
+    assert!(new_keys.decrypt(&old, b"pages/private/diary.md").is_err());
+
+    // without marking, nothing happens: the copy on the server stays as it is
+    let r = sync(
+        a.root(),
+        &e.remote(),
+        &e.options(&a, PATHS, Some(new_keys.clone())),
+    )
+    .unwrap();
+    assert!(r.pushed.is_empty(), "{r:?}");
+
+    // marked: the file is stored again with the new key, the plain one is untouched
+    let state_path = a.state.path().join("state.json");
+    let mut st = notatnik_sync::SyncState::load(&state_path);
+    assert_eq!(st.store_encrypted_again(), 1);
+    st.save(&state_path).unwrap();
+    let r = sync(
+        a.root(),
+        &e.remote(),
+        &e.options(&a, PATHS, Some(new_keys.clone())),
+    )
+    .unwrap();
+    assert!(r.errors.is_empty() && r.complete, "{r:?}");
+    assert_eq!(r.pushed, ["pages/private/diary.md"], "{r:?}");
+    let sealed = e.dav.file("Notes/g/pages/private/diary.md.enc").unwrap();
+    assert_ne!(sealed, old);
+    assert!(!contains(&sealed, SECRET));
+    let paths = EncryptedPaths::new(&PATHS.iter().map(|s| (*s).to_string()).collect::<Vec<_>>());
+    let check = notatnik_sync::verify(a.root(), &e.remote(), &paths, Some(&new_keys)).unwrap();
+    assert!(check.is_clean(), "{check:?}");
+
+    // a second device with the new key receives the file
+    let b = Device::new();
+    let r = sync(b.root(), &e.remote(), &e.options(&b, PATHS, Some(new_keys))).unwrap();
+    assert!(r.errors.is_empty(), "{r:?}");
+    assert!(b.read("pages/private/diary.md").contains(SECRET));
+}

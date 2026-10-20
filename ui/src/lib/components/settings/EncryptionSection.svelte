@@ -10,12 +10,15 @@
 
   const st = $derived(encryption.status)
   // `$state` fields are plain variables that the template follows; a form is one of these names or none
-  let form = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery'>('')
+  let form = $state<'' | 'setup' | 'unlock' | 'password' | 'recovery' | 'reset'>('')
   let pw = $state('')
   let pw2 = $state('')
   let old = $state('')
   let recoveryShown = $state<string | null>(null) // right after it was made: shown once
   let saved = $state(false)
+  // the password was forgotten and a new vault is being made (EN-22): its recovery key has to be confirmed
+  let resetting = $state(false)
+  let understood = $state(false)
 
   $effect(() => {
     void refreshEncryption()
@@ -24,6 +27,7 @@
   function close() {
     form = ''
     pw = pw2 = old = ''
+    understood = false
   }
   const passwordOk = () => pw.length >= 8 && pw === pw2
   async function run(work: () => Promise<void>) {
@@ -44,7 +48,16 @@
     run(async () => {
       encryption.status = await backend.call('encryption_confirm', {})
       recoveryShown = null
-      toast('Encryption is on for this graph')
+      toast(resetting ? 'The password was reset' : 'Encryption is on for this graph')
+      resetting = false
+    })
+  const reset = () =>
+    run(async () => {
+      recoveryShown = (await backend.call('encryption_setup', { password: pw, reset: true })).recovery_key
+      saved = false
+      resetting = true
+      close()
+      await refreshEncryption()
     })
   const unlock = () =>
     run(async () => {
@@ -151,7 +164,7 @@
         ><button type="button" class="plain" onclick={() => recoveryShown && copy(recoveryShown)}>Copy</button
         ></span
       >
-      {#if st.configured}
+      {#if st.configured && !resetting}
         <button
           type="button"
           onclick={() => {
@@ -164,7 +177,7 @@
           ><input type="checkbox" bind:checked={saved} data-testid="graph-enc-saved" /> I saved the recovery key</label
         >
         <button type="button" disabled={!saved} onclick={confirm} data-testid="graph-enc-confirm"
-          >Turn on encryption</button
+          >{resetting ? 'Replace the password' : 'Turn on encryption'}</button
         >
       {/if}
     </div>
@@ -243,11 +256,47 @@
         <button type="button" class="plain" onclick={close}>Cancel</button>
       </span>
     </form>
+  {:else if form === 'reset'}
+    <form
+      class="encform"
+      data-testid="graph-enc-reset-form"
+      onsubmit={(e) => {
+        e.preventDefault()
+        if (understood && passwordOk()) void reset()
+      }}
+    >
+      <p class="warn">
+        Use this only if the password and the recovery key are both lost. The old key is thrown away. Files
+        that are stored encrypted on the server and exist as plain files on this device are encrypted again
+        with the new key at the next sync; nothing on this device changes. What exists only on the server, or
+        only on another device, stays unreadable and is lost. Other devices get the new key file and need the
+        new password.
+      </p>
+      <label class="check"
+        ><input type="checkbox" bind:checked={understood} data-testid="graph-enc-reset-understood" /> I understand
+        that encrypted data that is not on this device is lost</label
+      >
+      <label
+        >New password (8 to 200 characters)
+        <input type="password" autocomplete="new-password" bind:value={pw} /></label
+      >
+      <label>New password again <input type="password" autocomplete="new-password" bind:value={pw2} /></label>
+      <span class="open">
+        <button type="submit" disabled={!understood || !passwordOk()}>Reset the password</button>
+        <button type="button" class="plain" onclick={close}>Cancel</button>
+      </span>
+    </form>
   {/if}
   {#if st.configured}
     <p class="more">
       <button type="button" class="plain" onclick={() => (form = 'password')}>Change password…</button>
       <button type="button" class="plain" onclick={() => (form = 'recovery')}>New recovery key…</button>
+      <button
+        type="button"
+        class="plain"
+        data-testid="graph-enc-forgot"
+        onclick={() => (form = form === 'reset' ? '' : 'reset')}>Forgot the password…</button
+      >
     </p>
     <SettingRow
       title="Keep the key in the system keyring"

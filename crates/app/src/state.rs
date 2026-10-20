@@ -3116,7 +3116,7 @@ impl AppState {
     /// only with `backup_encryption_confirm`, after the user said the key is saved.
     pub fn backup_encryption_setup(&self, a: BackupSetupArgs) -> ApiResult<RecoveryKeyResult> {
         Self::check_new_password(&a.password)?;
-        if vault_path(&self.dirs).exists() {
+        if vault_path(&self.dirs).exists() && a.reset != Some(true) {
             return Err(ApiError::new(
                 "invalid",
                 "backup encryption is already set up: change the password or make a new recovery key instead",

@@ -122,6 +122,15 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 **Verify**
 - [x] Browser test: not offered before the key is set up; the confirmation; after a sync the server holds `.enc` only, `.notatnik/vault.json` stays plain, local files untouched
 
+### E11 Forgotten password (EN-22)
+- [x] `encryption_setup` / `backup_encryption_setup` with `reset`: a new vault, valid only when confirmed; the keyring entry is removed
+- [x] The files stored encrypted are stored again from the plain files with the new key at the next sync
+- [x] *Forgot the password…* in both Settings sections, with the checkbox
+
+**Verify**
+- [x] Sync test, app tests for graph and backup, browser tests for both screens
+- [ ] On the real Nextcloud: reset, one sync, `notatnik verify` with the new password; a second device unlocks with the new password
+
 ### E7 Later (on hold)
 Hidden file names with a manifest; an encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
 
