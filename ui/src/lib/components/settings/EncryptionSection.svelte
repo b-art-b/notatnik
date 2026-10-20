@@ -1,8 +1,9 @@
 <script lang="ts">
   // Settings → Sync → Encryption (EN-13, EN-14, EN-18): which files are stored encrypted on the server, and the
   // key. Set up, unlock, lock, the keyring switch, the password and the recovery key. The marks themselves are
-  // made from a page (Encrypt…); here they are listed and can be removed.
-  import { backend } from '../../api'
+  // made from a page (Encrypt…) or, for the whole graph, with Encrypt everything…; here they are listed and can be
+  // removed.
+  import { backend, type EncryptionPreview } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
   import { encryption, refreshEncryption } from '../../stores/encryption.svelte'
   import SettingRow from './SettingRow.svelte'
@@ -81,6 +82,28 @@
     run(async () => {
       encryption.status = await backend.call('encryption_mark', { paths: [path], encrypted: false })
     })
+
+  // Every folder that holds content. `.notatnik/` is never encrypted (it holds the vault and the config).
+  const EVERYTHING = ['pages/', 'journals/', 'assets/', 'templates/']
+  // what is not yet covered by a rule: a path is covered when a rule is that path or a folder above it
+  const missing = $derived(
+    st
+      ? EVERYTHING.filter((f) => !st.paths.some((p) => p === f || (p.endsWith('/') && f.startsWith(p))))
+      : [],
+  )
+  let everything = $state(false) // the confirmation is open
+  let everythingPreview = $state<EncryptionPreview | null>(null)
+  const openEverything = () =>
+    run(async () => {
+      everythingPreview = await backend.call('encryption_preview', { paths: missing, encrypted: true })
+      everything = true
+    })
+  const encryptEverything = () =>
+    run(async () => {
+      encryption.status = await backend.call('encryption_mark', { paths: missing, encrypted: true })
+      everything = false
+      toast('Everything is stored encrypted on the server from the next sync')
+    })
   const copy = (text: string) => void navigator.clipboard?.writeText(text)
 </script>
 
@@ -89,8 +112,8 @@
   <p class="intro">
     Some files can be stored <strong>encrypted</strong> on the server while the rest stays as it is. On this
     device everything is plain Markdown, so you edit, search and link both kinds the same way. Choose what to
-    encrypt from a page (<em>Encrypt…</em> next to <em>History</em>). File names, folders and sizes stay
-    visible on the server; the text does not.
+    encrypt from a page (<em>Encrypt…</em> next to <em>History</em>), or everything at once below. File names,
+    folders and sizes stay visible on the server; the text does not.
   </p>
   <SettingRow
     title="Key"
@@ -255,6 +278,62 @@
         onchange={(e) => void allowCalendar((e.currentTarget as HTMLInputElement).checked)}
       />
     </SettingRow>
+  {/if}
+
+  {#if st.configured}
+    <SettingRow
+      title="Encrypt everything"
+      description="Stores all pages, journals, pictures and templates encrypted on the server, in one step. Only the settings in the .notatnik folder stay readable."
+    >
+      {#if missing.length}
+        <button
+          type="button"
+          data-testid="enc-all"
+          disabled={!st.unlocked}
+          title={st.unlocked ? '' : 'Unlock the key first'}
+          onclick={() => (everything ? (everything = false) : openEverything())}>Encrypt everything…</button
+        >
+      {:else}
+        <span class="state" data-testid="enc-all-done">Everything is encrypted</span>
+      {/if}
+    </SettingRow>
+    {#if everything && everythingPreview && missing.length}
+      <div class="encform" role="group" aria-label="Encrypt everything" data-testid="enc-all-form">
+        <p>
+          <strong>{everythingPreview.files}</strong> page{everythingPreview.files === 1 ? '' : 's'} and everything
+          else in <code>{missing.join(' ')}</code> will be stored encrypted on the server at the next sync. On this
+          device nothing changes.
+        </p>
+        {#if everythingPreview.synced_before}
+          <p class="warn" data-testid="enc-all-warn-synced">
+            The server already holds this text from earlier syncs. Its file versions and its trash bin keep
+            it, whatever is done now: delete them in Nextcloud if that matters.
+          </p>
+        {/if}
+        {#if everythingPreview.calendar_tasks && st.calendar === 'exclude'}
+          <p class="muted">
+            {everythingPreview.calendar_tasks} task{everythingPreview.calendar_tasks === 1 ? '' : 's'} with a date
+            will not be sent to the calendar.
+          </p>
+        {/if}
+        {#if st.backups_plain || !st.paths.length}
+          <p class="muted">
+            Backups are made from the plain files here: turn on encrypted backups (Settings → Backup) so that
+            they are not plain there.
+          </p>
+        {/if}
+        <p class="muted">
+          Other apps (the Nextcloud web viewer, its mobile apps) can no longer read the notes. Keep the
+          recovery key somewhere safe.
+        </p>
+        <span class="open">
+          <button type="button" onclick={encryptEverything} data-testid="enc-all-start"
+            >Encrypt everything</button
+          >
+          <button type="button" class="plain" onclick={() => (everything = false)}>Cancel</button>
+        </span>
+      </div>
+    {/if}
   {/if}
 
   {#if st.configured && !st.unlocked && st.left_alone > 0}

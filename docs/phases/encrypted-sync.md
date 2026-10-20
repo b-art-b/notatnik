@@ -116,6 +116,12 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] CLI test: output, exit codes, wrong password, the graph folder untouched
 - [ ] Run once against the real Nextcloud
 
+### E10 Encrypt everything (EN-21)
+- [x] *Encrypt everything…* in Settings → Sync → Encryption: confirmation with the page count and the warnings; marks `pages/`, `journals/`, `assets/`, `templates/`; the row shows "Everything is encrypted" afterwards
+
+**Verify**
+- [x] Browser test: not offered before the key is set up; the confirmation; after a sync the server holds `.enc` only, `.notatnik/vault.json` stays plain, local files untouched
+
 ### E7 Later (on hold)
 Hidden file names with a manifest; an encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
 

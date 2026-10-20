@@ -253,3 +253,55 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(recentItem('Open')).toBeVisible()
   await expect(recentItem('Open').getByTestId('recent-lock')).toHaveCount(0)
 })
+
+test('Encrypt everything marks every content folder in one step; the settings stay readable', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/')
+  const dir = await graphOnServer(backend, dav, 'Notes/all')
+  fs.mkdirSync(path.join(dir, 'journals'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'pages/A.md'), `- ${SECRET} a\n`)
+  fs.writeFileSync(path.join(dir, 'pages/B.md'), `- ${SECRET} b\n`)
+  fs.writeFileSync(path.join(dir, 'journals/2026_10_01.md'), `- ${SECRET} day\n`)
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/all/pages/A.md')).toContain(SECRET) // plain so far
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.reload()
+  await page.getByRole('tab', { name: /Sync/ }).click()
+
+  // not before the key exists and is unlocked
+  await expect(page.getByTestId('enc-all')).toHaveCount(0)
+  await page.getByTestId('graph-enc-setup').click()
+  await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
+  await page.getByLabel('Password again').fill('correct horse')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+
+  // the confirmation says how much, and warns that the server has the text from before
+  await page.getByTestId('enc-all').click()
+  await expect(page.getByTestId('enc-all-form')).toContainText('2 pages') // counted from the index: the journal was written after the graph opened
+  await expect(page.getByTestId('enc-all-warn-synced')).toBeVisible()
+  await page.getByTestId('enc-all-start').click()
+  await expect(page.getByTestId('enc-all-done')).toBeVisible()
+  await expect(page.getByTestId('enc-paths')).toContainText('pages/')
+  await expect(page.getByTestId('enc-paths')).toContainText('journals/')
+
+  // the next sync stores every page encrypted, the settings stay plain
+  await backend.call('sync_now', { allow_mass_delete: false })
+  for (const f of ['pages/A.md', 'pages/B.md', 'journals/2026_10_01.md']) {
+    expect(await dav.file(`Notes/all/${f}`)).toBeNull()
+    const sealed = await dav.file(`Notes/all/${f}.enc`)
+    expect(sealed).not.toBeNull()
+    expect(sealed).not.toContain(SECRET)
+  }
+  expect(await dav.file('Notes/all/.notatnik/vault.json')).not.toBeNull()
+  expect(fs.readFileSync(path.join(dir, 'pages/A.md'), 'utf8')).toContain(SECRET)
+
+  // locked: the button is there only while the key is open
+  await page.getByTestId('graph-enc-lock').click()
+  await expect(page.getByTestId('enc-all-done')).toBeVisible()
+})
