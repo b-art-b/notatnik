@@ -8,3 +8,6 @@ node_modules/
 /crates/core-wasm/pkg*/
 /ui/test-results/
 /ui/playwright-report/
+
+# local test Nextcloud of the developer; holds a database password
+/docker-compose.yml
