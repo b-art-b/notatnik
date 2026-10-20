@@ -66,10 +66,10 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
 }) => {
   backend.write(
     'templates/snippets/Call.md',
-    '- Call {{date}} follow up {{date+7d}}\n  - With: {{cursor}} and team\n  - Notes\n',
+    '- Call {{date}} follow up {{date+7d}} ({{type}}/{{prop.partner}})\n  - With: {{cursor}} and team\n  - Notes\n',
   )
   backend.write('templates/snippets/Plain.md', '- Plain item\n  - child\n')
-  backend.write('pages/Calls.md', '- first\n- \n')
+  backend.write('pages/Calls.md', '---\ntype: client\npartner: ACME\n---\n\n- first\n- \n')
   await backend.open('/page/Calls')
   const blocks = page.getByRole('tree', { name: 'Blocks' })
   const start = async (text: string, which: number) => {
@@ -92,7 +92,7 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
   await expect
     .poll(readOr(backend.read, 'pages/Calls.md'))
     .toMatch(
-      /- first\n- Call \d{4}-\d\d-\d\d follow up \d{4}-\d\d-\d\d\n {2}- With: Ann and team\n {2}- Notes\n- \n/,
+      /- first\n- Call \d{4}-\d\d-\d\d follow up \d{4}-\d\d-\d\d \(client\/ACME\)\n {2}- With: Ann and team\n {2}- Notes\n- \n/,
     )
   // no marker: the first inserted block, at its end
   await start('Notes', 1)

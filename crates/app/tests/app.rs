@@ -695,6 +695,53 @@ fn page_variable_in_a_query_means_the_page_it_sits_on() {
     assert!(!none["errors"].as_array().unwrap().is_empty());
 }
 
+/// `{{type}}` and `{{prop.<key>}}` in a query are the values of the page the query sits on; the date ones are
+/// relative to today.
+#[test]
+fn page_properties_and_relative_dates_in_a_query() {
+    let t = start("queries");
+    let named = t.ok(
+        "run_query",
+        json!({"text": "type: page\nprop.type: project", "view": null}),
+    );
+    assert!(!named["rows"].as_array().unwrap().is_empty());
+    for text in [
+        "type: page\nprop.type: {{type}}",
+        "type: page\nprop.type: {{prop.type}}",
+        "type: page\nprop.type: {{ Prop.TYPE }}",
+    ] {
+        let here = t.ok(
+            "run_query",
+            json!({"text": text, "view": null, "page": "work/projects/alpha"}),
+        );
+        assert_eq!(here["errors"], json!([]), "{text}");
+        assert_eq!(here["rows"], named["rows"], "{text}");
+    }
+    // a property the page lacks is an empty value, which the query reports; without a page it is an error
+    let lacking = t.ok(
+        "run_query",
+        json!({"text": "type: page\nprop.type: {{prop.nope}}", "view": null, "page": "work/projects/alpha"}),
+    );
+    assert_eq!(lacking["errors"][0]["line"], 2);
+    assert!(
+        lacking["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("empty value")
+    );
+    let none = t.ok(
+        "run_query",
+        json!({"text": "task: todo\nprop.type: {{prop.type}}", "view": null}),
+    );
+    assert_eq!(none["errors"][0]["line"], 2);
+    // relative dates: today is 2026-10-03
+    let rel = t.ok(
+        "run_query",
+        json!({"text": "task: todo\ndeadline: {{date+7d}}", "view": null}),
+    );
+    assert_eq!(rel["errors"], json!([]));
+}
+
 #[test]
 fn run_query_views_errors_and_saved_queries() {
     let t = start("queries");

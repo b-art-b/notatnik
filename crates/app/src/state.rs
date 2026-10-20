@@ -863,12 +863,28 @@ impl AppState {
         } else {
             today.format("%Y-%m-%d").to_string()
         };
+        // the page's own properties, with the ones this very edit sets (the `type` that picked the template)
+        let mut page_props = if exists {
+            o.graph
+                .read_page(rel)
+                .map(|p| templates::page_props(&p.text))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        for op in pending {
+            if let BlockOp::SetPageProperty { key, value } = op {
+                page_props.retain(|(k, _)| *k != key.to_lowercase());
+                page_props.push((key.to_lowercase(), value.clone()));
+            }
+        }
         let t = templates::parse_template(
             &text,
             &templates::Vars {
                 title: page.as_str(),
                 date: &date,
                 time: &templates::now_time(),
+                props: &page_props,
             },
         );
         let mut have: Vec<String> = pending
@@ -970,6 +986,7 @@ impl AppState {
                 title: "",
                 date: "",
                 time: "",
+                props: &[],
             },
         );
         TemplateEntry {
@@ -1047,17 +1064,26 @@ impl AppState {
                 ApiError::new("not_found", format!("there is no template `{}`", a.name))
             })?;
             let date = self.today().format("%Y-%m-%d").to_string();
+            // the page properties the template has and the page lacks
+            let rel = Self::page_rel(o, page.as_str())?;
+            let exists = o.graph.read_page(&rel).is_ok();
+            let page_props = if exists {
+                o.graph
+                    .read_page(&rel)
+                    .map(|p| templates::page_props(&p.text))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
             let t = templates::parse_template(
                 &text,
                 &templates::Vars {
                     title: page.as_str(),
                     date: &date,
                     time: &templates::now_time(),
+                    props: &page_props,
                 },
             );
-            // the page properties the template has and the page lacks
-            let rel = Self::page_rel(o, page.as_str())?;
-            let exists = o.graph.read_page(&rel).is_ok();
             // a snippet has no page properties
             let props = if a.name.starts_with("snippets/") {
                 Vec::new()
@@ -2398,7 +2424,20 @@ impl AppState {
     /// `run_query`
     pub fn run_query(&self, a: RunQueryArgs) -> ApiResult<QueryView> {
         let today = self.today().format("%Y-%m-%d").to_string();
-        let text = match templates::expand_query(&a.text, a.page.as_deref(), &today) {
+        // `{{type}}` and `{{prop.<key>}}` need the page's properties (read only when the query uses them)
+        let props = match a.page.as_deref() {
+            Some(p) if a.text.contains("{{") => self
+                .with_open(|o| {
+                    let rel = Self::page_rel(o, p)?;
+                    Ok(o.graph
+                        .read_page(&rel)
+                        .map(|f| templates::page_props(&f.text))
+                        .unwrap_or_default())
+                })
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let text = match templates::expand_query(&a.text, a.page.as_deref(), &today, &props) {
             Ok(t) => t,
             Err((line, column, message)) => {
                 return Ok(QueryView {

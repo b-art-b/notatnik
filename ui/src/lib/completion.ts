@@ -152,6 +152,8 @@ export const QUERY_VARS: { label: string; info: string }[] = [
   { label: '{{title}}', info: 'last part of its name' },
   { label: '{{namespace}}', info: 'the part before it' },
   { label: '{{date}}', info: 'today' },
+  { label: '{{type}}', info: 'the type of this page' },
+  { label: '{{prop.}}', info: 'a property of this page: {{prop.partner}}' },
   { label: '{{yesterday}}', info: 'the day before today' },
   { label: '{{tomorrow}}', info: 'the day after today' },
   { label: '{{date+7d}}', info: 'today plus 7 days (also -2w, +1m, +1y)' },

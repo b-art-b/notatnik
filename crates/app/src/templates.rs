@@ -18,11 +18,67 @@ pub struct Template {
 }
 
 /// The values the `{{...}}` variables stand for.
+#[derive(Clone, Copy)]
 pub struct Vars<'a> {
     pub title: &'a str,
     pub date: &'a str,
     /// The time of day, `HH:MM` (`{{time}}`); empty where there is none.
     pub time: &'a str,
+    /// The page's own properties, `(lower-case key, text)`: `{{prop.<key>}}` and `{{type}}`. Empty for a page that
+    /// does not exist yet.
+    pub props: &'a [(String, String)],
+}
+
+/// A property value as text for a placeholder: links as `[[Name]]`, lists joined with `, `.
+pub fn prop_text(v: &notatnik_core::PropertyValue) -> String {
+    use notatnik_core::PropertyValue as P;
+    match v {
+        P::Text(s) => s.clone(),
+        P::Number(n) if n.fract() == 0.0 && n.abs() < 1e15 => format!("{n:.0}"),
+        P::Number(n) => n.to_string(),
+        P::Bool(b) => b.to_string(),
+        P::Date(d) => d.format("%Y-%m-%d").to_string(),
+        P::DateTime(d) => d.format("%Y-%m-%d %H:%M").to_string(),
+        P::Links(l) => l
+            .iter()
+            .map(|n| format!("[[{n}]]"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        P::List(items) => items.iter().map(prop_text).collect::<Vec<_>>().join(", "),
+    }
+}
+
+/// The properties of a page file (frontmatter, valid or not: an invalid one has none), for [`Vars::props`].
+pub fn page_props(text: &str) -> Vec<(String, String)> {
+    parse_page(text)
+        .frontmatter
+        .filter(|f| f.valid)
+        .map(|f| {
+            f.entries
+                .iter()
+                .map(|e| (e.key.to_lowercase(), prop_text(&e.value)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `{{type}}` and `{{prop.<key>}}`: the value in `props`, empty when the page has none. Other names are not ours.
+pub fn expand_props(text: &str, props: &[(String, String)]) -> String {
+    notatnik_core::placeholders::expand_with(text, |name| {
+        let name = name.trim().to_lowercase();
+        let key = if name == "type" {
+            "type"
+        } else {
+            name.strip_prefix("prop.")?.trim()
+        };
+        Some(
+            props
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_default(),
+        )
+    })
 }
 
 /// The local time of day as `HH:MM`, for `{{time}}`.
@@ -49,7 +105,7 @@ fn fill(text: &str, v: &Vars) -> String {
         .replace("{{title}}", leaf)
         .replace("{{namespace}}", namespace)
         .replace("{{cursor}}", "");
-    dates(&filled, v.date, v.time)
+    dates(&expand_props(&filled, v.props), v.date, v.time)
 }
 
 fn collect(
@@ -77,6 +133,26 @@ fn collect(
 /// Reads a template file. Properties with multi-line values are skipped (a property is set as one line).
 pub fn parse_template(text: &str, v: &Vars) -> Template {
     let page = parse_page(text);
+    // `{{type}}` is the page's type; a page that has none yet gets the template's own
+    let own_type = page
+        .frontmatter
+        .as_ref()
+        .filter(|f| f.valid)
+        .and_then(|f| {
+            f.entries
+                .iter()
+                .find(|e| e.key.eq_ignore_ascii_case("type"))
+        })
+        .map(|e| prop_text(&e.value))
+        .filter(|t| !t.is_empty());
+    let mut with_type = v.props.to_vec();
+    if let Some(t) = own_type.filter(|_| !with_type.iter().any(|(k, _)| k == "type")) {
+        with_type.push(("type".into(), t));
+    }
+    let v = &Vars {
+        props: &with_type,
+        ..*v
+    };
     let props = page
         .frontmatter
         .as_ref()
@@ -224,9 +300,20 @@ pub type QueryVarError = (usize, usize, String);
 /// inside brackets, `[[{{page}}]]`), `{{title}}` its last name segment, `{{namespace}}` the part before it and
 /// `{{date}}` today. The empty link `[[]]` still means the page. Without a page (agenda, saved queries) the first
 /// three are an error, so a query never silently matches nothing.
-pub fn expand_query(text: &str, page: Option<&str>, today: &str) -> Result<String, QueryVarError> {
+pub fn expand_query(
+    text: &str,
+    page: Option<&str>,
+    today: &str,
+    props: &[(String, String)],
+) -> Result<String, QueryVarError> {
     let Some(p) = page else {
-        for var in ["{{page}}", "{{title}}", "{{namespace}}"] {
+        for var in [
+            "{{page}}",
+            "{{title}}",
+            "{{namespace}}",
+            "{{type}}",
+            "{{prop.",
+        ] {
             if let Some(at) = text.find(var) {
                 let before = &text[..at];
                 let line = before.matches('\n').count() + 1;
@@ -234,7 +321,14 @@ pub fn expand_query(text: &str, page: Option<&str>, today: &str) -> Result<Strin
                 return Err((
                     line,
                     col,
-                    format!("`{var}` needs a page: use it in a query block on a page"),
+                    format!(
+                        "`{}` needs a page: use it in a query block on a page",
+                        if var == "{{prop." {
+                            "{{prop.<key>}}"
+                        } else {
+                            var
+                        }
+                    ),
                 ));
             }
         }
@@ -249,7 +343,7 @@ pub fn expand_query(text: &str, page: Option<&str>, today: &str) -> Result<Strin
         .replace("[[]]", &link)
         .replace("{{title}}", leaf)
         .replace("{{namespace}}", ns);
-    Ok(dates(&filled, today, ""))
+    Ok(dates(&expand_props(&filled, props), today, ""))
 }
 
 #[cfg(test)]
@@ -260,6 +354,7 @@ mod tests {
         title: "people/Jan",
         date: "2026-10-11",
         time: "09:05",
+        props: &[],
     };
 
     #[test]
@@ -276,7 +371,8 @@ mod tests {
                 expand_query(
                     "deadline: {{tomorrow}}\nscheduled: {{date-1w}}",
                     page,
-                    "2026-10-11"
+                    "2026-10-11",
+                    &[]
                 )
                 .unwrap(),
                 "deadline: 2026-10-12\nscheduled: 2026-10-04"
@@ -284,9 +380,52 @@ mod tests {
         }
         // no time of day in a query
         assert_eq!(
-            expand_query("x: {{time}}", None, "2026-10-11").unwrap(),
+            expand_query("x: {{time}}", None, "2026-10-11", &[]).unwrap(),
             "x: {{time}}"
         );
+    }
+
+    #[test]
+    fn type_and_page_properties_fill_in() {
+        let props = page_props(
+            "---\ntype: person\npartner: \"[[part. EY]]\"\nn: 3\ntags: [a, b]\n---\n- x\n",
+        );
+        let get = |k: &str| {
+            props
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.clone())
+        };
+        assert_eq!(get("type").as_deref(), Some("person"));
+        assert_eq!(get("n").as_deref(), Some("3"));
+        assert_eq!(
+            expand_props(
+                "{{type}}|{{ prop.Partner }}|{{prop.n}}|{{prop.zz}}|{{title}}",
+                &props
+            ),
+            "person|[[part. EY]]|3||{{title}}"
+        );
+        // in a template: the page's value wins, the template's own type is the fallback
+        let tpl = "---\ntype: meeting\n---\n- {{type}} with {{prop.partner}}\n";
+        let page = |props: &[(String, String)]| {
+            parse_template(tpl, &Vars { props, ..V }).blocks[0]
+                .2
+                .clone()
+        };
+        assert_eq!(page(&props), "person with [[part. EY]]");
+        assert_eq!(page(&[]), "meeting with ");
+        // a query
+        assert_eq!(
+            expand_query(
+                "prop.partner: {{prop.partner}}",
+                Some("a"),
+                "2026-10-11",
+                &props
+            )
+            .unwrap(),
+            "prop.partner: [[part. EY]]"
+        );
+        assert!(expand_query("x: {{type}}", None, "2026-10-11", &[]).is_err());
     }
 
     #[test]
@@ -381,18 +520,24 @@ mod tests {
     fn query_variables() {
         let q = "type: page\nprop.partner: {{page}}\nns: {{namespace}}\ntag: [[{{page}}]]\nprop.x: [[]]\n";
         assert_eq!(
-            expand_query(q, Some("part/Acme"), "2026-10-11").unwrap(),
+            expand_query(q, Some("part/Acme"), "2026-10-11", &[]).unwrap(),
             "type: page\nprop.partner: [[part/Acme]]\nns: part\ntag: [[part/Acme]]\nprop.x: [[part/Acme]]\n"
         );
         assert_eq!(
-            expand_query("prop.n: {{title}}", Some("a/b/Jan"), "").unwrap(),
+            expand_query("prop.n: {{title}}", Some("a/b/Jan"), "", &[]).unwrap(),
             "prop.n: Jan"
         );
         // without a page: an error with the position; `{{date}}` still works
-        let e = expand_query("task: todo\nprop.partner: {{page}}", None, "2026-10-11").unwrap_err();
+        let e = expand_query(
+            "task: todo\nprop.partner: {{page}}",
+            None,
+            "2026-10-11",
+            &[],
+        )
+        .unwrap_err();
         assert_eq!((e.0, e.1), (2, 15));
         assert_eq!(
-            expand_query("deadline: {{date}}", None, "2026-10-11").unwrap(),
+            expand_query("deadline: {{date}}", None, "2026-10-11", &[]).unwrap(),
             "deadline: 2026-10-11"
         );
     }

@@ -104,6 +104,12 @@ pub fn date_var(name: &str, day: NaiveDate, time: Option<&str>) -> Option<String
 
 /// Replaces every `{{name}}` that [`date_var`] knows; everything else stays.
 pub fn expand_dates(text: &str, day: NaiveDate, time: Option<&str>) -> String {
+    expand_with(text, |name| date_var(name, day, time))
+}
+
+/// Replaces every `{{name}}` for which `known` gives a value (the name as written between the braces); everything
+/// else, an unterminated `{{` included, stays as it is.
+pub fn expand_with(text: &str, mut known: impl FnMut(&str) -> Option<String>) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("{{") {
@@ -111,7 +117,7 @@ pub fn expand_dates(text: &str, day: NaiveDate, time: Option<&str>) -> String {
         let after = &rest[start + 2..];
         match after.find("}}") {
             Some(end) => {
-                match date_var(&after[..end], day, time) {
+                match known(&after[..end]) {
                     Some(v) => out.push_str(&v),
                     None => out.push_str(&rest[start..start + 2 + end + 2]),
                 }

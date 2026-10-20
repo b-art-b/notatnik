@@ -984,6 +984,15 @@
                 >
               </tr>
               <tr>
+                <td><code>{'{{type}}'}</code>, <code>{'{{prop.partner}}'}</code></td><td
+                  >templates, queries</td
+                ><td
+                  >the page's <code>type</code> or another property of it. A link comes as
+                  <code>[[Name]]</code>, a list joined with commas; empty when the page lacks it. In a
+                  template for a page without a type, <code>{'{{type}}'}</code> is the template's own</td
+                >
+              </tr>
+              <tr>
                 <td><code>{'{{date+7d}}'}</code></td><td>templates, queries</td><td
                   >today plus or minus days (<code>d</code>), weeks (<code>w</code>), months (<code>m</code>)
                   or years (<code>y</code>): <code>{'{{date-1w}}'}</code>, <code>{'{{date+1m}}'}</code></td
