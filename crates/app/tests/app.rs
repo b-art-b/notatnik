@@ -6320,3 +6320,105 @@ fn names_can_be_switched_and_the_graph_re_encrypted_with_a_new_key() {
             .is_err()
     );
 }
+
+/// EN-27: a vault set up for "everything" encrypts all files except the exceptions; marking then edits the
+/// exceptions; switching the scope moves the files both ways; the lists are kept.
+#[test]
+fn everything_can_be_encrypted_with_exceptions_and_switched_back() {
+    let dav = notatnik_sync::fakedav::FakeDav::start();
+    let t = start("basic");
+    let info = t.ok(
+        "create_remote_graph",
+        json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": false}),
+    );
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    std::fs::create_dir_all(root.join("pages/private")).unwrap();
+    std::fs::create_dir_all(root.join("pages/public")).unwrap();
+    std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
+    std::fs::write(root.join("pages/public/menu.md"), "- open text\n").unwrap();
+    std::fs::write(root.join("notes.md"), format!("- {SECRET} top\n")).unwrap();
+
+    t.ok(
+        "encryption_setup",
+        json!({"password": "correct horse", "scope": "all"}),
+    );
+    // nothing changes before the recovery key is confirmed
+    let st = t.ok("encryption_status", json!({}));
+    assert_eq!(st["scope"], "marked", "{st}");
+    let st = t.ok("encryption_confirm", json!({}));
+    assert_eq!(
+        (st["scope"].clone(), st["names"].clone()),
+        (json!("all"), json!("hidden")),
+        "{st}"
+    );
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/public/"], "encrypted": false}),
+    );
+    assert_eq!(st["except"], json!(["pages/public/"]), "{st}");
+    assert_eq!(st["paths"], json!([]));
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    let all = dav.files("Notes/graph");
+    assert!(!server_has_text(&dav, SECRET));
+    assert!(
+        all.iter().any(|n| n.ends_with("pages/public/menu.md")),
+        "{all:?}"
+    );
+    assert!(!all.iter().any(|n| n.ends_with("notes.md")), "{all:?}");
+    assert!(objects(&dav).len() >= 2);
+
+    // a page inside an exception cannot be taken out of it on its own; the exception itself can
+    let err = t
+        .call(
+            "encryption_mark",
+            json!({"paths": ["pages/public/menu.md"], "encrypted": true}),
+        )
+        .unwrap_err();
+    assert!(err.message.contains("stays plain because"), "{err:?}");
+    let st = t.ok(
+        "encryption_mark",
+        json!({"paths": ["pages/public/"], "encrypted": true}),
+    );
+    assert_eq!(st["except"], json!([]));
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(
+        !dav.files("Notes/graph")
+            .iter()
+            .any(|n| n.ends_with("menu.md"))
+    );
+
+    // what switching back means, then switching: only `paths` (empty) is encrypted, everything is plain again
+    // the index learns the files by a reopen (which locks the key again)
+    reopen(&t, &root);
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    let before = t.ok("encryption_scope_preview", json!({"all": false}));
+    assert!(before["files"].as_u64().unwrap() >= 1, "{before}");
+    t.ok("encryption_lock", json!({}));
+    assert_eq!(
+        t.call("encryption_scope", json!({"all": false}))
+            .unwrap_err()
+            .code,
+        "locked"
+    );
+    t.ok("encryption_unlock", json!({"secret": "correct horse"}));
+    let st = t.ok("encryption_scope", json!({"all": false}));
+    assert_eq!(st["scope"], "marked");
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(objects_free(&dav));
+    let st = t.ok("encryption_scope", json!({"all": true}));
+    assert_eq!(st["scope"], "all");
+    t.ok("sync_now", json!({"allow_mass_delete": false}));
+    assert!(!objects(&dav).is_empty());
+    assert!(!server_has_text(&dav, SECRET));
+    assert_eq!(
+        std::fs::read_to_string(root.join("notes.md")).unwrap(),
+        format!("- {SECRET} top\n")
+    );
+}
+
+/// No hidden object is left on the server.
+fn objects_free(dav: &notatnik_sync::fakedav::FakeDav) -> bool {
+    !dav.files("Notes/graph")
+        .iter()
+        .any(|n| n.contains("/.notatnik-enc/"))
+}

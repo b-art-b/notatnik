@@ -20,9 +20,13 @@
   let busy = $state(false)
   let error = $state('')
 
-  const covering = $derived(st ? coveringPaths(st.paths, path) : [])
-  // the rules of this page that can be removed here; a folder above it can only be removed in Settings
-  const own = $derived(st ? st.paths.filter((p) => paths.includes(p)) : [])
+  // With the scope `all` everything is encrypted and the list holds the exceptions: "covering" is then what keeps
+  // the page plain
+  const all = $derived(st?.scope === 'all')
+  const covering = $derived(st ? coveringPaths(st, path) : [])
+  // the entries of the list that are this page's own and can be removed here; a folder above it can only be
+  // removed in Settings
+  const own = $derived(st ? (all ? st.except : st.paths).filter((p) => paths.includes(p)) : [])
   const outer = $derived(covering.filter((p) => !paths.includes(p)))
 
   $effect(() => {
@@ -38,7 +42,7 @@
   })
   $effect(() => {
     const p = paths
-    if (!p.length || covering.length) {
+    if (!p.length || covering.length || all) {
       preview = null
       return
     }
@@ -52,14 +56,15 @@
     busy = true
     error = ''
     try {
+      // the list gets this page's paths added (marked: to encrypt; everything: to keep plain) or its own removed
       encryption.status = await backend.call('encryption_mark', {
-        paths: encrypted ? paths : own,
+        paths: encrypted !== all ? paths : own,
         encrypted,
       })
       toast(
         encrypted
           ? 'The page is stored encrypted on the server'
-          : 'The page is stored as plain text on the server again',
+          : 'The page is stored as plain text on the server',
       )
       onclose()
     } catch (e) {
@@ -81,9 +86,24 @@
     </p>
   {:else if outer.length && !own.length}
     <p data-testid="encrypt-covered">
-      This page is stored encrypted because of <code>{outer.join(', ')}</code>. Change that in Settings →
-      Sync.
+      This page is stored {all ? 'as plain text' : 'encrypted'} because of <code>{outer.join(', ')}</code>.
+      Change that in Settings → Sync.
     </p>
+  {:else if all && own.length}
+    <p data-testid="encrypt-plain">
+      This page is stored as <strong>plain text</strong> on the server{outer.length
+        ? ` (also because of ${outer.join(', ')})`
+        : ''}.
+    </p>
+    {#if !st.unlocked}
+      <p class="warn">Unlock the key in Settings → Sync first.</p>
+    {/if}
+    <button
+      type="button"
+      disabled={busy || !st.unlocked}
+      onclick={() => mark(true)}
+      data-testid="encrypt-again">Encrypt again</button
+    >
   {:else if own.length}
     <p data-testid="encrypt-already">
       This page is stored <strong>encrypted</strong> on the server{outer.length
@@ -105,6 +125,22 @@
         >Unlock it in Settings → Sync</a
       >, then come back.
     </p>
+  {:else if all}
+    <p data-testid="encrypt-all-note">
+      <strong>{page}</strong> is stored encrypted on the server, like everything else. Keep it plain only if something
+      else has to read it there.
+    </p>
+    {#if hasSubpages}
+      <label class="check"
+        ><input type="checkbox" bind:checked={below} data-testid="encrypt-below" /> Also the pages below it</label
+      >
+    {/if}
+    <button
+      type="button"
+      disabled={busy || !paths.length}
+      onclick={() => mark(false)}
+      data-testid="encrypt-keep-plain">Keep plain on the server</button
+    >
   {:else}
     <p>Store <strong>{page}</strong> encrypted on the server. On this device it stays a plain page.</p>
     {#if !st.has_server}

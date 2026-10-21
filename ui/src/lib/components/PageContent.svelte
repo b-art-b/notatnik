@@ -167,7 +167,7 @@
   let encrypting = $state(false)
   // the page is stored encrypted on the server: one of the marked paths covers its file (EN-12)
   const encrypted = $derived(
-    !!encryption.status && !!view?.path && pathIsEncrypted(encryption.status.paths, view.path),
+    !!encryption.status && !!view?.path && pathIsEncrypted(encryption.status, view.path),
   )
   $effect(() => {
     // read once per page view; the dialog and Settings keep the store fresh after a change
@@ -552,7 +552,7 @@
         page={view.name}
         lock={!!encryption.status &&
           !!view.path &&
-          pathIsEncrypted(encryption.status.paths, view.path.replace(/\.md$/, '') + '/x.md')}
+          pathIsEncrypted(encryption.status, view.path.replace(/\.md$/, '') + '/x.md')}
       />
       {#if !onSide('tasks')}<PageTasks page={view.name} />{/if}
       {#if !onSide('refs')}<Backlinks page={view.name} />{/if}

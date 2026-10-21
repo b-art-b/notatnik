@@ -1842,9 +1842,7 @@ impl AppState {
                 warnings: {
                     let mut w = p.warnings;
                     // a page that moves into or out of an encrypted path is stored in the other form (EN-17)
-                    let rules = notatnik_core::encrypted::EncryptedPaths::new(
-                        &o.graph.config().encryption.paths,
-                    );
+                    let rules = o.graph.config().encryption.rules();
                     for (from, to) in &plan_moves {
                         match (rules.is_encrypted(from), rules.is_encrypted(to)) {
                             (false, true) => w.push(format!(

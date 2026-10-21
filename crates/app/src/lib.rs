@@ -114,6 +114,8 @@ commands! {
     encryption_keyring(EncryptionKeyringArgs) -> EncryptionStatus => encryption_keyring,
     encryption_calendar(EncryptionCalendarArgs) -> EncryptionStatus => encryption_calendar,
     encryption_names(EncryptionNamesArgs) -> EncryptionStatus => encryption_names,
+    encryption_scope(EncryptionScopeArgs) -> EncryptionStatus => encryption_scope,
+    encryption_scope_preview(EncryptionScopeArgs) -> EncryptionPreview => encryption_scope_preview,
     encryption_rotate(EncryptionRotateArgs) -> RecoveryKeyResult => encryption_rotate,
     encryption_page_paths(EncryptionPagePathsArgs) -> StringList => encryption_page_paths,
     encryption_preview(EncryptionPathsArgs) -> EncryptionPreview => encryption_preview,

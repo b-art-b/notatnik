@@ -2110,7 +2110,7 @@ fn collect_todos(o: &Open, graph_id: &str, undated: &str) -> ApiResult<Collected
     // reach the calendar server in plain
     let enc = o.graph.config().encryption;
     let hidden = (enc.calendar == "exclude")
-        .then(|| notatnik_core::encrypted::EncryptedPaths::new(&enc.paths))
+        .then(|| enc.rules())
         .filter(|r| !r.is_empty());
     for (page, rel) in &files {
         if hidden.as_ref().is_some_and(|r| r.is_encrypted(rel)) {

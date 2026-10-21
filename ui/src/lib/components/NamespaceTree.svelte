@@ -42,7 +42,7 @@
   }: { parent?: string | null; actions?: boolean; lock?: boolean; only?: Set<string> | null } = $props()
   let deleting = $state('') // the page whose Delete… confirmation is open
   const locked = (e: NamespaceEntry) =>
-    (actions || lock) && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status.paths, e.path)
+    (actions || lock) && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status, e.path)
   $effect(() => {
     if (actions || lock) void refreshEncryption()
   })

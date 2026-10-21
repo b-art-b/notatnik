@@ -241,6 +241,12 @@ impl Default for CalendarSection {
 /// `[encryption]` (EN-11, EN-17)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncryptionSection {
+    /// `marked` (default): only `paths` are stored encrypted; `all`: everything is, except `except` (EN-27).
+    #[serde(default = "default_encryption_scope")]
+    pub scope: String,
+    /// With `scope = "all"`: the paths that stay plain. Same entries as `paths`. Not used with `marked`, but kept.
+    #[serde(default)]
+    pub except: Vec<String>,
     /// Paths relative to the graph folder that are stored encrypted on the server: a path ending in `/` is a folder
     /// with everything below it, any other path is one file.
     #[serde(default)]
@@ -254,6 +260,10 @@ pub struct EncryptionSection {
     pub names: String,
 }
 
+fn default_encryption_scope() -> String {
+    "marked".into()
+}
+
 fn default_encryption_names() -> String {
     "visible".into()
 }
@@ -265,6 +275,8 @@ fn default_encryption_calendar() -> String {
 impl Default for EncryptionSection {
     fn default() -> Self {
         EncryptionSection {
+            scope: default_encryption_scope(),
+            except: Vec::new(),
             paths: Vec::new(),
             calendar: default_encryption_calendar(),
             names: default_encryption_names(),
@@ -273,13 +285,26 @@ impl Default for EncryptionSection {
 }
 
 impl EncryptionSection {
+    /// Which files are stored encrypted on the server (EN-11, EN-27).
+    pub fn rules(&self) -> notatnik_core::encrypted::EncryptedPaths {
+        use notatnik_core::encrypted::EncryptedPaths;
+        if self.scope == "all" {
+            EncryptedPaths::everything_except(&self.except)
+        } else {
+            EncryptedPaths::new(&self.paths)
+        }
+    }
+
     fn is_default(&self) -> bool {
         *self == EncryptionSection::default()
     }
 }
 
 const KNOWN: &[(&str, &[&str])] = &[
-    ("encryption", &["paths", "calendar", "names"]),
+    (
+        "encryption",
+        &["scope", "except", "paths", "calendar", "names"],
+    ),
     ("graph", &["id", "journal_template", "week_start"]),
     ("properties", &["hidden", "types"]),
     ("tasks", &["completed_log_limit", "priorities"]),
@@ -350,9 +375,20 @@ impl Config {
                 cfg.encryption.names
             ));
         }
-        for p in &cfg.encryption.paths {
-            if let Err(why) = notatnik_core::encrypted::check_path(p) {
-                warnings.push(format!("`encryption.paths`: `{p}` {why}; it is ignored"));
+        if !matches!(cfg.encryption.scope.as_str(), "marked" | "all") {
+            warnings.push(format!(
+                "`encryption.scope` must be marked or all, found `{}`",
+                cfg.encryption.scope
+            ));
+        }
+        for (key, list) in [
+            ("paths", &cfg.encryption.paths),
+            ("except", &cfg.encryption.except),
+        ] {
+            for p in list {
+                if let Err(why) = notatnik_core::encrypted::check_path(p) {
+                    warnings.push(format!("`encryption.{key}`: `{p}` {why}; it is ignored"));
+                }
             }
         }
         if !matches!(cfg.graph.week_start.as_str(), "monday" | "sunday") {
@@ -832,6 +868,36 @@ mod priority_tests {
 #[cfg(test)]
 mod encryption_tests {
     use super::*;
+
+    #[test]
+    fn the_scope_chooses_which_list_decides() {
+        let text = "[encryption]\nscope = \"all\"\nexcept = [\"pages/public/\"]\npaths = [\"pages/private/\"]\n";
+        let (c, w) = Config::parse(text).unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(
+            (c.encryption.scope.as_str(), c.encryption.except.len()),
+            ("all", 1)
+        );
+        let r = c.encryption.rules();
+        assert!(r.is_encrypted("pages/private/a.md") && r.is_encrypted("pages/a.md"));
+        assert!(!r.is_encrypted("pages/public/a.md"));
+        assert_eq!(Config::parse(&c.to_toml()).unwrap().0, c);
+        // `marked` (the default) ignores `except` and keeps `paths`
+        let (c, _) =
+            Config::parse("[encryption]\nexcept = [\"x/\"]\npaths = [\"pages/private/\"]\n")
+                .unwrap();
+        assert_eq!(c.encryption.scope, "marked");
+        assert!(!c.encryption.rules().is_encrypted("pages/a.md"));
+        assert!(c.encryption.rules().is_encrypted("pages/private/a.md"));
+        let (_, w) =
+            Config::parse("[encryption]\nscope = \"some\"\nexcept = [\"../x\", \"ok/\"]\n")
+                .unwrap();
+        assert_eq!(w.len(), 2, "{w:?}");
+        assert!(
+            w.iter().any(|m| m.contains("encryption.scope"))
+                && w.iter().any(|m| m.contains("encryption.except"))
+        );
+    }
 
     #[test]
     fn the_section_is_read_written_and_checked() {

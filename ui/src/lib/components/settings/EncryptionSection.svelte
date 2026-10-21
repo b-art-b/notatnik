@@ -21,6 +21,8 @@
   // the vault is being replaced on purpose, with the old key unlocked (EN-26), not because the password was lost
   let rotating = $state(false)
   let understood = $state(false)
+  // what a new vault encrypts: everything except a list (recommended), or only what is marked (EN-27)
+  let scopeChoice = $state<'all' | 'marked'>('all')
 
   $effect(() => {
     void refreshEncryption()
@@ -41,7 +43,8 @@
   }
   const setup = () =>
     run(async () => {
-      recoveryShown = (await backend.call('encryption_setup', { password: pw })).recovery_key
+      recoveryShown = (await backend.call('encryption_setup', { password: pw, scope: scopeChoice }))
+        .recovery_key
       saved = false
       close()
       await refreshEncryption()
@@ -113,31 +116,43 @@
     run(async () => {
       encryption.status = await backend.call('encryption_calendar', { allow })
     })
+  // `encryption_mark` edits the list of the scope: with `all` the exceptions, so `encrypted: true` removes one
   const unmark = (path: string) =>
     run(async () => {
       encryption.status = await backend.call('encryption_mark', { paths: [path], encrypted: false })
     })
+  const encryptAgain = (path: string) =>
+    run(async () => {
+      encryption.status = await backend.call('encryption_mark', { paths: [path], encrypted: true })
+    })
+  let exception = $state('')
+  const addException = () =>
+    run(async () => {
+      encryption.status = await backend.call('encryption_mark', {
+        paths: [exception.trim()],
+        encrypted: false,
+      })
+      exception = ''
+    })
 
-  // Every folder that holds content. `.notatnik/` is never encrypted (it holds the vault and the config).
-  const EVERYTHING = ['pages/', 'journals/', 'assets/', 'templates/']
-  // what is not yet covered by a rule: a path is covered when a rule is that path or a folder above it
-  const missing = $derived(
-    st
-      ? EVERYTHING.filter((f) => !st.paths.some((p) => p === f || (p.endsWith('/') && f.startsWith(p))))
-      : [],
-  )
+  // The scope switch: Encrypt everything… (preview first), and back to only the marked paths
   let everything = $state(false) // the confirmation is open
   let everythingPreview = $state<EncryptionPreview | null>(null)
   const openEverything = () =>
     run(async () => {
-      everythingPreview = await backend.call('encryption_preview', { paths: missing, encrypted: true })
+      everythingPreview = await backend.call('encryption_scope_preview', { all: st?.scope !== 'all' })
       everything = true
     })
-  const encryptEverything = () =>
+  const switchScope = () =>
     run(async () => {
-      encryption.status = await backend.call('encryption_mark', { paths: missing, encrypted: true })
+      const all = st?.scope !== 'all'
+      encryption.status = await backend.call('encryption_scope', { all })
       everything = false
-      toast('Everything is stored encrypted on the server from the next sync')
+      toast(
+        all
+          ? 'Everything is stored encrypted on the server from the next sync'
+          : 'Only the marked paths are stored encrypted from the next sync',
+      )
     })
   const copy = (text: string) => void navigator.clipboard?.writeText(text)
 </script>
@@ -145,11 +160,11 @@
 <h3>Encryption</h3>
 {#if st}
   <p class="intro">
-    Some files can be stored <strong>encrypted</strong> on the server while the rest stays as it is. On this
-    device everything is plain Markdown, so you edit, search and link both kinds the same way. Choose what to
-    encrypt from a page (<em>Encrypt…</em> next to <em>History</em>), or everything at once below. File names,
-    folders stay hidden too when <em>Hide file and folder names</em> is on (the default for new encryption); sizes
-    and times stay visible on the server, the text does not.
+    Files can be stored <strong>encrypted</strong> on the server: everything except what you list, or only
+    what you choose. On this device everything is plain Markdown, so you edit, search and link both kinds the
+    same way. Choose from a page (<em>Encrypt…</em> next to <em>History</em>), or everything at once below.
+    File names, folders stay hidden too when <em>Hide file and folder names</em> is on (the default for new encryption);
+    sizes and times stay visible on the server, the text does not.
   </p>
   <SettingRow
     title="Key"
@@ -219,6 +234,30 @@
         <input type="password" autocomplete="new-password" bind:value={pw} /></label
       >
       <label>Password again <input type="password" autocomplete="new-password" bind:value={pw2} /></label>
+      <fieldset class="scope">
+        <legend>What to encrypt on the server</legend>
+        <label class="check"
+          ><input
+            type="radio"
+            name="enc-scope"
+            value="all"
+            bind:group={scopeChoice}
+            data-testid="enc-scope-all"
+          />
+          <span>Everything, except what I list <em>(recommended: a file you forget can never leak)</em></span
+          ></label
+        >
+        <label class="check"
+          ><input
+            type="radio"
+            name="enc-scope"
+            value="marked"
+            bind:group={scopeChoice}
+            data-testid="enc-scope-marked"
+          />
+          <span>Only what I choose</span></label
+        >
+      </fieldset>
       <span class="open">
         <button type="submit" disabled={!passwordOk()}>Create</button>
         <button type="button" class="plain" onclick={close}>Cancel</button>
@@ -393,7 +432,7 @@
     </SettingRow>
     <SettingRow
       title="Tasks of encrypted pages in the calendar"
-      description="Off (the default): tasks on encrypted pages are not sent to the calendar server, because their text would be readable there."
+      description="Off (the default): tasks on encrypted pages are not sent to the calendar server, because their text would be readable there. When everything is encrypted, no task is sent unless its page stays plain."
       labelFor="graph-enc-calendar"
     >
       <input
@@ -410,9 +449,22 @@
   {#if st.configured}
     <SettingRow
       title="Encrypt everything"
-      description="Stores all pages, journals, pictures and templates encrypted on the server, in one step. Only the settings in the .notatnik folder stay readable."
+      description={st.scope === 'all'
+        ? 'Every file is stored encrypted on the server, new ones too, except the ones you list below. Only the settings in the .notatnik folder stay readable.'
+        : 'Stores all pages, journals, pictures and templates encrypted on the server, in one step, and every file you add later. You then list what should stay plain. Only the settings in the .notatnik folder stay readable.'}
     >
-      {#if missing.length}
+      {#if st.scope === 'all'}
+        <span class="state" data-testid="enc-all-done">Everything is encrypted</span>
+        <button
+          type="button"
+          class="plain"
+          data-testid="enc-all-off"
+          disabled={!st.unlocked}
+          title={st.unlocked ? '' : 'Unlock the key first'}
+          onclick={() => (everything ? (everything = false) : openEverything())}
+          >Only encrypt what I choose…</button
+        >
+      {:else}
         <button
           type="button"
           data-testid="enc-all"
@@ -420,39 +472,50 @@
           title={st.unlocked ? '' : 'Unlock the key first'}
           onclick={() => (everything ? (everything = false) : openEverything())}>Encrypt everything…</button
         >
-      {:else}
-        <span class="state" data-testid="enc-all-done">Everything is encrypted</span>
       {/if}
     </SettingRow>
-    {#if everything && everythingPreview && missing.length}
+    {#if everything && everythingPreview}
       <div class="encform" role="group" aria-label="Encrypt everything" data-testid="enc-all-form">
-        <p>
-          <strong>{everythingPreview.files}</strong> page{everythingPreview.files === 1 ? '' : 's'} and everything
-          else in <code>{missing.join(' ')}</code> will be stored encrypted on the server at the next sync. On this
-          device nothing changes.
-        </p>
-        {#if everythingPreview.synced_before}
-          <p class="warn" data-testid="enc-all-warn-synced">
-            The server already holds this text from earlier syncs. Its file versions and its trash bin keep
-            it, whatever is done now: delete them in Nextcloud if that matters.
+        {#if st.scope === 'all'}
+          <p>
+            <strong>{everythingPreview.files}</strong> page{everythingPreview.files === 1 ? '' : 's'} will be stored
+            as plain text on the server again at the next sync, unless a path you marked covers
+            {everythingPreview.files === 1 ? 'it' : 'them'}. On this device nothing changes.
           </p>
-        {/if}
-        {#if everythingPreview.calendar_tasks && st.calendar === 'exclude'}
+          <span class="open">
+            <button type="button" onclick={switchScope} data-testid="enc-all-stop"
+              >Only encrypt what I choose</button
+            >
+            <button type="button" class="plain" onclick={() => (everything = false)}>Cancel</button>
+          </span>
+        {:else}
+          <p>
+            <strong>{everythingPreview.files}</strong> page{everythingPreview.files === 1 ? '' : 's'} and everything
+            else, now and from here on, will be stored encrypted on the server at the next sync. On this device
+            nothing changes.
+          </p>
+          {#if everythingPreview.synced_before}
+            <p class="warn" data-testid="enc-all-warn-synced">
+              The server already holds this text from earlier syncs. Its file versions and its trash bin keep
+              it, whatever is done now: delete them in Nextcloud if that matters.
+            </p>
+          {/if}
+          {#if everythingPreview.calendar_tasks && st.calendar === 'exclude'}
+            <p class="muted">
+              {everythingPreview.calendar_tasks} task{everythingPreview.calendar_tasks === 1 ? '' : 's'} with a
+              date will not be sent to the calendar.
+            </p>
+          {/if}
           <p class="muted">
-            {everythingPreview.calendar_tasks} task{everythingPreview.calendar_tasks === 1 ? '' : 's'} with a date
-            will not be sent to the calendar.
+            Other apps (the Nextcloud web viewer, its mobile apps) can no longer read the notes. Keep the
+            recovery key somewhere safe.
           </p>
+          <span class="open">
+            <button type="button" onclick={switchScope} data-testid="enc-all-start">Encrypt everything</button
+            >
+            <button type="button" class="plain" onclick={() => (everything = false)}>Cancel</button>
+          </span>
         {/if}
-        <p class="muted">
-          Other apps (the Nextcloud web viewer, its mobile apps) can no longer read the notes. Keep the
-          recovery key somewhere safe.
-        </p>
-        <span class="open">
-          <button type="button" onclick={encryptEverything} data-testid="enc-all-start"
-            >Encrypt everything</button
-          >
-          <button type="button" class="plain" onclick={() => (everything = false)}>Cancel</button>
-        </span>
       </div>
     {/if}
   {/if}
@@ -464,7 +527,7 @@
       usual.
     </p>
   {/if}
-  {#if st.paths.length}
+  {#if st.scope === 'all' || st.paths.length}
     <p class="muted" role="note" data-testid="enc-backups-note">
       Backups save these files encrypted with this graph's key too. Restoring one of them, or comparing it,
       needs the key unlocked.
@@ -478,25 +541,70 @@
   {/if}
 
   <div class="paths" data-testid="enc-paths">
-    <strong>Encrypted on the server</strong>
-    {#if st.paths.length}
-      <ul>
-        {#each st.paths as p (p)}
-          <li>
-            <code>{p}</code>
-            <span class="muted">{p.endsWith('/') ? 'folder and everything below' : 'file'}</span>
-            <button
-              type="button"
-              class="plain"
-              disabled={!st.unlocked}
-              title={st.unlocked ? '' : 'Unlock first: the file is stored again as plain text'}
-              onclick={() => unmark(p)}>Stop encrypting</button
-            >
-          </li>
-        {/each}
-      </ul>
+    {#if st.scope === 'all'}
+      <strong>Plain on the server</strong>
+      <p class="muted">
+        Everything else is encrypted. A folder ends in <code>/</code>. Page by page you can also use
+        <em>Encrypt…</em> on the page.
+      </p>
+      {#if st.except.length}
+        <ul>
+          {#each st.except as p (p)}
+            <li>
+              <code>{p}</code>
+              <span class="muted">{p.endsWith('/') ? 'folder and everything below' : 'file'}</span>
+              <button
+                type="button"
+                class="plain"
+                disabled={!st.unlocked}
+                title={st.unlocked ? '' : 'Unlock first'}
+                onclick={() => encryptAgain(p)}>Encrypt again</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="muted">Nothing: all files are encrypted.</p>
+      {/if}
+      <form
+        class="open"
+        onsubmit={(e) => {
+          e.preventDefault()
+          if (exception.trim()) void addException()
+        }}
+      >
+        <input
+          type="text"
+          aria-label="Path to keep plain"
+          placeholder="pages/public/"
+          bind:value={exception}
+          data-testid="enc-except-input"
+        />
+        <button type="submit" disabled={!st.unlocked || !exception.trim()} data-testid="enc-except-add"
+          >Keep plain</button
+        >
+      </form>
     {:else}
-      <p class="muted">Nothing yet.</p>
+      <strong>Encrypted on the server</strong>
+      {#if st.paths.length}
+        <ul>
+          {#each st.paths as p (p)}
+            <li>
+              <code>{p}</code>
+              <span class="muted">{p.endsWith('/') ? 'folder and everything below' : 'file'}</span>
+              <button
+                type="button"
+                class="plain"
+                disabled={!st.unlocked}
+                title={st.unlocked ? '' : 'Unlock first: the file is stored again as plain text'}
+                onclick={() => unmark(p)}>Stop encrypting</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="muted">Nothing yet.</p>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -535,6 +643,18 @@
     display: flex;
     flex-direction: column;
     gap: 0.2em;
+  }
+  .scope {
+    border: 0;
+    padding: 0;
+    margin: 0.2em 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+  }
+  .scope legend {
+    padding: 0;
+    margin-bottom: 0.2em;
   }
   .check {
     flex-direction: row;

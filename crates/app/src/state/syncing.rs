@@ -323,9 +323,7 @@ impl SyncCtx {
         opts.merge = self.merge.load(Ordering::Relaxed);
         // which files are stored encrypted, and the key while it is unlocked
         opts.encryption = Some(notatnik_sync::Encryption {
-            paths: notatnik_core::encrypted::EncryptedPaths::new(
-                &self.graph.config().encryption.paths,
-            ),
+            paths: self.graph.config().encryption.rules(),
             keys: self.keys.lock().ok().and_then(|g| g.clone()),
             hidden: self.graph.config().encryption.names == "hidden",
         });
@@ -497,8 +495,7 @@ impl AppState {
             .ok_or_else(|| ApiError::new("auth", "the password is not known on this device"))?;
         let remote =
             WebDavRemote::new(&ctx.cfg.url, &ctx.cfg.user, &password).map_err(|e| api_err(&e))?;
-        let paths =
-            notatnik_core::encrypted::EncryptedPaths::new(&ctx.graph.config().encryption.paths);
+        let paths = ctx.graph.config().encryption.rules();
         let keys = ctx.keys.lock().ok().and_then(|g| g.clone());
         let r = notatnik_sync::verify(
             &ctx.root,

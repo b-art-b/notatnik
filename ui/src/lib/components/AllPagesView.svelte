@@ -11,7 +11,7 @@
 
   // the lock mark: the file is covered by a marked path (EN-12)
   const locked = (r: PageListRow) =>
-    !!encryption.status && !!r.path && pathIsEncrypted(encryption.status.paths, r.path)
+    !!encryption.status && !!r.path && pathIsEncrypted(encryption.status, r.path)
   $effect(() => {
     void refreshEncryption()
   })
@@ -150,7 +150,7 @@
     <label><input type="checkbox" bind:checked={virtual} /> Pages without a file</label>
     <label><input type="checkbox" bind:checked={showArchived} data-testid="show-archived" /> Archived</label>
   {/if}
-  {#if encryption.status?.paths.length}
+  {#if encryption.status && (encryption.status.scope === 'all' || encryption.status.paths.length)}
     <label
       ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" /> Only encrypted</label
     >

@@ -19,6 +19,8 @@ pub(super) struct PendingVault {
     keys: Arc<Keys>,
     /// Replaces the vault that the graph has (EN-22).
     reset: bool,
+    /// What to encrypt from now on (`all` or `marked`), if the setup asked for one (EN-27).
+    scope: Option<String>,
 }
 
 /// The unlocked key of the open graph, shared with the sync thread.
@@ -107,6 +109,8 @@ impl AppState {
             keyring: self.secrets.get(&keyring_key(&id)).is_some(),
             has_server: sync.is_some(),
             paths: cfg.paths,
+            scope: cfg.scope,
+            except: cfg.except,
             calendar: cfg.calendar,
             names: cfg.names,
             left_alone: sync.as_ref().map_or(0, |s| s.left_alone),
@@ -156,6 +160,7 @@ impl AppState {
             vault,
             keys: Arc::new(keys),
             reset: a.reset == Some(true),
+            scope: a.scope.filter(|s| matches!(s.as_str(), "all" | "marked")),
         });
         Ok(RecoveryKeyResult {
             recovery_key: recovery.to_string(),
@@ -190,6 +195,10 @@ impl AppState {
             if first {
                 o.graph
                     .update_config(|c| c.encryption.names = "hidden".into())?;
+            }
+            if let Some(scope) = &p.scope {
+                o.graph
+                    .update_config(|c| c.encryption.scope = scope.clone())?;
             }
             log::info!(
                 "encryption: the vault of the graph was {} (key {})",
@@ -330,6 +339,7 @@ impl AppState {
         self.encryption_setup(EncryptionSetupArgs {
             password: a.password,
             reset: Some(true),
+            scope: None,
         })
     }
 
@@ -354,9 +364,8 @@ impl AppState {
         })
     }
 
-    /// The files of the graph (relative paths) under the given paths: pages that are indexed and files that exist.
-    fn files_under(o: &Open, paths: &[String]) -> Vec<String> {
-        let rules = EncryptedPaths::new(paths);
+    /// The files of the graph (relative paths) that `rules` store encrypted: pages that are indexed.
+    fn files_under(o: &Open, rules: &EncryptedPaths) -> Vec<String> {
         let mut out: Vec<String> = o
             .graph
             .with_index(|i| i.page_files())
@@ -391,6 +400,45 @@ impl AppState {
         found.into_iter().collect()
     }
 
+    /// What it means that `files` become stored encrypted by `rules`: plain copies the server holds, pictures that
+    /// stay plain under `picture_rules`, dated tasks that leave the calendar.
+    fn preview_of(
+        o: &Open,
+        files: Vec<String>,
+        rules: &EncryptedPaths,
+        picture_rules: &EncryptedPaths,
+    ) -> EncryptionPreview {
+        let synced_before = o.sync.as_ref().is_some_and(|_| {
+            notatnik_sync::SyncState::load(&syncing::state_file(o.graph.root()))
+                .files
+                .iter()
+                .any(|(p, f)| rules.is_encrypted(p) && !f.enc)
+        });
+        let images = Self::images_of(o, &files, picture_rules);
+        let calendar_tasks = files
+            .iter()
+            .filter_map(|rel| o.graph.read_page(rel).ok())
+            .map(|f| {
+                f.text
+                    .lines()
+                    .filter(|l| {
+                        let t = l.trim_start().trim_start_matches("- ");
+                        matches!(
+                            t.split_whitespace().next(),
+                            Some("TODO" | "DOING" | "WAITING" | "LATER" | "NOW")
+                        )
+                    })
+                    .count() as u32
+            })
+            .sum();
+        EncryptionPreview {
+            synced_before,
+            files: files.len() as u32,
+            images,
+            calendar_tasks,
+        }
+    }
+
     /// `encryption_preview`: what marking these paths means, before it is done (EN-16, EN-17).
     pub fn encryption_preview(&self, a: EncryptionPathsArgs) -> ApiResult<EncryptionPreview> {
         for p in &a.paths {
@@ -398,60 +446,94 @@ impl AppState {
         }
         self.with_open(|o| {
             let rules = EncryptedPaths::new(&a.paths);
-            let files = Self::files_under(o, &a.paths);
-            let synced_before = o.sync.as_ref().is_some_and(|_| {
-                notatnik_sync::SyncState::load(&syncing::state_file(o.graph.root()))
-                    .files
-                    .iter()
-                    .any(|(p, f)| rules.is_encrypted(p) && !f.enc)
-            });
+            let files = Self::files_under(o, &rules);
             let mut all_rules = o.graph.config().encryption.paths;
             all_rules.extend(a.paths.iter().cloned());
-            let images = Self::images_of(o, &files, &EncryptedPaths::new(&all_rules));
-            let calendar_tasks = files
-                .iter()
-                .filter_map(|rel| o.graph.read_page(rel).ok())
-                .map(|f| {
-                    f.text
-                        .lines()
-                        .filter(|l| {
-                            let t = l.trim_start().trim_start_matches("- ");
-                            matches!(
-                                t.split_whitespace().next(),
-                                Some("TODO" | "DOING" | "WAITING" | "LATER" | "NOW")
-                            )
-                        })
-                        .count() as u32
-                })
-                .sum();
+            Ok(Self::preview_of(
+                o,
+                files,
+                &rules,
+                &EncryptedPaths::new(&all_rules),
+            ))
+        })
+    }
+
+    /// `encryption_scope_preview`: what switching the scope means (EN-27). To `all`: the pages that become
+    /// encrypted. Back to `marked`: the pages that become plain on the server (`synced_before` and `images` are
+    /// then empty, and `calendar_tasks` is 0).
+    pub fn encryption_scope_preview(&self, a: EncryptionScopeArgs) -> ApiResult<EncryptionPreview> {
+        self.with_open(|o| {
+            let cfg = o.graph.config().encryption;
+            let (now, after) = scoped_rules(&cfg, a.all);
+            if a.all {
+                let files = Self::files_under(o, &after);
+                return Ok(Self::preview_of(o, files, &after, &after));
+            }
+            let files: Vec<String> = Self::files_under(o, &now)
+                .into_iter()
+                .filter(|rel| !after.is_encrypted(rel))
+                .collect();
             Ok(EncryptionPreview {
-                synced_before,
+                synced_before: false,
                 files: files.len() as u32,
-                images,
-                calendar_tasks,
+                images: Vec::new(),
+                calendar_tasks: 0,
             })
         })
     }
 
-    /// `encryption_mark`: adds paths to the encrypted ones, or removes them. The key must be unlocked: files are
-    /// stored again in the other form at the next sync, and that needs it.
+    /// The key must be unlocked to change what is encrypted: files are stored again in the other form at the next
+    /// sync, and that needs it.
+    fn need_unlocked(&self) -> ApiResult<()> {
+        if self.graph_keys_now().is_some() {
+            return Ok(());
+        }
+        let configured = self.with_open(|o| Ok(o.graph.read_vault()?.is_some()))?;
+        Err(if configured {
+            ApiError::new("locked", "unlock the encryption first")
+        } else {
+            ApiError::new("invalid", "set up encryption for this graph first")
+        })
+    }
+
+    /// `encryption_scope` (EN-27): encrypt everything except the exceptions, or only the marked paths. Both lists are
+    /// kept, so going back restores the earlier choice. The next sync stores the files that change form again.
+    pub fn encryption_scope(&self, a: EncryptionScopeArgs) -> ApiResult<EncryptionStatus> {
+        self.need_unlocked()?;
+        self.with_open(|o| {
+            o.graph.update_config(|c| {
+                c.encryption.scope = if a.all { "all" } else { "marked" }.into();
+            })?;
+            log::info!(
+                "encryption: {}",
+                if a.all {
+                    "everything is encrypted, except the exceptions"
+                } else {
+                    "only the marked paths are encrypted"
+                }
+            );
+            Ok(())
+        })?;
+        self.kick_sync(1);
+        self.status_now()
+    }
+
+    /// `encryption_mark`: adds paths to the encrypted ones, or removes them. With the scope `all` the list is the
+    /// exceptions, so adding an exception stops encrypting. The key must be unlocked (see `need_unlocked`).
     pub fn encryption_mark(&self, a: EncryptionPathsArgs) -> ApiResult<EncryptionStatus> {
         for p in &a.paths {
             check_path(p).map_err(|why| ApiError::new("invalid", format!("`{p}` {why}")))?;
         }
-        if self.graph_keys_now().is_none() {
-            let configured = self.with_open(|o| Ok(o.graph.read_vault()?.is_some()))?;
-            return Err(if configured {
-                ApiError::new("locked", "unlock the encryption first")
-            } else {
-                ApiError::new("invalid", "set up encryption for this graph first")
-            });
-        }
+        self.need_unlocked()?;
         self.with_open(|o| {
-            let current = o.graph.config().encryption.paths;
+            let cfg = o.graph.config().encryption;
+            let all = cfg.scope == "all";
+            let current = if all { cfg.except } else { cfg.paths };
+            // an entry of the list is added when it makes the paths encrypted (marked) or plain (everything)
+            let add = a.encrypted != all;
             let mut next = current.clone();
             for p in &a.paths {
-                if a.encrypted {
+                if add {
                     if !next.contains(p) {
                         next.push(p.clone());
                     }
@@ -460,12 +542,22 @@ impl AppState {
                 } else if let Some(cover) = next.iter().find(|r| covers(r, p)) {
                     return Err(ApiError::new(
                         "invalid",
-                        format!("`{p}` is encrypted because `{cover}` is; stop encrypting that one instead"),
+                        if all {
+                            format!("`{p}` stays plain because `{cover}` does; encrypt that one again instead")
+                        } else {
+                            format!("`{p}` is encrypted because `{cover}` is; stop encrypting that one instead")
+                        },
                     ));
                 }
             }
             if next != current {
-                o.graph.update_config(|c| c.encryption.paths = next.clone())?;
+                o.graph.update_config(|c| {
+                    if all {
+                        c.encryption.except = next.clone();
+                    } else {
+                        c.encryption.paths = next.clone();
+                    }
+                })?;
                 log::info!(
                     "encryption: {} {}",
                     if a.encrypted { "now encrypted:" } else { "no longer encrypted:" },
@@ -477,4 +569,14 @@ impl AppState {
         self.kick_sync(1);
         self.status_now()
     }
+}
+
+/// The rules in force and the rules after switching to `all` (or back), for the preview.
+fn scoped_rules(
+    cfg: &notatnik_graph::EncryptionSection,
+    all: bool,
+) -> (EncryptedPaths, EncryptedPaths) {
+    let mut other = cfg.clone();
+    other.scope = if all { "all" } else { "marked" }.into();
+    (cfg.rules(), other.rules())
 }

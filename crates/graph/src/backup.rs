@@ -365,7 +365,7 @@ fn marks_of(g: &Graph, opts: &BackupOptions) -> Result<Option<Marks>> {
     if opts.seal_to.is_some() {
         return Ok(None);
     }
-    let paths = notatnik_core::encrypted::EncryptedPaths::new(&g.config().encryption.paths);
+    let paths = g.config().encryption.rules();
     if paths.is_empty() {
         return Ok(None);
     }

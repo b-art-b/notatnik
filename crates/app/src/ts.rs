@@ -93,6 +93,7 @@ pub fn typescript_bindings() -> String {
         EncryptionKeyringArgs,
         EncryptionCalendarArgs,
         EncryptionNamesArgs,
+        EncryptionScopeArgs,
         EncryptionRotateArgs,
         EncryptionPagePathsArgs,
         EncryptionPathsArgs,

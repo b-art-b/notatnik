@@ -79,9 +79,11 @@ pub fn conflict_original(path: &str) -> Option<String> {
     })
 }
 
-/// The paths marked as encrypted.
+/// The paths marked as encrypted, or (with [`EncryptedPaths::everything_except`]) the paths that are not.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EncryptedPaths {
+    /// Everything is encrypted except the entries below (EN-27).
+    all: bool,
     files: Vec<String>,
     /// With the trailing `/`.
     folders: Vec<String>,
@@ -104,18 +106,36 @@ impl EncryptedPaths {
         r
     }
 
-    /// Nothing is marked.
-    pub fn is_empty(&self) -> bool {
-        self.files.is_empty() && self.folders.is_empty()
+    /// Every file is stored encrypted except the entries of `except` (same entries as `[encryption] paths`;
+    /// entries that cannot be used are left out) and what is never encrypted (EN-27).
+    pub fn everything_except(except: &[String]) -> EncryptedPaths {
+        EncryptedPaths {
+            all: true,
+            ..EncryptedPaths::new(except)
+        }
     }
 
-    /// Whether the file at `path` (relative to the graph folder) is stored encrypted. Nothing below `.notatnik/` is,
-    /// and a conflict copy follows the file it came from.
+    /// Everything is encrypted except some entries.
+    pub fn is_all(&self) -> bool {
+        self.all
+    }
+
+    /// Nothing is encrypted: no entry is marked (and the scope is not "everything").
+    pub fn is_empty(&self) -> bool {
+        !self.all && self.files.is_empty() && self.folders.is_empty()
+    }
+
+    /// Whether the file at `path` (relative to the graph folder) is stored encrypted. Nothing below `.notatnik/`
+    /// (or the reserved hidden-object folder) is, and a conflict copy follows the file it came from.
     pub fn is_encrypted(&self, path: &str) -> bool {
-        if path == ".notatnik" || path.starts_with(".notatnik/") {
+        let below =
+            |dir: &str| path == dir || path.strip_prefix(dir).is_some_and(|r| r.starts_with('/'));
+        if below(".notatnik") || below(HIDDEN_DIR) {
             return false;
         }
-        self.matches(path) || conflict_original(path).is_some_and(|o| self.matches(&o))
+        let listed =
+            self.matches(path) || conflict_original(path).is_some_and(|o| self.matches(&o));
+        listed != self.all
     }
 
     fn matches(&self, path: &str) -> bool {
@@ -193,6 +213,41 @@ mod tests {
         assert!(rules(&[]).is_empty() && !r.is_empty());
         assert!(check_path("a/b.md").is_ok());
         assert!(check_path("a/./b").is_err());
+    }
+
+    #[test]
+    fn everything_is_encrypted_except_the_listed_paths_and_the_settings() {
+        let r = EncryptedPaths::everything_except(&[
+            "pages/public/".into(),
+            "assets/logo.png".into(),
+            "../x".into(),
+        ]);
+        assert!(r.is_all() && !r.is_empty());
+        for yes in [
+            "pages/a.md",
+            "journals/2026-10-03.md",
+            "top.md",
+            "pages/public.md",
+            "pages/publicity/a.md",
+            "assets/logo.png.bak",
+            "pages/other (conflicted copy 2026-10-03 120000).md",
+        ] {
+            assert!(r.is_encrypted(yes), "{yes}");
+        }
+        for no in [
+            "pages/public/a.md",
+            "pages/public/deep/b.md",
+            "assets/logo.png",
+            "pages/public/a (conflicted copy 2026-10-03 120000).md",
+            ".notatnik/config.toml",
+            ".notatnik/vault.json",
+            ".notatnik-enc/ab/x.enc",
+        ] {
+            assert!(!r.is_encrypted(no), "{no}");
+        }
+        // the folder named like the settings folder but longer is an ordinary folder
+        assert!(r.is_encrypted(".notatnikx/a.md"));
+        assert!(!EncryptedPaths::default().is_all());
     }
 
     #[test]

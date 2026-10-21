@@ -1968,6 +1968,10 @@ pub struct EncryptionStatus {
     pub has_server: bool,
     /// The paths stored encrypted: a folder ends in `/`.
     pub paths: Vec<String>,
+    /// `marked`: only `paths` are encrypted; `all`: everything is, except `except` (EN-27).
+    pub scope: String,
+    /// With scope `all`: the paths that stay plain (a folder ends in `/`).
+    pub except: Vec<String>,
     /// `exclude` or `allow`: whether tasks of encrypted pages go to the calendar.
     pub calendar: String,
     /// `visible` or `hidden`: whether the server sees the names of encrypted files (EN-25).
@@ -1989,6 +1993,18 @@ pub struct EncryptionSetupArgs {
     #[serde(default)]
     #[ts(optional)]
     pub reset: Option<bool>,
+    /// What to encrypt once the vault is confirmed: `all` (everything except what is listed) or `marked` (only what
+    /// is marked). Without it the graph keeps its scope (EN-27).
+    #[serde(default)]
+    #[ts(optional)]
+    pub scope: Option<String>,
+}
+
+/// `encryption_scope`, `encryption_scope_preview`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EncryptionScopeArgs {
+    /// Encrypt everything except the exceptions (true), or only the marked paths (false).
+    pub all: bool,
 }
 
 /// `encryption_unlock`: the password, or the recovery key.
@@ -2051,7 +2067,8 @@ pub struct EncryptionPagePathsArgs {
     pub subpages: bool,
 }
 
-/// `encryption_preview`, `encryption_mark`
+/// `encryption_preview`, `encryption_mark`. With the scope `all` the paths are the exceptions: *encrypted* false adds
+/// them, true removes them.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct EncryptionPathsArgs {
     /// Paths relative to the graph folder; a folder ends in `/`.

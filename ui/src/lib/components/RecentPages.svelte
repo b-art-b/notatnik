@@ -33,7 +33,7 @@
   })
   const locked = (name: string) => {
     const f = files[name.toLowerCase()]
-    return !!encryption.status && !!f && pathIsEncrypted(encryption.status.paths, f)
+    return !!encryption.status && !!f && pathIsEncrypted(encryption.status, f)
   }
 </script>
 

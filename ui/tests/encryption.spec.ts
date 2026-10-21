@@ -86,6 +86,7 @@ test('a page is encrypted from its menu: the lock shows and the server holds no 
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')
+  await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await expect(page.getByTestId('graph-recovery-key')).toContainText('-')
   await expect(page.getByTestId('graph-enc-confirm')).toBeDisabled()
@@ -173,6 +174,7 @@ test('encryption is set up and a page marked on a local graph; connecting upload
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')
+  await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
@@ -258,7 +260,7 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(recentItem('Open').getByTestId('recent-lock')).toHaveCount(0)
 })
 
-test('Encrypt everything marks every content folder in one step; the settings stay readable', async ({
+test('Encrypt everything switches the scope in one step; the settings stay readable', async ({
   backend,
   page,
   dav,
@@ -280,6 +282,7 @@ test('Encrypt everything marks every content folder in one step; the settings st
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')
+  await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
@@ -293,8 +296,8 @@ test('Encrypt everything marks every content folder in one step; the settings st
   await expect(page.getByTestId('enc-all-warn-synced')).toBeVisible()
   await page.getByTestId('enc-all-start').click()
   await expect(page.getByTestId('enc-all-done')).toBeVisible()
-  await expect(page.getByTestId('enc-paths')).toContainText('pages/')
-  await expect(page.getByTestId('enc-paths')).toContainText('journals/')
+  await expect(page.getByTestId('enc-paths')).toContainText('Plain on the server')
+  await expect(page.getByTestId('enc-paths')).toContainText('Nothing: all files are encrypted')
 
   // the next sync stores every page encrypted, the settings stay plain
   await backend.call('sync_now', { allow_mass_delete: false })
@@ -326,6 +329,7 @@ test('a forgotten graph password is reset: the new vault replaces the old, the f
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('old password')
   await page.getByLabel('Password again').fill('old password')
+  await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
@@ -384,6 +388,7 @@ test('names are hidden by default, the switch moves the files, and a new key re-
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('first password')
   await page.getByLabel('Password again').fill('first password')
+  await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await page.getByTestId('graph-enc-saved').check()
   await page.getByTestId('graph-enc-confirm').click()
@@ -433,4 +438,88 @@ test('names are hidden by default, the switch moves the files, and a new key re-
   await page.getByLabel('Password or recovery key').fill('second password')
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
   await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+})
+
+test('everything is encrypted by default; a page can be kept plain, and the scope can go back', async ({
+  backend,
+  page,
+  dav,
+}) => {
+  await backend.open('/')
+  const dir = await graphOnServer(backend, dav, 'Notes/scope')
+  fs.mkdirSync(path.join(dir, 'pages/menu'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'pages/Secret.md'), `- ${SECRET} one\n`)
+  fs.writeFileSync(path.join(dir, 'pages/menu/Lunch.md'), '- soup\n')
+  await page.goto(page.url().replace(/#.*/, '#/settings'))
+  await page.reload()
+  await page.getByRole('tab', { name: /Sync/ }).click()
+  await page.getByTestId('graph-enc-setup').click()
+  await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
+  await page.getByLabel('Password again').fill('correct horse')
+  // the recommended choice is already selected
+  await expect(page.getByTestId('enc-scope-all')).toBeChecked()
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByTestId('graph-enc-saved').check()
+  await page.getByTestId('graph-enc-confirm').click()
+  await expect(page.getByTestId('enc-state')).toHaveText('Unlocked')
+  await expect(page.getByTestId('enc-all-done')).toBeVisible()
+  await backend.call('encryption_names', { hidden: false }) // this test looks at the `.enc` names
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/scope/pages/Secret.md.enc')).not.toBeNull()
+  expect(await dav.file('Notes/scope/pages/menu/Lunch.md.enc')).not.toBeNull()
+  expect(await dav.file('Notes/scope/.notatnik/vault.json')).not.toBeNull()
+
+  // an exception from the settings: a folder
+  const list = page.getByTestId('enc-paths')
+  await page.getByTestId('enc-except-input').fill('pages/menu/')
+  await page.getByTestId('enc-except-add').click()
+  await expect(list).toContainText('pages/menu/')
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/scope/pages/menu/Lunch.md')).toContain('soup')
+  expect(await dav.file('Notes/scope/pages/menu/Lunch.md.enc')).toBeNull()
+  expect(await dav.file('Notes/scope/pages/Secret.md')).toBeNull()
+
+  // and taken back
+  await list.getByRole('button', { name: 'Encrypt again' }).click()
+  await expect(list).toContainText('Nothing: all files are encrypted')
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/scope/pages/menu/Lunch.md')).toBeNull()
+  expect(await dav.file('Notes/scope/pages/menu/Lunch.md.enc')).not.toBeNull()
+
+  // back to only what is marked: everything is plain on the server again, the local files were never touched
+  await page.getByTestId('enc-all-off').click()
+  await expect(page.getByTestId('enc-all-form')).toContainText('pages will be stored as plain text')
+  await page.getByTestId('enc-all-stop').click()
+  await expect(page.getByTestId('enc-all')).toBeVisible()
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/scope/pages/Secret.md')).toContain(SECRET)
+  expect(await dav.file('Notes/scope/pages/Secret.md.enc')).toBeNull()
+  expect(fs.readFileSync(path.join(dir, 'pages/Secret.md'), 'utf8')).toContain(SECRET)
+})
+
+test('the page menu keeps one page plain while everything is encrypted', async ({ backend, page, dav }) => {
+  await backend.open('/')
+  const dir = await graphOnServer(backend, dav, 'Notes/keep')
+  fs.writeFileSync(path.join(dir, 'pages/Secret.md'), `- ${SECRET}\n`)
+  fs.writeFileSync(path.join(dir, 'pages/Shared.md'), '- for everyone\n')
+  await backend.call('encryption_setup', { password: 'correct horse', scope: 'all' })
+  await backend.call('encryption_confirm', {})
+  await backend.call('encryption_names', { hidden: false })
+  await page.goto(page.url().replace(/#.*/, '#/page/Shared'))
+  await page.reload()
+  await page.getByRole('button', { name: 'Encrypted', exact: true }).click()
+  const dialog = page.getByTestId('encrypt-dialog')
+  await expect(dialog.getByTestId('encrypt-all-note')).toBeVisible()
+  await dialog.getByTestId('encrypt-keep-plain').click()
+  await expect(page.getByRole('button', { name: 'Encrypt…' })).toBeVisible()
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/keep/pages/Shared.md')).toContain('for everyone')
+  expect(await dav.file('Notes/keep/pages/Secret.md')).toBeNull()
+  // the dialog now offers to encrypt it again
+  await page.getByRole('button', { name: 'Encrypt…' }).click()
+  await expect(page.getByTestId('encrypt-dialog').getByTestId('encrypt-plain')).toBeVisible()
+  await page.getByTestId('encrypt-again').click()
+  await backend.call('sync_now', { allow_mass_delete: false })
+  expect(await dav.file('Notes/keep/pages/Shared.md')).toBeNull()
+  expect(await dav.file('Notes/keep/pages/Shared.md.enc')).not.toBeNull()
 })

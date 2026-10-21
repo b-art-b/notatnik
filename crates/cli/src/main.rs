@@ -536,7 +536,7 @@ fn verify(
     };
     let remote =
         notatnik_sync::WebDavRemote::new(&url, &user, &password).map_err(|e| e.to_string())?;
-    let paths = notatnik_core::encrypted::EncryptedPaths::new(&g.config().encryption.paths);
+    let paths = g.config().encryption.rules();
     let r = notatnik_sync::verify(
         g.root(),
         &remote,

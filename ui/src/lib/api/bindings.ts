@@ -809,6 +809,14 @@ has_server: boolean,
  */
 paths: Array<string>, 
 /**
+ * `marked`: only `paths` are encrypted; `all`: everything is, except `except` (EN-27).
+ */
+scope: string, 
+/**
+ * With scope `all`: the paths that stay plain (a folder ends in `/`).
+ */
+except: Array<string>, 
+/**
  * `exclude` or `allow`: whether tasks of encrypted pages go to the calendar.
  */
 calendar: string, 
@@ -834,7 +842,12 @@ password: string,
  * key are stored again from this device's plain files at the next sync; copies that exist only on the server
  * are lost. The old vault stays valid until `encryption_confirm`.
  */
-reset?: boolean, };
+reset?: boolean, 
+/**
+ * What to encrypt once the vault is confirmed: `all` (everything except what is listed) or `marked` (only what
+ * is marked). Without it the graph keeps its scope (EN-27).
+ */
+scope?: string, };
 export type EncryptionUnlockArgs = { 
 /**
  * What the user typed.
@@ -869,6 +882,11 @@ export type EncryptionNamesArgs = {
  * Store encrypted files under names that reveal nothing.
  */
 hidden: boolean, };
+export type EncryptionScopeArgs = { 
+/**
+ * Encrypt everything except the exceptions (true), or only the marked paths (false).
+ */
+all: boolean, };
 export type EncryptionRotateArgs = { 
 /**
  * The password of the new vault, 8 to 200 characters.
@@ -2464,6 +2482,8 @@ export type Commands = {
   encryption_keyring: { args: EncryptionKeyringArgs; result: EncryptionStatus };
   encryption_calendar: { args: EncryptionCalendarArgs; result: EncryptionStatus };
   encryption_names: { args: EncryptionNamesArgs; result: EncryptionStatus };
+  encryption_scope: { args: EncryptionScopeArgs; result: EncryptionStatus };
+  encryption_scope_preview: { args: EncryptionScopeArgs; result: EncryptionPreview };
   encryption_rotate: { args: EncryptionRotateArgs; result: RecoveryKeyResult };
   encryption_page_paths: { args: EncryptionPagePathsArgs; result: StringList };
   encryption_preview: { args: EncryptionPathsArgs; result: EncryptionPreview };
