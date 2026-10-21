@@ -212,6 +212,7 @@ still works, and closing the app changes nothing).
 | E10 | *Encrypt everything…* (EN-21) | built; tried on the real Nextcloud |
 | E11 | *Forgot the password…* (EN-22) | built; not tried on the real Nextcloud |
 | E7 | Hidden names and re-encrypting (EN-25, EN-26): [phases/hidden-names.md](phases/hidden-names.md), §7 | built |
+| E11 | Encrypt everything, list the exceptions (EN-27): [phases/encrypt-everything.md](phases/encrypt-everything.md), §8 | built |
 | E10 | Later: a replica for folder tools (EN-7), the images of a page | on hold |
 
 The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).
@@ -264,3 +265,29 @@ the graph do not exist on the server for these files. The path is inside the enc
 - **Still visible:** the list of marked paths in `.notatnik/config.toml` (so use *Encrypt everything…*, whose list
   names only the standard folders, rather than marking a private folder by name), sizes, times, the number of files
   and the names of unmarked files.
+
+## 8. Encrypting everything, listing the exceptions (EN-27)
+
+Marking what to encrypt fails the wrong way: a new folder, a file made on a phone, or a page nobody thought of is
+plain until someone marks it. With `[encryption] scope = "all"` the rule is turned round: every file is stored
+encrypted, and `except` lists what stays plain (same entries as `paths`: a folder ends in `/`, anything else is one
+file). `scope = "marked"` (the default, and what every graph made before has) keeps `paths`. The two lists are kept
+side by side and only the one of the active scope is used, so going back restores the earlier choice.
+
+- **Always plain:** everything below `.notatnik/` (the vault and the settings must be readable before the key is
+  known) and the reserved `.notatnik-enc/` folder. A conflict copy follows the file it came from.
+- **One predicate.** `EncryptedPaths::is_encrypted` was already the only answer to "is this file stored encrypted"
+  (sync, verify, backups, calendar, lock marks); `EncryptedPaths::everything_except` is a second way to build it and
+  `EncryptionSection::rules()` chooses. No caller changed how it asks. The UI has the same rule in `pathIsEncrypted`.
+- **Switching is the Recode rule** of §7: files whose copy is in another form than the rules ask for are written in
+  the new form first and the old copy is removed second. Nothing is added to the sync engine. Both directions need
+  the key unlocked.
+- **A locked device** syncs only the exceptions and the settings; the objects are left alone and counted, as before.
+- **What this does to the leaks of §6:** the list on the server names only what is public. New files cannot be
+  forgotten. What stays visible is the exception list, sizes, times and the number of files.
+- **Cost:** other apps (the Nextcloud web viewer, sharing links, previews, server-side search) see ciphertext for
+  everything but the exceptions; the calendar gets no task unless its page is an exception or `calendar = "allow"`;
+  pictures and attachments are all sealed whole.
+- **Not covered:** a device with an existing local copy that syncs for the first time pushes with the rules of its
+  own (still default) settings before the server's `config.toml` has arrived. Connect a new device to an empty
+  folder, as the app's own flow does.

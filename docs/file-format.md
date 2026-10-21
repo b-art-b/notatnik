@@ -431,6 +431,10 @@ key is the data key of the graph's vault, `.notatnik/vault.json` (the vault JSON
 entries end in `/`; matching is on the path relative to the graph folder, and a conflict copy is matched by the
 path of the file it came from. Local files are never encrypted. With hidden names, a marked file in a snapshot is `.notatnik-enc/<aa>/<random>.enc` (an `NTNKSEAL` file with the comment `notatnik-entry v2 hidden` and the same `path length | path | content` inside); `<random>` is 32 random hex characters, unrelated to the path.
 
+**Scope** (EN-27): `[encryption] scope = "marked"` (default) uses `paths` as above; `scope = "all"` stores every file
+encrypted except those named by `except` (entries like `paths`), and `.notatnik/` and `.notatnik-enc/` never. A
+conflict copy follows its original in both. The unused list is kept in the file.
+
 **Hidden object** (EN-25): with `[encryption] names = "hidden"` a marked file is stored on the server at
 `.notatnik-enc/<aa>/<name>.enc`, `<name>` being `Keys::file_name(path)` (32 hex characters) and `<aa>` its first two.
 The object is an `NTNKFILE` whose plaintext is `path length (u16) | path (UTF-8) | content` and whose associated
