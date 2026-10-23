@@ -91,7 +91,7 @@
               title={`“${s.label}” occurs in ${s.n} places: show them all`}
               >{s.label}<sup class="badge" data-testid="segment-badge">{s.n}</sup></a
             >{:else}<a class="page-ref" href={pageHash(s.target)} data-page={s.target}
-              ><PageIcon name={s.target} />{s.label}</a
+              ><PageIcon name={s.target} align />{s.label}</a
             >{/if}{/each}
       </li>
     {/each}

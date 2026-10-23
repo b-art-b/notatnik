@@ -67,7 +67,7 @@
         {#each g.pages as p (p.name)}
           <li class:virtual={p.is_virtual}>
             <a href={pageHash(p.name)} data-page={p.name}
-              ><PageIcon name={p.name} />{rest(p.name, g.occurrence)}</a
+              ><PageIcon name={p.name} align />{rest(p.name, g.occurrence)}</a
             >
           </li>
         {/each}

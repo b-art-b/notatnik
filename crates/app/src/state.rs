@@ -2757,6 +2757,7 @@ impl AppState {
             date_locale: dev.ui.date_locale,
             link_brackets: dev.ui.link_brackets,
             paste_titles: dev.ui.paste_titles,
+            icon_style: dev.ui.icon_style,
             task_details: dev.ui.task_details,
             block_properties: dev.ui.block_properties,
             date_format: dev.ui.date_format,
@@ -2833,6 +2834,14 @@ impl AppState {
                 if k.chars().any(char::is_control) || v.chars().any(char::is_control) {
                     return Err(ApiError::new("invalid", "page icon: no control characters"));
                 }
+            }
+        }
+        if let Some(m) = &a.icon_style {
+            if !matches!(m.as_str(), "color" | "muted" | "mono") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "icon_style must be color, muted or mono",
+                ));
             }
         }
         for (name, v) in [
@@ -2924,6 +2933,7 @@ impl AppState {
                 || a.date_locale.is_some()
                 || a.link_brackets.is_some()
                 || a.paste_titles.is_some()
+                || a.icon_style.is_some()
                 || a.task_details.is_some()
                 || a.block_properties.is_some()
                 || a.date_format.is_some()
@@ -2966,6 +2976,9 @@ impl AppState {
                 }
                 if let Some(b) = a.paste_titles {
                     dev.ui.paste_titles = b;
+                }
+                if let Some(m) = a.icon_style {
+                    dev.ui.icon_style = m;
                 }
                 if let Some(m) = a.task_details {
                     dev.ui.task_details = m;

@@ -89,7 +89,7 @@
       {#if !isFolded(g)}
         <ul>
           {#each g.pages as p (p)}
-            <li><a href={pageHash(p)} data-page={p}><PageIcon name={p} />{p}</a></li>
+            <li><a href={pageHash(p)} data-page={p}><PageIcon name={p} align />{p}</a></li>
           {/each}
         </ul>
       {/if}

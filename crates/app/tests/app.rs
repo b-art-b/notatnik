@@ -6431,3 +6431,19 @@ fn objects_free(dav: &notatnik_sync::fakedav::FakeDav) -> bool {
         .iter()
         .any(|n| n.contains("/.notatnik-enc/"))
 }
+
+/// The device setting that says how page icons are drawn: quiet by default, three values, nothing else.
+#[test]
+fn the_icon_style_is_a_device_setting_with_three_values() {
+    let t = start("basic");
+    assert_eq!(t.ok("get_settings", json!({}))["icon_style"], "muted");
+    for v in ["color", "mono", "muted"] {
+        t.ok("set_settings", json!({"icon_style": v}));
+        assert_eq!(t.ok("get_settings", json!({}))["icon_style"], v);
+    }
+    let err = t
+        .call("set_settings", json!({"icon_style": "neon"}))
+        .unwrap_err();
+    assert_eq!(err.code, "invalid");
+    assert_eq!(t.ok("get_settings", json!({}))["icon_style"], "muted");
+}

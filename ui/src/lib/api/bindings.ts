@@ -1423,6 +1423,10 @@ link_brackets: boolean,
  */
 paste_titles: boolean, 
 /**
+ * Device: `color`, `muted` or `mono`: how page icons are drawn.
+ */
+icon_style: string, 
+/**
  * Device: `full` or `compact` task details on pages.
  */
 task_details: string, 
@@ -1511,6 +1515,10 @@ link_brackets: boolean | null,
  * Device: look up the title of a pasted web address.
  */
 paste_titles: boolean | null, 
+/**
+ * Device: `color`, `muted` or `mono` page icons.
+ */
+icon_style: string | null, 
 /**
  * Device: `full` or `compact` task details.
  */

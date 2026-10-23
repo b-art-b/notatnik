@@ -613,6 +613,10 @@ pub struct UiSettings {
     /// the app then contacts the site.
     #[serde(default)]
     pub paste_titles: bool,
+    /// How page icons (emoji) are drawn: `color` as they are, `muted` (default) quieter in lists and in full color in
+    /// titles, on hover and on the current page, or `mono` grey everywhere.
+    #[serde(default = "default_icon_style")]
+    pub icon_style: String,
     /// Task details (schedule, deadline, repeat, logbook) under a task on pages: `full` (always shown) or `compact`
     /// (one small indicator in the task's row, the details on hover, focus or tap).
     #[serde(default = "default_task_details")]
@@ -664,6 +668,10 @@ fn default_compression() -> String {
     "compressed".into()
 }
 
+fn default_icon_style() -> String {
+    "muted".into()
+}
+
 fn default_task_details() -> String {
     "full".into()
 }
@@ -686,6 +694,7 @@ impl Default for UiSettings {
             date_locale: default_date_locale(),
             link_brackets: false,
             paste_titles: false,
+            icon_style: default_icon_style(),
             task_details: default_task_details(),
             block_properties: default_task_details(),
             date_format: default_date_format(),

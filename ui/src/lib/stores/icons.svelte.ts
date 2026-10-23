@@ -13,6 +13,11 @@ export async function loadIcons(): Promise<void> {
   }
 }
 
+/** Whether any page of the graph has an icon: a list then keeps room for it on rows that have none (`PageIcon align`). */
+export function anyIcons(): boolean {
+  return icons.map.size > 0
+}
+
 /** The icon of a page, or an empty string. */
 export function iconOf(name: string): string {
   return icons.map.get(name.toLowerCase()) ?? ''

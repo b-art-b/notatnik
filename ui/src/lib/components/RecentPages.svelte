@@ -49,7 +49,7 @@
             data-recent={name}
             aria-current={current === name.toLowerCase() ? 'page' : undefined}
             class:on={current === name.toLowerCase()}
-            title={name}><PageIcon {name} />{isDate(name) ? shownDate(name) : name}</a
+            title={name}><PageIcon {name} align />{isDate(name) ? shownDate(name) : name}</a
           ><Padlock mark={padlock(name)} testid="recent-lock" gap="0.3em" />
         </li>
       {/each}

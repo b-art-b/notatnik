@@ -268,6 +268,11 @@ export function applyLinkBrackets(show: boolean) {
   document.documentElement.dataset.linkBrackets = show ? 'show' : 'hide'
 }
 
+/** How page icons are drawn: the CSS reads the attribute (`color`, `muted`, `mono`). */
+export function applyIconStyle(style: string) {
+  document.documentElement.dataset.iconStyle = style === 'color' || style === 'mono' ? style : 'muted'
+}
+
 /** Theme and date format come from the device settings file. */
 export async function loadDeviceSettings() {
   try {
@@ -277,6 +282,7 @@ export async function loadDeviceSettings() {
     app.dateVersion++
     applyTheme(s.theme as Theme)
     applyLinkBrackets(s.link_brackets)
+    applyIconStyle(s.icon_style)
     app.pasteTitles = s.paste_titles
     app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
     app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'

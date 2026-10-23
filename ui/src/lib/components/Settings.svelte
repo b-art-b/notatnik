@@ -14,6 +14,7 @@
   } from '../api'
   import {
     app,
+    applyIconStyle,
     applyLinkBrackets,
     applyTheme,
     errorMessage,
@@ -344,6 +345,7 @@
       app.dateVersion++
       applyTheme(s.theme as Theme)
       applyLinkBrackets(s.link_brackets)
+      applyIconStyle(s.icon_style)
       toast('Device settings restored. The settings they replaced are kept next to the file.')
       devicePreview = null
       restoreOf = null
@@ -471,6 +473,7 @@
     date_pattern: string
     link_brackets: boolean
     paste_titles: boolean
+    icon_style: string
     task_details: string
     block_properties: string
     backup_dir: string
@@ -505,6 +508,7 @@
         date_pattern: null,
         link_brackets: null,
         paste_titles: null,
+        icon_style: null,
         task_details: null,
         block_properties: null,
         backup_dir: null,
@@ -527,6 +531,7 @@
       app.dateVersion++
       applyTheme(s.theme as Theme)
       applyLinkBrackets(s.link_brackets)
+      applyIconStyle(s.icon_style)
       app.pasteTitles = s.paste_titles
       app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
       app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'
@@ -585,6 +590,22 @@
                 { value: 'dark', label: 'Dark' },
               ]}
               onchange={(v) => save({ theme: v })}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Page icons"
+            description="How the emoji before page names are drawn. Muted: quieter in lists, in full color in titles, under the pointer and on the current page. Which pages get an icon is set under Page icons."
+          >
+            <Segmented
+              name="icon-style"
+              legend="Page icon style"
+              value={s.icon_style}
+              options={[
+                { value: 'color', label: 'Color' },
+                { value: 'muted', label: 'Muted' },
+                { value: 'mono', label: 'Grey' },
+              ]}
+              onchange={(v) => save({ icon_style: v })}
             />
           </SettingRow>
           <SettingRow

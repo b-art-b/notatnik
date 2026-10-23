@@ -96,7 +96,7 @@
             onclick={() => toggle(e.name)}>{isOpen(e.name) ? '▾' : '▸'}</button
           >{:else}<span class="tog"></span>{/if}
         <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}
-          ><PageIcon name={e.name} />{e.leaf}</a
+          ><PageIcon name={e.name} align />{e.leaf}</a
         >
         <Padlock mark={padlock(e)} testid="row-lock" />
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}

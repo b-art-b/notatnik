@@ -127,3 +127,73 @@ test('journal days get an icon rule like any page; the calendar stays until one 
   await page.getByTestId('props-toggle').click()
   await expect(page.getByTestId('default-type')).toContainText('journal')
 })
+
+test('page icons are quiet in lists and full color in titles; the style is a device setting', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Ann.md', '---\nicon: 👤\n---\n- ann\n')
+  backend.write('pages/Plain.md', '- plain\n')
+  await backend.open('/pages')
+  const table = page.getByTestId('pages-table')
+  const row = (name: string) => table.locator('tr', { has: page.locator(`a[data-page="${name}"]`) })
+  const icon = row('Ann').getByTestId('page-icon')
+  const style = (el: typeof icon) =>
+    el.evaluate((e) => {
+      const cs = getComputedStyle(e)
+      return {
+        opacity: cs.opacity,
+        filter: cs.filter,
+        size: parseFloat(cs.fontSize),
+        width: e.getBoundingClientRect().width,
+      }
+    })
+
+  // muted is the default: smaller than the text, grey and faint in a list, in a box that is a little wider than the glyph
+  await expect(icon).toBeVisible()
+  const rowSize = await row('Ann')
+    .locator('a[data-page]')
+    .evaluate((e) => parseFloat(getComputedStyle(e).fontSize))
+  await expect.poll(async () => (await style(icon)).opacity).toBe('0.72')
+  const muted = await style(icon)
+  expect(muted.filter).toContain('grayscale')
+  expect(muted.size).toBeLessThan(rowSize)
+  expect(muted.width).toBeCloseTo(muted.size * 1.3, 0)
+  // a page without an icon keeps the same room, so the names line up
+  const blank = await row('Plain')
+    .locator('.picon.blank')
+    .evaluate((e) => e.getBoundingClientRect().width)
+  expect(blank).toBeCloseTo(muted.width, 0)
+  // full color where the eye is: under the pointer
+  await row('Ann').locator('a[data-page]').hover()
+  await expect.poll(async () => (await style(icon)).opacity).toBe('1')
+  expect((await style(icon)).filter).toBe('none')
+
+  // and in the title of the page
+  await backend.open('/page/Ann')
+  const title = page.getByRole('main').locator('h1').getByTestId('page-icon')
+  await expect(title).toBeVisible()
+  expect(await style(title)).toMatchObject({ opacity: '1', filter: 'none' })
+  const h1 = await page
+    .getByRole('main')
+    .locator('h1')
+    .evaluate((e) => parseFloat(getComputedStyle(e).fontSize))
+  expect((await style(title)).size).toBeLessThan(h1)
+
+  // the setting: Color leaves the emoji alone, Grey keeps it grey also under the pointer
+  await backend.open('/settings')
+  await page
+    .getByRole('radiogroup', { name: 'Page icon style' })
+    .getByRole('radio', { name: 'Color' })
+    .check()
+  await expect
+    .poll(async () => (await backend.call<{ icon_style: string }>('get_settings')).icon_style)
+    .toBe('color')
+  await backend.open('/pages')
+  await expect.poll(async () => (await style(icon)).filter).toBe('none')
+  expect((await style(icon)).opacity).toBe('1')
+  await backend.call('set_settings', { icon_style: 'mono' })
+  await page.reload() // the app reads the device settings when it starts
+  await row('Ann').locator('a[data-page]').hover()
+  await expect.poll(async () => (await style(icon)).filter).toContain('grayscale(1)')
+})

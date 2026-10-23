@@ -1117,6 +1117,8 @@ pub struct SettingsView {
     pub link_brackets: bool,
     /// Device: pasting a web address looks up the page's title (the app contacts the site).
     pub paste_titles: bool,
+    /// Device: `color`, `muted` or `mono`: how page icons are drawn.
+    pub icon_style: String,
     /// Device: `full` or `compact` task details on pages.
     pub task_details: String,
     /// Device: `full` or `compact` block properties on pages.
@@ -1166,6 +1168,8 @@ pub struct SetSettingsArgs {
     pub link_brackets: Option<bool>,
     /// Device: look up the title of a pasted web address.
     pub paste_titles: Option<bool>,
+    /// Device: `color`, `muted` or `mono` page icons.
+    pub icon_style: Option<String>,
     /// Device: `full` or `compact` task details.
     pub task_details: Option<String>,
     /// Device: `full` or `compact` block properties.

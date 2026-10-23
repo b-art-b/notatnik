@@ -332,6 +332,7 @@ Drag a block's **bullet**. The block moves together with all its sub-bullets. Th
 
 - Type `:` and a word (`:rocket`, `:check`, `:fire`) for suggestions; Enter inserts the emoji itself. Times like `12:30` and `key::` properties are not affected.
 - `/emoji` opens a picker under the cursor: type to search, Enter takes the first match, Esc closes it.
+- **Page icon style** (Settings → Appearance, this device): *Color* draws the emoji as they are; *Muted* (default) draws them smaller than the text, grey and faint in lists, the sidebar and Recent, and in full color in a page's title, on the row under the pointer and on the current page; *Grey* keeps them grey everywhere. Each icon has a box of the same width, and in a list where some pages have an icon the others keep an empty box, so the names line up.
 - **Page icons:** Settings → Page icons has rules such as `type = person → 👤` (synced with the graph). A page can set its own icon with `icon: 🏢` in its properties. Icons show next to the page in titles, lists, the sidebar, the hierarchy and links.
 
 ## Recent pages

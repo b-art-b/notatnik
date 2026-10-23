@@ -191,7 +191,7 @@
         <tr>
           <td>
             <a href={pageHash(r.name)} class:virtual={r.is_virtual} data-page={r.name}
-              ><PageIcon name={r.name} />{r.name}</a
+              ><PageIcon name={r.name} align />{r.name}</a
             >
             {#if r.is_virtual}<span class="tag">no file</span>{/if}
             <Padlock mark={padlock(r)} testid="row-lock" size="0.85em" />
