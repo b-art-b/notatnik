@@ -74,3 +74,32 @@ export function padlockOf(status: EncryptionStatus | null, file: string): Padloc
     title: `Stored as plain text on the server${why.length ? ` (kept plain by ${why.join(', ')})` : ''}`,
   }
 }
+
+/** The padlock after the graph's name: what the graph does by default, which gives the padlocks of single pages their
+ * meaning. `all`: everything is encrypted (full padlock); `some`: only marked paths are (dimmed). `null`: nothing is. */
+export interface GraphPadlock {
+  kind: 'all' | 'some'
+  title: string
+}
+
+export function graphPadlock(status: EncryptionStatus | null): GraphPadlock | null {
+  if (!status?.configured) return null
+  const n = (k: number) => `${k} path${k === 1 ? '' : 's'}`
+  let kind: GraphPadlock['kind']
+  let title: string
+  if (status.scope === 'all') {
+    kind = 'all'
+    title = status.except.length
+      ? `Everything is encrypted on the server, except ${n(status.except.length)} (${status.except.join(', ')})`
+      : 'Everything is encrypted on the server'
+  } else if (status.paths.length) {
+    kind = 'some'
+    title = `Only ${n(status.paths.length)} marked as encrypted on the server (${status.paths.join(', ')}); the rest is stored as it is`
+  } else {
+    return null
+  }
+  return {
+    kind,
+    title: status.unlocked ? title : `${title}. The key is locked: encrypted files wait for it.`,
+  }
+}

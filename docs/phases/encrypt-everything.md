@@ -80,5 +80,11 @@ arrived. Connect a new device to an empty folder, as the app's own flow does.
 **Verify**
 - [x] Vitest for `padlockOf`; browser tests for both defaults (rows, tree, filter, title, button, Recent)
 
+### S7 The graph padlock (EN-27)
+- [x] `graphPadlock(status)` and the mark in the graph switcher (full with `all`, dimmed with some marked paths, none otherwise; the tooltip names exceptions or paths and a locked key); *Encryption settings…* in the graph menu
+
+**Verify**
+- [x] Vitest for the three states and the locked key; browser test for each state, the computed opacity and the menu item
+
 ### S5 Docs
 - [x] requirements EN-27, encryption.md §8, D58, file-format (config keys), keymap, TODO, testing

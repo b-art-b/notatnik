@@ -3,6 +3,14 @@
   // to, and leads to the start screen to add one or to see them all.
   import { backend, type GraphHistoryEntry } from '../api'
   import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
+  import { encryption, graphPadlock, refreshEncryption } from '../stores/encryption.svelte'
+
+  // what the graph encrypts by default (see `graphPadlock`); read again whenever another graph is open
+  const padlock = $derived(graphPadlock(encryption.status))
+  $effect(() => {
+    void app.graph?.id
+    void refreshEncryption()
+  })
 
   let open = $state(false)
   let graphs = $state<GraphHistoryEntry[]>([])
@@ -25,6 +33,11 @@
   async function switchTo(g: GraphHistoryEntry) {
     open = false
     await openGraph(g.path, false)
+  }
+
+  function encryptionSettings() {
+    open = false
+    location.hash = '#/settings'
   }
 
   function startScreen() {
@@ -58,6 +71,15 @@
   >
     <span class="db" aria-hidden="true">⛁</span>
     <span class="name">{app.graph?.name ?? 'Graph'}</span>
+    {#if padlock}<span
+        class="padlock"
+        class:some={padlock.kind === 'some'}
+        data-testid="graph-padlock"
+        data-kind={padlock.kind}
+        role="img"
+        aria-label={padlock.title}
+        title={padlock.title}>🔒</span
+      >{/if}
     <span class="caret" aria-hidden="true">▾</span>
   </button>
   {#if open}
@@ -73,6 +95,16 @@
       {/if}
       <button type="button" role="menuitem" class="item" onclick={startScreen}>Add new graph…</button>
       <button type="button" role="menuitem" class="item" onclick={startScreen}>All graphs…</button>
+      {#if padlock}
+        <hr />
+        <button
+          type="button"
+          role="menuitem"
+          class="item"
+          data-testid="graph-menu-encryption"
+          onclick={encryptionSettings}>Encryption settings…</button
+        >
+      {/if}
     </div>
   {/if}
 </div>
@@ -104,6 +136,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .padlock {
+    font-size: 0.8em;
+  }
+  /* only some paths are encrypted: the same padlock, quieter */
+  .padlock.some {
+    opacity: 0.45;
   }
   .db,
   .caret {

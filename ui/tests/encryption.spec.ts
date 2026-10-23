@@ -303,6 +303,45 @@ test('with everything encrypted, the open padlock marks the pages kept plain and
   await expect(recentItem('Secret').locator('[data-testid^="recent-lock"]')).toHaveCount(0)
 })
 
+test('the graph name carries a padlock for what the graph encrypts by default', async ({ backend, page }) => {
+  await backend.open('/')
+  const padlock = page.getByTestId('graph-padlock')
+  // no vault: nothing
+  await expect(page.getByTestId('graph-switcher')).toBeVisible()
+  await expect(padlock).toHaveCount(0)
+
+  // only marked paths: the padlock is there, quieter
+  await backend.call('encryption_setup', { password: 'correct horse', scope: 'marked' })
+  await backend.call('encryption_confirm', {})
+  await expect(padlock).toHaveCount(0) // nothing is marked yet
+  await backend.call('encryption_mark', { paths: ['pages/private/'], encrypted: true })
+  await page.reload()
+  await expect(padlock).toHaveAttribute('data-kind', 'some')
+  await expect(padlock).toHaveAttribute('title', /Only 1 path marked as encrypted .*pages\/private\//)
+  await expect.poll(() => padlock.evaluate((e) => getComputedStyle(e).opacity)).toBe('0.45')
+
+  // everything: the full padlock, and the tooltip names the exceptions
+  await backend.call('encryption_scope', { all: true })
+  await backend.call('encryption_mark', { paths: ['pages/public/'], encrypted: false })
+  await page.reload()
+  await expect(padlock).toHaveAttribute('data-kind', 'all')
+  await expect(padlock).toHaveAttribute(
+    'title',
+    /Everything is encrypted on the server, except 1 path \(pages\/public\/\)/,
+  )
+  await expect.poll(() => padlock.evaluate((e) => getComputedStyle(e).opacity)).toBe('1')
+
+  // a locked key is said in the tooltip
+  await backend.call('encryption_lock', {})
+  await page.reload()
+  await expect(padlock).toHaveAttribute('title', /The key is locked/)
+
+  // the graph menu leads to the encryption settings
+  await page.getByTestId('graph-switcher').click()
+  await page.getByTestId('graph-menu-encryption').click()
+  await expect(page).toHaveURL(/#\/settings/)
+})
+
 test('Encrypt everything switches the scope in one step; the settings stay readable', async ({
   backend,
   page,

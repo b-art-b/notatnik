@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coveringPaths, padlockOf, pathIsEncrypted } from './encryption.svelte'
+import { coveringPaths, graphPadlock, padlockOf, pathIsEncrypted } from './encryption.svelte'
 
 describe('pathIsEncrypted', () => {
   const rules = { scope: 'marked', paths: ['pages/private/', 'pages/Health.md'], except: ['x/'] }
@@ -73,5 +73,30 @@ describe('padlockOf', () => {
     expect(padlockOf(null, 'pages/a.md')).toBeNull()
     expect(padlockOf({ ...base, scope: 'all' } as never, '')).toBeNull()
     expect(padlockOf({ ...base, scope: 'all' } as never, '.notatnik/config.toml')).toBeNull()
+  })
+})
+
+describe('graphPadlock', () => {
+  const base = { configured: true, unlocked: true, paths: [] as string[], except: [] as string[] }
+  it('is full with everything encrypted and names the exceptions', () => {
+    expect(graphPadlock({ ...base, scope: 'all' } as never)).toMatchObject({
+      kind: 'all',
+      title: 'Everything is encrypted on the server',
+    })
+    const p = graphPadlock({ ...base, scope: 'all', except: ['pages/public/', 'x.md'] } as never)
+    expect(p?.title).toContain('except 2 paths (pages/public/, x.md)')
+  })
+  it('is dimmed when only marked paths are encrypted, and absent when none is', () => {
+    expect(graphPadlock({ ...base, scope: 'marked', paths: ['pages/private/'] } as never)).toMatchObject({
+      kind: 'some',
+    })
+    expect(graphPadlock({ ...base, scope: 'marked' } as never)).toBeNull()
+    expect(graphPadlock({ ...base, scope: 'all', configured: false } as never)).toBeNull()
+    expect(graphPadlock(null)).toBeNull()
+  })
+  it('says when the key is locked', () => {
+    expect(graphPadlock({ ...base, scope: 'all', unlocked: false } as never)?.title).toContain(
+      'The key is locked',
+    )
   })
 })
