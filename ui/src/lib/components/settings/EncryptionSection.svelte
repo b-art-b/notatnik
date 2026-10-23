@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Switch from '../Switch.svelte'
   // Settings → Sync → Encryption (EN-13, EN-14, EN-18): which files are stored encrypted on the server, and the
   // key. Set up, unlock, lock, the keyring switch, the password and the recovery key. The marks themselves are
   // made from a page (Encrypt…) or, for the whole graph, with Encrypt everything…; here they are listed and can be
@@ -417,11 +418,8 @@
       description="The app then unlocks itself when the graph opens. Anyone who is logged in to this computer can use the key; the files on the server stay protected from everyone else. Needs an unlocked key."
       labelFor="graph-enc-keyring"
     >
-      <input
+      <Switch
         id="graph-enc-keyring"
-        class="switch"
-        type="checkbox"
-        role="switch"
         checked={st.keyring}
         disabled={!st.keyring && !st.unlocked}
         onchange={(e) => void keyring((e.currentTarget as HTMLInputElement).checked)}
@@ -432,11 +430,8 @@
       description="On: each encrypted file is one object on the server with a name that tells nothing, and its real name and folder are inside, so the server sees no page titles. Off: the server sees the names (with .enc). Switching stores every encrypted file again at the next sync, which needs the key unlocked. The objects are in the folder .notatnik-enc on the server. Its name starts with a dot, so the Nextcloud web app and its mobile apps hide it until you turn on Show hidden files in the Files settings; the sync itself sees it as any other folder. Folders that are empty after the move are removed. The list of encrypted folders in the settings file stays readable, so use Encrypt everything below if you do not want it to name private folders."
       labelFor="graph-enc-names"
     >
-      <input
+      <Switch
         id="graph-enc-names"
-        class="switch"
-        type="checkbox"
-        role="switch"
         checked={st.names === 'hidden'}
         onchange={(e) => void hideNames((e.currentTarget as HTMLInputElement).checked)}
       />
@@ -446,11 +441,8 @@
       description="Off (the default): tasks on encrypted pages are not sent to the calendar server, because their text would be readable there. When everything is encrypted, no task is sent unless its page stays plain."
       labelFor="graph-enc-calendar"
     >
-      <input
+      <Switch
         id="graph-enc-calendar"
-        class="switch"
-        type="checkbox"
-        role="switch"
         checked={st.calendar === 'allow'}
         onchange={(e) => void allowCalendar((e.currentTarget as HTMLInputElement).checked)}
       />

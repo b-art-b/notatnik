@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goToSettings } from '../stores/settingsParts.svelte'
   // Encrypt a page on the server (or before the graph is connected to one), or stop doing so (EN-16, EN-17, EN-18). It says what marking means before it
   // is done: older plain copies on the server, pictures that stay plain, tasks that leave the calendar.
   import { backend, type EncryptionPreview } from '../api'
@@ -80,8 +81,10 @@
     <p class="muted">…</p>
   {:else if !st.configured}
     <p>
-      Encryption is not set up for this graph yet. <a href="#/settings" data-testid="encrypt-goto-settings"
-        >Set it up in Settings → Sync</a
+      Encryption is not set up for this graph yet. <a
+        href="#/settings"
+        onclick={() => goToSettings('sync', 'encryption')}
+        data-testid="encrypt-goto-settings">Set it up in Settings → Sync</a
       >, then come back.
     </p>
   {:else if outer.length && !own.length}
@@ -121,8 +124,10 @@
     >
   {:else if !st.unlocked}
     <p>
-      The key is locked. <a href="#/settings" data-testid="encrypt-goto-settings"
-        >Unlock it in Settings → Sync</a
+      The key is locked. <a
+        href="#/settings"
+        onclick={() => goToSettings('sync', 'encryption')}
+        data-testid="encrypt-goto-settings">Unlock it in Settings → Sync</a
       >, then come back.
     </p>
   {:else if all}

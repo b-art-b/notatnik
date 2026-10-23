@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { openPart } from './parts'
 
 // Settings → Calendar against the dev server's in-memory calendar server (CA-1, CA-2).
 test.use({ fakeCalendar: true })
@@ -35,6 +36,7 @@ test('connect with a login of its own, choose calendars, and save', async ({ bac
   expect(st.account.user).toBe('me')
 
   // dated tasks are sent; the fixture's first sync gives them block IDs
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await dialog.getByTestId('calendar-sync').click()
   await expect(dialog.getByTestId('calendar-sync-result')).toContainText('sent')
   await dialog.getByTestId('calendar-sync').click()
@@ -55,6 +57,7 @@ test('the import of tasks made in other apps is a switch that is saved at once',
   await page.getByLabel('Tasks go to Tasks').check()
   await page.getByLabel('Calendar sync is on').check()
   await page.getByTestId('calendar-save').click()
+  await openPart(page, 'Calendar', 'Tasks & sync')
   const box = page.getByTestId('calendar-import')
   await expect(box).not.toBeChecked()
   await box.check()
@@ -106,6 +109,7 @@ test('with calendar sync on, the app syncs by itself when the graph opens', asyn
   await page.reload()
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByRole('tab', { name: 'Calendar' }).click()
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await expect(page.getByTestId('calendar-auto')).toContainText('Last synced', { timeout: 15_000 })
 })
 
@@ -202,13 +206,16 @@ test('calendar sync can be paused for all calendars and resumed; the choices sta
   await page.reload()
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByRole('tab', { name: 'Calendar' }).click()
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await expect(page.getByTestId('calendar-auto')).toContainText('Last synced', { timeout: 15_000 })
 
   // pausing needs no reconnecting; the sync button stops and the note says why
+  await openPart(page, 'Calendar', 'Account') // the pause switch is under Account, the sync button under Tasks & sync
   const paused = page.getByTestId('calendar-paused')
   await expect(paused).not.toBeChecked()
   await paused.check()
   await expect(page.getByTestId('calendar-paused-note')).toContainText('Paused: nothing is sent')
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await expect(page.getByTestId('calendar-sync')).toBeDisabled()
   const st = await backend.call<{ paused: boolean; enabled: boolean; tasks: string }>('calendar_status')
   expect([st.paused, st.enabled, st.tasks]).toEqual([true, true, tasks])
@@ -217,10 +224,14 @@ test('calendar sync can be paused for all calendars and resumed; the choices sta
   // it stays paused after a reload (the automatic sync does not start)
   await page.reload()
   await page.getByRole('tab', { name: 'Calendar' }).click()
+  await openPart(page, 'Calendar', 'Account')
   await expect(page.getByTestId('calendar-paused')).toBeChecked()
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await expect(page.getByTestId('calendar-auto')).toContainText('Paused.')
 
+  await openPart(page, 'Calendar', 'Account')
   await page.getByTestId('calendar-paused').uncheck()
+  await openPart(page, 'Calendar', 'Tasks & sync')
   await expect(page.getByTestId('calendar-sync')).toBeEnabled()
   await page.getByTestId('calendar-sync').click()
   await expect(page.getByTestId('calendar-sync-result')).toContainText('up to date')

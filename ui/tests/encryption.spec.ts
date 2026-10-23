@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test as base } from './fixtures'
+import { openPart } from './parts'
 
 // Encrypting chosen pages on the server (EN-11 to EN-18), against the in-memory WebDAV server of the sync tests.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -82,6 +83,7 @@ test('a page is encrypted from its menu: the lock shows and the server holds no 
 
   // set up: password twice, the recovery key is shown once and has to be confirmed
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await expect(page.getByTestId('enc-state')).toHaveText('Not set up')
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
@@ -119,6 +121,7 @@ test('a page is encrypted from its menu: the lock shows and the server holds no 
   // Settings lists the mark; locking stops the file, and the sidebar says so
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await expect(page.getByTestId('enc-paths')).toContainText('pages/Secret.md')
   await page.getByTestId('graph-enc-lock').click()
   await expect(page.getByTestId('enc-state')).toHaveText('Locked')
@@ -160,6 +163,23 @@ test('without a vault or with a locked key the dialog sends you to Settings', as
   await expect(page.getByTestId('encrypt-dialog')).toContainText('not set up')
   await expect(page.getByTestId('encrypt-goto-settings')).toBeVisible()
   await expect(page.getByTestId('encrypt-start')).toHaveCount(0)
+
+  // the link opens Settings on the Encryption part of Sync, and the part is remembered
+  await page.getByTestId('encrypt-goto-settings').click()
+  await expect(page.getByRole('heading', { level: 2, name: 'Sync' })).toBeVisible()
+  await expect(page.getByTestId('graph-enc-setup')).toBeVisible()
+  const sections = page.getByRole('navigation', { name: 'Sync sections' })
+  await expect(sections.getByRole('button', { name: 'Encryption', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await sections.getByRole('button', { name: 'Server', exact: true }).click()
+  await expect(page.getByTestId('graph-enc-setup')).toHaveCount(0)
+  await page.reload()
+  await expect(sections.getByRole('button', { name: 'Server', exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
 })
 
 test('encryption is set up and a page marked on a local graph; connecting uploads it encrypted', async ({
@@ -171,6 +191,7 @@ test('encryption is set up and a page marked on a local graph; connecting upload
   backend.write('pages/Open.md', '- open text\n')
   await backend.open('/settings')
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')
@@ -358,6 +379,7 @@ test('Encrypt everything switches the scope in one step; the settings stay reada
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.reload()
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
 
   // not before the key exists and is unlocked
   await expect(page.getByTestId('enc-all')).toHaveCount(0)
@@ -408,6 +430,7 @@ test('a forgotten graph password is reset: the new vault replaces the old, the f
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.reload()
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('old password')
   await page.getByLabel('Password again').fill('old password')
@@ -467,6 +490,7 @@ test('names are hidden by default, the switch moves the files, and a new key re-
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.reload()
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('first password')
   await page.getByLabel('Password again').fill('first password')
@@ -484,8 +508,10 @@ test('names are hidden by default, the switch moves the files, and a new key re-
   expect(await dav.file('Notes/hid/pages/Secret.md')).toBeNull()
   expect(await dav.file('Notes/hid/pages/Secret.md.enc')).toBeNull()
   const verify = async () => {
+    await openPart(page, 'Sync', 'Server')
     await page.getByRole('button', { name: 'Verify', exact: true }).click()
     await expect(page.getByTestId('verify-result')).toContainText('The server copy matches this device')
+    await openPart(page, 'Sync', 'Encryption')
   }
   await verify()
 
@@ -535,6 +561,7 @@ test('everything is encrypted by default; a page can be kept plain, and the scop
   await page.goto(page.url().replace(/#.*/, '#/settings'))
   await page.reload()
   await page.getByRole('tab', { name: /Sync/ }).click()
+  await openPart(page, 'Sync', 'Encryption')
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')

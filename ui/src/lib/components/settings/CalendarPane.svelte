@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Switch from '../Switch.svelte'
   // Settings → Calendar: which login and which Nextcloud calendars the graph uses. The login is the one of the
   // graph's sync unless you give it one of its own. "Sync" sends the dated tasks, reads back what changed in
   // the calendar and shows what the sync log holds (conflicts, kept titles, tasks deleted in the calendar).
@@ -138,6 +139,8 @@
       })
       password = ''
       status = await backend.call('calendar_status', {})
+      // the calendars that were found are what comes next
+      parts.calendar = 'calendars'
     } catch (e) {
       error = errorMessage(e)
     } finally {
@@ -219,6 +222,9 @@
     read = on ? [...read.filter((h) => h !== href), href] : read.filter((h) => h !== href)
   }
   import PaneHeader from './PaneHeader.svelte'
+  import SubNav from './SubNav.svelte'
+  import { parts, saveParts } from '../../stores/settingsParts.svelte'
+  $effect(saveParts)
 </script>
 
 <PaneHeader title="Calendar" scope="device">
@@ -227,246 +233,262 @@
 </PaneHeader>
 
 {#if status}
-  <section aria-label="Login">
-    <h3>Login</h3>
-    {#if status.account && !status.account.own}
-      <p>
-        Same login as the sync: <strong>{status.account.user}</strong> on
-        <code>{status.account.server}</code>.
-      </p>
-      <button type="button" class="plain" onclick={() => (own = !own)}>
-        {own ? 'Use the sync login' : 'Use another login…'}
-      </button>
-    {:else if status.account}
-      <p>
-        Own login: <strong>{status.account.user}</strong> on <code>{status.account.server}</code>.
-        <button type="button" class="plain" onclick={forget}>Remove…</button>
-      </p>
-    {:else}
-      <p class="muted">This graph is not synced with a server: enter the Nextcloud address and your login.</p>
-    {/if}
+  <SubNav
+    label="Calendar sections"
+    bind:value={parts.calendar}
+    items={[
+      { id: 'account', label: 'Account' },
+      { id: 'calendars', label: 'Calendars' },
+      { id: 'tasks', label: 'Tasks & sync' },
+    ]}
+  />
+  {#if parts.calendar === 'account'}
+    <section aria-label="Login">
+      <h3>Login</h3>
+      {#if status.account && !status.account.own}
+        <p>
+          Same login as the sync: <strong>{status.account.user}</strong> on
+          <code>{status.account.server}</code>.
+        </p>
+        <button type="button" class="plain" onclick={() => (own = !own)}>
+          {own ? 'Use the sync login' : 'Use another login…'}
+        </button>
+      {:else if status.account}
+        <p>
+          Own login: <strong>{status.account.user}</strong> on <code>{status.account.server}</code>.
+          <button type="button" class="plain" onclick={forget}>Remove…</button>
+        </p>
+      {:else}
+        <p class="muted">
+          This graph is not synced with a server: enter the Nextcloud address and your login.
+        </p>
+      {/if}
 
-    {#if own}
-      <form
-        class="login"
-        data-testid="calendar-login"
-        onsubmit={(e) => {
-          e.preventDefault()
-          if (!busy) void connect()
-        }}
-      >
-        <label for="cal-server">Server</label>
-        <input
-          id="cal-server"
-          bind:value={server}
-          placeholder="https://cloud.example.org"
-          autocomplete="url"
-        />
-        <label for="cal-user">User name</label>
-        <input id="cal-user" bind:value={user} autocomplete="username" />
-        <label for="cal-pass">Password (an app password from Nextcloud Settings → Security)</label>
-        <input id="cal-pass" type="password" bind:value={password} autocomplete="current-password" />
+      {#if own}
+        <form
+          class="login"
+          data-testid="calendar-login"
+          onsubmit={(e) => {
+            e.preventDefault()
+            if (!busy) void connect()
+          }}
+        >
+          <label for="cal-server">Server</label>
+          <input
+            id="cal-server"
+            bind:value={server}
+            placeholder="https://cloud.example.org"
+            autocomplete="url"
+          />
+          <label for="cal-user">User name</label>
+          <input id="cal-user" bind:value={user} autocomplete="username" />
+          <label for="cal-pass">Password (an app password from Nextcloud Settings → Security)</label>
+          <input id="cal-pass" type="password" bind:value={password} autocomplete="current-password" />
+          <div class="buttons">
+            <button type="submit" disabled={busy || !server.trim() || !user.trim() || !password}
+              >{busy ? 'Connecting…' : 'Connect'}</button
+            >
+          </div>
+        </form>
+      {:else}
         <div class="buttons">
-          <button type="submit" disabled={busy || !server.trim() || !user.trim() || !password}
-            >{busy ? 'Connecting…' : 'Connect'}</button
+          <button
+            type="button"
+            data-testid="calendar-connect"
+            disabled={busy || !status.account}
+            onclick={connect}
+            >{busy ? 'Connecting…' : list ? 'Reload calendars' : 'Connect and list calendars'}</button
           >
         </div>
-      </form>
-    {:else}
-      <div class="buttons">
-        <button
-          type="button"
-          data-testid="calendar-connect"
-          disabled={busy || !status.account}
-          onclick={connect}
-          >{busy ? 'Connecting…' : list ? 'Reload calendars' : 'Connect and list calendars'}</button
-        >
-      </div>
-    {/if}
-    {#if error}<p class="error" role="alert">{error}</p>{/if}
-  </section>
-
-  {#if status.enabled}
-    <section aria-label="Pause">
-      <label class="on">
-        <input
-          type="checkbox"
-          role="switch"
-          data-testid="calendar-paused"
-          checked={status.paused}
-          onchange={(e) => pause(e.currentTarget.checked)}
-        />
-        Pause calendar sync
-      </label>
-      <p class="muted" data-testid="calendar-paused-note">
-        {#if status.paused}
-          Paused: nothing is sent to or read from any calendar. Your choices are kept. Switch it off to go on;
-          what changed meanwhile is brought in step at the first sync.
-        {:else}
-          Stops the sync of all calendars for now, without forgetting which calendars you chose. Also in the
-          palette: "Pause or resume calendar sync".
-        {/if}
-      </p>
+      {/if}
+      {#if error}<p class="error" role="alert">{error}</p>{/if}
     </section>
-  {/if}
 
-  {#if list}
-    <section aria-label="Calendars">
-      <h3>Calendars</h3>
-      <p class="muted">Connected as {list.account.user}: {list.calendars.length} calendars found.</p>
-      <table class="cals">
-        <thead>
-          <tr><th>Calendar</th><th>Receives tasks</th><th>Also takes tasks</th><th>Show events</th></tr>
-        </thead>
-        <tbody>
-          {#each list.calendars as c (c.href)}
-            <tr>
-              <td>{c.name}</td>
-              <td>
-                <input
-                  type="radio"
-                  name="cal-tasks"
-                  aria-label={`Tasks go to ${c.name}`}
-                  disabled={!c.tasks}
-                  checked={tasks === c.href}
-                  onchange={() => (tasks = c.href)}
-                />
-              </td>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={`Tasks can also go to ${c.name}`}
-                  disabled={!c.tasks || tasks === c.href}
-                  checked={more.includes(c.href)}
-                  onchange={(e) => toggleMore(c.href, e.currentTarget.checked)}
-                />
-              </td>
-              <td>
-                <input
-                  type="checkbox"
-                  aria-label={`Show events of ${c.name}`}
-                  disabled={!c.events}
-                  checked={read.includes(c.href)}
-                  onchange={(e) => toggleRead(c.href, e.currentTarget.checked)}
-                />
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-      <label class="on">
-        <input type="checkbox" bind:checked={enabled} /> Calendar sync is on
-      </label>
-      <div class="buttons">
-        <button type="button" data-testid="calendar-save" disabled={busy} onclick={save}>Save</button>
-      </div>
-    </section>
-  {:else if status.enabled}
-    <p class="muted">Calendar sync is on. Connect to change the calendars.</p>
-  {/if}
-
-  {#if status.enabled && (status.tasks || status.read.length)}
-    <section aria-label="Tasks">
-      <h3>Tasks</h3>
-      <p class="muted">
-        Tasks with a <code>scheduled::</code> or <code>deadline::</code> date go to the calendar; a task gets
-        a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep one
-        out, or <code>cal:: Work</code> to send it to another calendar (tick it under "Also takes tasks"); the
-        <em>Calendar</em> chip of a task changes it too.
-      </p>
-      <label class="on">
-        <input
-          type="checkbox"
-          data-testid="calendar-undated"
-          checked={undatedTasks}
-          onchange={(e) => saveSwitch({ undated_tasks: e.currentTarget.checked })}
-        />
-        Also send open tasks without a date
-      </label>
-      <p class="muted">
-        Then the calendar holds every open task; finished tasks and tasks with <code>cal:: no</code> stay out. Turning
-        it off again completes the undated ones in the calendar. Every open task gets a block ID on its line.
-      </p>
-      <label class="on">
-        <input
-          type="checkbox"
-          data-testid="calendar-import"
-          checked={importTasks}
-          onchange={(e) => saveSwitch({ import_tasks: e.currentTarget.checked })}
-        />
-        Copy tasks made in other apps into my notes
-      </label>
-      {#if importTasks}
+    {#if status.enabled}
+      <section aria-label="Pause">
         <label class="on">
-          Copy them to
-          <select
-            data-testid="calendar-import-to"
-            aria-label="Copy them to"
-            value={status.import_to}
-            onchange={(e) => saveSwitch({ import_to: e.currentTarget.value })}
-          >
-            <option value="journal">today's journal, under “{status.import_section}”</option>
-            <option value="inbox">the page “{status.inbox}”</option>
-          </select>
+          <Switch
+            data-testid="calendar-paused"
+            checked={status.paused}
+            onchange={(e) => pause(e.currentTarget.checked)}
+          />
+          Pause calendar sync
         </label>
-      {/if}
-      <p class="muted">
-        Each copy gets a block ID and a <code>cal-source::</code> property that names the task it came from, so
-        no device copies a task twice, even when you move or delete the copy. A task with a date is sent back under
-        its own item and the original is removed from the calendar; a task without a date stays, marked as taken.
-      </p>
-      {#if inboxCopies && inboxCopies.count > 0}
-        <div class="box" data-testid="calendar-inbox-copies">
-          <p>
-            {inboxCopies.count} tasks copied earlier are still in the page <code>{inboxCopies.page}</code>.
-          </p>
-          <button type="button" data-testid="calendar-move-copies" onclick={moveCopies}
-            >Move them into today's journal</button
-          >
-          <p class="muted">
-            Only tasks the sync made are moved, with their dates, notes and block IDs. Anything else in that
-            page stays. The page history in the app can bring the old version back.
-          </p>
-        </div>
-      {/if}
-      <div class="buttons">
-        <button
-          type="button"
-          data-testid="calendar-sync"
-          disabled={syncing || status.paused}
-          onclick={syncTasks}>{syncing ? 'Syncing…' : 'Sync tasks with the calendar now'}</button
-        >
-      </div>
-      {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
-      <p class="muted" data-testid="calendar-auto">
-        {#if status.paused}
-          Paused.
-        {:else if calendarAuto.error}
-          Last sync failed: {calendarAuto.error}. It tries again by itself.
-        {:else if calendarAuto.last}
-          Last synced {new Date(calendarAuto.last).toLocaleTimeString()}.
-        {/if}
-        The sync also runs by itself: when the graph opens, every 5 minutes and a few seconds after you change a
-        note, while the app is open.
-      </p>
-    </section>
-    {#if log.length}
-      <section aria-label="Sync log">
-        <h3>Sync log</h3>
-        <ul class="log" data-testid="calendar-log">
-          {#each log.slice(0, 50) as e, i (i)}
-            <li>
-              <span class="muted">{e.at.replace('T', ' ')}</span>
-              <strong>{e.title}</strong> <span class="muted">({e.page})</span>: {describeLog(e)}
-              {#if canTurnAround(e, i)}
-                <button class="link" disabled={syncing} onclick={() => turnAround(e)}>
-                  Use {e.winner === 'remote' ? 'the notes' : 'the calendar'} value instead
-                </button>
-              {/if}
-            </li>
-          {/each}
-        </ul>
+        <p class="muted" data-testid="calendar-paused-note">
+          {#if status.paused}
+            Paused: nothing is sent to or read from any calendar. Your choices are kept. Switch it off to go
+            on; what changed meanwhile is brought in step at the first sync.
+          {:else}
+            Stops the sync of all calendars for now, without forgetting which calendars you chose. Also in the
+            palette: "Pause or resume calendar sync".
+          {/if}
+        </p>
       </section>
+    {/if}
+  {:else if parts.calendar === 'calendars'}
+    {#if list}
+      <section aria-label="Calendars">
+        <h3>Calendars</h3>
+        <p class="muted">Connected as {list.account.user}: {list.calendars.length} calendars found.</p>
+        <table class="cals">
+          <thead>
+            <tr><th>Calendar</th><th>Receives tasks</th><th>Also takes tasks</th><th>Show events</th></tr>
+          </thead>
+          <tbody>
+            {#each list.calendars as c (c.href)}
+              <tr>
+                <td>{c.name}</td>
+                <td>
+                  <input
+                    type="radio"
+                    name="cal-tasks"
+                    aria-label={`Tasks go to ${c.name}`}
+                    disabled={!c.tasks}
+                    checked={tasks === c.href}
+                    onchange={() => (tasks = c.href)}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Tasks can also go to ${c.name}`}
+                    disabled={!c.tasks || tasks === c.href}
+                    checked={more.includes(c.href)}
+                    onchange={(e) => toggleMore(c.href, e.currentTarget.checked)}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Show events of ${c.name}`}
+                    disabled={!c.events}
+                    checked={read.includes(c.href)}
+                    onchange={(e) => toggleRead(c.href, e.currentTarget.checked)}
+                  />
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+        <label class="on">
+          <input type="checkbox" bind:checked={enabled} /> Calendar sync is on
+        </label>
+        <div class="buttons">
+          <button type="button" data-testid="calendar-save" disabled={busy} onclick={save}>Save</button>
+        </div>
+      </section>
+    {:else if status.enabled}
+      <p class="muted">Calendar sync is on. Connect to change the calendars.</p>
+    {:else}
+      <p class="muted">Calendar sync is off: turn it on under Account.</p>
+    {/if}
+  {:else}
+    {#if status.enabled && (status.tasks || status.read.length)}
+      <section aria-label="Tasks">
+        <h3>Tasks</h3>
+        <p class="muted">
+          Tasks with a <code>scheduled::</code> or <code>deadline::</code> date go to the calendar; a task
+          gets a block ID (<code>^abc123</code>) on its line the first time. Add <code>cal:: no</code> to keep
+          one out, or <code>cal:: Work</code> to send it to another calendar (tick it under "Also takes
+          tasks"); the
+          <em>Calendar</em> chip of a task changes it too.
+        </p>
+        <label class="on">
+          <Switch
+            data-testid="calendar-undated"
+            checked={undatedTasks}
+            onchange={(e) => saveSwitch({ undated_tasks: e.currentTarget.checked })}
+          />
+          Also send open tasks without a date
+        </label>
+        <p class="muted">
+          Then the calendar holds every open task; finished tasks and tasks with <code>cal:: no</code> stay out.
+          Turning it off again completes the undated ones in the calendar. Every open task gets a block ID on its
+          line.
+        </p>
+        <label class="on">
+          <Switch
+            data-testid="calendar-import"
+            checked={importTasks}
+            onchange={(e) => saveSwitch({ import_tasks: e.currentTarget.checked })}
+          />
+          Copy tasks made in other apps into my notes
+        </label>
+        {#if importTasks}
+          <label class="on">
+            Copy them to
+            <select
+              data-testid="calendar-import-to"
+              aria-label="Copy them to"
+              value={status.import_to}
+              onchange={(e) => saveSwitch({ import_to: e.currentTarget.value })}
+            >
+              <option value="journal">today's journal, under “{status.import_section}”</option>
+              <option value="inbox">the page “{status.inbox}”</option>
+            </select>
+          </label>
+        {/if}
+        <p class="muted">
+          Each copy gets a block ID and a <code>cal-source::</code> property that names the task it came from, so
+          no device copies a task twice, even when you move or delete the copy. A task with a date is sent back
+          under its own item and the original is removed from the calendar; a task without a date stays, marked
+          as taken.
+        </p>
+        {#if inboxCopies && inboxCopies.count > 0}
+          <div class="box" data-testid="calendar-inbox-copies">
+            <p>
+              {inboxCopies.count} tasks copied earlier are still in the page <code>{inboxCopies.page}</code>.
+            </p>
+            <button type="button" data-testid="calendar-move-copies" onclick={moveCopies}
+              >Move them into today's journal</button
+            >
+            <p class="muted">
+              Only tasks the sync made are moved, with their dates, notes and block IDs. Anything else in that
+              page stays. The page history in the app can bring the old version back.
+            </p>
+          </div>
+        {/if}
+        <div class="buttons">
+          <button
+            type="button"
+            data-testid="calendar-sync"
+            disabled={syncing || status.paused}
+            onclick={syncTasks}>{syncing ? 'Syncing…' : 'Sync tasks with the calendar now'}</button
+          >
+        </div>
+        {#if lastSync}<p class="muted" data-testid="calendar-sync-result">{lastSync}</p>{/if}
+        <p class="muted" data-testid="calendar-auto">
+          {#if status.paused}
+            Paused.
+          {:else if calendarAuto.error}
+            Last sync failed: {calendarAuto.error}. It tries again by itself.
+          {:else if calendarAuto.last}
+            Last synced {new Date(calendarAuto.last).toLocaleTimeString()}.
+          {/if}
+          The sync also runs by itself: when the graph opens, every 5 minutes and a few seconds after you change
+          a note, while the app is open.
+        </p>
+      </section>
+      {#if log.length}
+        <section aria-label="Sync log">
+          <h3>Sync log</h3>
+          <ul class="log" data-testid="calendar-log">
+            {#each log.slice(0, 50) as e, i (i)}
+              <li>
+                <span class="muted">{e.at.replace('T', ' ')}</span>
+                <strong>{e.title}</strong> <span class="muted">({e.page})</span>: {describeLog(e)}
+                {#if canTurnAround(e, i)}
+                  <button class="link" disabled={syncing} onclick={() => turnAround(e)}>
+                    Use {e.winner === 'remote' ? 'the notes' : 'the calendar'} value instead
+                  </button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+    {:else}
+      <p class="muted">Turn calendar sync on and choose the calendars first (Account and Calendars).</p>
     {/if}
   {/if}
 {/if}

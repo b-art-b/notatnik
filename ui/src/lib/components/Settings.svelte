@@ -26,6 +26,8 @@
   } from '../stores/app.svelte'
   import { DATE_FORMATS, formatDate, setDateFormat, setDateLocale, type DateFormat } from '../dates'
   import { currentZoom, setZoom, stepZoom } from '../zoom'
+  import { untrack } from 'svelte'
+  import { settingsGo } from '../stores/settingsParts.svelte'
   import { loadIcons } from '../stores/icons.svelte'
   import { reloadOpenDocs } from '../stores/pages.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
@@ -35,6 +37,7 @@
   import SubNav from './settings/SubNav.svelte'
   import TemplateEditor from './settings/TemplateEditor.svelte'
   import { SECTIONS, type SectionId } from './settings/sections'
+  import Switch from './Switch.svelte'
   import SyncPane from './settings/SyncPane.svelte'
   import FileSources from './settings/FileSources.svelte'
   import CalendarPane from './settings/CalendarPane.svelte'
@@ -440,6 +443,16 @@
   } catch {
     /* default */
   }
+  // another place asked for a section (`goToSettings`) while Settings is open; `untrack` because the request is
+  // cleared in the same effect that reads it
+  $effect(() => {
+    const wanted = settingsGo.section
+    if (!wanted) return
+    untrack(() => {
+      tab = wanted
+      settingsGo.section = null
+    })
+  })
   $effect(() => {
     try {
       localStorage.setItem('notatnik-settings-tab', tab)
@@ -614,11 +627,8 @@
             description="Show [[ ]] around page links in rendered text. The brackets are always visible while you edit a block."
             labelFor="link-brackets"
           >
-            <input
+            <Switch
               id="link-brackets"
-              class="switch"
-              type="checkbox"
-              role="switch"
               checked={s.link_brackets}
               onchange={(e) => save({ link_brackets: (e.currentTarget as HTMLInputElement).checked })}
             />
@@ -628,11 +638,8 @@
             description="Paste a web address on its own and it becomes [page title](address). The app then asks that site for the page: leave this off if you do not want that. An address pasted over selected text, a link copied from a web page, and Nextcloud and Notatnik addresses are always turned into links, with no request."
             labelFor="paste-titles"
           >
-            <input
+            <Switch
               id="paste-titles"
-              class="switch"
-              type="checkbox"
-              role="switch"
               checked={s.paste_titles}
               onchange={(e) => save({ paste_titles: (e.currentTarget as HTMLInputElement).checked })}
             />
@@ -1197,11 +1204,8 @@
             description="When a type is set, and to new pages below a namespace or new journal days. Off: nothing is added automatically; the button in the page properties and /template still work."
             labelFor="templates-auto"
           >
-            <input
+            <Switch
               id="templates-auto"
-              class="switch"
-              type="checkbox"
-              role="switch"
               checked={s.templates_auto}
               onchange={(e) => save({ templates_auto: (e.currentTarget as HTMLInputElement).checked })}
             />
@@ -1498,11 +1502,8 @@
               description="One snapshot when the app starts and then daily while it is open, only when something changed. Kept: the last 7 days, 4 weeks and 6 months."
               labelFor="backup-auto"
             >
-              <input
+              <Switch
                 id="backup-auto"
-                class="switch"
-                type="checkbox"
-                role="switch"
                 checked={s.backup_auto}
                 onchange={(e) => save({ backup_auto: (e.currentTarget as HTMLInputElement).checked })}
               />
@@ -1578,10 +1579,7 @@
             >
               {#if enc?.configured}
                 <span class="open">
-                  <input
-                    class="switch"
-                    type="checkbox"
-                    role="switch"
+                  <Switch
                     aria-label="Encrypt new backups"
                     checked={s.backup_encrypt}
                     onchange={(e) => save({ backup_encrypt: (e.currentTarget as HTMLInputElement).checked })}
@@ -1783,11 +1781,8 @@
             description="This device. Off: the start screen lists your graphs with the last one selected (Enter opens it). On: the last graph opens without asking."
             labelFor="open-last-graph"
           >
-            <input
+            <Switch
               id="open-last-graph"
-              class="switch"
-              type="checkbox"
-              role="switch"
               checked={s.open_last_graph}
               onchange={(e) => save({ open_last_graph: (e.currentTarget as HTMLInputElement).checked })}
             />
@@ -1930,39 +1925,6 @@
   }
   th {
     text-align: left;
-  }
-  .switch {
-    appearance: none;
-    width: 2.6em;
-    height: 1.45em;
-    border-radius: 1em;
-    background: var(--border);
-    position: relative;
-    cursor: pointer;
-    transition: background 0.15s;
-    margin: 0;
-  }
-  .switch::after {
-    content: '';
-    position: absolute;
-    top: 0.15em;
-    left: 0.15em;
-    width: 1.15em;
-    height: 1.15em;
-    border-radius: 50%;
-    background: var(--panel);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
-    transition: transform 0.15s;
-  }
-  .switch:checked {
-    background: var(--accent);
-  }
-  .switch:checked::after {
-    transform: translateX(1.15em);
-  }
-  .switch:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
   }
   .stepper {
     display: inline-flex;

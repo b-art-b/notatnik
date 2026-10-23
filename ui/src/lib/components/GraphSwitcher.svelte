@@ -4,6 +4,7 @@
   import { backend, type GraphHistoryEntry } from '../api'
   import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
   import { encryption, graphPadlock, refreshEncryption } from '../stores/encryption.svelte'
+  import { goToSettings } from '../stores/settingsParts.svelte'
 
   // what the graph encrypts by default (see `graphPadlock`); read again whenever another graph is open
   const padlock = $derived(graphPadlock(encryption.status))
@@ -37,6 +38,7 @@
 
   function encryptionSettings() {
     open = false
+    goToSettings('sync', 'encryption')
     location.hash = '#/settings'
   }
 

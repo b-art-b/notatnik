@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goToSettings } from '../stores/settingsParts.svelte'
   // One line in the sidebar for a graph that is kept in a server folder: how the last sync went. A click syncs now;
   // the details are in Settings → Sync. Nothing is shown for a graph that is only a local folder.
   import { onMount } from 'svelte'
@@ -33,6 +34,7 @@
     <a
       class="sync warn"
       href="#/settings"
+      onclick={() => goToSettings('sync', 'encryption')}
       data-testid="sync-locked"
       title="The encryption key is locked: encrypted files are neither sent nor received. Open Settings → Sync to unlock it."
       >🔒 {sync.status.left_alone} encrypted file{sync.status.left_alone === 1 ? '' : 's'} waiting for the key</a
@@ -42,6 +44,7 @@
     <a
       class="sync warn"
       href="#/settings"
+      onclick={() => goToSettings('sync', 'server')}
       data-testid="sync-warning"
       title={`Look reformatted by another editor:\n${sync.status.warnings.join('\n')}\nOpen Settings → Sync.`}
       >⚠ {sync.status.warnings.length} page(s) look reformatted</a

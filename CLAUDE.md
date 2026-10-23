@@ -59,4 +59,5 @@ Node is installed with fnm: `export PATH="$HOME/.local/share/fnm/node-versions/v
 - Tests: scope locators (`getByRole('tree', { name: 'Blocks' })`), and assert the computed style when visibility matters (Playwright counts `opacity: 0` as visible). See `docs/testing.md` §4.
 - Svelte scoped CSS prunes selectors it cannot match: a child rendered by `<Self>` or another component, or a sibling reached through `~`/`:has()`, needs `:global(...)` (see the path connector in `Block.svelte`).
 - Svelte 5: never write state inside `$derived`, and never read-then-write the same state in an `$effect` (use `untrack`).
+- Settings: a setting that applies the moment it is flipped is a `<Switch>` (`ui/src/lib/components/Switch.svelte`, its style is its own because Svelte scopes styles); an option saved with a button, or in a form or list, is a plain checkbox. A long section is split with `SubNav` (Backup, Sync, Calendar); the open part is in `stores/settingsParts.svelte.ts`, and a link that should land on a part calls `goToSettings(section, part)`.
 - The user is new to Svelte: keep UI code idiomatic Svelte 5 (runes) and explain non-obvious idioms.
