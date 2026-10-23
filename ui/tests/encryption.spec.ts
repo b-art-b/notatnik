@@ -314,7 +314,7 @@ test('with everything encrypted, the open padlock marks the pages kept plain and
   await expect(page.getByTestId('title-lock-open')).toBeVisible()
   await expect(page.getByTestId('encrypt-toggle')).toHaveText('Plain on server')
   await page.evaluate(() => (location.hash = '#/page/Secret'))
-  await expect(page.getByTestId('encrypt-toggle')).toHaveText('Encrypted')
+  await expect(page.getByTestId('encrypt-toggle')).toHaveText('Encryption…') // follows the default: the neutral name
   await expect(page.locator('[data-testid^="title-lock"]')).toHaveCount(0)
 
   // Recent shows the open padlock for the one kept plain only
@@ -616,7 +616,7 @@ test('the page menu keeps one page plain while everything is encrypted', async (
   await backend.call('encryption_names', { hidden: false })
   await page.goto(page.url().replace(/#.*/, '#/page/Shared'))
   await page.reload()
-  await page.getByRole('button', { name: 'Encrypted', exact: true }).click()
+  await page.getByRole('button', { name: 'Encryption…', exact: true }).click()
   const dialog = page.getByTestId('encrypt-dialog')
   await expect(dialog.getByTestId('encrypt-all-note')).toBeVisible()
   await dialog.getByTestId('encrypt-keep-plain').click()

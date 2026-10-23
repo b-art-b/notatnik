@@ -218,6 +218,8 @@ Settings → Appearance → *Block properties* (this device, independent of *Tas
 
 A journal day is a page like any other: open it as its own page (click the date in the feed) and its `▸ properties` section works as on every page. A day has the default `type: journal` (shown muted; set a `type` there to replace it). Because of it, a page icon rule `type = journal` gives every day an icon: Settings → Page icons → *Add an icon for journal days*. Until an icon applies, the calendar glyph is shown. Today's day, which has no file until you write in it, gets the rule's icon too; emoji in titles are drawn a little smaller than the heading so they sit on the text line. A day's own `icon:` property wins, as everywhere.
 
+**The head of a page** (title, then one row of actions): the title; *History*, the encryption button and *▸ Properties* in one style, their text on the title's left edge; the properties card below. On a journal day the title is the date in your format, and the page name (`2026-10-23`) is shown small beside it only when the title does not already contain it (otherwise it is the title's tooltip). The encryption button says *Encrypt…* (only marked paths are encrypted) or *Encryption…* (everything is), and *Encrypted* or *Plain on server* with the padlock when the page differs from the graph's default. An empty page shows a faint bullet before *Click here to start writing*, where the text will start.
+
 ## Block properties
 
 A block's `key:: value` lines (right after its first line) show as a compact card under the block: bold key, then the value. Link values (`[[Acme]]`) open the page (no glyph, they are coloured as links; date, number and boolean values get a small one); another value opens the view of all blocks with that key and value. Click the key to see all blocks with the property, grouped by value; the view has "Include blocks below them" (the `inherit:` clause, PR-5).
@@ -360,7 +362,7 @@ A page that has tasks shows a **Tasks** section between its content and its refe
 
 A page with subpages ends with a **Hierarchy** list: every page below it at any depth as its path (`Z / Partner Beta / Renewal`), every segment a link to that page.
 
-Every page has the **Hierarchy** section, also without subpages. **+ Add subpage** at its end (or the palette command **New subpage of this page**) opens a name field prefilled with `Page/`; type the rest and press Enter to open the new page ready for typing (the file is written when you type the first block). Escape cancels. A subpage of an encrypted folder shows a 🔒 next to the field.
+A page without subpages shows no heading and no list, only a small quiet **+ Add subpage**; a page with subpages has the heading as a small label. A journal day has no Hierarchy at all (a day has no subpages). **+ Add subpage** at its end (or the palette command **New subpage of this page**) opens a name field prefilled with `Page/`; type the rest and press Enter to open the new page ready for typing (the file is written when you type the first block). Escape cancels. A subpage of an encrypted folder shows a 🔒 next to the field.
 
 ## Topics: a name that occurs in several paths
 

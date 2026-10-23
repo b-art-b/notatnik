@@ -17,7 +17,7 @@
   import DeleteDialog from './DeleteDialog.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
-  import { encryption, padlockOf, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
   import Padlock from './Padlock.svelte'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
@@ -166,20 +166,18 @@
   let deleting = $state(false)
   let history = $state(false)
   let encrypting = $state(false)
-  // the page is stored encrypted on the server (EN-12): by a marked path, or because everything is encrypted
-  const encrypted = $derived(
-    !!encryption.status && !!view?.path && pathIsEncrypted(encryption.status, view.path),
-  )
   // the padlock beside the title: only where the page differs from the graph's default
   const padlock = $derived(padlockOf(encryption.status, view?.path ?? ''))
-  // what the page button says: it is always there, since it opens the dialog that changes the page
+  // What the page button says. It is always there, since it opens the dialog that changes the page, but it only states
+  // a fact when the page differs from the graph's default (the padlock beside the title says the same): a page that
+  // follows the default gets the neutral name of the action
   const encryptLabel = $derived(
-    encryption.status?.scope === 'all'
-      ? encrypted
-        ? 'Encrypted'
-        : 'Plain on server'
-      : encrypted
-        ? 'Encrypted'
+    padlock
+      ? padlock.open
+        ? 'Plain on server'
+        : 'Encrypted'
+      : encryption.status?.scope === 'all'
+        ? 'Encryption…'
         : 'Encrypt…',
   )
   $effect(() => {
@@ -291,14 +289,20 @@
               ><PageIcon name={view.name} journal />{isoTitle}</a
             >
           {:else}
-            <button class="title" title="Rename page" onclick={() => (renaming = !view.is_journal)}
+            <button
+              class="title"
+              title={view.is_journal ? `Page name: ${view.name}` : 'Rename page'}
+              onclick={() => (renaming = !view.is_journal)}
               ><PageIcon name={view.name} />{isoTitle ??
                 view.frontmatter?.title ??
                 segments[segments.length - 1]}</button
             >
           {/if}
           <Padlock mark={padlock} testid="title-lock" size="0.6em" middle />
-          {#if isoTitle && !titleLink}<span class="muted iso">{view.name}</span>{/if}
+          <!-- the page name beside a date title only when the title does not already show it (a long date format) -->
+          {#if isoTitle && !titleLink && !isoTitle.includes(view.name)}<span class="muted iso"
+              >{view.name}</span
+            >{/if}
           {#if lastPlaces > 1}<a
               class="topic-chip"
               href={segmentHash(segments[segments.length - 1])}
@@ -344,16 +348,10 @@
                 >Delete…</button
               >
             {/if}
+            <button class="act" onclick={openProps} aria-expanded={showProps} data-testid="props-toggle"
+              >{showProps ? '▾' : '▸'} Properties{propCount ? ` (${propCount})` : ''}</button
+            >
           </span>
-        {/if}
-        {#if !hideProps}
-          <button
-            class="props-toggle"
-            onclick={openProps}
-            aria-expanded={showProps}
-            data-testid="props-toggle"
-            >{showProps ? '▾' : '▸'} properties{propCount ? ` (${propCount})` : ''}</button
-          >
         {/if}
         {#if showProps && !hideProps}
           <div class="fm" data-testid="page-props">
@@ -554,7 +552,7 @@
       {/if}
     </div>
     <!-- tasks and references go to the right panel when Settings → Appearance says so and the window is wide -->
-    {#if showBacklinks && !compact}
+    {#if showBacklinks && !compact && !view.is_journal}
       <Hierarchy
         page={view.name}
         lock={padlockOf(encryption.status, view.path ? view.path.replace(/\.md$/, '') + '/x.md' : '')}
@@ -594,6 +592,7 @@
   }
   .iso {
     font-size: 0.5em;
+    font-weight: 400;
     margin-left: 0.6em;
   }
   .breadcrumb {
@@ -625,10 +624,13 @@
   .sep {
     margin: 0 0.3em;
   }
+  /* one row of actions in one style, its text on the left edge of the title (the padding of a button is taken back) */
   .page-actions {
-    display: inline-flex;
-    gap: 0.4em;
-    margin-right: 0.8em;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2em;
+    margin: 0 0 0.3em -0.26em;
   }
   .save-tpl {
     display: flex;
@@ -660,14 +662,6 @@
     border-radius: 6px;
     padding: 0.3em 0.7em;
     font-size: 0.9em;
-  }
-  .props-toggle {
-    border: none;
-    background: none;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 0.8em;
-    padding: 0;
   }
   /* the properties of a page: a card, key | value | remove in three aligned columns (each row is `display: contents`) */
   .fm {
@@ -779,8 +773,21 @@
     padding: 0.4em 0;
   }
   .empty {
-    /* the text starts where a block's text starts (bullet cell + gap) */
+    /* the text starts where a block's text starts (bullet cell + gap), after the faint bullet an empty block has */
+    position: relative;
     padding-left: 20px;
+  }
+  .empty::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.4;
+    transform: translateY(-50%);
   }
   .add {
     opacity: 0;

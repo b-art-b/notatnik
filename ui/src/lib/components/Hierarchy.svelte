@@ -79,23 +79,26 @@
   }
 </script>
 
-<section class="hierarchy" aria-label="Hierarchy" data-testid="hierarchy">
-  <h2>Hierarchy</h2>
-  <ul>
-    {#each rows as r (r.name)}
-      <li data-page={r.name} class:virtual={r.is_virtual}>
-        {#each segments(r.name) as s, i (s.target)}{#if i > 0}<span class="sep">/</span>{/if}{#if s.n > 1}<a
-              class="page-ref topic"
-              href={segmentHash(s.label)}
-              data-segment={s.label}
-              title={`“${s.label}” occurs in ${s.n} places: show them all`}
-              >{s.label}<sup class="badge" data-testid="segment-badge">{s.n}</sup></a
-            >{:else}<a class="page-ref" href={pageHash(s.target)} data-page={s.target}
-              ><PageIcon name={s.target} align />{s.label}</a
-            >{/if}{/each}
-      </li>
-    {/each}
-  </ul>
+<section class="hierarchy" class:none={rows.length === 0} aria-label="Hierarchy" data-testid="hierarchy">
+  <!-- no heading and no list while there is nothing below the page: only the quiet way to add a subpage -->
+  {#if rows.length}<h2>Hierarchy</h2>{/if}
+  {#if rows.length}
+    <ul>
+      {#each rows as r (r.name)}
+        <li data-page={r.name} class:virtual={r.is_virtual}>
+          {#each segments(r.name) as s, i (s.target)}{#if i > 0}<span class="sep">/</span>{/if}{#if s.n > 1}<a
+                class="page-ref topic"
+                href={segmentHash(s.label)}
+                data-segment={s.label}
+                title={`“${s.label}” occurs in ${s.n} places: show them all`}
+                >{s.label}<sup class="badge" data-testid="segment-badge">{s.n}</sup></a
+              >{:else}<a class="page-ref" href={pageHash(s.target)} data-page={s.target}
+                ><PageIcon name={s.target} align />{s.label}</a
+              >{/if}{/each}
+        </li>
+      {/each}
+    </ul>
+  {/if}
   {#if adding}
     <form
       class="add-sub"
@@ -126,8 +129,15 @@
   .hierarchy {
     margin-top: 2em;
   }
+  .hierarchy.none {
+    margin-top: 0.8em;
+  }
+  /* a small label, like "Recent" in the sidebar */
   h2 {
-    font-size: 0.9em;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--muted);
     margin: 0 0 0.5em;
   }
@@ -156,6 +166,7 @@
     padding: 0.2em 0;
     margin-top: 0.3em;
     font: inherit;
+    font-size: 0.85em;
   }
   .add-sub-btn:hover,
   .add-sub-btn:focus-visible {
