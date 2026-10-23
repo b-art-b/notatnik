@@ -41,6 +41,7 @@ scripts/check.sh            # everything, including UI lint/check/unit/browser t
 scripts/check.sh --full     # plus perf targets, benchmarks, UI performance
 scripts/check-webkit.sh     # the browser tests listed in ui/tests/webkit.list in WebKit, the engine of the desktop app
 scripts/gen-bindings.sh     # after changing Rust API types
+scripts/dev.sh              # cargo tauri dev with its own XDG dirs (~/.dev-notatnik), next to an installed app
 scripts/release.sh X.Y.Z    # version, checks, .deb into dist/, commit and tag (no push)
 cargo tauri build --bundles deb
 ```

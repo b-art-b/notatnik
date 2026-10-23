@@ -28,3 +28,12 @@ backup (Settings → Backup) before a big upgrade.
 ## Not available yet
 
 An AppImage, an apt repository, in-app updates and release builds in CI (the project has no remote).
+
+## Running the installed app and a development build together
+
+The app keeps its settings in `~/.config/notatnik/` and its data in `~/.local/share/notatnik/` and has no
+single-instance lock, so a second copy shares both. `scripts/dev.sh` starts `cargo tauri dev` with `XDG_CONFIG_HOME`,
+`XDG_DATA_HOME` and `XDG_CACHE_HOME` under `~/.dev-notatnik` (or `$NOTATNIK_DEV_HOME`), so the development build has its
+own settings, graph history and webview storage. Delete that folder to start clean. The system keyring is not
+separated: use a scratch graph in the development build, never the graph the installed app has open (two instances
+writing one graph, and two sync loops on one server folder, are not supported).
