@@ -73,5 +73,12 @@ arrived. Connect a new device to an empty folder, as the app's own flow does.
 **Verify**
 - [x] Vitest for the rule; browser test: set up with everything, exception from a page, switch back
 
+### S6 Padlocks follow the default (EN-27)
+- [x] `padlockOf(status, file)`: a mark only where the file differs from the scope's default (closed with `marked`, open with `all`); none without a vault, for `.notatnik/` or without a file
+- [x] `Padlock.svelte` used by the title, All pages (table, tree and filter), the sidebar tree, Recent and the subpage field; the page button and the filter say what the mark means; Settings says what no padlock means
+
+**Verify**
+- [x] Vitest for `padlockOf`; browser tests for both defaults (rows, tree, filter, title, button, Recent)
+
 ### S5 Docs
 - [x] requirements EN-27, encryption.md §8, D58, file-format (config keys), keymap, TODO, testing

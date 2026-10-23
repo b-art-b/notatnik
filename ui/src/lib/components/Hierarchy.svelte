@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Padlock from './Padlock.svelte'
+  import type { PadlockMark } from '../stores/encryption.svelte'
   // "Hierarchy", as in Logseq: every page below this one (at any depth), each as its path with every segment a link.
   // The segments are normal page links, so the "brackets around links" setting applies to them as well.
   //
@@ -12,8 +14,8 @@
   import { app } from '../stores/app.svelte'
   import { openPage } from '../newPage'
 
-  // `lock`: pages made below this one are stored encrypted (a marked folder covers them)
-  let { page, lock = false }: { page: string; lock?: boolean } = $props()
+  // `lock`: the padlock new subpages get (see `padlockOf`): none when they follow the graph's default
+  let { page, lock = null }: { page: string; lock?: PadlockMark | null } = $props()
   let adding = $state(false)
   let name = $state('')
   let problem = $state('')
@@ -112,7 +114,7 @@
           if (e.key === 'Escape') adding = false
         }}
       />
-      {#if lock}<span class="lock" title="Stored encrypted on the server">🔒</span>{/if}
+      <Padlock mark={lock} testid="subpage-lock" gap="0.4em" />
       {#if problem}<span class="problem" role="alert">{problem}</span>{/if}
     </form>
   {:else}

@@ -17,7 +17,8 @@
   import DeleteDialog from './DeleteDialog.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
-  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { encryption, padlockOf, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import Padlock from './Padlock.svelte'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
@@ -165,9 +166,21 @@
   let deleting = $state(false)
   let history = $state(false)
   let encrypting = $state(false)
-  // the page is stored encrypted on the server: one of the marked paths covers its file (EN-12)
+  // the page is stored encrypted on the server (EN-12): by a marked path, or because everything is encrypted
   const encrypted = $derived(
     !!encryption.status && !!view?.path && pathIsEncrypted(encryption.status, view.path),
+  )
+  // the padlock beside the title: only where the page differs from the graph's default
+  const padlock = $derived(padlockOf(encryption.status, view?.path ?? ''))
+  // what the page button says: it is always there, since it opens the dialog that changes the page
+  const encryptLabel = $derived(
+    encryption.status?.scope === 'all'
+      ? encrypted
+        ? 'Encrypted'
+        : 'Plain on server'
+      : encrypted
+        ? 'Encrypted'
+        : 'Encrypt…',
   )
   $effect(() => {
     // read once per page view; the dialog and Settings keep the store fresh after a change
@@ -284,13 +297,7 @@
                 segments[segments.length - 1]}</button
             >
           {/if}
-          {#if encrypted}<span
-              class="lock"
-              data-testid="title-lock"
-              role="img"
-              aria-label="Stored encrypted on the server"
-              title="Stored encrypted on the server">🔒</span
-            >{/if}
+          <Padlock mark={padlock} testid="title-lock" size="0.6em" middle />
           {#if isoTitle && !titleLink}<span class="muted iso">{view.name}</span>{/if}
           {#if lastPlaces > 1}<a
               class="topic-chip"
@@ -322,7 +329,7 @@
               data-testid="encrypt-toggle"
               title="Store this page encrypted on the server (also when the graph is uploaded later)"
               aria-expanded={encrypting}
-              onclick={() => (encrypting = !encrypting)}>{encrypted ? 'Encrypted' : 'Encrypt…'}</button
+              onclick={() => (encrypting = !encrypting)}>{encryptLabel}</button
             >
             {#if !view.is_journal}
               <button
@@ -550,9 +557,7 @@
     {#if showBacklinks && !compact}
       <Hierarchy
         page={view.name}
-        lock={!!encryption.status &&
-          !!view.path &&
-          pathIsEncrypted(encryption.status, view.path.replace(/\.md$/, '') + '/x.md')}
+        lock={padlockOf(encryption.status, view.path ? view.path.replace(/\.md$/, '') + '/x.md' : '')}
       />
       {#if !onSide('tasks')}<PageTasks page={view.name} />{/if}
       {#if !onSide('refs')}<Backlinks page={view.name} />{/if}
@@ -632,11 +637,6 @@
     gap: 0.6em;
     color: var(--muted);
     font-size: 0.85em;
-  }
-  .lock {
-    font-size: 0.6em;
-    margin-left: 0.4em;
-    vertical-align: middle;
   }
   .act {
     border: none;

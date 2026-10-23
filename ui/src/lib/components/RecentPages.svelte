@@ -7,7 +7,8 @@
   import { shownDate } from '../stores/format.svelte'
   import { backend } from '../api'
   import { bus } from '../stores/events.svelte'
-  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
+  import Padlock from './Padlock.svelte'
 
   const SHOWN = 10
   const current = $derived(app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
@@ -31,10 +32,7 @@
       cancelled = true
     }
   })
-  const locked = (name: string) => {
-    const f = files[name.toLowerCase()]
-    return !!encryption.status && !!f && pathIsEncrypted(encryption.status, f)
-  }
+  const padlock = (name: string) => padlockOf(encryption.status, files[name.toLowerCase()] ?? '')
 </script>
 
 {#if recent.items.length > 0}
@@ -52,13 +50,7 @@
             aria-current={current === name.toLowerCase() ? 'page' : undefined}
             class:on={current === name.toLowerCase()}
             title={name}><PageIcon {name} />{isDate(name) ? shownDate(name) : name}</a
-          >{#if locked(name)}<span
-              class="lock"
-              data-testid="recent-lock"
-              role="img"
-              aria-label="Stored encrypted on the server"
-              title="Stored encrypted on the server">🔒</span
-            >{/if}
+          ><Padlock mark={padlock(name)} testid="recent-lock" gap="0.3em" />
         </li>
       {/each}
     </ul>
@@ -98,10 +90,6 @@
   }
   a {
     text-decoration: none;
-  }
-  .lock {
-    margin-left: 0.3em;
-    font-size: 0.8em;
   }
   a.on {
     font-weight: 600;

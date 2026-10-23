@@ -166,6 +166,17 @@
     File names, folders stay hidden too when <em>Hide file and folder names</em> is on (the default for new encryption);
     sizes and times stay visible on the server, the text does not.
   </p>
+  {#if st.configured}
+    <p class="muted" role="note" data-testid="enc-padlock-note">
+      {#if st.scope === 'all'}
+        Everything is encrypted, so encrypted pages show no padlock. A page stored as plain text on the server
+        shows an open padlock 🔓.
+      {:else}
+        A closed padlock 🔒 marks a page stored encrypted on the server; pages without one are stored as they
+        are.
+      {/if}
+    </p>
+  {/if}
   <SettingRow
     title="Key"
     description="The key opens the encrypted files on this device. It stays in memory until you lock it or close the app."

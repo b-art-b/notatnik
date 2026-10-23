@@ -260,6 +260,49 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   await expect(recentItem('Open').getByTestId('recent-lock')).toHaveCount(0)
 })
 
+test('with everything encrypted, the open padlock marks the pages kept plain and nothing marks the rest', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Secret.md', '- hidden\n')
+  backend.write('pages/public/Menu.md', '- open\n')
+  await backend.open('/')
+  await backend.call('encryption_setup', { password: 'correct horse' }) // the default scope: everything
+  await backend.call('encryption_confirm', {})
+  await backend.call('encryption_mark', { paths: ['pages/public/'], encrypted: false })
+  await page.evaluate(() => (location.hash = '#/pages'))
+  const row = (name: string) =>
+    page.getByTestId('pages-table').locator('tr', { has: page.locator(`a[data-page="${name}"]`) })
+  await expect(row('Secret')).toBeVisible()
+  await expect(row('Secret').locator('[data-testid^="row-lock"]')).toHaveCount(0)
+  const open = row('public/Menu').getByTestId('row-lock-open')
+  await expect(open).toBeVisible()
+  await expect(open).toHaveAttribute('title', /plain text on the server \(kept plain by pages\/public\/\)/)
+  await expect(row('public/Menu').getByTestId('row-lock')).toHaveCount(0) // not the closed padlock
+
+  // the filter lists what is kept plain, with its own words
+  const filter = page.getByTestId('only-encrypted')
+  await expect(filter.locator('xpath=..')).toContainText('Only plain on the server')
+  await filter.check()
+  await expect(row('Secret')).toHaveCount(0)
+  await expect(row('public/Menu')).toBeVisible()
+  await expect(page.getByTestId('pages-count')).toHaveText('1')
+
+  // the page: an open padlock and a button that says so; an encrypted page has neither
+  await page.evaluate(() => (location.hash = '#/page/public/Menu'))
+  await expect(page.getByTestId('title-lock-open')).toBeVisible()
+  await expect(page.getByTestId('encrypt-toggle')).toHaveText('Plain on server')
+  await page.evaluate(() => (location.hash = '#/page/Secret'))
+  await expect(page.getByTestId('encrypt-toggle')).toHaveText('Encrypted')
+  await expect(page.locator('[data-testid^="title-lock"]')).toHaveCount(0)
+
+  // Recent shows the open padlock for the one kept plain only
+  const recent = page.getByTestId('recent-pages')
+  const recentItem = (name: string) => recent.locator('li', { has: page.locator(`a[data-recent="${name}"]`) })
+  await expect(recentItem('public/Menu').getByTestId('recent-lock-open')).toBeVisible()
+  await expect(recentItem('Secret').locator('[data-testid^="recent-lock"]')).toHaveCount(0)
+})
+
 test('Encrypt everything switches the scope in one step; the settings stay readable', async ({
   backend,
   page,
@@ -511,12 +554,13 @@ test('the page menu keeps one page plain while everything is encrypted', async (
   const dialog = page.getByTestId('encrypt-dialog')
   await expect(dialog.getByTestId('encrypt-all-note')).toBeVisible()
   await dialog.getByTestId('encrypt-keep-plain').click()
-  await expect(page.getByRole('button', { name: 'Encrypt…' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Plain on server' })).toBeVisible()
+  await expect(page.getByTestId('title-lock-open')).toBeVisible()
   await backend.call('sync_now', { allow_mass_delete: false })
   expect(await dav.file('Notes/keep/pages/Shared.md')).toContain('for everyone')
   expect(await dav.file('Notes/keep/pages/Secret.md')).toBeNull()
   // the dialog now offers to encrypt it again
-  await page.getByRole('button', { name: 'Encrypt…' }).click()
+  await page.getByRole('button', { name: 'Plain on server' }).click()
   await expect(page.getByTestId('encrypt-dialog').getByTestId('encrypt-plain')).toBeVisible()
   await page.getByTestId('encrypt-again').click()
   await backend.call('sync_now', { allow_mass_delete: false })

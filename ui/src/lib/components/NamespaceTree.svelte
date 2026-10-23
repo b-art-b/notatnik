@@ -27,13 +27,14 @@
   import Self from './NamespaceTree.svelte'
   import { archived, isArchived } from '../stores/archived.svelte'
   import { pagesFold } from '../stores/pagesFold.svelte'
-  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
+  import Padlock from './Padlock.svelte'
   import { toggleArchive } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
 
   // `actions`: All pages shows Archive / Delete… on each page; the sidebar tree does not
-  // `lock`: shows the 🔒 of a page stored encrypted (All pages and the sidebar)
-  // `only`: names to keep (lowercase): All pages with "Only encrypted"; every branch is then open
+  // `lock`: shows the padlock of a page that differs from the graph's default (All pages and the sidebar)
+  // `only`: names to keep (lowercase): All pages with the padlock filter; every branch is then open
   let {
     parent = null,
     actions = false,
@@ -41,8 +42,7 @@
     only = null,
   }: { parent?: string | null; actions?: boolean; lock?: boolean; only?: Set<string> | null } = $props()
   let deleting = $state('') // the page whose Delete… confirmation is open
-  const locked = (e: NamespaceEntry) =>
-    (actions || lock) && !!encryption.status && !!e.path && pathIsEncrypted(encryption.status, e.path)
+  const padlock = (e: NamespaceEntry) => (actions || lock ? padlockOf(encryption.status, e.path ?? '') : null)
   $effect(() => {
     if (actions || lock) void refreshEncryption()
   })
@@ -98,13 +98,7 @@
         <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}
           ><PageIcon name={e.name} />{e.leaf}</a
         >
-        {#if locked(e)}<span
-            class="lock"
-            data-testid="row-lock"
-            role="img"
-            aria-label="Stored encrypted on the server"
-            title="Stored encrypted on the server">🔒</span
-          >{/if}
+        <Padlock mark={padlock(e)} testid="row-lock" />
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
         <!-- a page without a file has nothing to archive or delete -->
         {#if actions && !e.is_virtual}
@@ -166,9 +160,6 @@
   .count {
     font-size: 0.7em;
     color: var(--muted);
-  }
-  .lock {
-    font-size: 0.8em;
   }
   .acts {
     display: inline-flex;

@@ -7,11 +7,12 @@
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
   import { toggleArchive } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
-  import { encryption, pathIsEncrypted, refreshEncryption } from '../stores/encryption.svelte'
+  import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
+  import Padlock from './Padlock.svelte'
 
-  // the lock mark: the file is covered by a marked path (EN-12)
-  const locked = (r: PageListRow) =>
-    !!encryption.status && !!r.path && pathIsEncrypted(encryption.status, r.path)
+  // the padlock: only where the file differs from the graph's default (encrypted when only marked paths are,
+  // plain when everything is)
+  const padlock = (r: PageListRow) => padlockOf(encryption.status, r.path ?? '')
   $effect(() => {
     void refreshEncryption()
   })
@@ -65,11 +66,11 @@
     }
   })
 
-  // the Namespaces view with "Only encrypted": the encrypted pages and the names above them (lowercase, like page keys)
+  // the Namespaces view with the padlock filter: the pages with a padlock and the names above them (lowercase, like page keys)
   const encryptedNames = $derived.by(() => {
     const out = new Set<string>()
     for (const r of rows) {
-      if (!locked(r)) continue
+      if (!padlock(r)) continue
       const parts = r.name.toLowerCase().split('/')
       for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('/'))
     }
@@ -83,7 +84,7 @@
         (journals || !r.is_journal) &&
         (virtual || !r.is_virtual) &&
         (showArchived || !isArchived(r.name)) &&
-        (!onlyEncrypted || locked(r)) &&
+        (!onlyEncrypted || !!padlock(r)) &&
         (!q || r.name.toLowerCase().includes(q)),
     )
     const dir = desc ? -1 : 1
@@ -152,7 +153,8 @@
   {/if}
   {#if encryption.status && (encryption.status.scope === 'all' || encryption.status.paths.length)}
     <label
-      ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" /> Only encrypted</label
+      ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" />
+      {encryption.status.scope === 'all' ? 'Only plain on the server' : 'Only encrypted'}</label
     >
   {/if}
 </div>
@@ -192,13 +194,7 @@
               ><PageIcon name={r.name} />{r.name}</a
             >
             {#if r.is_virtual}<span class="tag">no file</span>{/if}
-            {#if locked(r)}<span
-                class="lock"
-                data-testid="row-lock"
-                role="img"
-                aria-label="Stored encrypted on the server"
-                title="Stored encrypted on the server">🔒</span
-              >{/if}
+            <Padlock mark={padlock(r)} testid="row-lock" size="0.85em" />
           </td>
           <td class="num">{r.is_virtual ? '' : r.blocks}</td>
           <td class="num">{r.backlinks || ''}</td>
@@ -314,10 +310,6 @@
     border-radius: 6px;
     padding: 0 0.4em;
     margin-left: 0.4em;
-  }
-  .lock {
-    margin-left: 0.4em;
-    font-size: 0.85em;
   }
   .tree {
     max-width: 40em;

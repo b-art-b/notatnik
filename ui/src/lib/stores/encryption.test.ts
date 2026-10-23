@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { coveringPaths, pathIsEncrypted } from './encryption.svelte'
+import { coveringPaths, padlockOf, pathIsEncrypted } from './encryption.svelte'
 
 describe('pathIsEncrypted', () => {
   const rules = { scope: 'marked', paths: ['pages/private/', 'pages/Health.md'], except: ['x/'] }
@@ -49,5 +49,29 @@ describe('pathIsEncrypted', () => {
       expect(coveringPaths(all, 'pages/public/a.md')).toEqual(['pages/public/'])
       expect(coveringPaths(all, 'pages/a.md')).toEqual([])
     })
+  })
+})
+
+describe('padlockOf', () => {
+  const base = { configured: true, paths: ['pages/private/'], except: ['pages/public/'] }
+  it('with everything encrypted, only a file kept plain has a padlock, and it is open', () => {
+    const st = { ...base, scope: 'all' } as never
+    expect(padlockOf(st, 'pages/a.md')).toBeNull()
+    expect(padlockOf(st, 'pages/private/a.md')).toBeNull() // `paths` is not used with this scope
+    const open = padlockOf(st, 'pages/public/a.md')
+    expect(open?.open).toBe(true)
+    expect(open?.title).toContain('pages/public/')
+  })
+  it('with only the marked paths encrypted, an encrypted file has a closed padlock', () => {
+    const st = { ...base, scope: 'marked' } as never
+    expect(padlockOf(st, 'pages/a.md')).toBeNull()
+    expect(padlockOf(st, 'pages/public/a.md')).toBeNull() // `except` is not used with this scope
+    expect(padlockOf(st, 'pages/private/a.md')).toMatchObject({ open: false })
+  })
+  it('shows nothing without a vault, a status or a file', () => {
+    expect(padlockOf({ ...base, scope: 'all', configured: false } as never, 'pages/public/a.md')).toBeNull()
+    expect(padlockOf(null, 'pages/a.md')).toBeNull()
+    expect(padlockOf({ ...base, scope: 'all' } as never, '')).toBeNull()
+    expect(padlockOf({ ...base, scope: 'all' } as never, '.notatnik/config.toml')).toBeNull()
   })
 })
