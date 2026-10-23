@@ -12,6 +12,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/placeholders.md`: `{{page}}`, `{{title}}`, `{{date}}` ... in templates and queries, and where the app offers them
 - `docs/date-formats.md`: display date formats and the custom pattern tokens (device setting)
 - `docs/logging.md`: what the app writes to the terminal log, at which level, and what is never logged (`RUST_LOG`)
+- `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)
 - `docs/TODO.md`: phase overview and status
 - `docs/phases/phase-N.md`: detailed tasks for each phase; every task has a **Verify** block, and a task is done only when all of its Verify items pass. Tick items off there
@@ -40,6 +41,7 @@ scripts/check.sh            # everything, including UI lint/check/unit/browser t
 scripts/check.sh --full     # plus perf targets, benchmarks, UI performance
 scripts/check-webkit.sh     # the browser tests listed in ui/tests/webkit.list in WebKit, the engine of the desktop app
 scripts/gen-bindings.sh     # after changing Rust API types
+scripts/release.sh X.Y.Z    # version, checks, .deb into dist/, commit and tag (no push)
 cargo tauri build --bundles deb
 ```
 

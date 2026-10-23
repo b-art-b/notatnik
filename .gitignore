@@ -11,3 +11,6 @@ node_modules/
 
 # local test Nextcloud of the developer; holds a database password
 /docker-compose.yml
+
+# packages made by scripts/release.sh
+/dist/
