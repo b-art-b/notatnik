@@ -1017,3 +1017,66 @@ fn trash_text(server: &str, user: &str, password: &str, href: &str) -> String {
         .and_then(|r| r.into_string().ok())
         .unwrap_or_default()
 }
+
+/// EN-25 against a real server: files that were stored plain and then move into hidden objects leave no folder
+/// behind (the folder names would show the structure of the graph).
+#[test]
+#[ignore = "needs a real server, see the header"]
+fn folders_left_by_hidden_objects_are_removed_on_a_real_nextcloud() {
+    use notatnik_sync::{Remote, WebDavRemote};
+    let (server, user, password) = (env("NC_SERVER"), env("NC_USER"), env("NC_PASSWORD"));
+    let folder = format!("Notes/notatnik-prune-{}", std::process::id());
+    let tmp = tempfile::tempdir().unwrap();
+    let app = AppState::new(AppOptions {
+        dirs: Dirs::under(tmp.path()),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(|| NaiveDate::from_ymd_opt(2026, 10, 18).unwrap()),
+        watch: false,
+    });
+    let call = |name: &str, args: Value| {
+        dispatch(&app, name, args).unwrap_or_else(|e| panic!("{name}: {e}"))
+    };
+    let sync = || {
+        let st = call("sync_now", json!({"allow_mass_delete": false}));
+        assert_eq!(st["state"], "idle", "{st}");
+    };
+    let info = call(
+        "create_remote_graph",
+        json!({"server": server, "user": user, "password": password, "folder": folder, "attach": false}),
+    );
+    let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
+    std::fs::create_dir_all(root.join("pages/Client X/Deal")).unwrap();
+    std::fs::create_dir_all(root.join("journals")).unwrap();
+    std::fs::write(root.join("pages/Client X/Deal/notes.md"), "- deal\n").unwrap();
+    std::fs::write(root.join("journals/2026_10_01.md"), "- day\n").unwrap();
+    let url = notatnik_sync::folder_url(&server, &user, &folder).unwrap();
+    let remote = WebDavRemote::new(&url, &user, &password).unwrap();
+    let _cleanup = Folder(url.clone(), user.clone(), password.clone());
+
+    // plain first: the folders exist
+    sync();
+    let names = |dir: &str| -> Vec<String> {
+        let mut v: Vec<String> = remote
+            .list(dir)
+            .unwrap()
+            .map(|l| l.entries.into_iter().map(|e| e.name).collect())
+            .unwrap_or_default();
+        v.sort();
+        v
+    };
+    assert!(
+        names("").contains(&"journals".to_string()),
+        "{:?}",
+        names("")
+    );
+
+    // then everything is encrypted with hidden names (the default of a new vault)
+    call("encryption_setup", json!({"password": "correct horse"}));
+    call("encryption_confirm", json!({}));
+    sync();
+    let left = names("");
+    println!("on the server: {left:?}");
+    assert_eq!(left, [".notatnik", ".notatnik-enc"], "{left:?}");
+    sync(); // quiet
+    assert_eq!(names(""), [".notatnik", ".notatnik-enc"]);
+}

@@ -37,6 +37,11 @@ sending plain text, so a key that may have leaked can be retired.
   *Encrypt everything…*, whose list names nothing private), the number and sizes of the files, their times, the
   names of unmarked files, and `.notatnik/`.
 
+- **Empty folders.** Files that move into hidden objects leave their plain folders behind, whose names would still
+  show the structure. A sync that has nothing left to do removes the folders that hold no known file (not
+  `.notatnik/`, `.notatnik-enc/` or the root), deepest first, after listing each again. Found on a real graph:
+  Nextcloud answers 412 to `If-Match` on a folder even with the right ETag, so the second listing is the guard.
+
 ## Not in this phase
 
 Hiding the list of marked paths; padding sizes; hiding the times; hiding the names of unmarked files.

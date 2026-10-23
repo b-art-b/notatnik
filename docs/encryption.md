@@ -262,6 +262,17 @@ the graph do not exist on the server for these files. The path is inside the enc
 - **Backups.** A plain snapshot stores a marked file as `.notatnik-enc/<aa>/<random>.enc`, sealed to the graph's
   vault with the path inside; the name is random because writing a backup needs no key. Compare, restoring a page
   and unpacking open every such entry, so they need the key unlocked.
+- **Where to look.** The objects are in `.notatnik-enc/`, a folder whose name starts with a dot. The Nextcloud web
+  app and its mobile apps hide such folders until *Show hidden files* is on (Files settings); WebDAV (the sync, `curl`,
+  other WebDAV clients) lists it like any folder. The graph folder on the device never has it. A client that syncs
+  the folder by itself may skip hidden files by default (the Nextcloud desktop client has a setting for that), so
+  such a client would not copy the objects: use this app to sync. `.notatnik/` is hidden in the same way.
+- **Empty folders are removed.** When files move into objects (switching the setting, *Encrypt everything…*, a new
+  key), the plain folders they leave behind would still show the structure. At the end of a sync that has nothing
+  left to do, folders that hold no file the sync knows are removed, deepest first, each listed again right before it
+  is deleted and only if still empty (`Report.pruned`). Not done with visible names, where `<path>.enc` keeps its
+  folder in use; never `.notatnik/`, `.notatnik-enc/` or the root. Nextcloud refuses a condition on a folder (412
+  even with its own ETag), so there the second listing is the only guard, and what it deletes goes to its trash bin.
 - **Still visible:** the list of marked paths in `.notatnik/config.toml` (so use *Encrypt everything…*, whose list
   names only the standard folders, rather than marking a private folder by name), sizes, times, the number of files
   and the names of unmarked files.

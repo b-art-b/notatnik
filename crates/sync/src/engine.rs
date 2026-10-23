@@ -80,6 +80,9 @@ pub struct Report {
     pub recoded: Vec<String>,
     /// Encrypted files left alone because the key is locked (EN-15): neither sent, received nor deleted.
     pub left_alone: usize,
+    /// Folders on the server that were removed because no file was in them any more (hidden names, EN-25). Not a
+    /// change of content, so [`Report::changed`] does not count them.
+    pub pruned: Vec<String>,
     /// Local files whose name ends in `.enc`: the ending is reserved for encrypted copies, so they are not synced.
     pub reserved: Vec<String>,
     /// Everything is in step: nothing was left to do at the end.
@@ -136,6 +139,87 @@ impl Report {
             && self.recoded.is_empty()
             && self.conflicts.is_empty())
     }
+}
+
+/// The folders on the server that hold a file or encrypted copy (listed in `maps`), and the folders above them.
+fn live_dirs(maps: &RemoteMaps) -> HashSet<String> {
+    let mut live = HashSet::new();
+    for p in maps.plain.keys().chain(maps.enc.keys()) {
+        let mut dir = p.as_str();
+        while let Some((parent, _)) = dir.rsplit_once('/') {
+            live.insert(parent.to_string());
+            dir = parent;
+        }
+    }
+    live
+}
+
+/// Removes the folders of the server that no file is in any more (EN-25): with hidden names the files moved out of
+/// them into `.notatnik-enc/`, and the folder names alone would still show the structure of the graph. Only folders
+/// that this scan found and that are not above a file are considered, deepest first, and each is listed again right
+/// before it is deleted: it goes only if it is empty then (under its own ETag where the server accepts that), so a file
+/// another device has just put into it is not removed with it. `.notatnik/`, the folder of hidden objects and the root stay.
+/// Returns how many folders were removed.
+fn prune_empty_dirs(
+    remote: &dyn Remote,
+    dirs: &BTreeMap<String, String>,
+    live: &HashSet<String>,
+    report: &mut Report,
+) -> Result<usize> {
+    let reserved = |d: &str| {
+        [".notatnik", HIDDEN_DIR]
+            .iter()
+            .any(|r| d == *r || d.starts_with(&format!("{r}/")))
+    };
+    let mut candidates: Vec<&String> = dirs
+        .keys()
+        .filter(|d| !d.is_empty() && !live.contains(*d) && !reserved(d))
+        .collect();
+    // children before their parents
+    candidates.sort_by(|a, b| {
+        b.matches('/')
+            .count()
+            .cmp(&a.matches('/').count())
+            .then(b.cmp(a))
+    });
+    let mut removed = 0;
+    for d in candidates {
+        let listing = match remote.list(d) {
+            Ok(Some(l)) if l.entries.is_empty() => l,
+            Ok(_) => continue,
+            Err(e @ (Error::Auth(_) | Error::Offline(_) | Error::Url(_))) => return Err(e),
+            Err(e) => {
+                log::debug!("sync: a folder could not be listed before removing it: {e}");
+                continue;
+            }
+        };
+        let gone = match remote.delete(d, Some(&listing.etag)) {
+            Ok(()) => true,
+            Err(e @ (Error::Auth(_) | Error::Offline(_) | Error::Url(_))) => return Err(e),
+            // Nextcloud answers 412 to a condition on a folder even when the ETag is right, so the condition cannot be
+            // relied on there: look once more and delete only if the folder is still empty. A folder that was filled
+            // meanwhile is left alone, and what Nextcloud deletes goes to its trash bin
+            Err(_) => match remote.list(d) {
+                Ok(Some(l)) if l.entries.is_empty() => match remote.delete(d, None) {
+                    Ok(()) => true,
+                    Err(e @ (Error::Auth(_) | Error::Offline(_) | Error::Url(_))) => return Err(e),
+                    Err(e) => {
+                        log::debug!("sync: an empty folder was not removed: {e}");
+                        false
+                    }
+                },
+                _ => false,
+            },
+        };
+        if gone {
+            removed += 1;
+            report.pruned.push(d.clone());
+        }
+    }
+    if removed > 0 {
+        log::info!("sync: removed {removed} empty folder(s) on the server");
+    }
+    Ok(removed)
 }
 
 /// `name (conflicted copy 2026-10-17 123000).ext` for `dir/name.ext`.
@@ -326,6 +410,7 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             }
         }
         let (maps, rdirs) = scan_remote(remote, &state, opts.trust_folder_etags)?;
+        let live = live_dirs(&maps);
         // hidden objects: the path is inside; the state knows the ones this device has seen, the others are opened
         let mut names: BTreeMap<String, String> = state
             .files
@@ -407,10 +492,17 @@ pub fn sync(root: &Path, remote: &dyn Remote, opts: &Options) -> Result<Report> 
             }
         }
         if actions.is_empty() {
+            // everything is in step: folders that the files moved out of can go (EN-25)
+            let mut pruned = 0;
+            if hidden && !paths.is_empty() && report.errors.is_empty() {
+                pruned = prune_empty_dirs(remote, &rdirs, &live, &mut report)?;
+            }
             if opts.trust_folder_etags {
                 // folders are skipped at the next sync only when everything in them was dealt with: a file that
-                // was left alone (locked key) or could not be dealt with must be seen again, not hidden by the ETag
-                if left.is_empty() && unknown.is_empty() && report.errors.is_empty() {
+                // was left alone (locked key) or could not be dealt with must be seen again, not hidden by the ETag.
+                // After a prune the ETags of the folders above are out of date as well
+                if left.is_empty() && unknown.is_empty() && report.errors.is_empty() && pruned == 0
+                {
                     state.dirs = rdirs;
                 } else {
                     state.dirs.clear();

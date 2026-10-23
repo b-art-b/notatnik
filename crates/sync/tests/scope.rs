@@ -7,7 +7,7 @@ use std::sync::Arc;
 use notatnik_core::encrypted::EncryptedPaths;
 use notatnik_crypt::{KdfParams, Keys, Vault};
 use notatnik_sync::fakedav::FakeDav;
-use notatnik_sync::{Bases, Encryption, Options, Report, WebDavRemote, sync};
+use notatnik_sync::{Bases, Encryption, Options, Remote, Report, WebDavRemote, sync};
 
 const SECRET: &str = "SECRETMARKER-4711";
 
@@ -213,4 +213,101 @@ fn a_locked_device_syncs_only_what_is_plain_and_deletes_nothing() {
     let r = e.run(&b, &rules, true, Some(e.keys.clone()));
     assert_eq!(r.pulled.len(), 4, "{r:?}");
     assert_eq!(b.read("top.md"), format!("- {SECRET} top\n"));
+}
+
+fn dir_names(e: &Env, dir: &str) -> Vec<String> {
+    let remote =
+        WebDavRemote::new(&e.dav.folder_url("Notes/g"), &e.dav.user, &e.dav.password).unwrap();
+    let mut names: Vec<String> = remote
+        .list(dir)
+        .unwrap()
+        .map(|l| l.entries.into_iter().map(|x| x.name).collect())
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+#[test]
+fn folders_the_files_moved_out_of_are_removed_with_hidden_names() {
+    let e = Env::new();
+    let a = Device::new();
+    seed(&a);
+    a.write(
+        "pages/Client X/Deal/notes.md",
+        &format!("- {SECRET} deal\n"),
+    );
+    let k = || Some(e.keys.clone());
+    // stored plain first: the folders of the graph exist on the server
+    e.run(&a, &EncryptedPaths::default(), true, k());
+    assert!(dir_names(&e, "").contains(&"journals".to_string()));
+    assert_eq!(dir_names(&e, "pages/Client X"), ["Deal"]);
+
+    // everything but pages/public/ is stored as hidden objects: the folders that are left empty go, deepest first
+    let r = e.run(&a, &everything_but_public(), true, k());
+    assert!(r.complete && r.errors.is_empty(), "{r:?}");
+    assert_eq!(dir_names(&e, ""), [".notatnik", ".notatnik-enc", "pages"]);
+    assert_eq!(dir_names(&e, "pages"), ["public"]);
+    assert!(
+        r.pruned.contains(&"pages/Client X/Deal".to_string())
+            && r.pruned.contains(&"pages/Client X".to_string()),
+        "{r:?}"
+    );
+    assert!(
+        r.pruned.contains(&"journals".to_string()) && r.pruned.contains(&"assets".to_string()),
+        "{r:?}"
+    );
+    assert!(!r.changed() || !r.recoded.is_empty()); // a prune alone is not a change of content
+
+    // nothing is left to do, and the local files were never touched
+    let r = e.run(&a, &everything_but_public(), true, k());
+    assert!(r.pruned.is_empty() && !r.changed(), "{r:?}");
+    assert_eq!(
+        a.read("pages/Client X/Deal/notes.md"),
+        format!("- {SECRET} deal\n")
+    );
+    // another device gets all back, folders included
+    let b = Device::new();
+    let r = e.run(&b, &everything_but_public(), true, k());
+    assert_eq!(r.pulled.len(), 7, "{r:?}");
+    assert_eq!(
+        b.read("pages/Client X/Deal/notes.md"),
+        format!("- {SECRET} deal\n")
+    );
+    // and a folder that is made again later is pruned again after its file moves
+    b.write(
+        "pages/Client X/Deal/notes.md",
+        &format!("- {SECRET} deal\n"),
+    );
+    std::fs::remove_file(b.root().join("pages/Client X/Deal/notes.md")).unwrap();
+    e.run(&b, &everything_but_public(), true, k());
+    assert!(!dir_names(&e, "pages").contains(&"Client X".to_string()));
+}
+
+#[test]
+fn a_folder_that_still_holds_something_is_never_removed() {
+    let e = Env::new();
+    let a = Device::new();
+    seed(&a);
+    let k = || Some(e.keys.clone());
+    e.run(&a, &EncryptedPaths::default(), true, k());
+    // a file the sync ignores (so it does not know it is there) keeps its folder alive
+    e.dav.put_file("Notes/g/journals/draft.partial", b"half");
+    let r = e.run(&a, &everything_but_public(), true, k());
+    assert!(r.errors.is_empty(), "{r:?}");
+    assert_eq!(dir_names(&e, "journals"), ["draft.partial"]);
+    assert!(!r.pruned.contains(&"journals".to_string()), "{r:?}");
+    assert!(r.pruned.contains(&"assets".to_string()), "{r:?}");
+}
+
+#[test]
+fn visible_names_leave_the_folders_alone() {
+    let e = Env::new();
+    let a = Device::new();
+    seed(&a);
+    let k = || Some(e.keys.clone());
+    e.run(&a, &EncryptedPaths::default(), false, k());
+    // visible names: `<path>.enc` is in the folder of the path, so no folder is empty
+    let r = e.run(&a, &everything_but_public(), false, k());
+    assert!(r.pruned.is_empty(), "{r:?}");
+    assert!(dir_names(&e, "").contains(&"journals".to_string()));
 }

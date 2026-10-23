@@ -429,7 +429,7 @@
     </SettingRow>
     <SettingRow
       title="Hide file and folder names"
-      description="On: each encrypted file is one object on the server with a name that tells nothing, and its real name and folder are inside, so the server sees no page titles. Off: the server sees the names (with .enc). Switching stores every encrypted file again at the next sync, which needs the key unlocked. The list of encrypted folders in the settings file stays readable, so use Encrypt everything below if you do not want it to name private folders."
+      description="On: each encrypted file is one object on the server with a name that tells nothing, and its real name and folder are inside, so the server sees no page titles. Off: the server sees the names (with .enc). Switching stores every encrypted file again at the next sync, which needs the key unlocked. The objects are in the folder .notatnik-enc on the server. Its name starts with a dot, so the Nextcloud web app and its mobile apps hide it until you turn on Show hidden files in the Files settings; the sync itself sees it as any other folder. Folders that are empty after the move are removed. The list of encrypted folders in the settings file stays readable, so use Encrypt everything below if you do not want it to name private folders."
       labelFor="graph-enc-names"
     >
       <input
