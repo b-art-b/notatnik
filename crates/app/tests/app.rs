@@ -6447,3 +6447,99 @@ fn the_icon_style_is_a_device_setting_with_three_values() {
     assert_eq!(err.code, "invalid");
     assert_eq!(t.ok("get_settings", json!({}))["icon_style"], "muted");
 }
+
+/// NS-26: favourite pages live in `config.toml`, keep their order, follow a rename and go with a delete.
+#[test]
+fn favorites_are_a_list_in_the_config_that_follows_renames_and_deletes() {
+    let t = start("basic");
+    let names = |v: &Value| -> Vec<String> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(t.ok("favorites", json!({})), json!([]));
+    t.ok(
+        "favorite_set",
+        json!({"page": "people/anna", "favorite": true}),
+    );
+    let l = t.ok(
+        "favorite_set",
+        json!({"page": "work/projects/alpha", "favorite": true}),
+    );
+    assert_eq!(names(&l), ["people/anna", "work/projects/alpha"]);
+    // the page has a file, so the sidebar can show its padlock
+    assert_eq!(l[0]["path"], "pages/people/anna.md");
+    // the same page by another spelling is the same favourite; removing what is not one changes nothing
+    let l = t.ok(
+        "favorite_set",
+        json!({"page": "People/Anna", "favorite": true}),
+    );
+    assert_eq!(l.as_array().unwrap().len(), 2);
+    t.ok(
+        "favorite_set",
+        json!({"page": "nothing", "favorite": false}),
+    );
+    // the list is in the settings, before the tables of the file, and a hand edit would be read back
+    let cfg = t.read(".notatnik/config.toml");
+    assert!(cfg.contains("favorites = ["), "{cfg}");
+    assert!(
+        cfg.find("favorites").unwrap() < cfg.find("[graph]").unwrap(),
+        "{cfg}"
+    );
+
+    // order
+    let l = t.ok(
+        "favorite_move",
+        json!({"page": "work/projects/alpha", "to": 0}),
+    );
+    assert_eq!(names(&l), ["work/projects/alpha", "people/anna"]);
+    assert_eq!(
+        t.call("favorite_move", json!({"page": "elsewhere", "to": 0}))
+            .unwrap_err()
+            .code,
+        "not_found"
+    );
+
+    // a rename: the page, and a namespace with the favourites below it
+    t.ok(
+        "rename_apply",
+        json!({"old": "people/anna", "new": "team/anna"}),
+    );
+    t.ok("rename_apply", json!({"old": "work", "new": "jobs"}));
+    let l = t.ok("favorites", json!({}));
+    assert_eq!(names(&l), ["jobs/projects/alpha", "team/anna"]);
+
+    // a delete takes the page out of the list
+    t.ok(
+        "delete_pages",
+        json!({"page": "team/anna", "include_subpages": false}),
+    );
+    assert_eq!(
+        names(&t.ok("favorites", json!({}))),
+        ["jobs/projects/alpha"]
+    );
+
+    // at most twenty
+    for i in 0..19 {
+        t.ok(
+            "favorite_set",
+            json!({"page": format!("Fav {i}"), "favorite": true}),
+        );
+    }
+    let e = t
+        .call(
+            "favorite_set",
+            json!({"page": "One too many", "favorite": true}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "limit");
+    assert_eq!(t.ok("favorites", json!({})).as_array().unwrap().len(), 20);
+    // removing one makes room
+    t.ok("favorite_set", json!({"page": "Fav 3", "favorite": false}));
+    t.ok(
+        "favorite_set",
+        json!({"page": "One too many", "favorite": true}),
+    );
+}

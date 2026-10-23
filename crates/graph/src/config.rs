@@ -11,6 +11,10 @@ use crate::{Error, Result};
 /// Parsed `config.toml`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Config {
+    /// `favorites = [...]`: page names pinned to the top of the sidebar, in the order shown (they sync with the graph).
+    /// First in the struct: a plain value must come before the tables in the file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub favorites: Vec<String>,
     /// `[graph]`
     #[serde(default)]
     pub graph: GraphSection,
@@ -340,7 +344,7 @@ impl Config {
                         }
                     }
                 }
-                None if k == "saved_queries" || k == "page_icons" => {}
+                None if k == "saved_queries" || k == "page_icons" || k == "favorites" => {}
                 None if k == "namespaces" => {
                     if let Some(t) = v.as_table() {
                         for (ns, nv) in t {
@@ -877,6 +881,23 @@ mod priority_tests {
 #[cfg(test)]
 mod encryption_tests {
     use super::*;
+
+    #[test]
+    fn favorites_are_a_list_before_the_tables() {
+        let (c, w) =
+            Config::parse("favorites = [\"Notatki\", \"P/Capgemini\"]\n\n[graph]\nid = \"g1\"\n")
+                .unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(c.favorites, ["Notatki", "P/Capgemini"]);
+        let text = c.to_toml();
+        assert!(
+            text.find("favorites").unwrap() < text.find("[graph]").unwrap(),
+            "{text}"
+        );
+        assert_eq!(Config::parse(&text).unwrap().0, c);
+        // none: not written
+        assert!(!Config::default().to_toml().contains("favorites"));
+    }
 
     #[test]
     fn the_scope_chooses_which_list_decides() {

@@ -9,6 +9,7 @@ import {
   toggleRightFocus,
 } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
+import { isFavorite, setFavorite } from '../stores/favorites.svelte'
 import { globalUndo, saveAsTemplate } from './exec'
 import { syncNow } from '../stores/sync.svelte'
 import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
@@ -57,6 +58,14 @@ export const commands: Command[] = [
     title: 'Save as template…',
     keys: '',
     run: saveAsTemplate,
+  },
+  {
+    id: 'favorite-toggle',
+    title: 'Add or remove favorite',
+    keys: '',
+    run: () => {
+      if (app.route.kind === 'page') void setFavorite(app.route.name, !isFavorite(app.route.name))
+    },
   },
   {
     id: 'new-subpage',

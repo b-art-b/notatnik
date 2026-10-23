@@ -296,6 +296,7 @@ impl Drop for BackupTask {
 mod calendar;
 mod conflicts;
 mod encryption;
+mod favorites;
 mod filesources;
 mod syncing;
 pub use syncing::{MemorySecrets, Secrets};
@@ -1893,6 +1894,8 @@ impl AppState {
                 .last_rename
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            // a favourite follows the page, and the pages below it when they moved with it (NS-26)
+            Self::rename_favorites(o, &plan.old, &plan.new, a.include_subpages.unwrap_or(true));
             // history of the old name can't be undone safely
             o.undo.retain(|e| e.page != plan.old);
             o.redo.retain(|e| e.page != plan.old);
@@ -1941,6 +1944,8 @@ impl AppState {
                 names.len(),
                 names.join(", ")
             );
+            // a deleted page is no favourite any more (NS-26)
+            Self::remove_favorites(o, &names);
             // the history of a deleted page can't be undone any more
             o.undo.retain(|e| !names.contains(&e.page));
             o.redo.retain(|e| !names.contains(&e.page));

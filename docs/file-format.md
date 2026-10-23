@@ -299,6 +299,8 @@ Other fenced languages are reserved for renderers (`mermaid`, `math`) and plugin
 ## 8. Config (`.notatnik/config.toml`) — sketch
 
 ```toml
+favorites = ["Notatki", "P/Capgemini"]   # pages pinned at the top of the sidebar, in this order (at most 20); before the tables
+
 [graph]
 id = "g7f3k2"                # random, generated once
 journal_template = "templates/journal.md"

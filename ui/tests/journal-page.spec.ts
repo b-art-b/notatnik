@@ -18,10 +18,10 @@ test('a journal day shows its date once and its actions in one aligned row', asy
   await expect(title.locator('.iso')).toHaveCount(0)
   await expect(title.locator('button.title, a.title')).toHaveAttribute('title', /Page name: 2026-10-10/)
 
-  // History, Encryption and Properties look the same and start where the title starts
+  // History, Encryption, Favorite and Properties look the same and start where the title starts
   const actions = main.locator('.page-actions')
   const buttons = actions.getByRole('button')
-  await expect(buttons).toHaveCount(3)
+  await expect(buttons).toHaveCount(4)
   const sizes = await buttons.evaluateAll((els) =>
     els.map((e) => {
       const cs = getComputedStyle(e)

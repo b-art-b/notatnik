@@ -19,6 +19,7 @@
   import EncryptDialog from './EncryptDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
   import Padlock from './Padlock.svelte'
+  import { isFavorite, setFavorite } from '../stores/favorites.svelte'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
@@ -166,6 +167,8 @@
   let deleting = $state(false)
   let history = $state(false)
   let encrypting = $state(false)
+  // a favorite page (NS-26): the star in the action row and beside the title
+  const favorite = $derived(view ? isFavorite(view.name) : false)
   // the padlock beside the title: only where the page differs from the graph's default
   const padlock = $derived(padlockOf(encryption.status, view?.path ?? ''))
   // What the page button says. It is always there, since it opens the dialog that changes the page, but it only states
@@ -299,6 +302,13 @@
             >
           {/if}
           <Padlock mark={padlock} testid="title-lock" size="0.6em" middle />
+          {#if favorite}<span
+              class="star"
+              data-testid="title-star"
+              role="img"
+              aria-label="Favorite"
+              title="Favorite">★</span
+            >{/if}
           <!-- the page name beside a date title only when the title does not already show it (a long date format) -->
           {#if isoTitle && !titleLink && !isoTitle.includes(view.name)}<span class="muted iso"
               >{view.name}</span
@@ -348,6 +358,16 @@
                 >Delete…</button
               >
             {/if}
+            <button
+              class="act"
+              data-testid="favorite-toggle"
+              aria-pressed={favorite}
+              title={favorite
+                ? 'Remove this page from the favorites'
+                : 'Add this page to the favorites in the sidebar'}
+              onclick={() => view && setFavorite(view.name, !favorite)}
+              >{favorite ? '★' : '☆'} Favorite</button
+            >
             <button class="act" onclick={openProps} aria-expanded={showProps} data-testid="props-toggle"
               >{showProps ? '▾' : '▸'} Properties{propCount ? ` (${propCount})` : ''}</button
             >
@@ -589,6 +609,12 @@
     color: inherit;
     cursor: text;
     padding: 0;
+  }
+  .star {
+    margin-left: 0.5em;
+    font-size: 0.5em;
+    color: var(--muted);
+    vertical-align: middle;
   }
   .iso {
     font-size: 0.5em;

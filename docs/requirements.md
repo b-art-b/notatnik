@@ -180,6 +180,7 @@ A **graph** is a folder of notes.
 | NS-21 | Delete a page (optionally with its subpages): the file goes to a trash outside the graph folder (30 days), links stay, one Undo restores it. | V1 |
 | NS-24 | Every page ends with a Hierarchy section that offers **+ Add subpage** (and the palette command *New subpage of this page*): a name field prefilled with the page path, so only the last part is typed; the page is created lazily like any new page. | V1 |
 | NS-25 | All pages (List and Namespaces) can archive, unarchive and delete a page from its row, with Undo and without leaving the list; a 🔒 marks pages stored encrypted (also in the sidebar's page tree and in Recent) and **Only encrypted** lists just those. | V1 |
+| NS-26 | Favorite pages: a star on a page (and the palette command *Add or remove favorite*) adds it to a list in `favorites = [...]` of `.notatnik/config.toml` (so it syncs), shown as *Favorites* above *Recent* in the sidebar, in the order the person chose (drag, or Alt+↑/↓), at most 20. A rename moves a favorite (and the favorites below a renamed namespace); deleting a page removes it. | V1 |
 
 ## 6. Journals
 

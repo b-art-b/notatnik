@@ -1065,6 +1065,33 @@ pub struct SavedQueryView {
     pub query: String,
 }
 
+/// A favourite page (NS-26).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct FavoriteView {
+    /// The page name.
+    pub name: String,
+    /// The file of the page relative to the graph, if it has one (the padlock needs it).
+    pub path: Option<String>,
+}
+
+/// `favorite_set`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct FavoriteSetArgs {
+    /// The page.
+    pub page: String,
+    /// Add it (at the end) or remove it.
+    pub favorite: bool,
+}
+
+/// `favorite_move`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct FavoriteMoveArgs {
+    /// The favourite to move.
+    pub page: String,
+    /// Its new place in the list (0 is the first).
+    pub to: u32,
+}
+
 /// `delete_pages`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct DeletePagesArgs {

@@ -1368,6 +1368,33 @@ name: string,
  * Query text.
  */
 query: string, };
+export type FavoriteView = { 
+/**
+ * The page name.
+ */
+name: string, 
+/**
+ * The file of the page relative to the graph, if it has one (the padlock needs it).
+ */
+path: string | null, };
+export type FavoriteSetArgs = { 
+/**
+ * The page.
+ */
+page: string, 
+/**
+ * Add it (at the end) or remove it.
+ */
+favorite: boolean, };
+export type FavoriteMoveArgs = { 
+/**
+ * The favourite to move.
+ */
+page: string, 
+/**
+ * Its new place in the list (0 is the first).
+ */
+to: number, };
 export type NameArgs = { 
 /**
  * Name of the saved query.
@@ -2521,6 +2548,9 @@ export type Commands = {
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };
   save_query: { args: SavedQueryView; result: SavedQueryView[] };
   delete_saved_query: { args: NameArgs; result: SavedQueryView[] };
+  favorites: { args: NoArgs; result: FavoriteView[] };
+  favorite_set: { args: FavoriteSetArgs; result: FavoriteView[] };
+  favorite_move: { args: FavoriteMoveArgs; result: FavoriteView[] };
   property_keys: { args: NoArgs; result: StringList };
   property_values: { args: PropKeyArgs; result: StringList };
   get_settings: { args: NoArgs; result: SettingsView };
