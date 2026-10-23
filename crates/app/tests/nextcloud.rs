@@ -635,7 +635,7 @@ fn encrypted_paths_on_a_real_nextcloud() {
     call(
         &laptop,
         "encryption_setup",
-        json!({"password": "correct horse"}),
+        json!({"password": "correct horse", "scope": "marked"}),
     );
     call(&laptop, "encryption_confirm", json!({}));
     // this test looks at the visible `.enc` names; hidden names have their own test below
@@ -811,7 +811,7 @@ fn hidden_names_and_re_encrypting_on_a_real_nextcloud() {
     call(
         &laptop,
         "encryption_setup",
-        json!({"password": "correct horse"}),
+        json!({"password": "correct horse", "scope": "marked"}),
     );
     call(&laptop, "encryption_confirm", json!({}));
     let st = call(

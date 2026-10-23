@@ -5426,7 +5426,10 @@ fn encrypted_graph() -> (
         json!({"server": dav.server, "user": dav.user, "password": dav.password, "folder": "Notes/graph", "attach": false}),
     );
     let root = std::path::PathBuf::from(info["root"].as_str().unwrap());
-    let recovery = t.ok("encryption_setup", json!({"password": "correct horse"}));
+    let recovery = t.ok(
+        "encryption_setup",
+        json!({"password": "correct horse", "scope": "marked"}),
+    );
     let st = t.ok("encryption_status", json!({}));
     assert_eq!(
         (st["configured"].clone(), st["pending"].clone()),
@@ -5457,7 +5460,10 @@ fn pages_marked_before_connecting_to_a_server_are_uploaded_encrypted() {
     std::fs::write(root.join("pages/private/diary.md"), format!("- {SECRET}\n")).unwrap();
     std::fs::write(root.join("pages/open.md"), "- open text\n").unwrap();
 
-    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok(
+        "encryption_setup",
+        json!({"password": "correct horse", "scope": "marked"}),
+    );
     t.ok("encryption_confirm", json!({}));
     let st = t.ok(
         "encryption_mark",
@@ -5812,7 +5818,10 @@ fn tasks_of_encrypted_pages_stay_out_of_the_calendar_unless_allowed() {
     )
     .unwrap();
     reopen(&t, &graph);
-    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok(
+        "encryption_setup",
+        json!({"password": "correct horse", "scope": "marked"}),
+    );
     t.ok("encryption_confirm", json!({}));
     t.ok(
         "encryption_mark",
@@ -5873,7 +5882,10 @@ fn a_keyring_that_refuses_leaves_the_switch_off_with_a_message() {
         "open_graph",
         json!({"path": graph.to_str().unwrap(), "create": false}),
     );
-    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    t.ok(
+        "encryption_setup",
+        json!({"password": "correct horse", "scope": "marked"}),
+    );
     t.ok("encryption_confirm", json!({}));
     let e = t
         .call("encryption_keyring", json!({"on": true}))
@@ -6338,11 +6350,8 @@ fn everything_can_be_encrypted_with_exceptions_and_switched_back() {
     std::fs::write(root.join("pages/public/menu.md"), "- open text\n").unwrap();
     std::fs::write(root.join("notes.md"), format!("- {SECRET} top\n")).unwrap();
 
-    t.ok(
-        "encryption_setup",
-        json!({"password": "correct horse", "scope": "all"}),
-    );
-    // nothing changes before the recovery key is confirmed
+    t.ok("encryption_setup", json!({"password": "correct horse"}));
+    // a first vault encrypts everything unless the setup says otherwise; nothing changes before the recovery key is confirmed
     let st = t.ok("encryption_status", json!({}));
     assert_eq!(st["scope"], "marked", "{st}");
     let st = t.ok("encryption_confirm", json!({}));

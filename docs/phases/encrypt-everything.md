@@ -30,8 +30,9 @@ private folders, only the (harmless) list of what is public.
   `encryption_scope{all}` switches; `encryption_scope_preview{all}` says what it means (files, plain copies the server
   already holds, dated tasks that leave the calendar).
 - **Setting up.** The setup form offers *Everything, except what I list* (recommended) and *Only what I choose*. The
-  choice is kept with the pending vault and applied on confirmation, together with hidden names. The API default stays
-  `marked`.
+  choice is kept with the pending vault and applied on confirmation, together with hidden names. Without a choice (API,
+  scripts) a graph's *first* vault also encrypts everything; replacing a vault (reset, re-encrypting) keeps the scope.
+  Existing graphs are not switched.
 - **Calendar.** With `calendar = "exclude"` the tasks of encrypted pages stay out of the calendar, so under `all` no
   task is sent unless its page is an exception or the person allows it. The settings row says so.
 

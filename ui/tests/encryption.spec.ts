@@ -209,7 +209,7 @@ test('All pages shows a lock on the pages that are stored encrypted', async ({ b
   backend.write('pages/vault/Deep.md', '- deep\n')
   backend.write('pages/Open.md', '- open\n')
   await backend.open('/')
-  await backend.call('encryption_setup', { password: 'correct horse' })
+  await backend.call('encryption_setup', { password: 'correct horse', scope: 'marked' })
   await backend.call('encryption_confirm', {})
   await backend.call('encryption_mark', { paths: ['pages/Secret.md', 'pages/vault/'], encrypted: true })
   await page.evaluate(() => (location.hash = '#/pages'))

@@ -196,9 +196,12 @@ impl AppState {
                 o.graph
                     .update_config(|c| c.encryption.names = "hidden".into())?;
             }
-            if let Some(scope) = &p.scope {
+            // a first vault encrypts everything unless the setup asked for something else (EN-27); a replaced vault
+            // keeps the scope of the graph
+            let scope = p.scope.as_deref().or(first.then_some("all"));
+            if let Some(scope) = scope {
                 o.graph
-                    .update_config(|c| c.encryption.scope = scope.clone())?;
+                    .update_config(|c| c.encryption.scope = scope.to_string())?;
             }
             log::info!(
                 "encryption: the vault of the graph was {} (key {})",

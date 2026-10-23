@@ -271,7 +271,7 @@ the graph do not exist on the server for these files. The path is inside the enc
 Marking what to encrypt fails the wrong way: a new folder, a file made on a phone, or a page nobody thought of is
 plain until someone marks it. With `[encryption] scope = "all"` the rule is turned round: every file is stored
 encrypted, and `except` lists what stays plain (same entries as `paths`: a folder ends in `/`, anything else is one
-file). `scope = "marked"` (the default, and what every graph made before has) keeps `paths`. The two lists are kept
+file). `scope = "marked"` (what every graph made before has, and what a graph without a vault reads as) keeps `paths`. A graph's first vault sets `scope = "all"` unless the setup asks for `marked`. The two lists are kept
 side by side and only the one of the active scope is used, so going back restores the earlier choice.
 
 - **Always plain:** everything below `.notatnik/` (the vault and the settings must be readable before the key is

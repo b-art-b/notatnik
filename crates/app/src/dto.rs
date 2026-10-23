@@ -1994,7 +1994,7 @@ pub struct EncryptionSetupArgs {
     #[ts(optional)]
     pub reset: Option<bool>,
     /// What to encrypt once the vault is confirmed: `all` (everything except what is listed) or `marked` (only what
-    /// is marked). Without it the graph keeps its scope (EN-27).
+    /// is marked). Without it a graph's first vault encrypts everything (`all`) and a replaced vault keeps the scope (EN-27).
     #[serde(default)]
     #[ts(optional)]
     pub scope: Option<String>,
