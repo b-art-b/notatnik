@@ -56,10 +56,14 @@ test('the sidebar menu switches to another graph and leads to the start screen',
   await backend.open('/journals')
   const switcher = page.getByTestId('graph-switcher')
   await expect(switcher).toContainText('graph')
-  // no other graph yet: only the two entries that lead to the start screen
+  // no other graph yet: the color, and the two entries that lead to the start screen
   await switcher.click()
   const menu = page.getByRole('menu', { name: 'Graphs' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Add new graph…', 'All graphs…'])
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    'Color of this graph…',
+    'Add new graph…',
+    'All graphs…',
+  ])
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   // a second graph is opened from the start screen, then the menu offers the first one
