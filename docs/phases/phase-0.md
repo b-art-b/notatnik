@@ -1,7 +1,7 @@
 # Phase 0: Environment, project setup and risk spikes
 
 **Goal:** a reproducible dev environment, an empty workspace that builds and passes all checks, and
-answers to the biggest technical risks *before* real implementation starts.
+answers to the biggest technical risks _before_ real implementation starts.
 
 **Requirements covered:** none directly (foundation for NF-9).
 **Depends on:** nothing.
@@ -23,6 +23,7 @@ answers to the biggest technical risks *before* real implementation starts.
 - [x] Testing tools: `cargo install cargo-insta --locked` (snapshot review). Optional: `cargo-nextest` (faster test runner)
 
 **Verify**
+
 - [x] `rustc --version && cargo --version && node --version && pnpm --version && cargo tauri --version && wasm-pack --version`
       prints versions (done 2026-10-03: rustc 1.99.0, node 24.21.0, pnpm 12.8.1, tauri-cli 2.12.1, wasm-pack 0.15.0)
 - [x] `cargo insta --version` prints a version
@@ -32,6 +33,7 @@ answers to the biggest technical risks *before* real implementation starts.
 - [x] `libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev` (plus already present: `build-essential curl wget file pkg-config sqlite3`)
 
 **Verify**
+
 - [x] `dpkg-query -W libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev` lists all five
 - [x] `pkg-config --modversion webkit2gtk-4.1` prints a version
 
@@ -41,6 +43,7 @@ answers to the biggest technical risks *before* real implementation starts.
 - [ ] Format on save enabled for Rust (rustfmt) and, later, TS/Svelte (Prettier)
 
 **Verify**
+
 - [ ] Opening `crates/core/src/lib.rs` shows rust-analyzer status "ready", with no errors
 - [ ] Hover over a std type shows documentation
 
@@ -56,6 +59,7 @@ answers to the biggest technical risks *before* real implementation starts.
 - [ ] First commit: docs + skeleton
 
 **Verify**
+
 - [x] `cargo metadata --format-version 1 | grep -o '"license":"[^"]*"' | sort -u` shows only `AGPL-3.0-or-later`
 - [ ] `git log --oneline` shows the first commit
 - [x] `git status` is clean after `cargo build` (build output ignored)
@@ -70,6 +74,7 @@ Created and verified on 2026-10-03.
 - [x] Note: `crates/core-wasm` (wasm-bindgen wrapper) is added in phase 1 (P1.18), so `core` itself never depends on wasm-bindgen
 
 **Verify**
+
 - [x] `cargo build` succeeds with no warnings
 - [x] `cargo test --workspace` runs (0 tests, success)
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` succeeds
@@ -84,6 +89,7 @@ Created and verified on 2026-10-03.
 - [x] `--full` flag reserved for slow suites (no-op for now)
 
 **Verify**
+
 - [x] `scripts/check.sh` exits 0 on the clean workspace
 - [x] Add badly formatted code (e.g. `fn  x( ){}`) → script exits non-zero at the fmt step; revert → passes
 - [x] Add `let unused = 1;` → script fails at the clippy step; revert → passes
@@ -95,12 +101,13 @@ Created and verified on 2026-10-03.
 - [x] `fixtures/README.md` describing the fixture layout ([testing.md §2](../testing.md#2-fixtures)); fixture content comes in phase 1
 
 **Verify**
+
 - [x] All links between docs resolve (open in the VS Code Markdown preview, or run a link checker such as `lychee docs/`)
 
 ## 0.8 Risk spikes (throwaway code)
 
 Spikes answer questions that could change the architecture. The code lives in `spikes/<name>/`, is
-**never** imported by product code, and may be deleted afterwards. The *findings* are what matter:
+**never** imported by product code, and may be deleted afterwards. The _findings_ are what matter:
 each spike writes `docs/spikes/<name>.md` with the question, the setup, measurements, the decision,
 and follow-up changes to architecture.md if any.
 
@@ -117,6 +124,7 @@ WebKitGTK, using the "rendered blocks + one CodeMirror on the focused block" app
 - [ ] Repeat with 200 blocks and with list virtualisation (render only visible blocks)
 
 **Verify / pass criteria**
+
 - [ ] Keystroke-to-paint < 16 ms with 2,000 blocks on the page
 - [ ] Focus switch between blocks < 50 ms
 - [ ] Initial render of 2,000 blocks < 500 ms (or < 100 ms with virtualisation)
@@ -134,6 +142,7 @@ handles our extensions, and builds small for WASM (D7, ST-3)?
 - [x] Measure: parse time for a 2,000-block file; `.wasm` size (release, `wasm-opt -Oz`) for a minimal parse function
 
 **Verify / pass criteria**
+
 - [x] Decision recorded in `docs/spikes/s2-parser.md` and as a new row in the architecture decisions log
 - [x] Chosen approach demonstrably reproduces exact byte spans on all 3 sample files (printed spans sliced from the source match)
 
@@ -148,6 +157,7 @@ handles our extensions, and builds small for WASM (D7, ST-3)?
 - [ ] PUT with a stale `If-Match` ETag → expect HTTP 412
 
 **Verify / pass criteria**
+
 - [ ] All five operations work; a transcript is saved in `docs/spikes/s3-caldav.md`
 - [ ] Any Nextcloud quirks noted (URL layout `/remote.php/dav/calendars/<user>/<cal>/`, date formats, PRIORITY handling)
 - [ ] If `libdav` is insufficient: alternatives evaluated (`minicaldav`, hand-written requests with `reqwest` + `quick-xml`) and decision recorded
@@ -159,6 +169,7 @@ Only if you want early confidence in phase 8. Requires Android Studio + SDK + ND
 - [ ] `cargo tauri android init` on a throwaway app; run on an emulator
 
 **Verify**
+
 - [ ] The app starts on the emulator, and a Rust command called from the UI returns a value
 
 ## Manual acceptance checklist

@@ -21,7 +21,6 @@
 </script>
 
 <script lang="ts">
-  import { endPageDrag, startPageDrag } from '../transferDrag'
   import { bus } from '../stores/events.svelte'
   import { backend, type NamespaceEntry } from '../api'
   import { pageHash } from '../route'
@@ -96,13 +95,8 @@
             aria-label={isOpen(e.name) ? 'Collapse' : 'Expand'}
             onclick={() => toggle(e.name)}>{isOpen(e.name) ? '▾' : '▸'}</button
           >{:else}<span class="tog"></span>{/if}
-        <a
-          href={pageHash(e.name)}
-          class:virtual={e.is_virtual}
-          data-ns={e.name}
-          draggable={!e.is_virtual}
-          ondragstart={(ev) => startPageDrag(ev, e.name, e.descendants > 0)}
-          ondragend={endPageDrag}><PageIcon name={e.name} align />{e.leaf}</a
+        <a href={pageHash(e.name)} class:virtual={e.is_virtual} data-ns={e.name}
+          ><PageIcon name={e.name} align />{e.leaf}</a
         >
         <Padlock mark={padlock(e)} testid="row-lock" />
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}

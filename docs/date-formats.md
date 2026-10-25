@@ -17,13 +17,13 @@ You can edit the file by hand or use **Settings → This device** (the preview u
 
 For `2026-10-03`, language `en-GB`:
 
-| `date_format` | Result | Notes |
-|---|---|---|
-| `full` (default) | `Sat, 3 Oct 2026` | |
-| `long` | `3 October 2026` | |
-| `short` | `03/10/2026` | field order follows the language (`en-US`: `10/03/2026`, `de-DE`: `03.10.2026`) |
-| `iso` | `2026-10-03` | |
-| `custom` | from `date_pattern` | an empty pattern falls back to `full` |
+| `date_format`    | Result              | Notes                                                                           |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------- |
+| `full` (default) | `Sat, 3 Oct 2026`   |                                                                                 |
+| `long`           | `3 October 2026`    |                                                                                 |
+| `short`          | `03/10/2026`        | field order follows the language (`en-US`: `10/03/2026`, `de-DE`: `03.10.2026`) |
+| `iso`            | `2026-10-03`        |                                                                                 |
+| `custom`         | from `date_pattern` | an empty pattern falls back to `full`                                           |
 
 ## Custom patterns
 
@@ -31,19 +31,19 @@ The pattern language is the common subset of [Moment.js / Day.js](https://day.js
 tokens (the same letters you may know from those libraries). Only the tokens below exist; anything else
 is not supported (no time, no week numbers).
 
-| Token | Meaning | Example (2026-03-07, `en-GB`) |
-|---|---|---|
-| `YYYY` | 4-digit year | `2026` |
-| `YY` | 2-digit year | `26` |
-| `MMMM` | month name, long | `March` (`pl-PL`: `marca`) |
-| `MMM` | month name, short | `Mar` |
-| `MM` | month number, 2 digits | `03` |
-| `M` | month number | `3` |
-| `DD` | day, 2 digits | `07` |
-| `D` | day | `7` |
-| `dddd` | weekday name, long | `Saturday` |
-| `ddd` | weekday name, short | `Sat` |
-| `[text]` | literal text, copied as is | `[Week of]` → `Week of` |
+| Token    | Meaning                    | Example (2026-03-07, `en-GB`) |
+| -------- | -------------------------- | ----------------------------- |
+| `YYYY`   | 4-digit year               | `2026`                        |
+| `YY`     | 2-digit year               | `26`                          |
+| `MMMM`   | month name, long           | `March` (`pl-PL`: `marca`)    |
+| `MMM`    | month name, short          | `Mar`                         |
+| `MM`     | month number, 2 digits     | `03`                          |
+| `M`      | month number               | `3`                           |
+| `DD`     | day, 2 digits              | `07`                          |
+| `D`      | day                        | `7`                           |
+| `dddd`   | weekday name, long         | `Saturday`                    |
+| `ddd`    | weekday name, short        | `Sat`                         |
+| `[text]` | literal text, copied as is | `[Week of]` → `Week of`       |
 
 Rules:
 
@@ -56,12 +56,12 @@ Rules:
 
 Examples:
 
-| Pattern | Result (`en-GB`) |
-|---|---|
-| `D.MM.YY` | `7.03.26` |
-| `YYYY/MM/DD (ddd)` | `2026/03/07 (Sat)` |
+| Pattern             | Result (`en-GB`)         |
+| ------------------- | ------------------------ |
+| `D.MM.YY`           | `7.03.26`                |
+| `YYYY/MM/DD (ddd)`  | `2026/03/07 (Sat)`       |
 | `dddd, D MMMM YYYY` | `Saturday, 7 March 2026` |
-| `[Week of] D MMM` | `Week of 7 Mar` |
+| `[Week of] D MMM`   | `Week of 7 Mar`          |
 
 ## Where it applies
 

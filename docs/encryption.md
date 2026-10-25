@@ -26,11 +26,11 @@ plaintext backups on other disks) and old blocks on an SSD. The app says so wher
 
 ## 2. Alternatives that were weighed
 
-| Idea | Why not (now) |
-|---|---|
-| One encrypted vault file for the whole graph | One conflict loses everything; no per-file sync; Markdown stops being the source of truth |
-| Encrypt the files inside the graph folder | Protects the laptop too, but external editors, the CLI and the index need the password and a RAM-only index; much more change for a goal that was not asked |
-| Filesystem encryption (gocryptfs, Cryptomator, LUKS) | Works today without the app, but the password and the setup live outside it and do not cover the backups |
+| Idea                                                          | Why not (now)                                                                                                                                                                                                                             |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One encrypted vault file for the whole graph                  | One conflict loses everything; no per-file sync; Markdown stops being the source of truth                                                                                                                                                 |
+| Encrypt the files inside the graph folder                     | Protects the laptop too, but external editors, the CLI and the index need the password and a RAM-only index; much more change for a goal that was not asked                                                                               |
+| Filesystem encryption (gocryptfs, Cryptomator, LUKS)          | Works today without the app, but the password and the setup live outside it and do not cover the backups                                                                                                                                  |
 | Joplin's way: plaintext locally, encryption when data is sent | This is the model we follow. Joplin keeps a master key wrapped by the password, a key ID in every item header, several keys possible, and a password change that only re-encrypts the keys. See below for what we take and what we change |
 
 From Joplin we take: keys wrapped by the password (a password change touches no data), a key ID in every file
@@ -89,16 +89,16 @@ and P2 fit it:
 - Android (Phase 8) uses the same engine with background sync; the key may be kept in the Android keystore as an
   opt-in.
 
-| Part | What | Status |
-|---|---|---|
-| P0 | This document, requirements, formats | done |
-| P1 | `notatnik-crypt`: vault, slots, recovery key, file encryption, names, sealing | done |
-| P2 | Encrypted backups, `notatnik decrypt`, Settings | done |
-| P3 | Sync engine, two-device tests | built without encryption, as the WebDAV sync ([webdav.md](webdav.md)); the folder remote was dropped |
-| P4 | Settings → Sync & encryption (enable, recovery key, unlock, status) | planned, as E5 of §6 |
-| P5 | Moving an existing graph out of the synced folder (wizard, warnings) | on hold with the replica |
-| P6 | WebDAV remote for Nextcloud | built, plain files; encrypting chosen paths is §6 |
-| P7 | Android | planned (Phase 8) |
+| Part | What                                                                          | Status                                                                                               |
+| ---- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| P0   | This document, requirements, formats                                          | done                                                                                                 |
+| P1   | `notatnik-crypt`: vault, slots, recovery key, file encryption, names, sealing | done                                                                                                 |
+| P2   | Encrypted backups, `notatnik decrypt`, Settings                               | done                                                                                                 |
+| P3   | Sync engine, two-device tests                                                 | built without encryption, as the WebDAV sync ([webdav.md](webdav.md)); the folder remote was dropped |
+| P4   | Settings → Sync & encryption (enable, recovery key, unlock, status)           | planned, as E5 of §6                                                                                 |
+| P5   | Moving an existing graph out of the synced folder (wizard, warnings)          | on hold with the replica                                                                             |
+| P6   | WebDAV remote for Nextcloud                                                   | built, plain files; encrypting chosen paths is §6                                                    |
+| P7   | Android                                                                       | planned (Phase 8)                                                                                    |
 
 ## 6. Encrypting chosen paths on a WebDAV server (EN-11 to EN-18)
 
@@ -119,29 +119,29 @@ and some encrypted, and you choose which.** Pages of both kinds are edited, sear
 
 ### 6.2 Decisions
 
-| Topic | Decision | Why |
-|---|---|---|
-| Where the marks live | `[encryption] paths = ["pages/private/", "pages/Health.md"]` in `.notatnik/config.toml` (a graph setting that syncs, EN-11) | A page property fails when the page is moved; a path rule is what a person means by "this folder". The list is plain on the server: it shows which names are encrypted, which the file names show anyway |
+| Topic                  | Decision                                                                                                                                                                                                                                                                                                              | Why                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where the marks live   | `[encryption] paths = ["pages/private/", "pages/Health.md"]` in `.notatnik/config.toml` (a graph setting that syncs, EN-11)                                                                                                                                                                                           | A page property fails when the page is moved; a path rule is what a person means by "this folder". The list is plain on the server: it shows which names are encrypted, which the file names show anyway                                                                                                                                                                                                    |
 | Where the work happens | In the sync engine, in one place (`crates/sync/src/forms.rs`): it lists the server by the path a file is the copy of (`p` or `p.enc`), reads and writes the form each file has or should have, and decrypts after `get` and encrypts before `put`. The engine keeps comparing local plaintext hashes and remote ETags | Merge, conflicts, the state file and the plan stay as they are. Re-encrypting unchanged text gives different bytes, but the engine uploads only when the local hash changed and treats a new ETag with equal decrypted content as "nothing to do" (it already did for Nextcloud's ETag changes). A wrapper around the remote could not see that a path exists in both forms, so the engine does the mapping |
-| What is visible | Sizes, times, the number of files, the names of unmarked files and the list of marked paths in `config.toml`. With `names = "hidden"` (EN-25, §7) no file or folder name of a marked file; with `visible`, those names with `.enc`. Not visible: content | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter |
-| Which vault | One vault per graph, descriptor `.notatnik/vault.json` (public, synced as a plain file); separate from the backup vault, which belongs to the device (EN-13) | A second device needs the same keys; the backup vault is device-wide and not part of the graph. At setup the same password can be typed again, but the keys are different |
-| The key | Unlocked per session, or kept in the system keyring (opt-in, EN-14). The keyring entry holds the data key, not the password, so starting the app needs no Argon2 run | The keyring is the same Secret Service the sync and calendar passwords use (SY-7). Anyone logged in to the desktop session can then read the key, which the settings text says |
-| Locked | Marked files are left alone on both sides (EN-15). The engine computes a "leave these paths alone" set; their state entries stay, and the folder ETag shortcut is not saved while any file is left alone | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them. Without the second rule an encrypted file that was left alone would stay hidden behind an unchanged folder ETag even after unlocking (found by a test) |
-| Changing a mark | The state records how the server copy of each path is stored. When the rule differs, the engine uploads the new form, then deletes the old one; the second step is retried until it works (EN-16) | An interrupted run leaves both forms, never neither. The next run sees "both exist, rule says encrypted" and removes the plain one |
-| The server's list wins | A server file `p.enc` is an encrypted copy of `p` whatever the rules say; the rules decide how a local file is *uploaded* | A new device reads the rules from `config.toml` in the same sync, and an unmarked path with an `.enc` copy is simply migrated back |
-| `.enc` is reserved | A local file whose name ends in `.enc` is not synced and is reported | Otherwise it could not be told from an encrypted copy |
-| Conflict copies | A "conflicted copy" is matched by the path of the file it came from | A copy of a marked single file would otherwise be uploaded plain |
+| What is visible        | Sizes, times, the number of files, the names of unmarked files and the list of marked paths in `config.toml`. With `names = "hidden"` (EN-25, §7) no file or folder name of a marked file; with `visible`, those names with `.enc`. Not visible: content                                                              | Keeps the listing, the folder ETag shortcut (SY-3) and the migration simple. Name neutral titles for pages that matter                                                                                                                                                                                                                                                                                      |
+| Which vault            | One vault per graph, descriptor `.notatnik/vault.json` (public, synced as a plain file); separate from the backup vault, which belongs to the device (EN-13)                                                                                                                                                          | A second device needs the same keys; the backup vault is device-wide and not part of the graph. At setup the same password can be typed again, but the keys are different                                                                                                                                                                                                                                   |
+| The key                | Unlocked per session, or kept in the system keyring (opt-in, EN-14). The keyring entry holds the data key, not the password, so starting the app needs no Argon2 run                                                                                                                                                  | The keyring is the same Secret Service the sync and calendar passwords use (SY-7). Anyone logged in to the desktop session can then read the key, which the settings text says                                                                                                                                                                                                                              |
+| Locked                 | Marked files are left alone on both sides (EN-15). The engine computes a "leave these paths alone" set; their state entries stay, and the folder ETag shortcut is not saved while any file is left alone                                                                                                              | Without it, a locked sync would see local files without a server partner and delete or upload them wrongly. The guard against mass deletion must not count them. Without the second rule an encrypted file that was left alone would stay hidden behind an unchanged folder ETag even after unlocking (found by a test)                                                                                     |
+| Changing a mark        | The state records how the server copy of each path is stored. When the rule differs, the engine uploads the new form, then deletes the old one; the second step is retried until it works (EN-16)                                                                                                                     | An interrupted run leaves both forms, never neither. The next run sees "both exist, rule says encrypted" and removes the plain one                                                                                                                                                                                                                                                                          |
+| The server's list wins | A server file `p.enc` is an encrypted copy of `p` whatever the rules say; the rules decide how a local file is _uploaded_                                                                                                                                                                                             | A new device reads the rules from `config.toml` in the same sync, and an unmarked path with an `.enc` copy is simply migrated back                                                                                                                                                                                                                                                                          |
+| `.enc` is reserved     | A local file whose name ends in `.enc` is not synced and is reported                                                                                                                                                                                                                                                  | Otherwise it could not be told from an encrypted copy                                                                                                                                                                                                                                                                                                                                                       |
+| Conflict copies        | A "conflicted copy" is matched by the path of the file it came from                                                                                                                                                                                                                                                   | A copy of a marked single file would otherwise be uploaded plain                                                                                                                                                                                                                                                                                                                                            |
 
 ### 6.2a Before the server exists (EN-19)
 
 The vault, the key and the marks do not depend on a server: they are set up in Settings → Sync on a local graph and
-marks are made with *Encrypt…* as usual. *Connect to a server…* (SY-9) keeps the key unlocked across the reopen of the
+marks are made with _Encrypt…_ as usual. _Connect to a server…_ (SY-9) keeps the key unlocked across the reopen of the
 graph and the first sync uploads marked files as `.enc`, never plain. Doing it in this order is the only way to keep
 the plain text out of the server's trash bin and file versions (see 6.3); marking after the upload cannot undo them.
 
 ### 6.2a1 Encrypt everything (EN-21)
 
-Settings → Sync → Encryption → *Encrypt everything…* (key unlocked) marks `pages/`, `journals/`, `assets/` and
+Settings → Sync → Encryption → _Encrypt everything…_ (key unlocked) marks `pages/`, `journals/`, `assets/` and
 `templates/` in one step, after the same preview as for a page (number of pages, old plain copies on the server,
 tasks leaving the calendar, plain backups). Only folders not covered by a rule yet are added, so the button is
 replaced by "Everything is encrypted" afterwards. `.notatnik/` stays plain: the vault and the settings must be
@@ -160,7 +160,7 @@ code is 2 unless all of that is empty. To type the passwords without echo in zsh
 
 ### 6.2c Forgotten password (EN-22)
 
-*Forgot the password…* in Settings → Sync → Encryption (and, separately, in Settings → Backup → Encryption) is for the
+_Forgot the password…_ in Settings → Sync → Encryption (and, separately, in Settings → Backup → Encryption) is for the
 case where the password **and** the recovery key are lost. It asks for the checkbox "I understand…" and a new
 password, shows a new recovery key, and replaces the vault when that key is confirmed (until then the old vault
 still works, and closing the app changes nothing).
@@ -199,21 +199,21 @@ still works, and closing the app changes nothing).
 
 ### 6.4 Parts
 
-| Part | What | Status |
-|---|---|---|
-| E1 | Rules in the config, matching, `.enc` rules | built |
-| E2 | The graph vault: make, confirm, unlock, lock, keyring switch, join from a second device | built |
-| E3 | The engine: forms, the "leave alone" set, the migration step | built |
-| E4 | App: status fields, calendar exclusion, rename and backup warnings | built |
-| E5 | UI: Settings → Sync → Encryption, the page's *Encrypt…* button, the lock mark, keymap | built |
-| E6 | Real Nextcloud and two-device checks, manual checklist | tests built; manual checklist open |
-| E8 | Before the server exists (EN-19), the lock in the page lists | built |
-| E9 | `notatnik verify` (EN-20) | built; tried on the real Nextcloud |
-| E10 | *Encrypt everything…* (EN-21) | built; tried on the real Nextcloud |
-| E11 | *Forgot the password…* (EN-22) | built; not tried on the real Nextcloud |
-| E7 | Hidden names and re-encrypting (EN-25, EN-26): [phases/hidden-names.md](phases/hidden-names.md), §7 | built |
-| E11 | Encrypt everything, list the exceptions (EN-27): [phases/encrypt-everything.md](phases/encrypt-everything.md), §8 | built |
-| E10 | Later: a replica for folder tools (EN-7), the images of a page | on hold |
+| Part | What                                                                                                              | Status                                 |
+| ---- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| E1   | Rules in the config, matching, `.enc` rules                                                                       | built                                  |
+| E2   | The graph vault: make, confirm, unlock, lock, keyring switch, join from a second device                           | built                                  |
+| E3   | The engine: forms, the "leave alone" set, the migration step                                                      | built                                  |
+| E4   | App: status fields, calendar exclusion, rename and backup warnings                                                | built                                  |
+| E5   | UI: Settings → Sync → Encryption, the page's _Encrypt…_ button, the lock mark, keymap                             | built                                  |
+| E6   | Real Nextcloud and two-device checks, manual checklist                                                            | tests built; manual checklist open     |
+| E8   | Before the server exists (EN-19), the lock in the page lists                                                      | built                                  |
+| E9   | `notatnik verify` (EN-20)                                                                                         | built; tried on the real Nextcloud     |
+| E10  | _Encrypt everything…_ (EN-21)                                                                                     | built; tried on the real Nextcloud     |
+| E11  | _Forgot the password…_ (EN-22)                                                                                    | built; not tried on the real Nextcloud |
+| E7   | Hidden names and re-encrypting (EN-25, EN-26): [phases/hidden-names.md](phases/hidden-names.md), §7               | built                                  |
+| E11  | Encrypt everything, list the exceptions (EN-27): [phases/encrypt-everything.md](phases/encrypt-everything.md), §8 | built                                  |
+| E10  | Later: a replica for folder tools (EN-7), the images of a page                                                    | on hold                                |
 
 The tasks and their Verify steps are in [phases/encrypted-sync.md](phases/encrypted-sync.md).
 
@@ -249,7 +249,7 @@ the graph do not exist on the server for these files. The path is inside the enc
   name. While the key is locked, unknown objects are left alone and counted.
 - **A file the server seems to have lost is not deleted here** when objects exist that this device could not open
   (an old key after the graph was re-encrypted elsewhere, a file that is not ours): the new objects may hold it.
-- **Changing the place is one rule.** The sync compares where the copy *is* with where it *should be* (plain path,
+- **Changing the place is one rule.** The sync compares where the copy _is_ with where it _should be_ (plain path,
   `<path>.enc`, hidden object). They differ after the setting is switched or the key was replaced (names depend on
   the key): the file is written at the new place first, then the old copy is removed, so a failure leaves both,
   never neither. That one rule is the migration both ways and the re-encryption.
@@ -263,17 +263,17 @@ the graph do not exist on the server for these files. The path is inside the enc
   vault with the path inside; the name is random because writing a backup needs no key. Compare, restoring a page
   and unpacking open every such entry, so they need the key unlocked.
 - **Where to look.** The objects are in `.notatnik-enc/`, a folder whose name starts with a dot. The Nextcloud web
-  app and its mobile apps hide such folders until *Show hidden files* is on (Files settings); WebDAV (the sync, `curl`,
+  app and its mobile apps hide such folders until _Show hidden files_ is on (Files settings); WebDAV (the sync, `curl`,
   other WebDAV clients) lists it like any folder. The graph folder on the device never has it. A client that syncs
   the folder by itself may skip hidden files by default (the Nextcloud desktop client has a setting for that), so
   such a client would not copy the objects: use this app to sync. `.notatnik/` is hidden in the same way.
-- **Empty folders are removed.** When files move into objects (switching the setting, *Encrypt everything…*, a new
+- **Empty folders are removed.** When files move into objects (switching the setting, _Encrypt everything…_, a new
   key), the plain folders they leave behind would still show the structure. At the end of a sync that has nothing
   left to do, folders that hold no file the sync knows are removed, deepest first, each listed again right before it
   is deleted and only if still empty (`Report.pruned`). Not done with visible names, where `<path>.enc` keeps its
   folder in use; never `.notatnik/`, `.notatnik-enc/` or the root. Nextcloud refuses a condition on a folder (412
   even with its own ETag), so there the second listing is the only guard, and what it deletes goes to its trash bin.
-- **Still visible:** the list of marked paths in `.notatnik/config.toml` (so use *Encrypt everything…*, whose list
+- **Still visible:** the list of marked paths in `.notatnik/config.toml` (so use _Encrypt everything…_, whose list
   names only the standard folders, rather than marking a private folder by name), sizes, times, the number of files
   and the names of unmarked files.
 

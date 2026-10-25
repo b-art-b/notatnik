@@ -122,19 +122,10 @@ a {
   grid-template-columns: var(--left-w, 240px) minmax(0, 1fr) auto;
   height: 100vh;
 }
-/* The first graph's app, and the pane with a second graph beside it (MG-6). */
-.workspace {
-  display: flex;
-  height: 100vh;
-}
-.workspace > .app {
-  flex: 1;
-  min-width: 0;
-}
 .app {
   position: relative;
   /* the right panel's width: as chosen, but the page keeps at least 320px (beyond that it is folded away) */
-  --right-eff: min(var(--right-w, 380px), calc(100vw - var(--beside-w, 0px) - var(--left-eff, 0px) - 320px));
+  --right-eff: min(var(--right-w, 380px), calc(100vw - var(--left-eff, 0px) - 320px));
 }
 .app.left-closed {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -266,11 +257,6 @@ a {
 main {
   padding: 1.2em 2em 4em;
   overflow-y: auto;
-}
-/* something from the other pane is dragged over this one: it takes the drop */
-main.foreign-drop {
-  outline: 2px dashed var(--graph-color, var(--accent));
-  outline-offset: -6px;
 }
 /* the reading column: centred in the space between the side panels, as wide as a page needs */
 main > .column {

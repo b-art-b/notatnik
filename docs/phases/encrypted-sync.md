@@ -25,16 +25,19 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 ## Tasks
 
 ### E1 Rules and matching (EN-11, EN-12)
+
 - [x] `[encryption]` in the graph config (`crates/graph/src/config.rs`): `paths` (list of relative paths, `/` at the end for a folder), `calendar` (`exclude` or `allow`, default `exclude`); unknown values are reported like other config warnings
 - [x] A pure matcher in `notatnik-core` (`encrypted.rs`, no I/O): path -> encrypted or not; nothing under `.notatnik/`; a conflict copy is matched by the path of the file it came from; `..`, absolute paths and empty entries are refused
 - [x] The remote name of a path (`p` -> `p.enc`) and back; a local file ending in `.enc` is reported and not synced
 
 **Verify**
+
 - [x] Table test of the matcher: a folder and its subfolders, a single file, a name that only starts like a folder (`pages/private-x.md` is not in `pages/private/`), upper and lower case, Unicode names, `.notatnik/` entries, conflict copies of a listed file and of a file in a listed folder
 - [x] Config round trip: the `[encryption]` table is written and read back byte-stable; bad entries give warnings, never a panic
 - [x] A local file `x.md.enc` is skipped and shows in the sync warnings
 
 ### E2 The graph vault (EN-13, EN-14)
+
 - [x] Make a vault for the graph when the first path is marked: password twice, recovery key shown once, must be confirmed (as EN-4); the descriptor is written to `.notatnik/vault.json`
 - [x] Unlock with the password or the recovery key, lock, change the password, new recovery key (`notatnik-crypt` already does the cryptography); keys in memory only
 - [x] The keyring switch: store the data key in the system keyring (`Keys` needs a way to be rebuilt from the stored bytes), unlock at graph open, delete the entry when the switch goes off or the graph is forgotten
@@ -42,18 +45,21 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] API commands and DTOs for all of it; bindings regenerated
 
 **Verify**
+
 - [x] App tests: make, confirm, unlock with the password and with the recovery key, wrong secret, lock; the vault file in the graph holds no secret (scan for the data key bytes and the password)
 - [x] The keyring switch with a fake keyring (`Secrets`): on stores, a new session unlocks without a password, off removes it; a keyring that refuses leaves the switch off with a message
 - [x] A vault that is missing or unreadable while paths are marked: sync reports it and uploads **nothing** of the marked files, never plain in their place
 - [x] Second device: attach, see "locked", unlock, files appear
 
 ### E3 The encrypting remote and the engine (EN-12, EN-15, EN-16)
+
 - [x] The engine reads and writes the form each file has or should have (`crates/sync/src/forms.rs`): `put` encrypts a marked path to `p.enc` (context `p`), `get` decrypts, the listing maps `p.enc` to `p` and marks it encrypted, `delete` removes `p.enc`; a path stored in both forms keeps the form the rules ask for
 - [x] The engine takes a set of paths to leave alone (while locked, and for undecryptable files): no plan entry on either side, state kept, not counted by the mass-delete guard
 - [x] The state remembers how each server copy is stored; a different rule starts the migration (upload the new form, then delete the old one); a failure of the second step is retried
 - [x] A server file that fails to decrypt (wrong key ID, cut short, swapped with another path) is an error for that file in the report; the sync goes on with the others
 
 **Verify**
+
 - [x] `crates/sync/tests`, fake server: a marked file is on the server as `p.enc` and a scan of every file the server holds finds no marker of its text; an unmarked file is stored as it is
 - [x] Two devices (own state, shared server): an edit goes both ways, a change on both sides merges from the last synced text or gives a conflict copy that is also encrypted; an unchanged file is not uploaded again at the next sync (no ciphertext churn)
 - [x] Locked: plain files sync, marked files neither upload nor download nor delete, however the other side changed; 11 or more marked files do not trip the mass-delete guard; unlock, then one sync catches up
@@ -62,6 +68,7 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] A rename of a marked page: the old `.enc` is deleted, the new one made
 
 ### E4 In the app (EN-15, EN-16, EN-17)
+
 - [x] The sync context uses the graph's keys; the sync status gets `encryption` (off, locked, unlocked), `encrypted_waiting` (files left alone) and the file errors of E3
 - [x] Marking and unmarking go through API commands that change `config.toml` (written back from the parsed settings like every other settings change, not as a text patch), and a preview says whether the paths were synced before, and start a sync
 - [x] The calendar sync leaves out tasks of marked pages when `calendar = "exclude"`; tasks sent earlier leave the calendar by the usual safe way
@@ -70,69 +77,83 @@ Pictures used by a marked page are only listed (E5); marking them is the person'
 - [x] The log (D49) says what happened at `info` (paths, never text): a path marked, the vault unlocked or locked, files left alone because of the lock
 
 **Verify**
+
 - [x] App tests with the fake server and a fake keyring: end to end for the cases of E3 through `dispatch`
 - [x] Calendar test: a task on a marked page is not sent; a task sent before the mark is completed in the calendar, not deleted, and the block in the notes is untouched
 - [x] Rename tests: into, out of and inside a marked folder give the warning; elsewhere none
 - [ ] The log of a full session holds no text of any page (scan for the markers)
 
 ### E5 The UI (EN-18)
-- [x] Settings → Sync: an Encryption section (off, locked, unlocked), set up (password twice, recovery key shown once), unlock, lock, the keyring switch, the list of marked paths with *Remove*, the count of files left alone
-- [x] The page's *Encrypt…* button (next to *History*): this page, or with a checkbox also the pages below it, and *Stop encrypting*; the dialog that says what happens, including the warning about older plain copies on the server and the images the page uses
+
+- [x] Settings → Sync: an Encryption section (off, locked, unlocked), set up (password twice, recovery key shown once), unlock, lock, the keyring switch, the list of marked paths with _Remove_, the count of files left alone
+- [x] The page's _Encrypt…_ button (next to _History_): this page, or with a checkbox also the pages below it, and _Stop encrypting_; the dialog that says what happens, including the warning about older plain copies on the server and the images the page uses
 - [x] A lock mark beside the title of an encrypted page; the sidebar shows "N encrypted files waiting for the key" while the key is locked (the lock in the page lists came with E8)
 - [x] `docs/keymap.md` updated; strings written as the rest of Settings
 
 **Verify**
+
 - [x] Browser tests against the dev server with the fake WebDAV server: set up, mark a page, the server file is `.enc`, lock, edit while locked (nothing is sent), unlock (it is sent), unmark; the lock mark follows. A second device is covered by the app tests, not in the browser
 - [x] The dialog warns for a page that was synced before (browser test)
 - [ ] The rename dialog's warning for a rename across the boundary is tested in the app tests only, not in the browser
 - [ ] No page text appears in the dialogs' network traffic except the commands that must carry it (the marker scan of the dev server log)
 
 ### E6 Against a real Nextcloud (manual and `--ignored` tests)
+
 - [x] `crates/app/tests/nextcloud.rs`: mark, sync, read the raw `.enc` over WebDAV and check no marker; second device decrypts; locked sync; unmark
 - [x] Record what Nextcloud's trash keeps after a late mark: on a real server (Nextcloud 35) the trash bin entry of the deleted plain copy holds the plain text; the warning says so. The file versions were not looked at
 - [ ] Nextcloud's own client and the web UI do not break on `.enc` files
 
 **Verify**
+
 - [x] The tests pass against the Docker instance of `dev/nextcloud/`
 - [ ] Manual: the checklist below
 
 ### E8 Before the server exists (EN-19, SY-9)
+
 - [x] `connect_remote`: a local graph is attached to an empty or new server folder in place; a folder with a graph or other things is refused; the unlocked key survives the reopen
-- [x] Settings → Sync shows the Encryption section and the page's *Encrypt…* button on a graph without a server; the dialog says the page goes up encrypted when the graph is connected
-- [x] Settings → Sync → *Connect to a server…* (the form of the start screen, *Upload this graph*)
-- [x] The lock in All pages (List and Namespaces), the sidebar's page tree and Recent; the *Only encrypted* filter
+- [x] Settings → Sync shows the Encryption section and the page's _Encrypt…_ button on a graph without a server; the dialog says the page goes up encrypted when the graph is connected
+- [x] Settings → Sync → _Connect to a server…_ (the form of the start screen, _Upload this graph_)
+- [x] The lock in All pages (List and Namespaces), the sidebar's page tree and Recent; the _Only encrypted_ filter
 
 **Verify**
+
 - [x] App test: marks made on a local graph, then connect: the fake server holds `.enc` files only for them, a scan finds no marker text, the key is still unlocked
 - [x] Browser tests: the same through the screens; the connect form refuses a folder with something in it; the lock and the filter in each list
 - [ ] Not tried against the real Nextcloud (the connect flow, and how its web UI shows `.enc` files)
 
 ### E9 Verify the server copy (EN-20)
+
 - [x] `notatnik_sync::verify`: lists, downloads, decrypts and compares; nothing is written
 - [x] `notatnik verify <graph>`: login from the device settings or `--url`/`--user`, passwords from the environment or asked for, `--json`, exit 2 when not clean
 
 **Verify**
+
 - [x] Sync test: clean, locked, unsynced edit, one-sided files, damaged `.enc`, marked path stored plain
 - [x] CLI test: output, exit codes, wrong password, the graph folder untouched
 - [x] Run against the real Nextcloud (2026-10-20): plain graph, then everything encrypted: 10 files match, 8 decrypted; `--no-key` lists the 8 as encrypted
 
 ### E10 Encrypt everything (EN-21)
-- [x] *Encrypt everything…* in Settings → Sync → Encryption: confirmation with the page count and the warnings; marks `pages/`, `journals/`, `assets/`, `templates/`; the row shows "Everything is encrypted" afterwards
+
+- [x] _Encrypt everything…_ in Settings → Sync → Encryption: confirmation with the page count and the warnings; marks `pages/`, `journals/`, `assets/`, `templates/`; the row shows "Everything is encrypted" afterwards
 
 **Verify**
+
 - [x] Browser test: not offered before the key is set up; the confirmation; after a sync the server holds `.enc` only, `.notatnik/vault.json` stays plain, local files untouched
 - [x] Real Nextcloud (2026-10-20): all pages, journals and templates stored as `.enc`, `notatnik verify` decrypts and matches 8 of 10 files (the other 2 are the plain `.notatnik` files); `--no-key` lists the 8 as encrypted
 
 ### E11 Forgotten password (EN-22)
+
 - [x] `encryption_setup` / `backup_encryption_setup` with `reset`: a new vault, valid only when confirmed; the keyring entry is removed
 - [x] The files stored encrypted are stored again from the plain files with the new key at the next sync
-- [x] *Forgot the password…* in both Settings sections, with the checkbox
+- [x] _Forgot the password…_ in both Settings sections, with the checkbox
 
 **Verify**
+
 - [x] Sync test, app tests for graph and backup, browser tests for both screens
 - [ ] On the real Nextcloud: reset, one sync, `notatnik verify` with the new password; a second device unlocks with the new password
 
 ### E7 Later (on hold)
+
 Hidden file names are built in [hidden-names.md](hidden-names.md) (no manifest needed). An encrypted replica for a folder that another tool syncs (EN-7); marking the images of a page with it; Android with the key in the keystore (EN-10).
 
 ## Manual acceptance checklist
@@ -142,6 +163,6 @@ Hidden file names are built in [hidden-names.md](hidden-names.md) (no manifest n
 - [ ] Lose the password, use the recovery key; change the password; the other device keeps working after it asks again
 - [ ] Mark a page that was synced before: read the warning, then check the Nextcloud versions and trash of that file
 
-- [x] Settings → Sync → *Verify* runs `verify` from the app; backups seal marked files inside plain snapshots (EN-23); a snapshot file from another device is restored with its own secret (EN-24)
+- [x] Settings → Sync → _Verify_ runs `verify` from the app; backups seal marked files inside plain snapshots (EN-23); a snapshot file from another device is restored with its own secret (EN-24)
 
 Record: date / commit / notes:

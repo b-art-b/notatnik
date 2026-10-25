@@ -1,6 +1,6 @@
 # Encrypt everything, list the exceptions (S1 to S5)
 
-**Goal:** a graph can be encrypted the other way round: *everything* is stored encrypted on the server and the person
+**Goal:** a graph can be encrypted the other way round: _everything_ is stored encrypted on the server and the person
 lists what stays plain. Forgetting to mark something can then never leak it, and the server no longer sees a list of
 private folders, only the (harmless) list of what is public.
 
@@ -25,13 +25,13 @@ private folders, only the (harmless) list of what is public.
   from the wanted one (H2). Switching to `all` moves every plain file to its encrypted place; switching back, or
   adding an exception, moves the file back to a plain copy. No new sync code. Both directions need the key unlocked
   (the old copies are looked up and removed by the same code that opens objects).
-- **Marking in `all`.** `encryption_mark` edits the list that belongs to the scope: with `all`, *encrypted = true*
-  removes an exception and *encrypted = false* adds one (with the same refusal when a folder above already decides).
+- **Marking in `all`.** `encryption_mark` edits the list that belongs to the scope: with `all`, _encrypted = true_
+  removes an exception and _encrypted = false_ adds one (with the same refusal when a folder above already decides).
   `encryption_scope{all}` switches; `encryption_scope_preview{all}` says what it means (files, plain copies the server
   already holds, dated tasks that leave the calendar).
-- **Setting up.** The setup form offers *Everything, except what I list* (recommended) and *Only what I choose*. The
+- **Setting up.** The setup form offers _Everything, except what I list_ (recommended) and _Only what I choose_. The
   choice is kept with the pending vault and applied on confirmation, together with hidden names. Without a choice (API,
-  scripts) a graph's *first* vault also encrypts everything; replacing a vault (reset, re-encrypting) keeps the scope.
+  scripts) a graph's _first_ vault also encrypts everything; replacing a vault (reset, re-encrypting) keeps the scope.
   Existing graphs are not switched.
 - **Calendar.** With `calendar = "exclude"` the tasks of encrypted pages stay out of the calendar, so under `all` no
   task is sent unless its page is an exception or the person allows it. The settings row says so.
@@ -45,46 +45,59 @@ arrived. Connect a new device to an empty folder, as the app's own flow does.
 ## Tasks
 
 ### S1 Rules (EN-27)
+
 - [x] `EncryptedPaths::everything_except`, `is_all`; `.notatnik-enc/` never encrypted
 - [x] Config `scope` and `except` (defaults, known keys, warnings for a bad value or entry); `EncryptionSection::rules()`
 - [x] Every reader of `encryption.paths` for the rules uses `rules()`
 
 **Verify**
+
 - [x] Unit tests: exceptions (file, folder, conflict copy), the always-plain folders, bad entries ignored
 - [x] Config round trip and warnings
 
 ### S2 The sync (EN-27)
+
 - [x] Test on the fake server: a new file anywhere is stored encrypted, an exception stays plain, switching scope in both directions moves the files and loses none
 
 **Verify**
+
 - [x] `crates/sync/tests/hidden.rs` or a new `scope.rs`: scenarios above, with hidden and visible names
 
 ### S3 The app (EN-27)
+
 - [x] `EncryptionStatus.scope` and `except`; `encryption_scope`, `encryption_scope_preview`; `encryption_mark` by scope; setup argument `scope`
 - [x] Backups, calendar, rename warnings and `verify` use `rules()`
 
 **Verify**
+
 - [x] App test: marked to all to marked with the objects on the fake server, an exception added and removed, the status
 
 ### S4 The UI (EN-27)
-- [x] Settings: setup choice; *Encrypt everything…* switches the scope; the list of exceptions with *Encrypt again* and a field to add one; *Only encrypt what I choose* switches back
+
+- [x] Settings: setup choice; _Encrypt everything…_ switches the scope; the list of exceptions with _Encrypt again_ and a field to add one; _Only encrypt what I choose_ switches back
 - [x] Page dialog and lock mark follow the scope
 
 **Verify**
+
 - [x] Vitest for the rule; browser test: set up with everything, exception from a page, switch back
 
 ### S6 Padlocks follow the default (EN-27)
+
 - [x] `padlockOf(status, file)`: a mark only where the file differs from the scope's default (closed with `marked`, open with `all`); none without a vault, for `.notatnik/` or without a file
 - [x] `Padlock.svelte` used by the title, All pages (table, tree and filter), the sidebar tree, Recent and the subpage field; the page button and the filter say what the mark means; Settings says what no padlock means
 
 **Verify**
+
 - [x] Vitest for `padlockOf`; browser tests for both defaults (rows, tree, filter, title, button, Recent)
 
 ### S7 The graph padlock (EN-27)
-- [x] `graphPadlock(status)` and the mark in the graph switcher (full with `all`, dimmed with some marked paths, none otherwise; the tooltip names exceptions or paths and a locked key); *Encryption settings…* in the graph menu
+
+- [x] `graphPadlock(status)` and the mark in the graph switcher (full with `all`, dimmed with some marked paths, none otherwise; the tooltip names exceptions or paths and a locked key); _Encryption settings…_ in the graph menu
 
 **Verify**
+
 - [x] Vitest for the three states and the locked key; browser test for each state, the computed opacity and the menu item
 
 ### S5 Docs
+
 - [x] requirements EN-27, encryption.md §8, D58, file-format (config keys), keymap, TODO, testing

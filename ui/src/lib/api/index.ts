@@ -53,10 +53,5 @@ export function createBackend(transport: Transport, slot: string): Backend {
 
 export const backend: Backend = createBackend(transportOfThisWindow(), slotOfThisPage())
 
-/** The backend for another slot, through the transport of this window (the pane beside the first graph, MG-6). */
-export function backendFor(slot: string): Backend {
-  return createBackend(transportOfThisWindow(), slot)
-}
-
 /** The backend of the window itself (the first graph), whatever pane this page is: for calls that look at all graphs. */
 export const workspace: Backend = createBackend(transportOfThisWindow(), '')

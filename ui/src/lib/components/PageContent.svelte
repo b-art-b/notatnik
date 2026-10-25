@@ -16,7 +16,6 @@
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import { hasOtherGraph, known } from '../stores/workspace.svelte'
-  import { endPageDrag, startPageDrag } from '../transferDrag'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
@@ -296,20 +295,12 @@
         </nav>
         <h1>
           {#if titleLink && isoTitle}
-            <a
-              class="title"
-              draggable="true"
-              ondragstart={(e) => startPageDrag(e, view!.name, view!.child_pages.length > 0)}
-              ondragend={endPageDrag}
-              href={pageHash(view.name)}
-              title="Open this day as a page"><PageIcon name={view.name} journal />{isoTitle}</a
+            <a class="title" href={pageHash(view.name)} title="Open this day as a page"
+              ><PageIcon name={view.name} journal />{isoTitle}</a
             >
           {:else}
             <button
               class="title"
-              draggable="true"
-              ondragstart={(e) => startPageDrag(e, view!.name, view!.child_pages.length > 0)}
-              ondragend={endPageDrag}
               title={view.is_journal ? `Page name: ${view.name}` : 'Rename page'}
               onclick={() => (renaming = !view.is_journal)}
               ><PageIcon name={view.name} />{isoTitle ??

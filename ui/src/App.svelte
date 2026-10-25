@@ -46,7 +46,6 @@
   import JournalsView from './lib/components/JournalsView.svelte'
   import PagesPanel from './lib/components/PagesPanel.svelte'
   import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
-  import BesidePane from './lib/components/BesidePane.svelte'
   import SidePanel from './lib/components/SidePanel.svelte'
   import SyncIndicator from './lib/components/SyncIndicator.svelte'
   import CalendarAuto from './lib/components/CalendarAuto.svelte'
@@ -55,7 +54,7 @@
   import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
-  import { beside, refreshWorkspace } from './lib/stores/workspace.svelte'
+  import { refreshWorkspace } from './lib/stores/workspace.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
@@ -74,8 +73,6 @@
   import type { SavedQueryView } from './lib/api'
   import { initZoom, zoomKey, zoomWheel } from './lib/zoom'
   import { installNavigation } from './lib/mouse'
-  import { dnd } from './lib/stores/dnd.svelte'
-  import { dropFromOtherPane, foreignDrag } from './lib/transferDrag'
 
   const route = $derived(app.route)
   // The right panel: this page's references and tasks (when Settings put them there), and the pages opened beside it
@@ -95,15 +92,6 @@
   $effect(() => {
     void app.graph?.id
     void refreshWorkspace()
-  })
-
-  // something from the other pane is over this one (MG-6): the page area shows it takes the drop
-  let foreignOver = $state(false)
-
-  // a second graph is open in the pane beside this one (only the first pane has one)
-  const besideOn = $derived(backend.slot === '' && !!beside())
-  $effect(() => {
-    app.besideShown = besideOn ? app.besideWidth : 0
   })
 
   // the graph's color and name: the CSS reads the color from the root; the window title says page and graph
@@ -208,8 +196,8 @@
     // no upper limit: dragged so far that the page would be narrower than PAGE_MIN, the page folds away; dragged
     // back, it returns
     const move = (m: PointerEvent) => {
-      const want = window.innerWidth - app.besideShown - m.clientX
-      const room = window.innerWidth - app.besideShown - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
+      const want = window.innerWidth - m.clientX
+      const room = window.innerWidth - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
       app.rightFocus = want > room
       if (!app.rightFocus) setRightWidth(want, false)
     }
@@ -228,7 +216,7 @@
     const step = e.shiftKey ? 40 : 10
     // the handle is on the panel's left edge: moving it left makes the panel wider
     if (e.key === 'ArrowLeft') {
-      const room = window.innerWidth - app.besideShown - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
+      const room = window.innerWidth - (app.leftOpen ? app.leftWidth : 0) - PAGE_MIN
       if (app.rightWidth + step > room) app.rightFocus = true
       else setRightWidth(app.rightWidth + step)
     } else if (e.key === 'ArrowRight') {
@@ -347,24 +335,137 @@
 {#if app.needsGraph}
   <Welcome />
 {:else}
-  <div class="workspace" style:--beside-w="{app.besideShown}px">
-    <div
-      class="app"
-      class:left-closed={!app.leftOpen}
-      class:resizing={resizing || resizingRight}
-      class:right-focus={focus}
-      style:--left-w="{app.leftWidth}px"
-      style:--right-w="{app.rightWidth}px"
-      style:--left-eff="{app.leftOpen ? app.leftWidth : 0}px"
+  <div
+    class="app"
+    class:left-closed={!app.leftOpen}
+    class:resizing={resizing || resizingRight}
+    class:right-focus={focus}
+    style:--left-w="{app.leftWidth}px"
+    style:--right-w="{app.rightWidth}px"
+    style:--left-eff="{app.leftOpen ? app.leftWidth : 0}px"
+  >
+    <!-- one button for both states: it sits on the sidebar's edge while open and in the corner when closed -->
+    <button
+      class="left-toggle"
+      aria-label={app.leftOpen ? 'Hide sidebar' : 'Show sidebar'}
+      aria-expanded={app.leftOpen}
+      title={`${app.leftOpen ? 'Hide' : 'Show'} the sidebar (Ctrl+\\)`}
+      onclick={toggleLeft}
+      data-testid="left-toggle"
+      ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
+        ><rect
+          x="1.75"
+          y="2.75"
+          width="12.5"
+          height="10.5"
+          rx="2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        /><path d="M6 3v10" stroke="currentColor" stroke-width="1.5" /></svg
+      ></button
     >
-      <!-- one button for both states: it sits on the sidebar's edge while open and in the corner when closed -->
+    <aside class="left" aria-label="Sidebar">
+      <GraphSwitcher />
+      <nav>
+        <a href="#/journals" class:active={route.kind === 'journals'}
+          ><span class="ico ico-journals" aria-hidden="true"></span>Journals</a
+        >
+        <a href="#/agenda" class:active={route.kind === 'agenda'}
+          ><span class="ico ico-agenda" aria-hidden="true"></span>Agenda</a
+        >
+        <a href="#/pages" class:active={route.kind === 'pages'}
+          ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
+        >
+        <button class="link" onclick={() => (app.searchOpen = true)}
+          ><span class="ico ico-search" aria-hidden="true"></span>Search</button
+        >
+        <a href="#/settings" class:active={route.kind === 'settings'}
+          ><span class="ico ico-settings" aria-hidden="true"></span>Settings</a
+        >
+      </nav>
+      <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
+        {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
+      </div>
+      <SyncIndicator />
+      <CalendarAuto />
+      <FavoritePages />
+      <RecentPages />
+      {#if saved.length}
+        <h3>Saved queries</h3>
+        <ul class="saved">
+          {#each saved as s (s.name)}<li>
+              <a href={`#/saved/${encodeURIComponent(s.name)}`}>{s.name}</a>
+            </li>{/each}
+        </ul>
+      {/if}
+      <PagesPanel />
+    </aside>
+    <!-- a focusable separator: drag it, or use the arrow keys (Home resets) -->
+    {#if app.leftOpen}
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <div
+        class="resizer"
+        class:active={resizing}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        aria-valuemin={180}
+        aria-valuemax={560}
+        aria-valuenow={app.leftWidth}
+        tabindex="0"
+        data-testid="left-resizer"
+        onpointerdown={startResize}
+        onkeydown={resizeKey}
+        ondblclick={() => setLeftWidth(LEFT_DEFAULT)}
+      ></div>
+    {/if}
+    <main>
+      {#if focus}
+        <button
+          class="show-page"
+          onclick={toggleRightFocus}
+          data-testid="show-page"
+          title="Show the page again"><span aria-hidden="true">◂</span> Show page</button
+        >
+      {/if}
+      <div class="column" hidden={focus}>
+        <ConflictBanner />
+        {#if route.kind === 'journals'}
+          <JournalsView />
+        {:else if route.kind === 'settings'}
+          <Settings />
+        {:else if route.kind === 'agenda'}
+          <AgendaView />
+        {:else if route.kind === 'pages'}
+          <AllPagesView />
+        {:else if route.kind === 'segment'}
+          {#key route.name}<SegmentView segment={route.name} />{/key}
+        {:else if route.kind === 'property'}
+          {#key `${route.key}\u0000${route.value}`}<PropertyPages key={route.key} value={route.value} />{/key}
+        {:else if route.kind === 'blockprop'}
+          {#key `${route.key}\u0000${route.value}`}<BlockProperties
+              key={route.key}
+              value={route.value}
+            />{/key}
+        {:else if route.kind === 'saved'}
+          {#key route.name}<SavedQueryPage name={route.name} />{/key}
+        {:else}
+          {#key route.name}
+            <PageContent name={route.name} viewKey="main" zoom={route.zoom} />
+          {/key}
+        {/if}
+      </div>
+    </main>
+    {#if rightExists}
       <button
-        class="left-toggle"
-        aria-label={app.leftOpen ? 'Hide sidebar' : 'Show sidebar'}
-        aria-expanded={app.leftOpen}
-        title={`${app.leftOpen ? 'Hide' : 'Show'} the sidebar (Ctrl+\\)`}
-        onclick={toggleLeft}
-        data-testid="left-toggle"
+        class="right-toggle"
+        class:open={rightShown}
+        aria-label={rightShown ? 'Hide side panel' : 'Show side panel'}
+        aria-expanded={rightShown}
+        title={`${rightShown ? 'Hide' : 'Show'} the side panel (Ctrl+Shift+\\)`}
+        onclick={toggleRight}
+        data-testid="right-toggle"
         ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
           ><rect
             x="1.75"
@@ -375,194 +476,51 @@
             fill="none"
             stroke="currentColor"
             stroke-width="1.5"
-          /><path d="M6 3v10" stroke="currentColor" stroke-width="1.5" /></svg
+          /><path d="M10 3v10" stroke="currentColor" stroke-width="1.5" /></svg
         ></button
       >
-      <aside class="left" aria-label="Sidebar">
-        <GraphSwitcher />
-        <nav>
-          <a href="#/journals" class:active={route.kind === 'journals'}
-            ><span class="ico ico-journals" aria-hidden="true"></span>Journals</a
-          >
-          <a href="#/agenda" class:active={route.kind === 'agenda'}
-            ><span class="ico ico-agenda" aria-hidden="true"></span>Agenda</a
-          >
-          <a href="#/pages" class:active={route.kind === 'pages'}
-            ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
-          >
-          <button class="link" onclick={() => (app.searchOpen = true)}
-            ><span class="ico ico-search" aria-hidden="true"></span>Search</button
-          >
-          <a href="#/settings" class:active={route.kind === 'settings'}
-            ><span class="ico ico-settings" aria-hidden="true"></span>Settings</a
-          >
-        </nav>
-        <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
-          {overallStatus() === 'saved'
-            ? '✓ saved'
-            : overallStatus() === 'saving'
-              ? '… saving'
-              : '⚠ not saved'}
-        </div>
-        <SyncIndicator />
-        <CalendarAuto />
-        <FavoritePages />
-        <RecentPages />
-        {#if saved.length}
-          <h3>Saved queries</h3>
-          <ul class="saved">
-            {#each saved as s (s.name)}<li>
-                <a href={`#/saved/${encodeURIComponent(s.name)}`}>{s.name}</a>
-              </li>{/each}
-          </ul>
-        {/if}
-        <PagesPanel />
-      </aside>
-      <!-- a focusable separator: drag it, or use the arrow keys (Home resets) -->
-      {#if app.leftOpen}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-        <div
-          class="resizer"
-          class:active={resizing}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          aria-valuemin={180}
-          aria-valuemax={560}
-          aria-valuenow={app.leftWidth}
-          tabindex="0"
-          data-testid="left-resizer"
-          onpointerdown={startResize}
-          onkeydown={resizeKey}
-          ondblclick={() => setLeftWidth(LEFT_DEFAULT)}
-        ></div>
-      {/if}
-      <main
-        class:foreign-drop={foreignOver}
-        ondragover={(e) => {
-          if (!foreignDrag(e, !!dnd.from)) return
-          e.preventDefault() // this pane takes the drop
-          // a drop effect the drag does not allow cancels the drop: a block is dragged as `move`, a page as `copyMove`
-          if (e.dataTransfer)
-            e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy'
-          foreignOver = true
-        }}
-        ondragleave={(e) => {
-          if (e.relatedTarget === null || !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node))
-            foreignOver = false
-        }}
-        ondrop={(e) => {
-          foreignOver = false
-          dropFromOtherPane(e, route.kind === 'page' ? route.name : null)
-        }}
-      >
-        {#if focus}
-          <button
-            class="show-page"
-            onclick={toggleRightFocus}
-            data-testid="show-page"
-            title="Show the page again"><span aria-hidden="true">◂</span> Show page</button
-          >
-        {/if}
-        <div class="column" hidden={focus}>
-          <ConflictBanner />
-          {#if route.kind === 'journals'}
-            <JournalsView />
-          {:else if route.kind === 'settings'}
-            <Settings />
-          {:else if route.kind === 'agenda'}
-            <AgendaView />
-          {:else if route.kind === 'pages'}
-            <AllPagesView />
-          {:else if route.kind === 'segment'}
-            {#key route.name}<SegmentView segment={route.name} />{/key}
-          {:else if route.kind === 'property'}
-            {#key `${route.key}\u0000${route.value}`}<PropertyPages
-                key={route.key}
-                value={route.value}
-              />{/key}
-          {:else if route.kind === 'blockprop'}
-            {#key `${route.key}\u0000${route.value}`}<BlockProperties
-                key={route.key}
-                value={route.value}
-              />{/key}
-          {:else if route.kind === 'saved'}
-            {#key route.name}<SavedQueryPage name={route.name} />{/key}
-          {:else}
-            {#key route.name}
-              <PageContent name={route.name} viewKey="main" zoom={route.zoom} />
-            {/key}
-          {/if}
-        </div>
-      </main>
-      {#if rightExists}
+      {#if rightShown}
         <button
-          class="right-toggle"
-          class:open={rightShown}
-          aria-label={rightShown ? 'Hide side panel' : 'Show side panel'}
-          aria-expanded={rightShown}
-          title={`${rightShown ? 'Hide' : 'Show'} the side panel (Ctrl+Shift+\\)`}
-          onclick={toggleRight}
-          data-testid="right-toggle"
+          class="right-toggle right-focus-btn"
+          aria-label={focus ? 'Show the page' : 'Focus on the side panel'}
+          aria-pressed={focus}
+          title={focus ? 'Show the page again' : 'Fold the page away and give the panel the whole window'}
+          onclick={toggleRightFocus}
+          data-testid="right-focus"
           ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
-            ><rect
-              x="1.75"
-              y="2.75"
-              width="12.5"
-              height="10.5"
-              rx="2"
+            ><path
+              d={focus ? 'M2 6h4V2M14 6h-4V2M2 10h4v4M14 10h-4v4' : 'M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4'}
               fill="none"
               stroke="currentColor"
               stroke-width="1.5"
-            /><path d="M10 3v10" stroke="currentColor" stroke-width="1.5" /></svg
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            /></svg
           ></button
         >
-        {#if rightShown}
-          <button
-            class="right-toggle right-focus-btn"
-            aria-label={focus ? 'Show the page' : 'Focus on the side panel'}
-            aria-pressed={focus}
-            title={focus ? 'Show the page again' : 'Fold the page away and give the panel the whole window'}
-            onclick={toggleRightFocus}
-            data-testid="right-focus"
-            ><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
-              ><path
-                d={focus
-                  ? 'M2 6h4V2M14 6h-4V2M2 10h4v4M14 10h-4v4'
-                  : 'M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4'}
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              /></svg
-            ></button
-          >
-        {/if}
       {/if}
-      {#if rightShown}
-        <!-- a focusable separator on the panel's left edge, like the sidebar's -->
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-        <div
-          class="resizer resizer-right"
-          class:active={resizingRight}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize side panel"
-          aria-valuemin={280}
-          aria-valuenow={app.rightWidth}
-          tabindex="0"
-          data-testid="right-resizer"
-          onpointerdown={startResizeRight}
-          onkeydown={resizeKeyRight}
-          ondblclick={toggleRightFocus}
-        ></div>
-        <aside class="right" aria-label="Side panels" data-testid="side-panel">
-          <SidePanel page={route.kind === 'page' ? route.name : null} />
-        </aside>
-      {/if}
-    </div>
-    {#if besideOn}<BesidePane />{/if}
+    {/if}
+    {#if rightShown}
+      <!-- a focusable separator on the panel's left edge, like the sidebar's -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <div
+        class="resizer resizer-right"
+        class:active={resizingRight}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize side panel"
+        aria-valuemin={280}
+        aria-valuenow={app.rightWidth}
+        tabindex="0"
+        data-testid="right-resizer"
+        onpointerdown={startResizeRight}
+        onkeydown={resizeKeyRight}
+        ondblclick={toggleRightFocus}
+      ></div>
+      <aside class="right" aria-label="Side panels" data-testid="side-panel">
+        <SidePanel page={route.kind === 'page' ? route.name : null} />
+      </aside>
+    {/if}
   </div>
 {/if}
 {#if app.searchOpen}<SearchDialog />{/if}

@@ -6,7 +6,7 @@ Requirements SY-1 to SY-8 in [requirements.md](requirements.md), decision D42 in
 ## What it is
 
 A graph can live in a folder on a WebDAV server instead of a folder of this computer. This device always keeps a
-full copy in `~/.local/share/notatnik/replicas/<name>/` (the *replica*), so everything works without a
+full copy in `~/.local/share/notatnik/replicas/<name>/` (the _replica_), so everything works without a
 connection: search, the index, backups and the file watcher see an ordinary graph folder. The crate
 `notatnik-sync` brings the replica and the server folder in step in the background.
 
@@ -17,7 +17,7 @@ reads and writes files, and the watcher picks up what it writes like any externa
 
 1. Start screen (Ctrl+K, "Switch graph") → **New graph on a server…**.
 2. Server (`https://cloud.example.org`, or the full address up to `…/remote.php/dav/files/<user>`), user name,
-   password (on Nextcloud create an *app password* in Settings → Security), folder (default `Notes/notatnik`).
+   password (on Nextcloud create an _app password_ in Settings → Security), folder (default `Notes/notatnik`).
 3. **Check the folder** looks at it without changing anything. Then:
    - the folder is new or empty → **Create the graph** (the first sync uploads it);
    - the folder already holds a graph → **Download and open** (a second device, the phone);
@@ -37,20 +37,20 @@ Plain `http://` is accepted only for this computer and the local network (`local
 
 ## What the server was found to do (probe of 2026-10-17, Nextcloud 35.0.2)
 
-| Question | Answer | Used for |
-|---|---|---|
-| `PUT` with `If-None-Match: *` on an existing file | 412 | creating a file never overwrites |
-| `PUT`/`DELETE` with a wrong `If-Match` | 412 | an edit made elsewhere is never overwritten |
-| `PUT` response | `ETag` header, same as `PROPFIND` | no extra request after an upload |
-| ETag of a folder when a file changes below it | changes, up to the account root | skip unchanged folders (SY-3) |
-| `MKCOL` of an existing folder / with a missing parent | 405 / 409 | creating folders from the top |
-| `PUT` into a missing folder | 404 | folders are made before files |
-| `sync-collection` REPORT on files | not supported (415) | the sync walks folders by ETag instead |
-| hidden folders (`.notatnik/`), spaces, `(`, `#`, `?`, non-ASCII names | work when percent-encoded | graph layout is stored as it is |
-| `X-OC-MTime` on `PUT` | accepted | files keep their modification time |
-| a 25 MB `PUT` | fine in one request | pasted screenshots |
-| names that differ only by case | two files | |
-| HTTPS | not available on the test instance | plain `http` allowed for local addresses only |
+| Question                                                              | Answer                             | Used for                                      |
+| --------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------- |
+| `PUT` with `If-None-Match: *` on an existing file                     | 412                                | creating a file never overwrites              |
+| `PUT`/`DELETE` with a wrong `If-Match`                                | 412                                | an edit made elsewhere is never overwritten   |
+| `PUT` response                                                        | `ETag` header, same as `PROPFIND`  | no extra request after an upload              |
+| ETag of a folder when a file changes below it                         | changes, up to the account root    | skip unchanged folders (SY-3)                 |
+| `MKCOL` of an existing folder / with a missing parent                 | 405 / 409                          | creating folders from the top                 |
+| `PUT` into a missing folder                                           | 404                                | folders are made before files                 |
+| `sync-collection` REPORT on files                                     | not supported (415)                | the sync walks folders by ETag instead        |
+| hidden folders (`.notatnik/`), spaces, `(`, `#`, `?`, non-ASCII names | work when percent-encoded          | graph layout is stored as it is               |
+| `X-OC-MTime` on `PUT`                                                 | accepted                           | files keep their modification time            |
+| a 25 MB `PUT`                                                         | fine in one request                | pasted screenshots                            |
+| names that differ only by case                                        | two files                          |                                               |
+| HTTPS                                                                 | not available on the test instance | plain `http` allowed for local addresses only |
 
 Folder ETags are an extension of Nextcloud, not part of WebDAV. The connection test writes a small file and checks
 whether the folder's ETag changed; only then does the sync skip folders (`trust_folder_etags`, stored with the
@@ -66,21 +66,21 @@ a file when its first line changes, which would break page names.
 Per file path it knows three things: the local content hash, the server's ETag, and what both were at the last
 sync (kept in `~/.local/share/notatnik/replicas/<name>.sync-state.json`, outside the graph folder).
 
-| Here | There | Since last sync | Action |
-|---|---|---|---|
-| changed | same | | upload, only if the server still has the old ETag (`If-Match`) |
-| same | changed | | download |
-| changed | changed | | download to compare: equal → nothing; different → **conflict** |
-| deleted | same | | delete on the server (`If-Match`) |
-| deleted | changed | | download (an edit beats a deletion) |
-| same | deleted | | move here to `.notatnik/trash/` |
-| changed | deleted | | upload again (an edit beats a deletion) |
-| new | new (no history) | | compare contents; equal → nothing, different → conflict |
+| Here    | There            | Since last sync | Action                                                         |
+| ------- | ---------------- | --------------- | -------------------------------------------------------------- |
+| changed | same             |                 | upload, only if the server still has the old ETag (`If-Match`) |
+| same    | changed          |                 | download                                                       |
+| changed | changed          |                 | download to compare: equal → nothing; different → **conflict** |
+| deleted | same             |                 | delete on the server (`If-Match`)                              |
+| deleted | changed          |                 | download (an edit beats a deletion)                            |
+| same    | deleted          |                 | move here to `.notatnik/trash/`                                |
+| changed | deleted          |                 | upload again (an edit beats a deletion)                        |
+| new     | new (no history) |                 | compare contents; equal → nothing, different → conflict        |
 
 When a **Markdown page** changed on both sides and the sync has the page as it was at the last sync (kept beside the
 replica in `<replica>.sync-bases/synced/`, outside the graph), the two versions are **merged block by block**
 (`notatnik_core::merge`, ST-6). A clean merge (no block changed on both sides) is written locally and uploaded
-under `If-Match`; nothing is left over. The setting is *Settings → Sync → Merge changes from two devices* (on by
+under `If-Match`; nothing is left over. The setting is _Settings → Sync → Merge changes from two devices_ (on by
 default).
 
 Otherwise a **conflict** keeps the server's version at the path and saves yours next to it as
@@ -131,7 +131,7 @@ before. What differs:
 
 ## When another editor changes the files
 
-A page that another editor saves on the server may come back with its lines joined: Nextcloud's web *Text* editor
+A page that another editor saves on the server may come back with its lines joined: Nextcloud's web _Text_ editor
 turns `- TODO call ^abc123` + `  deadline:: 2026-10-21` into one line. The sync reports such a page after it is
 downloaded (the sidebar and Settings → Sync, SY-9); restore the earlier version from the page's History. Notatnik's
 own files should not be opened in that editor.
@@ -140,10 +140,10 @@ own files should not be opened in that editor.
 
 - The server and everything with access to it sees the files that are not marked as encrypted in plain text.
   Marked files are encrypted, but their names and sizes are visible (EN-11 to EN-18).
-- One server folder per graph, one graph open at a time; the folder is typed or picked in the folder browser (Browse… next to the field: click through the server's folders, *New folder here*, *Use …*). The browser only looks; folders that do not exist yet, also several levels of them, are made when the graph is created.
+- One server folder per graph, one graph open at a time; the folder is typed or picked in the folder browser (Browse… next to the field: click through the server's folders, _New folder here_, _Use …_). The browser only looks; folders that do not exist yet, also several levels of them, are made when the graph is created.
 - Files are sent one after another, whole; a broken upload starts again. A Nextcloud with a slow disk needs about
   half a second per file.
-- Links *to* a moved page written as relative Markdown paths in other pages are not rewritten (page links
+- Links _to_ a moved page written as relative Markdown paths in other pages are not rewritten (page links
   `[[…]]` are).
 - Attaching works for folders made by Notatnik. Plain notes already in `Notes/` are not imported as pages.
 - Android (Phase 8) will use the same engine with background sync.

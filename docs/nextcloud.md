@@ -5,12 +5,12 @@ Nextcloud for notes: it only reads and writes ordinary files (ST-1, NC-1).
 
 ## What gets synced, what doesn't
 
-| Location | Synced? | Notes |
-|---|---|---|
-| `pages/`, `journals/`, `assets/` | yes | the notes |
-| `.notatnik/config.toml`, `templates/`, `plugins/` | yes | graph settings shared between devices |
-| `.notatnik/tmp/` | **no, exclude it** | atomic-write temp files (NC-2) |
-| `~/.local/share/notatnik/…` | never | index, history, state: per device, outside the graph |
+| Location                                          | Synced?            | Notes                                                |
+| ------------------------------------------------- | ------------------ | ---------------------------------------------------- |
+| `pages/`, `journals/`, `assets/`                  | yes                | the notes                                            |
+| `.notatnik/config.toml`, `templates/`, `plugins/` | yes                | graph settings shared between devices                |
+| `.notatnik/tmp/`                                  | **no, exclude it** | atomic-write temp files (NC-2)                       |
+| `~/.local/share/notatnik/…`                       | never              | index, history, state: per device, outside the graph |
 
 ## Exclude the temp folder (NC-2)
 
@@ -18,7 +18,7 @@ Every save writes a temp file in `.notatnik/tmp/` and renames it over the page (
 half-written file). The temp file exists for milliseconds, but if the app is killed in the middle a leftover
 can stay until the next start, and the sync client should not upload it.
 
-Add this line to the client's ignore list (Settings → General → *Edit ignored files*, or `sync-exclude.lst`):
+Add this line to the client's ignore list (Settings → General → _Edit ignored files_, or `sync-exclude.lst`):
 
 ```
 */.notatnik/tmp/*

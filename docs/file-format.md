@@ -63,7 +63,7 @@ folder that opens as the graph (BK-1). Besides the graph's files a snapshot hold
 - Journal pages: `journals/YYYY/YYYY-MM-DD.md` ⇔ page name `YYYY-MM-DD`. Exactly **one file per day**;
   if two devices edit the same day while offline, the result is a normal sync conflict, handled by
   the conflict merge (phase 5).
-- A namespace page (e.g. `work/projects`) may exist as `pages/work/projects.md` *alongside*
+- A namespace page (e.g. `work/projects`) may exist as `pages/work/projects.md` _alongside_
   the folder `pages/work/projects/`. If the file doesn't exist, the page is virtual.
 
 ## 3. Page file structure
@@ -94,7 +94,7 @@ started: 2026-09-01
   `[[page_icons]]` rules of the config).
 - All other keys are user properties (queryable).
 
-> **Page properties from the UI:** the page header's *properties* section edits this frontmatter (`set_page_property`,
+> **Page properties from the UI:** the page header's _properties_ section edits this frontmatter (`set_page_property`,
 > `remove_page_property`); a page without frontmatter gets one (plus a blank line) on the first property. Values may be YAML flow lists
 > (`teams: [red, blue]`); each item is indexed separately, and the left panel can group pages by any of these keys.
 
@@ -107,11 +107,11 @@ started: 2026-09-01
 - Text before the first bullet (after frontmatter) is a "preamble" block (kept, rendered
   as a normal block). This makes plain Markdown files written elsewhere still usable.
 - **Text between bullets.** An unindented line that is not a bullet and follows a blank line ends the bullet above
-  (as in CommonMark) and starts a *text block* (`BlockKind::Text`): a heading, a table, a code fence, paragraphs,
+  (as in CommonMark) and starts a _text block_ (`BlockKind::Text`): a heading, a table, a code fence, paragraphs,
   footnote definitions, as Nextcloud Text or Obsidian write them. It runs to the next unindented bullet; indented
   list items inside it belong to it. A text block is a top-level block without bullet, ID, properties or task
   marker; it is shown and edited as raw Markdown (Enter adds a line), kept byte for byte, never nested and nothing
-  nests under it. An unindented line *without* a blank line before it stays a lazy continuation of the bullet. The
+  nests under it. An unindented line _without_ a blank line before it stays a lazy continuation of the bullet. The
   app puts a blank line between a text block and a bullet it moves or inserts next to it, so the two stay apart. Display only: `::: kind` ... `:::`, `<details>` ... `</details>` (each on its own line, outside code fences) and `[^1]` footnotes are drawn as containers by the renderer; the parser sees ordinary text.
 - **Indentation when writing:** new files use 2 spaces per level. When editing an existing file,
   the app detects the file's indentation style (2 spaces, 4 spaces or tabs, from its existing
@@ -175,18 +175,18 @@ before the children:
 
 ## 4. Inline syntax
 
-| Syntax | Meaning |
-|---|---|
-| `[[page]]` | Page link. **All links are global**: the full page name from the graph root, e.g. `[[work/projects/alpha]]`. There are no relative links. |
-| `[[page\|label]]` | Page link with custom label |
-| `[[2026-10-03]]` | Journal link |
-| `#tag` `#work/alpha` `#[[multi word]]` | Tag = page link |
-| `((k3x9qa))` | Block reference (rendered inline) |
-| `!((k3x9qa))` | Block embed (rendered with children, editable) |
-| `![[page]]` | Page embed |
-| `==text==` | Highlight |
-| Standard GFM | Bold, italic, `code`, ~~strike~~, links, images, tables, task-less lists inside code |
-| Raw HTML (`<b>`, `<script>`, …) | **Not rendered.** Shown escaped, as literal text |
+| Syntax                                 | Meaning                                                                                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `[[page]]`                             | Page link. **All links are global**: the full page name from the graph root, e.g. `[[work/projects/alpha]]`. There are no relative links. |
+| `[[page\|label]]`                      | Page link with custom label                                                                                                               |
+| `[[2026-10-03]]`                       | Journal link                                                                                                                              |
+| `#tag` `#work/alpha` `#[[multi word]]` | Tag = page link                                                                                                                           |
+| `((k3x9qa))`                           | Block reference (rendered inline)                                                                                                         |
+| `!((k3x9qa))`                          | Block embed (rendered with children, editable)                                                                                            |
+| `![[page]]`                            | Page embed                                                                                                                                |
+| `==text==`                             | Highlight                                                                                                                                 |
+| Standard GFM                           | Bold, italic, `code`, ~~strike~~, links, images, tables, task-less lists inside code                                                      |
+| Raw HTML (`<b>`, `<script>`, …)        | **Not rendered.** Shown escaped, as literal text                                                                                          |
 
 - **Emojis** are ordinary Unicode characters in the text. `:shortcode:` is only an input aid in the editor (`:rocket` suggests 🚀 and inserts the character); a shortcode is never stored, so any other tool reads the file as it is.
 
@@ -214,16 +214,16 @@ before the children:
   (`DOING`, ...) is written as the word.
 - Task properties:
 
-| Property | Format | Notes |
-|---|---|---|
-| `scheduled` | `YYYY-MM-DD`, `YYYY-MM-DD HH:MM` or `YYYY-MM-DD HH:MM-HH:MM` | Start / planned date, with an optional start time and an optional end time on the same day (24 h; a hyphen or an en dash, spaces allowed when reading; the app writes `09:00-10:30`). The end must be after the start, otherwise the value is not a date. No time by default. |
-| `deadline` | same | Due date; the same time forms (a point `17:00`, or a range for "between") |
-| `priority` | one of the graph's labels (`[tasks] priorities`, `A`, `B`, `C` by default; one to nine labels); `high`, `medium` and `low` mean the first, middle and last label | Priority; shown after the marker as `[#A]`; none by default |
-| `follows` | `((abc123))`: a block reference | The task this one is a follow-up of (written by `/followup`, or by hand). Tasks linked this way form a chain; a task may have several follow-ups (a branch). The referenced block needs an ID (`^abc123`); a reference to a block that does not exist is shown as a missing task in the chain. Query: `chain: ((abc123))` (whole chain), `prop.follows: ((abc123))` (direct follow-ups). |
-| `repeat` | `daily`, `weekly`, `monthly`, `yearly`, `every 2w`, `weekdays`, or a raw `RRULE:...` | Maps to iCalendar RRULE |
-| `done` | `YYYY-MM-DDTHH:MM` | Set automatically on DONE (non-repeating tasks) |
-| `completed` | `YYYY-MM-DD, YYYY-MM-DD, …` | Repeating tasks only: completion log, appended automatically each time the task is completed (hidden) |
-| `cal` | `no` | Opt a dated task out of calendar sync |
+| Property    | Format                                                                                                                                                           | Notes                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduled` | `YYYY-MM-DD`, `YYYY-MM-DD HH:MM` or `YYYY-MM-DD HH:MM-HH:MM`                                                                                                     | Start / planned date, with an optional start time and an optional end time on the same day (24 h; a hyphen or an en dash, spaces allowed when reading; the app writes `09:00-10:30`). The end must be after the start, otherwise the value is not a date. No time by default.                                                                                                            |
+| `deadline`  | same                                                                                                                                                             | Due date; the same time forms (a point `17:00`, or a range for "between")                                                                                                                                                                                                                                                                                                                |
+| `priority`  | one of the graph's labels (`[tasks] priorities`, `A`, `B`, `C` by default; one to nine labels); `high`, `medium` and `low` mean the first, middle and last label | Priority; shown after the marker as `[#A]`; none by default                                                                                                                                                                                                                                                                                                                              |
+| `follows`   | `((abc123))`: a block reference                                                                                                                                  | The task this one is a follow-up of (written by `/followup`, or by hand). Tasks linked this way form a chain; a task may have several follow-ups (a branch). The referenced block needs an ID (`^abc123`); a reference to a block that does not exist is shown as a missing task in the chain. Query: `chain: ((abc123))` (whole chain), `prop.follows: ((abc123))` (direct follow-ups). |
+| `repeat`    | `daily`, `weekly`, `monthly`, `yearly`, `every 2w`, `weekdays`, or a raw `RRULE:...`                                                                             | Maps to iCalendar RRULE                                                                                                                                                                                                                                                                                                                                                                  |
+| `done`      | `YYYY-MM-DDTHH:MM`                                                                                                                                               | Set automatically on DONE (non-repeating tasks)                                                                                                                                                                                                                                                                                                                                          |
+| `completed` | `YYYY-MM-DD, YYYY-MM-DD, …`                                                                                                                                      | Repeating tasks only: completion log, appended automatically each time the task is completed (hidden)                                                                                                                                                                                                                                                                                    |
+| `cal`       | `no`                                                                                                                                                             | Opt a dated task out of calendar sync                                                                                                                                                                                                                                                                                                                                                    |
 
 ### Repeating tasks
 
@@ -233,11 +233,12 @@ When a task with `repeat::` is marked DONE, it is **not** left as DONE. Instead:
 2. The task is reset to `TODO`, and `scheduled`/`deadline` move to the next occurrence.
 
 ```markdown
-Before (marked DONE on 2026-10-03):       After:
-- TODO Water plants                        - TODO Water plants
-  scheduled:: 2026-10-03                     scheduled:: 2026-10-10
-  repeat:: weekly                            repeat:: weekly
-  completed:: 2026-09-26                     completed:: 2026-09-26, 2026-10-03
+Before (marked DONE on 2026-10-03): After:
+
+- TODO Water plants - TODO Water plants
+  scheduled:: 2026-10-03 scheduled:: 2026-10-10
+  repeat:: weekly repeat:: weekly
+  completed:: 2026-09-26 completed:: 2026-09-26, 2026-10-03
 ```
 
 ## 6. Queries
@@ -272,7 +273,7 @@ Planned clauses (v0): `task`, `tag`, `links`, `ns`, `page`, `path`, `prop.<key>`
 
 **Templates.** `templates/<type>.md` (graph root, outside `pages/`, so not a page) holds the frontmatter skeleton and the starting blocks for pages with `type: <type>`; the file name is compared without regard to case. Only single-line frontmatter values are used; `type` itself is ignored. `{{title}}` is the last segment of the page name, `{{namespace}}` the part before it, `{{date}}` today (ISO), `{{cursor}}` is removed. Applying adds only keys the page does not have.
 
-**Snippets.** `templates/snippets/<name>.md` holds blocks saved from a page (*Save as template…*): no frontmatter, no page type, the plain outline (`- text`, children indented). `/template` inserts them after the current block with the same variables. They are never applied to a page by its `type`; the subfolder keeps their names apart from the page types.
+**Snippets.** `templates/snippets/<name>.md` holds blocks saved from a page (_Save as template…_): no frontmatter, no page type, the plain outline (`- text`, children indented). `/template` inserts them after the current block with the same variables. They are never applied to a page by its `type`; the subfolder keeps their names apart from the page types.
 
 **Template for new pages.** `[graph] journal_template = "templates/journal.md"` and `[namespaces."people"] template = "templates/person.md"` (also `person.md` or `person`) name a template for new journal days and for new pages below a namespace (not the namespace page itself; longest match wins). It is applied when the file is first written: the template's `type` and missing properties, then its blocks, then the blocks of that edit. For a journal day `{{date}}` and `{{title}}` are the day.
 
@@ -349,44 +350,44 @@ Remaining before **v0 frozen**: your review of the whole spec (the edge-case sec
 The parser never fails: any input gives a page plus diagnostics. Each rule below has a fixture in
 `fixtures/graphs/edge-cases/pages/` and a test in `crates/core/tests/parse_fixtures.rs`.
 
-| Case | Behaviour | Fixture |
-|---|---|---|
-| CRLF | Detected from the first line break; kept on every edit. Spans exclude the `\r\n`. | `crlf.md` |
-| UTF-8 BOM | Skipped when parsing (frontmatter may follow it), kept on edits. | `bom.md` |
-| No trailing newline | Kept: appends add a line break before the new line and none after it; deleting the last block removes the preceding break. | `no-trailing-newline.md` |
-| Empty file | A page with no blocks, no diagnostics. | `empty.md` |
-| Only frontmatter | Frontmatter, no blocks. | `only-frontmatter.md` |
-| Tabs | A tab counts as width 4 (next multiple of 4). Nesting is decided by comparing widths with a stack, so any consistent style works. | `tabs.md`, `four-space.md` |
-| Mixed indentation | Same stack rule: a line is a child of the nearest earlier bullet with a smaller width. | `mixed-indent.md` |
-| Indent jumps | A child indented by 6 under a parent at 0 is simply a child; levels are by tree depth, not by width. | `indent-jump.md` |
-| Nesting deeper than 100 | Deeper bullets become siblings at level 100, with a `too-deep` warning. | (generated in tests) |
-| `*` and `+` bullets | Accepted as bullets; kept as written; new lines use `-`. | `bullets.md` |
-| Numbered lists (`1. x`) | Not blocks: plain continuation text of the block above. | `bullets.md` |
-| Empty bullet `-` | A block with empty text. It may have properties. | `bullets.md` |
-| Code fences (`` ``` `` and `~~~`) | Everything inside is opaque: no bullets, properties, links, tags or task markers. A fence closes on a line with the same character and at least the same length. | `fences.md` |
-| Fence opener inside text on the first line (`` ```x``` ``) | Not a fence (the info string of a backtick fence can't contain backticks). | `fences.md` |
-| Unclosed fence | Ends at the next bullet at the same or a lower indentation than its block, or at the end of the file. `unclosed-fence` warning. | `fences.md` |
-| Invalid YAML frontmatter | The page loads; the frontmatter span is preserved; nothing is extracted from it; `invalid-frontmatter` error pointing at the offending line. Structural edits work; frontmatter edits are refused. | `bad-frontmatter.md` |
-| Frontmatter never closed | Not frontmatter: the `---` is ordinary preamble text. | `unclosed-frontmatter.md` |
-| `---` later in the file | Ordinary text (a horizontal rule). Frontmatter is only recognised at byte 0 (after a BOM). | `hr-later.md` |
-| Text before the first bullet | The preamble block (headings, paragraphs, fences). | `text-between.md` |
-| Non-bullet lines right after a bullet (including `# Heading` at column 0), no blank line between | Lazy continuation: part of the block above. | `text-between.md` |
-| Unindented text after a blank line, between bullets | A text block of its own (see 3.2); the bullets after it start at the top level. | `nextcloud-text.md` |
-| `- [ ] x`, `* [x] x` | A task (TODO / DONE) written as a checkbox. | `nextcloud-text.md` |
-| `- ## Heading` | An ordinary block whose text is a heading. | `text-between.md` |
-| Very long lines | No limit; linear time. | (generated in tests) |
-| `[[` without `]]` | Plain text. | `brackets.md` |
-| Nested `[[a [[b]]]]` | No nesting: the inner link `b` wins; the outer brackets are text. | `brackets.md` |
-| Escapes `\[[x]]`, `\#tag` | Not links or tags. A backslash escapes any ASCII punctuation. | `brackets.md` |
-| `[[]]`, `[[./x]]`, `[[../y]]` | Not links: `empty-link` / `relative-link` warnings. | `brackets.md` |
-| `#` in URLs, `[text](#anchor)`, inline code, `a#b`, `# Heading` | Not tags. Markdown link destinations and inline code spans are skipped. | `hash-cases.md` |
-| `#tag.` `(#tag)` `#tag-` | Tag `tag` (trailing punctuation, `-` and `/` are not part of the tag). | `hash-cases.md` |
-| Raw HTML | Plain text; links and tags inside it still work. | `html.md` |
-| `^id` not at the end, wrong length, uppercase | Not an ID. | `block-ids.md` |
-| Duplicate ID in one file | Both parse; a `duplicate-block-id` warning on the second. Cross-file duplicates are handled by the index (§3.4). | `block-ids.md` |
-| `key:: value` after content, in a fence, or after a blank line | Not a property (content). | tests in `parse_features.rs` |
-| `std::fmt` (`::` without a following space) | Not a property. | `props.rs` tests |
-| Invalid `scheduled`/`deadline` date, unknown `repeat`, bad `priority` | Warning diagnostic; the task still parses with that field empty. | `tasks/pages/dates.md`, `repeats.md` |
+| Case                                                                                             | Behaviour                                                                                                                                                                                          | Fixture                              |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| CRLF                                                                                             | Detected from the first line break; kept on every edit. Spans exclude the `\r\n`.                                                                                                                  | `crlf.md`                            |
+| UTF-8 BOM                                                                                        | Skipped when parsing (frontmatter may follow it), kept on edits.                                                                                                                                   | `bom.md`                             |
+| No trailing newline                                                                              | Kept: appends add a line break before the new line and none after it; deleting the last block removes the preceding break.                                                                         | `no-trailing-newline.md`             |
+| Empty file                                                                                       | A page with no blocks, no diagnostics.                                                                                                                                                             | `empty.md`                           |
+| Only frontmatter                                                                                 | Frontmatter, no blocks.                                                                                                                                                                            | `only-frontmatter.md`                |
+| Tabs                                                                                             | A tab counts as width 4 (next multiple of 4). Nesting is decided by comparing widths with a stack, so any consistent style works.                                                                  | `tabs.md`, `four-space.md`           |
+| Mixed indentation                                                                                | Same stack rule: a line is a child of the nearest earlier bullet with a smaller width.                                                                                                             | `mixed-indent.md`                    |
+| Indent jumps                                                                                     | A child indented by 6 under a parent at 0 is simply a child; levels are by tree depth, not by width.                                                                                               | `indent-jump.md`                     |
+| Nesting deeper than 100                                                                          | Deeper bullets become siblings at level 100, with a `too-deep` warning.                                                                                                                            | (generated in tests)                 |
+| `*` and `+` bullets                                                                              | Accepted as bullets; kept as written; new lines use `-`.                                                                                                                                           | `bullets.md`                         |
+| Numbered lists (`1. x`)                                                                          | Not blocks: plain continuation text of the block above.                                                                                                                                            | `bullets.md`                         |
+| Empty bullet `-`                                                                                 | A block with empty text. It may have properties.                                                                                                                                                   | `bullets.md`                         |
+| Code fences (` ``` ` and `~~~`)                                                                  | Everything inside is opaque: no bullets, properties, links, tags or task markers. A fence closes on a line with the same character and at least the same length.                                   | `fences.md`                          |
+| Fence opener inside text on the first line (` ```x``` `)                                         | Not a fence (the info string of a backtick fence can't contain backticks).                                                                                                                         | `fences.md`                          |
+| Unclosed fence                                                                                   | Ends at the next bullet at the same or a lower indentation than its block, or at the end of the file. `unclosed-fence` warning.                                                                    | `fences.md`                          |
+| Invalid YAML frontmatter                                                                         | The page loads; the frontmatter span is preserved; nothing is extracted from it; `invalid-frontmatter` error pointing at the offending line. Structural edits work; frontmatter edits are refused. | `bad-frontmatter.md`                 |
+| Frontmatter never closed                                                                         | Not frontmatter: the `---` is ordinary preamble text.                                                                                                                                              | `unclosed-frontmatter.md`            |
+| `---` later in the file                                                                          | Ordinary text (a horizontal rule). Frontmatter is only recognised at byte 0 (after a BOM).                                                                                                         | `hr-later.md`                        |
+| Text before the first bullet                                                                     | The preamble block (headings, paragraphs, fences).                                                                                                                                                 | `text-between.md`                    |
+| Non-bullet lines right after a bullet (including `# Heading` at column 0), no blank line between | Lazy continuation: part of the block above.                                                                                                                                                        | `text-between.md`                    |
+| Unindented text after a blank line, between bullets                                              | A text block of its own (see 3.2); the bullets after it start at the top level.                                                                                                                    | `nextcloud-text.md`                  |
+| `- [ ] x`, `* [x] x`                                                                             | A task (TODO / DONE) written as a checkbox.                                                                                                                                                        | `nextcloud-text.md`                  |
+| `- ## Heading`                                                                                   | An ordinary block whose text is a heading.                                                                                                                                                         | `text-between.md`                    |
+| Very long lines                                                                                  | No limit; linear time.                                                                                                                                                                             | (generated in tests)                 |
+| `[[` without `]]`                                                                                | Plain text.                                                                                                                                                                                        | `brackets.md`                        |
+| Nested `[[a [[b]]]]`                                                                             | No nesting: the inner link `b` wins; the outer brackets are text.                                                                                                                                  | `brackets.md`                        |
+| Escapes `\[[x]]`, `\#tag`                                                                        | Not links or tags. A backslash escapes any ASCII punctuation.                                                                                                                                      | `brackets.md`                        |
+| `[[]]`, `[[./x]]`, `[[../y]]`                                                                    | Not links: `empty-link` / `relative-link` warnings.                                                                                                                                                | `brackets.md`                        |
+| `#` in URLs, `[text](#anchor)`, inline code, `a#b`, `# Heading`                                  | Not tags. Markdown link destinations and inline code spans are skipped.                                                                                                                            | `hash-cases.md`                      |
+| `#tag.` `(#tag)` `#tag-`                                                                         | Tag `tag` (trailing punctuation, `-` and `/` are not part of the tag).                                                                                                                             | `hash-cases.md`                      |
+| Raw HTML                                                                                         | Plain text; links and tags inside it still work.                                                                                                                                                   | `html.md`                            |
+| `^id` not at the end, wrong length, uppercase                                                    | Not an ID.                                                                                                                                                                                         | `block-ids.md`                       |
+| Duplicate ID in one file                                                                         | Both parse; a `duplicate-block-id` warning on the second. Cross-file duplicates are handled by the index (§3.4).                                                                                   | `block-ids.md`                       |
+| `key:: value` after content, in a fence, or after a blank line                                   | Not a property (content).                                                                                                                                                                          | tests in `parse_features.rs`         |
+| `std::fmt` (`::` without a following space)                                                      | Not a property.                                                                                                                                                                                    | `props.rs` tests                     |
+| Invalid `scheduled`/`deadline` date, unknown `repeat`, bad `priority`                            | Warning diagnostic; the task still parses with that field empty.                                                                                                                                   | `tasks/pages/dates.md`, `repeats.md` |
 
 Parsing details worth knowing:
 

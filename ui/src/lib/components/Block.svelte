@@ -2,7 +2,7 @@
   import { timeLabel } from '../clock'
   import TaskChain from './TaskChain.svelte'
   import BlockMenu from './BlockMenu.svelte'
-  import { backend, type BlockView } from '../api'
+  import type { BlockView } from '../api'
   import { editing, editingPath, startEditing, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { dnd, endDrag } from '../stores/dnd.svelte'
@@ -104,10 +104,7 @@
   function startDrag(e: DragEvent) {
     if (readonly || !e.dataTransfer) return
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData(
-      'application/x-notatnik-block',
-      JSON.stringify({ docName, path: block.path, graph: app.graph?.id ?? '', slot: backend.slot }),
-    )
+    e.dataTransfer.setData('application/x-notatnik-block', JSON.stringify({ docName, path: block.path }))
     const row = (e.currentTarget as HTMLElement).closest('.row')
     if (row) e.dataTransfer.setDragImage(row, 12, 12)
     dnd.from = { docName, path: [...block.path] }

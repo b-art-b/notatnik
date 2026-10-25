@@ -12,13 +12,6 @@ export interface TransferRequest {
   blocks?: number[][]
   /** `pages`: the page has pages below it. */
   hasSubpages?: boolean
-  /** The slot the notes are in, when it is not the pane the dialog is in (they were dropped here from the other
-   * pane). Default: this pane. */
-  from?: string
-  /** The slot they go to, fixed (they were dropped on this pane); without it the person chooses. */
-  to?: string
-  /** `blocks`: the page they are added to (the page they were dropped on). */
-  targetPage?: string
 }
 
 export interface Toast {
@@ -45,28 +38,11 @@ function loadLeftWidth(): number {
   }
 }
 
-/** This page is the pane beside the first graph (a frame, MG-6): its sidebar starts closed and is not remembered, the
- * sidebar of the first graph stays as it is. */
-const inPane = backend.slot !== ''
-
 function loadLeftOpen(): boolean {
-  if (inPane) return false
   try {
     return localStorage.getItem('notatnik-left-open') !== 'no'
   } catch {
     return true
-  }
-}
-
-const BESIDE_MIN = 320
-const BESIDE_DEFAULT = 520
-
-function loadBesideWidth(): number {
-  try {
-    const n = Number(localStorage.getItem('notatnik-beside-width'))
-    return Number.isFinite(n) && n >= BESIDE_MIN ? n : BESIDE_DEFAULT
-  } catch {
-    return BESIDE_DEFAULT
   }
 }
 
@@ -106,10 +82,6 @@ const wideQuery =
 export const app = $state({
   /** Width of the right panel in px, and whether it is shown; remembered on this device. */
   rightWidth: loadRight().width,
-  /** Width in px of the pane with the second graph (MG-6); remembered on this device. */
-  besideWidth: loadBesideWidth(),
-  /** The width the pane takes now: `0` while no second graph is open (or in the pane itself). */
-  besideShown: 0,
   rightOpen: loadRight().open,
   /** The right panel fills the window and the page is folded away to a strip (not remembered across restarts). */
   rightFocus: false,
@@ -184,18 +156,6 @@ export function setPlacement(kind: keyof Placement, place: Place) {
   }
 }
 
-/** Sets the width of the pane beside the first graph (clamped); `save` remembers it (done when a drag ends). */
-export function setBesideWidth(px: number, save = true) {
-  const max = Math.max(BESIDE_MIN, window.innerWidth - 480)
-  app.besideWidth = Math.round(Math.min(max, Math.max(BESIDE_MIN, px)))
-  if (!save) return
-  try {
-    localStorage.setItem('notatnik-beside-width', String(app.besideWidth))
-  } catch {
-    /* not remembered */
-  }
-}
-
 /** Sets the right panel's width in px (clamped); `save` remembers it (done when a drag ends). */
 export function setRightWidth(px: number, save = true) {
   app.rightWidth = Math.round(Math.max(RIGHT_MIN, px))
@@ -238,7 +198,6 @@ export function toggleRight() {
 /** Shows or hides the left sidebar (Ctrl+\\ and the button beside it). */
 export function toggleLeft() {
   app.leftOpen = !app.leftOpen
-  if (inPane) return
   try {
     localStorage.setItem('notatnik-left-open', app.leftOpen ? 'yes' : 'no')
   } catch {

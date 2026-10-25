@@ -12,15 +12,15 @@ sourcepos), and a hand-written line-based outline parser (block start = `indent 
 
 ## Results
 
-| | hand-written outline | pulldown-cmark | comrak |
-|---|---|---|---|
-| CRLF sample | exact spans | exact | line:col only (no byte offsets) |
-| Tab sample | exact, depths 0/1/2/1 | item spans start with `\n` (CommonMark list quirks) | line:col only |
-| Fence sample | `- ` inside the fence is not a block | correct | correct |
-| 2,000 blocks (release) | 39 µs | 2.8 ms | 8.8 ms |
-| WASM (release, opt-level z, no wasm-opt) | negligible | about 220 KB | not measured (larger) |
+|                                          | hand-written outline                 | pulldown-cmark                                      | comrak                          |
+| ---------------------------------------- | ------------------------------------ | --------------------------------------------------- | ------------------------------- |
+| CRLF sample                              | exact spans                          | exact                                               | line:col only (no byte offsets) |
+| Tab sample                               | exact, depths 0/1/2/1                | item spans start with `\n` (CommonMark list quirks) | line:col only                   |
+| Fence sample                             | `- ` inside the fence is not a block | correct                                             | correct                         |
+| 2,000 blocks (release)                   | 39 µs                                | 2.8 ms                                              | 8.8 ms                          |
+| WASM (release, opt-level z, no wasm-opt) | negligible                           | about 220 KB                                        | not measured (larger)           |
 
-Block structure in our format is *ours* (`- ` bullets, continuation lines, properties), not
+Block structure in our format is _ours_ (`- ` bullets, continuation lines, properties), not
 CommonMark lists: CommonMark rules (4 spaces = code block, loose/tight lists, tab stops) would
 fight the format. `pulldown-cmark` is good for inline events inside one block's text, with offsets
 that we add to the block's start offset.
