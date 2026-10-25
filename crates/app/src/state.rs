@@ -470,6 +470,7 @@ impl AppState {
             url: r.url,
             user: r.user,
         });
+        info.color = self.graph_color(&graph.id());
         // the history of graphs: this one is now the last opened (opened by the app only, not by the CLI)
         let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         let last = dev.last_graph.clone();
@@ -548,6 +549,7 @@ impl AppState {
                     exists: p.is_dir(),
                     last: last.as_deref() == Some(g.id.as_str()),
                     remote_url: g.remote.as_ref().map(|r| r.url.clone()),
+                    color: dev.color_of(&g.id),
                 }
             })
             .collect()
@@ -555,6 +557,24 @@ impl AppState {
 
     /// `list_graphs`: the graphs opened on this device, the most recent first (works without an open graph).
     pub fn list_graphs(&self, _a: NoArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
+        Ok(self.history())
+    }
+
+    /// The color of a graph on this device (MG-5).
+    pub(super) fn graph_color(&self, id: &str) -> u8 {
+        notatnik_graph::DeviceSettings::load(&self.dirs)
+            .unwrap_or_default()
+            .color_of(id)
+    }
+
+    /// `graph_color_set`: gives a graph a color of the palette, or (`null`) the one its ID gives it again.
+    pub fn graph_color_set(&self, a: GraphColorArgs) -> ApiResult<Vec<GraphHistoryEntry>> {
+        let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let color = a.color.map(u8::try_from).transpose().ok().flatten();
+        if a.color.is_some() && color.is_none() || !dev.set_color(&a.id, color) {
+            return Err(ApiError::new("invalid", "that color is not in the palette"));
+        }
+        dev.save(&self.dirs)?;
         Ok(self.history())
     }
 
@@ -583,6 +603,7 @@ impl AppState {
             completed_log_limit: graph.config().tasks.completed_log_limit,
             priority_labels: graph.config().priority_labels(),
             remote: None,
+            color: 0,
         }
     }
 
@@ -594,6 +615,7 @@ impl AppState {
                 url: r.url,
                 user: r.user,
             });
+            info.color = self.graph_color(&o.graph.id());
             Ok(info)
         })
     }

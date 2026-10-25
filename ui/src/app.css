@@ -26,6 +26,15 @@
   --warn-bg: #fff4d6;
   --danger: #b42318;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* the palette a graph's color is chosen from (MG-5): mid tones that read on both themes */
+  --graph-0: #3b82f6;
+  --graph-1: #16a34a;
+  --graph-2: #ea7a1a;
+  --graph-3: #8b5cf6;
+  --graph-4: #db2777;
+  --graph-5: #0d9488;
+  --graph-6: #dc2626;
+  --graph-7: #ca8a04;
 }
 :root[data-theme='dark'] {
   --bg: #16181c;
@@ -53,6 +62,31 @@
   --warn: #e0b04c;
   --warn-bg: #3a2f10;
   --danger: #ff8a80;
+}
+/* The open graph's color, from `data-graph-color` on the root (set by App.svelte). */
+:root[data-graph-color='0'] {
+  --graph-color: var(--graph-0);
+}
+:root[data-graph-color='1'] {
+  --graph-color: var(--graph-1);
+}
+:root[data-graph-color='2'] {
+  --graph-color: var(--graph-2);
+}
+:root[data-graph-color='3'] {
+  --graph-color: var(--graph-3);
+}
+:root[data-graph-color='4'] {
+  --graph-color: var(--graph-4);
+}
+:root[data-graph-color='5'] {
+  --graph-color: var(--graph-5);
+}
+:root[data-graph-color='6'] {
+  --graph-color: var(--graph-6);
+}
+:root[data-graph-color='7'] {
+  --graph-color: var(--graph-7);
 }
 * {
   box-sizing: border-box;
@@ -126,6 +160,8 @@ a {
 }
 .left {
   position: relative;
+  /* the graph's color along the top of its sidebar */
+  border-top: 3px solid var(--graph-color, transparent);
   border-right: 1px solid var(--border);
   padding: 0.8em;
   overflow-y: auto;

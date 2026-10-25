@@ -7,6 +7,7 @@
   import { openDocs } from '../stores/pages.svelte'
   import { removeRecent } from '../stores/recent.svelte'
   import { known, refreshWorkspace } from '../stores/workspace.svelte'
+  import { graphColorVar } from '../graphColor'
 
   // `app.transfer` is set when the dialog opens and never null while it is shown: `req` is a snapshot of it
   const req = app.transfer!
@@ -18,6 +19,7 @@
     where: string
     slot?: string
     path?: string
+    color: number
   }
 
   void refreshWorkspace()
@@ -27,11 +29,11 @@
     const out: Target[] = []
     for (const s of known.slots)
       if (s.slot !== backend.slot)
-        out.push({ key: `slot:${s.slot}`, label: s.name, where: 'open beside', slot: s.slot })
+        out.push({ key: `slot:${s.slot}`, label: s.name, where: 'open beside', slot: s.slot, color: s.color })
     const open = new Set(known.slots.map((s) => s.graph_id))
     for (const g of known.graphs)
       if (g.exists && !open.has(g.id))
-        out.push({ key: `path:${g.path}`, label: g.name, where: g.path, path: g.path })
+        out.push({ key: `path:${g.path}`, label: g.name, where: g.path, path: g.path, color: g.color })
     return out
   })
 
@@ -181,7 +183,10 @@
         {req.blocks?.length} block{req.blocks?.length === 1 ? '' : 's'} of <strong>{req.page}</strong>, with
         what is below {req.blocks?.length === 1 ? 'it' : 'them'}.
       {:else}
-        <strong>{req.page}</strong>, from <strong>{app.graph?.name}</strong>.
+        <strong>{req.page}</strong>, from
+        <span class="graph"
+          ><span class="gdot" aria-hidden="true"></span><strong>{app.graph?.name}</strong></span
+        >.
       {/if}
     </p>
 
@@ -201,7 +206,10 @@
               bind:group={chosen}
               data-testid="transfer-target"
             />
-            <span>{t.label}</span>
+            <span class="graph"
+              ><span class="gdot" style:background={graphColorVar(t.color)} aria-hidden="true"
+              ></span>{t.label}</span
+            >
             <span class="where">{t.where}</span>
           </label>
         {/each}
@@ -360,6 +368,17 @@
     align-items: baseline;
     gap: 0.5em;
     margin: 0.15em 0;
+  }
+  .graph {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .gdot {
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 50%;
+    background: var(--graph-color, var(--muted));
   }
   .where {
     color: var(--muted);

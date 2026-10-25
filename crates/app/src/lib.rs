@@ -99,6 +99,7 @@ commands! {
     open_graph(OpenGraphArgs) -> GraphInfo => open_graph,
     list_graphs(NoArgs) -> Vec<GraphHistoryEntry> => list_graphs,
     forget_graph(ForgetGraphArgs) -> Vec<GraphHistoryEntry> => forget_graph,
+    graph_color_set(GraphColorArgs) -> Vec<GraphHistoryEntry> => graph_color_set,
     graph_info(NoArgs) -> GraphInfo => graph_info,
     slots(NoArgs) -> Vec<SlotInfo> => slots_cmd,
     close_slot(SlotArgs) -> Vec<SlotInfo> => close_slot,

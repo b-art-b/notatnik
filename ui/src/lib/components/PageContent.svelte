@@ -15,7 +15,7 @@
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
-  import { hasOtherGraph } from '../stores/workspace.svelte'
+  import { hasOtherGraph, known } from '../stores/workspace.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
@@ -272,6 +272,12 @@
   <article class="page" data-page={view.name} aria-label={view.title}>
     {#if !compact}
       <header>
+        {#if known.slots.length > 1 && app.graph}
+          <!-- two graphs are open: each page says which one it belongs to (the color is never the only cue) -->
+          <p class="graph-chip" data-testid="graph-chip" title={app.graph.root}>
+            <span class="gdot" aria-hidden="true"></span>{app.graph.name}
+          </p>
+        {/if}
         <nav class="breadcrumb" aria-label="Namespace">
           {#each segments as seg, i (i)}
             {#if i < segments.length - 1}
@@ -600,6 +606,24 @@
 <style>
   .page {
     max-width: 880px;
+  }
+  .graph-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    margin: 0 0 0.4em;
+    padding: 0.1em 0.7em 0.1em 0.55em;
+    border: 1px solid color-mix(in srgb, var(--graph-color, var(--muted)) 45%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--graph-color, var(--muted)) 12%, transparent);
+    color: var(--muted);
+    font-size: 0.78em;
+  }
+  .gdot {
+    width: 0.7em;
+    height: 0.7em;
+    border-radius: 50%;
+    background: var(--graph-color, var(--muted));
   }
   h1 {
     margin: 0.1em 0 0.5em;

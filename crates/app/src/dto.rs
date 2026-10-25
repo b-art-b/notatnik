@@ -279,6 +279,8 @@ pub struct GraphInfo {
     pub priority_labels: Vec<String>,
     /// The server folder this graph is kept in step with, if any.
     pub remote: Option<RemoteInfo>,
+    /// The graph's color: an index into the palette (MG-5).
+    pub color: u8,
 }
 
 /// The server folder of a synced graph.
@@ -793,6 +795,17 @@ pub struct GraphHistoryEntry {
     pub last: bool,
     /// The address of the server folder, for a graph that is synced with one.
     pub remote_url: Option<String>,
+    /// The graph's color: an index into the palette (MG-5).
+    pub color: u8,
+}
+
+/// `graph_color_set`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct GraphColorArgs {
+    /// Graph ID.
+    pub id: String,
+    /// An index into the palette (`0` to `7`); `null` goes back to the color the graph's ID gives it.
+    pub color: Option<u32>,
 }
 
 /// `forget_graph`
@@ -820,6 +833,8 @@ pub struct SlotInfo {
     pub name: String,
     /// The folder.
     pub root: String,
+    /// The graph's color: an index into the palette (MG-5).
+    pub color: u8,
 }
 
 /// `transfer_plan`, `transfer_apply`: take notes from the graph in one slot to another graph (MG-2).

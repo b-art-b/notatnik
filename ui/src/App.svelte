@@ -94,6 +94,15 @@
     void refreshWorkspace()
   })
 
+  // the graph's color and name: the CSS reads the color from the root; the window title says page and graph
+  $effect(() => {
+    const g = app.graph
+    document.documentElement.dataset.graphColor = g ? String(g.color) : ''
+    const r = route
+    const what = r.kind === 'page' ? r.name : r.kind === 'journals' ? 'Journals' : 'Notatnik'
+    document.title = g ? `${what} — ${g.name}` : 'Notatnik'
+  })
+
   // icons depend on page properties: refresh them (a little later, edits come in bursts) when pages change
   $effect(() => {
     void bus.version

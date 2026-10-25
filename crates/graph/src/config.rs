@@ -531,6 +531,23 @@ pub struct GraphEntry {
     /// Calendar sync of this graph's dated tasks (phase 4), if set up.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub calendar: Option<CalendarConfig>,
+    /// The color the person gave the graph (an index into the palette, `0..GRAPH_COLORS`); without one the color
+    /// comes from the graph's ID (MG-5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<u8>,
+}
+
+/// How many colors a graph can have (the palette is in the UI).
+pub const GRAPH_COLORS: u8 = 8;
+
+/// The color of a graph that has none chosen: the same every time, from its ID.
+pub fn default_graph_color(id: &str) -> u8 {
+    let mut h: u32 = 2_166_136_261;
+    for b in id.bytes() {
+        h ^= u32::from(b);
+        h = h.wrapping_mul(16_777_619);
+    }
+    (h % u32::from(GRAPH_COLORS)) as u8
 }
 
 /// The calendar server login of a graph that has its own (the default is the login of the graph's sync).
@@ -764,12 +781,18 @@ impl DeviceSettings {
         let path = path.to_string_lossy().into_owned();
         let remote = self.remote_of(id);
         let calendar = self.calendar_of(id);
+        let color = self
+            .graphs
+            .iter()
+            .find(|g| g.id == id)
+            .and_then(|g| g.color);
         self.graphs.retain(|g| g.id != id);
         self.graphs.push(GraphEntry {
             id: id.to_string(),
             path,
             remote,
             calendar,
+            color,
         });
         self.last_graph = Some(id.to_string());
     }
@@ -804,6 +827,27 @@ impl DeviceSettings {
         }
     }
 
+    /// The color of a graph: the one the person chose, otherwise one from the graph's ID (MG-5).
+    pub fn color_of(&self, id: &str) -> u8 {
+        self.graphs
+            .iter()
+            .find(|g| g.id == id)
+            .and_then(|g| g.color)
+            .filter(|c| *c < GRAPH_COLORS)
+            .unwrap_or_else(|| default_graph_color(id))
+    }
+
+    /// Sets (`Some`) or clears (`None`) the color of a known graph. `false` when the color is not in the palette.
+    pub fn set_color(&mut self, id: &str, color: Option<u8>) -> bool {
+        if color.is_some_and(|c| c >= GRAPH_COLORS) {
+            return false;
+        }
+        if let Some(g) = self.graphs.iter_mut().find(|g| g.id == id) {
+            g.color = color;
+        }
+        true
+    }
+
     /// Removes a graph from the history (its files are not touched).
     pub fn forget(&mut self, id: &str) {
         self.graphs.retain(|g| g.id != id);
@@ -825,6 +869,41 @@ impl DeviceSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_graph_color_is_the_same_every_time_and_in_the_palette() {
+        let ids = ["gvu3dno", "a1b2c3d", "zzzzzzz", "0000000", "x9y8z7w", "q"];
+        let colors: Vec<u8> = ids.iter().map(|i| default_graph_color(i)).collect();
+        assert!(colors.iter().all(|c| *c < GRAPH_COLORS));
+        assert_eq!(
+            colors,
+            ids.iter()
+                .map(|i| default_graph_color(i))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            colors
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                >= 3,
+            "ids spread over the palette: {colors:?}"
+        );
+        let mut dev = DeviceSettings::default();
+        dev.register("gvu3dno", Path::new("/a"));
+        assert_eq!(dev.color_of("gvu3dno"), default_graph_color("gvu3dno"));
+        assert!(dev.set_color("gvu3dno", Some(7)));
+        dev.register("gvu3dno", Path::new("/moved"));
+        assert_eq!(
+            dev.color_of("gvu3dno"),
+            7,
+            "registering again keeps the choice"
+        );
+        assert!(!dev.set_color("gvu3dno", Some(8)));
+        assert_eq!(dev.color_of("gvu3dno"), 7);
+        assert!(dev.set_color("gvu3dno", None));
+        assert_eq!(dev.color_of("gvu3dno"), default_graph_color("gvu3dno"));
+    }
 
     #[test]
     fn parses_and_warns_about_unknown_keys() {

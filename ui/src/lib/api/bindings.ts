@@ -364,7 +364,11 @@ priority_labels: Array<string>,
 /**
  * The server folder this graph is kept in step with, if any.
  */
-remote: RemoteInfo | null, };
+remote: RemoteInfo | null, 
+/**
+ * The graph's color: an index into the palette (MG-5).
+ */
+color: number, };
 export type ApplyResult = { 
 /**
  * The page after the edit.
@@ -1079,7 +1083,11 @@ last: boolean,
 /**
  * The address of the server folder, for a graph that is synced with one.
  */
-remote_url: string | null, };
+remote_url: string | null, 
+/**
+ * The graph's color: an index into the palette (MG-5).
+ */
+color: number, };
 export type ForgetGraphArgs = { 
 /**
  * Graph ID.
@@ -2477,6 +2485,7 @@ export type Commands = {
   open_graph: { args: OpenGraphArgs; result: GraphInfo };
   list_graphs: { args: NoArgs; result: GraphHistoryEntry[] };
   forget_graph: { args: ForgetGraphArgs; result: GraphHistoryEntry[] };
+  graph_color_set: { args: GraphColorArgs; result: GraphHistoryEntry[] };
   graph_info: { args: NoArgs; result: GraphInfo };
   slots: { args: NoArgs; result: SlotInfo[] };
   close_slot: { args: SlotArgs; result: SlotInfo[] };

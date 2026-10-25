@@ -662,3 +662,59 @@ fn encryption_only_warns_it_never_stops_a_transfer() {
         "written although the key is locked"
     );
 }
+
+// ---- which graph is this (MG-5) ---------------------------------------------------------------------
+
+#[test]
+fn a_graph_has_a_color_that_is_chosen_or_comes_from_its_id() {
+    let (w, a, _b) = two();
+    let info = w.ok("", "graph_info", json!({}));
+    let id = info["id"].as_str().unwrap().to_string();
+    let first = info["color"].as_u64().unwrap();
+    assert!(first < 8);
+    // the list of graphs and the list of open graphs say the same
+    let list = w.ok("", "list_graphs", json!({}));
+    let mine = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == id.as_str())
+        .unwrap();
+    assert_eq!(mine["color"].as_u64().unwrap(), first);
+    assert_eq!(
+        w.ok("", "slots", json!({}))[0]["color"].as_u64().unwrap(),
+        first
+    );
+
+    // a chosen color stays, also when the graph is opened again
+    let other = (first + 3) % 8;
+    w.ok("", "graph_color_set", json!({"id": id, "color": other}));
+    assert_eq!(
+        w.ok("", "graph_info", json!({}))["color"].as_u64().unwrap(),
+        other
+    );
+    w.ok(
+        "",
+        "open_graph",
+        json!({"path": a.to_str().unwrap(), "create": false}),
+    );
+    assert_eq!(
+        w.ok("", "graph_info", json!({}))["color"].as_u64().unwrap(),
+        other
+    );
+    // and the way back to the color of the ID
+    w.ok("", "graph_color_set", json!({"id": id, "color": null}));
+    assert_eq!(
+        w.ok("", "graph_info", json!({}))["color"].as_u64().unwrap(),
+        first
+    );
+    // what is not in the palette is refused
+    for bad in [json!(8), json!(300), json!(-1)] {
+        assert_eq!(
+            w.call("", "graph_color_set", json!({"id": id, "color": bad}))
+                .unwrap_err()
+                .code,
+            "invalid"
+        );
+    }
+}

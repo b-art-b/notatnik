@@ -110,6 +110,7 @@ impl AppState {
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default(),
                 root: root.to_string_lossy().into_owned(),
+                color: self.graph_color(&o.graph.id()),
             })
         })
         .ok()

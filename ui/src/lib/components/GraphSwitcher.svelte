@@ -5,6 +5,8 @@
   import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
   import { encryption, graphPadlock, refreshEncryption } from '../stores/encryption.svelte'
   import { goToSettings } from '../stores/settingsParts.svelte'
+  import { GRAPH_COLOR_NAMES, graphColorName, graphColorVar } from '../graphColor'
+  import { refreshWorkspace } from '../stores/workspace.svelte'
 
   // what the graph encrypts by default (see `graphPadlock`); read again whenever another graph is open
   const padlock = $derived(graphPadlock(encryption.status))
@@ -34,6 +36,18 @@
   async function switchTo(g: GraphHistoryEntry) {
     open = false
     await openGraph(g.path, false)
+  }
+
+  let colors = $state(false)
+  async function pickColor(color: number | null) {
+    if (!app.graph) return
+    try {
+      graphs = await backend.call('graph_color_set', { id: app.graph.id, color })
+      app.graph = await backend.call('graph_info', {})
+      void refreshWorkspace()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
   }
 
   function encryptionSettings() {
@@ -71,7 +85,7 @@
     title={app.graph?.root}
     onclick={toggle}
   >
-    <span class="db" aria-hidden="true">⛁</span>
+    <span class="gdot" data-testid="graph-dot" aria-hidden="true"></span>
     <span class="name">{app.graph?.name ?? 'Graph'}</span>
     {#if padlock}<span
         class="padlock"
@@ -90,11 +104,43 @@
         <div class="head">Switch to:</div>
         {#each others as g (g.id)}
           <button type="button" role="menuitem" class="item" title={g.path} onclick={() => switchTo(g)}
-            >{g.name}{#if g.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
+            ><span class="gdot" style:background={graphColorVar(g.color)} aria-hidden="true"
+            ></span>{g.name}{#if g.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
           >
         {/each}
         <hr />
       {/if}
+      <button
+        type="button"
+        role="menuitem"
+        class="item"
+        aria-expanded={colors}
+        data-testid="graph-menu-color"
+        onclick={() => (colors = !colors)}>Color of this graph…</button
+      >
+      {#if colors}
+        <div class="swatches" role="group" aria-label="Color of this graph">
+          {#each GRAPH_COLOR_NAMES as n, i (n)}
+            <button
+              type="button"
+              class="swatch"
+              style:background={graphColorVar(i)}
+              aria-label={n}
+              aria-pressed={app.graph?.color === i}
+              title={n}
+              data-testid={`graph-color-${i}`}
+              onclick={() => pickColor(i)}
+            ></button>
+          {/each}
+          <button type="button" class="reset" data-testid="graph-color-reset" onclick={() => pickColor(null)}
+            >Automatic</button
+          >
+        </div>
+        <p class="colorname" data-testid="graph-color-name">
+          {app.graph ? graphColorName(app.graph.color) : ''}
+        </p>
+      {/if}
+      <hr />
       <button type="button" role="menuitem" class="item" onclick={startScreen}>Add new graph…</button>
       <button type="button" role="menuitem" class="item" onclick={startScreen}>All graphs…</button>
       {#if padlock}
@@ -146,9 +192,52 @@
   .padlock.some {
     opacity: 0.45;
   }
-  .db,
   .caret {
     color: var(--muted);
+  }
+  /* the graph's color, as a dot before its name */
+  .gdot {
+    display: inline-block;
+    flex: none;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.45em;
+    border-radius: 50%;
+    background: var(--graph-color, var(--muted));
+  }
+  .current .gdot {
+    margin-right: 0;
+  }
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.2em 0.5em 0.3em;
+  }
+  .swatch {
+    width: 1.3em;
+    height: 1.3em;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+  .swatch[aria-pressed='true'] {
+    border-color: var(--text);
+  }
+  .reset {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85em;
+    text-decoration: underline;
+  }
+  .colorname {
+    margin: 0 0.5em 0.2em;
+    color: var(--muted);
+    font-size: 0.85em;
   }
   .menu {
     position: absolute;
