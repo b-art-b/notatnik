@@ -822,6 +822,121 @@ pub struct SlotInfo {
     pub root: String,
 }
 
+/// `transfer_plan`, `transfer_apply`: take notes from the graph in one slot to another graph (MG-2).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TransferArgs {
+    /// The slot the notes come from (`""` is the first graph).
+    pub from: String,
+    /// The slot the notes go to ...
+    #[serde(default)]
+    #[ts(optional)]
+    pub to_slot: Option<String>,
+    /// ... or a graph folder that is not open in any slot (it is opened for the transfer only).
+    #[serde(default)]
+    #[ts(optional)]
+    pub to_path: Option<String>,
+    /// `pages`: a page, with its subpages when `include_subpages`; `blocks`: the blocks listed in `blocks`.
+    pub kind: String,
+    /// The page in the source graph.
+    pub page: String,
+    /// `pages`: take the pages below `page` too.
+    #[serde(default)]
+    pub include_subpages: bool,
+    /// `blocks`: the paths of the selected blocks (each comes with its children).
+    #[serde(default)]
+    pub blocks: Vec<Vec<u32>>,
+    /// `blocks`: the page the blocks are added to at the end, made when it does not exist (default: `page`).
+    #[serde(default)]
+    #[ts(optional)]
+    pub target_page: Option<String>,
+    /// Remove the notes from the source graph afterwards (to its trash, or by deleting the blocks).
+    #[serde(default)]
+    pub remove: bool,
+    /// When a page of that name exists in the target: `keep_both` (the copy is named `Name (from Graph)`), `append`
+    /// (its blocks are added at the end) or `skip`. A journal day is always appended.
+    #[serde(default = "default_clash")]
+    pub clash: String,
+}
+
+fn default_clash() -> String {
+    "keep_both".into()
+}
+
+/// One page of a transfer.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TransferItem {
+    /// The name in the source graph.
+    pub source: String,
+    /// The name in the target graph.
+    pub target: String,
+    /// `create`, `append` (to a page that exists) or `skip`.
+    pub action: String,
+    /// The target name differs from the source name (a clash was resolved by keeping both).
+    pub renamed: bool,
+    /// Top-level blocks that go over.
+    pub blocks: u32,
+    /// The file is stored encrypted on the source graph's server.
+    pub encrypted_in_source: bool,
+    /// The file would be stored encrypted on the target graph's server.
+    pub encrypted_in_target: bool,
+}
+
+/// One picture or attachment of a transfer.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TransferAsset {
+    /// Its path in the source graph.
+    pub path: String,
+    /// Size in bytes.
+    pub bytes: u64,
+    /// `copy`, `reuse` (the target has the same file), `rename` (the target has another file of that name: the copy
+    /// is named `new_path`) or `missing` (the source has no such file).
+    pub action: String,
+    /// The path in the target graph.
+    pub new_path: String,
+}
+
+/// What a transfer does or did.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TransferPlan {
+    /// Folder name of the source graph.
+    pub from_name: String,
+    /// Folder name of the target graph.
+    pub to_name: String,
+    /// Graph ID of the source.
+    pub from_id: String,
+    /// Graph ID of the target.
+    pub to_id: String,
+    /// The notes are removed from the source afterwards.
+    pub removes: bool,
+    /// The pages.
+    pub items: Vec<TransferItem>,
+    /// The pictures and attachments that go with them.
+    pub assets: Vec<TransferAsset>,
+    /// Pages that the copied text links to and the target does not have.
+    pub missing_links: Vec<String>,
+    /// Pages of the source that link to what is removed (only when it is removed).
+    pub left_behind: Vec<String>,
+    /// References to blocks that do not go over; they point at nothing in the target.
+    pub dangling_refs: u32,
+    /// Tasks with a date among the notes.
+    pub dated_tasks: u32,
+    /// The target has encryption and its key is locked: its sync waits until it is unlocked.
+    pub target_locked: bool,
+    /// Things to know before: plain text on a server, queries ...
+    pub warnings: Vec<String>,
+}
+
+/// `transfer_apply`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct TransferResult {
+    /// What was done.
+    pub plan: TransferPlan,
+    /// The pages written in the target graph.
+    pub written: Vec<String>,
+    /// The notes were removed from the source and `transfer_undo` can bring everything back.
+    pub undoable: bool,
+}
+
 /// `get_page`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct GetPageArgs {

@@ -6,6 +6,7 @@ mod linktitle;
 pub mod render;
 mod state;
 mod templates;
+mod transfer;
 mod ts;
 pub mod views;
 
@@ -45,7 +46,13 @@ pub fn dispatch(state: &AppState, name: &str, args: Value) -> Result<Value, ApiE
 }
 
 /// Commands the root state answers itself, whatever slot a call names: they look at several graphs (MG-1).
-const WORKSPACE_COMMANDS: &[&str] = &["slots", "close_slot"];
+const WORKSPACE_COMMANDS: &[&str] = &[
+    "slots",
+    "close_slot",
+    "transfer_plan",
+    "transfer_apply",
+    "transfer_undo",
+];
 
 /// Like [`dispatch`], for a call that names a slot: `""` is the first graph (the state itself), any other slot is
 /// another open graph with its own state, made on first use (MG-1).
@@ -95,6 +102,9 @@ commands! {
     graph_info(NoArgs) -> GraphInfo => graph_info,
     slots(NoArgs) -> Vec<SlotInfo> => slots_cmd,
     close_slot(SlotArgs) -> Vec<SlotInfo> => close_slot,
+    transfer_plan(TransferArgs) -> TransferPlan => transfer_plan,
+    transfer_apply(TransferArgs) -> TransferResult => transfer_apply,
+    transfer_undo(NoArgs) -> StringList => transfer_undo,
     today(NoArgs) -> StringValue => today_cmd,
     get_page(GetPageArgs) -> PageView => get_page,
     apply_ops(ApplyOpsArgs) -> ApplyResult => apply_ops,

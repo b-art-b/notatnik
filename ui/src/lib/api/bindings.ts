@@ -2480,6 +2480,9 @@ export type Commands = {
   graph_info: { args: NoArgs; result: GraphInfo };
   slots: { args: NoArgs; result: SlotInfo[] };
   close_slot: { args: SlotArgs; result: SlotInfo[] };
+  transfer_plan: { args: TransferArgs; result: TransferPlan };
+  transfer_apply: { args: TransferArgs; result: TransferResult };
+  transfer_undo: { args: NoArgs; result: StringList };
   today: { args: NoArgs; result: StringValue };
   get_page: { args: GetPageArgs; result: PageView };
   apply_ops: { args: ApplyOpsArgs; result: ApplyResult };

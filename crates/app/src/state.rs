@@ -300,6 +300,7 @@ mod favorites;
 mod filesources;
 pub mod slots;
 mod syncing;
+mod transfer;
 pub use syncing::{MemorySecrets, Secrets};
 
 struct Open {
@@ -337,6 +338,10 @@ pub struct AppState {
     calendar_client: Option<Arc<dyn notatnik_caldav::CalDavClient + Send + Sync>>,
     /// Which slot this state is: `""` for the root (the first graph), otherwise the name it was opened under (MG-1).
     slot: String,
+    /// One transfer between graphs at a time (it holds two graphs, so two at once could wait for each other).
+    transfer_lock: Mutex<()>,
+    /// What the last transfer did, for its undo (MG-4).
+    last_transfer: Mutex<Option<transfer::TransferUndo>>,
     /// The other open graphs by slot. Only the root has any: it routes the commands that name a slot.
     slots: Mutex<HashMap<String, Arc<AppState>>>,
     /// The folder of the graph open in each slot (all states share this list), so the same graph is not opened twice.
@@ -399,6 +404,8 @@ impl AppState {
             graph_pending: Mutex::new(None),
             calendar_client: None,
             slot: String::new(),
+            transfer_lock: Mutex::new(()),
+            last_transfer: Mutex::new(None),
             slots: Mutex::new(HashMap::new()),
             open_roots: Arc::default(),
         }
@@ -1950,39 +1957,49 @@ impl AppState {
                     format!("`{}` has no file: there is nothing to delete", info.name),
                 ));
             }
-            let rels: Vec<String> = pages.iter().map(|p| p.1.clone()).collect();
-            if rels.len() > 1 {
-                self.snapshot_before_change(o);
-            }
-            let trash_id = o.graph.trash_pages(&rels)?;
-            let names: Vec<String> = pages.into_iter().map(|p| p.0).collect();
-            log::info!(
-                "deleted {} page(s) to the trash ({trash_id}): {}",
-                names.len(),
-                names.join(", ")
-            );
-            // a deleted page is no favourite any more (NS-26)
-            Self::remove_favorites(o, &names);
-            // the history of a deleted page can't be undone any more
-            o.undo.retain(|e| !names.contains(&e.page));
-            o.redo.retain(|e| !names.contains(&e.page));
-            let mut linked_from: Vec<String> = Vec::new();
-            for n in &names {
-                for l in o.graph.with_index(|i| i.backlinks(n))? {
-                    if !names.contains(&l.source_page) && !linked_from.contains(&l.source_page) {
-                        linked_from.push(l.source_page);
-                    }
+            self.delete_found(o, pages)
+        })
+    }
+
+    /// Moves the files of `pages` (`(name, file)`) to the trash and cleans up after them: favorites, the undo
+    /// history, an event. The part of `delete_pages` that `transfer_apply` shares (MG-2).
+    fn delete_found(
+        &self,
+        o: &mut Open,
+        pages: Vec<(String, String)>,
+    ) -> ApiResult<DeletePagesResult> {
+        let rels: Vec<String> = pages.iter().map(|p| p.1.clone()).collect();
+        if rels.len() > 1 {
+            self.snapshot_before_change(o);
+        }
+        let trash_id = o.graph.trash_pages(&rels)?;
+        let names: Vec<String> = pages.into_iter().map(|p| p.0).collect();
+        log::info!(
+            "deleted {} page(s) to the trash ({trash_id}): {}",
+            names.len(),
+            names.join(", ")
+        );
+        // a deleted page is no favourite any more (NS-26)
+        Self::remove_favorites(o, &names);
+        // the history of a deleted page can't be undone any more
+        o.undo.retain(|e| !names.contains(&e.page));
+        o.redo.retain(|e| !names.contains(&e.page));
+        let mut linked_from: Vec<String> = Vec::new();
+        for n in &names {
+            for l in o.graph.with_index(|i| i.backlinks(n))? {
+                if !names.contains(&l.source_page) && !linked_from.contains(&l.source_page) {
+                    linked_from.push(l.source_page);
                 }
             }
-            (self.emit)(
-                "graph-changed",
-                json!({ "pages": names.clone(), "paths": rels, "own": true }),
-            );
-            Ok(DeletePagesResult {
-                trash_id,
-                deleted: names,
-                linked_from,
-            })
+        }
+        (self.emit)(
+            "graph-changed",
+            json!({ "pages": names.clone(), "paths": rels, "own": true }),
+        );
+        Ok(DeletePagesResult {
+            trash_id,
+            deleted: names,
+            linked_from,
         })
     }
 

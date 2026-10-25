@@ -204,3 +204,461 @@ fn a_slot_name_is_short_and_plain() {
         assert_eq!(e.code, "invalid", "{bad}");
     }
 }
+
+// ---- moving notes between graphs (MG-2 to MG-4) -----------------------------------------------------
+
+/// Writes a page file and lets the index see it.
+fn put(w: &W, slot: &str, root: &Path, name: &str, rel: &str, text: &str) {
+    let abs = root.join(rel);
+    std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+    std::fs::write(abs, text).unwrap();
+    w.ok(slot, "get_page", json!({"name": name}));
+}
+
+/// Arguments of a transfer of page `page` from the first graph to the one in slot 1.
+fn pages(page: &str) -> Value {
+    json!({"from": "", "to_slot": "1", "kind": "pages", "page": page, "include_subpages": false,
+           "remove": false, "clash": "keep_both"})
+}
+
+fn with(mut v: Value, key: &str, val: Value) -> Value {
+    v[key] = val;
+    v
+}
+
+fn two() -> (W, PathBuf, PathBuf) {
+    let w = w();
+    let a = w.open("", "from-graph");
+    let b = w.open("1", "to-graph");
+    (w, a, b)
+}
+
+#[test]
+fn a_page_is_copied_and_the_source_keeps_it() {
+    let (w, a, b) = two();
+    let text =
+        "---\ntitle: Alpha\n---\n- first ^abc123\n  - child\n- see [[Other]] and ((abc123))\n";
+    put(&w, "", &a, "alpha", "pages/alpha.md", text);
+    let plan = w.ok("", "transfer_plan", pages("alpha"));
+    assert_eq!(plan["items"][0]["action"], "create");
+    assert_eq!(plan["from_name"], "from-graph");
+    assert_eq!(plan["to_name"], "to-graph");
+    assert_eq!(
+        plan["missing_links"],
+        json!(["Other"]),
+        "the target has no page Other"
+    );
+    assert_eq!(plan["dangling_refs"], 0);
+    assert!(!b.join("pages/alpha.md").exists(), "a plan writes nothing");
+
+    let r = w.ok("", "transfer_apply", pages("alpha"));
+    assert_eq!(r["written"], json!(["alpha"]));
+    assert_eq!(
+        read(&b, "pages/alpha.md"),
+        text,
+        "the text is copied as it is"
+    );
+    assert!(a.join("pages/alpha.md").exists());
+    assert!(
+        w.names("1").contains(&"alpha".to_string()),
+        "the target indexed it"
+    );
+    assert_eq!(
+        w.ok("1", "get_page", json!({"name": "alpha"}))["title"],
+        "Alpha"
+    );
+}
+
+#[test]
+fn subpages_come_along_and_a_clash_keeps_both() {
+    let (w, a, b) = two();
+    put(&w, "", &a, "proj", "pages/proj.md", "- root [[proj/sub]]\n");
+    put(
+        &w,
+        "",
+        &a,
+        "proj/sub",
+        "pages/proj/sub.md",
+        "- sub, back to [[proj]]\n",
+    );
+    put(&w, "1", &b, "proj", "pages/proj.md", "- the target's own\n");
+
+    let args = with(pages("proj"), "include_subpages", json!(true));
+    let plan = w.ok("", "transfer_plan", args.clone());
+    let targets: Vec<&str> = plan["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["target"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        targets,
+        ["proj (from from-graph)", "proj (from from-graph)/sub"]
+    );
+    w.ok("", "transfer_apply", args);
+    assert_eq!(
+        read(&b, "pages/proj.md"),
+        "- the target's own\n",
+        "nothing of the target changes"
+    );
+    assert_eq!(
+        read(&b, "pages/proj (from from-graph).md"),
+        "- root [[proj (from from-graph)/sub]]\n",
+        "links inside the copy follow the new names"
+    );
+    assert_eq!(
+        read(&b, "pages/proj (from from-graph)/sub.md"),
+        "- sub, back to [[proj (from from-graph)]]\n"
+    );
+}
+
+#[test]
+fn a_clash_can_be_appended_or_skipped() {
+    let (w, a, b) = two();
+    put(
+        &w,
+        "",
+        &a,
+        "note",
+        "pages/note.md",
+        "- from a\n  - deeper\n",
+    );
+    put(&w, "1", &b, "note", "pages/note.md", "- from b\n");
+
+    let skip = with(pages("note"), "clash", json!("skip"));
+    let r = w.ok("", "transfer_apply", skip);
+    assert_eq!(r["written"], json!([]));
+    assert_eq!(read(&b, "pages/note.md"), "- from b\n");
+
+    let append = with(pages("note"), "clash", json!("append"));
+    let plan = w.ok("", "transfer_plan", append.clone());
+    assert_eq!(plan["items"][0]["action"], "append");
+    w.ok("", "transfer_apply", append);
+    assert_eq!(
+        read(&b, "pages/note.md"),
+        "- from b\n- from a\n  - deeper\n"
+    );
+}
+
+#[test]
+fn a_journal_day_is_appended_to_the_same_day() {
+    let (w, a, b) = two();
+    put(
+        &w,
+        "",
+        &a,
+        "2026-10-03",
+        "journals/2026/2026-10-03.md",
+        "- from a\n",
+    );
+    put(
+        &w,
+        "1",
+        &b,
+        "2026-10-03",
+        "journals/2026/2026-10-03.md",
+        "- from b\n",
+    );
+    let r = w.ok("", "transfer_apply", pages("2026-10-03"));
+    assert_eq!(r["written"], json!(["2026-10-03"]));
+    assert_eq!(
+        read(&b, "journals/2026/2026-10-03.md"),
+        "- from b\n- from a\n"
+    );
+}
+
+#[test]
+fn pictures_travel_with_the_text() {
+    let (w, a, b) = two();
+    std::fs::create_dir_all(a.join("assets/2026/10")).unwrap();
+    std::fs::write(a.join("assets/2026/10/same-11111111.png"), b"same").unwrap();
+    std::fs::write(a.join("assets/2026/10/other-22222222.png"), b"from a").unwrap();
+    std::fs::write(a.join("assets/2026/10/new-33333333.png"), b"new").unwrap();
+    std::fs::create_dir_all(b.join("assets/2026/10")).unwrap();
+    std::fs::write(b.join("assets/2026/10/same-11111111.png"), b"same").unwrap();
+    std::fs::write(b.join("assets/2026/10/other-22222222.png"), b"from b").unwrap();
+    let text = "- ![](../../assets/2026/10/same-11111111.png)\n- ![](../../assets/2026/10/other-22222222.png)\n- ![](../../assets/2026/10/new-33333333.png)\n- ![](../../assets/2026/10/gone-44444444.png)\n";
+    // the page sits one folder deeper in the target: a namespace
+    put(
+        &w,
+        "",
+        &a,
+        "img",
+        "pages/img.md",
+        &text.replace("../../", "../"),
+    );
+
+    let plan = w.ok("", "transfer_plan", pages("img"));
+    let action = |p: &str| -> String {
+        plan["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["path"] == p)
+            .unwrap()["action"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    assert_eq!(action("assets/2026/10/same-11111111.png"), "reuse");
+    assert_eq!(action("assets/2026/10/other-22222222.png"), "rename");
+    assert_eq!(action("assets/2026/10/new-33333333.png"), "copy");
+    assert_eq!(action("assets/2026/10/gone-44444444.png"), "missing");
+
+    w.ok("", "transfer_apply", pages("img"));
+    let got = read(&b, "pages/img.md");
+    assert!(
+        got.contains("![](../assets/2026/10/same-11111111.png)"),
+        "{got}"
+    );
+    assert!(
+        !got.contains("other-22222222.png"),
+        "the clashing name was changed: {got}"
+    );
+    assert!(got.contains("![](../assets/2026/10/new-33333333.png)"));
+    assert!(
+        got.contains("gone-44444444.png"),
+        "a missing file stays as it was written"
+    );
+    // the files: the same one kept, the other one next to it, the new one copied
+    assert_eq!(
+        std::fs::read(b.join("assets/2026/10/other-22222222.png")).unwrap(),
+        b"from b"
+    );
+    let renamed = got
+        .split("../assets/2026/10/")
+        .nth(2)
+        .and_then(|s| s.split(')').next())
+        .unwrap();
+    assert!(
+        renamed.starts_with("other-22222222-") && renamed.ends_with(".png"),
+        "{renamed}"
+    );
+    assert_eq!(
+        std::fs::read(b.join("assets/2026/10").join(renamed)).unwrap(),
+        b"from a"
+    );
+    assert_eq!(
+        std::fs::read(b.join("assets/2026/10/new-33333333.png")).unwrap(),
+        b"new"
+    );
+}
+
+#[test]
+fn a_block_id_the_target_uses_is_replaced_and_references_follow() {
+    let (w, a, b) = two();
+    put(
+        &w,
+        "",
+        &a,
+        "ids",
+        "pages/ids.md",
+        "- the block ^abc123\n- points at ((abc123)) and ((zzzzzz))\n",
+    );
+    put(
+        &w,
+        "1",
+        &b,
+        "elsewhere",
+        "pages/elsewhere.md",
+        "- taken ^abc123\n",
+    );
+    let plan = w.ok("", "transfer_plan", pages("ids"));
+    assert_eq!(
+        plan["dangling_refs"], 1,
+        "((zzzzzz)) points at nothing that goes over"
+    );
+    w.ok("", "transfer_apply", pages("ids"));
+    let got = read(&b, "pages/ids.md");
+    assert!(!got.contains("abc123"), "{got}");
+    let id = got
+        .lines()
+        .next()
+        .unwrap()
+        .rsplit('^')
+        .next()
+        .unwrap()
+        .to_string();
+    assert_eq!(id.len(), 6);
+    assert!(got.contains(&format!("(({id}))")), "{got}");
+    assert!(
+        read(&b, "pages/elsewhere.md").contains("^abc123"),
+        "the target's own block keeps its id"
+    );
+}
+
+#[test]
+fn moving_takes_the_page_out_of_the_source_and_can_be_undone() {
+    let (w, a, b) = two();
+    put(&w, "", &a, "mover", "pages/mover.md", "- text\n");
+    put(&w, "", &a, "linker", "pages/linker.md", "- see [[mover]]\n");
+    let args = with(pages("mover"), "remove", json!(true));
+    let plan = w.ok("", "transfer_plan", args.clone());
+    assert_eq!(plan["left_behind"], json!(["linker"]));
+    let r = w.ok("", "transfer_apply", args);
+    assert_eq!(r["undoable"], true);
+    assert!(!a.join("pages/mover.md").exists());
+    assert!(b.join("pages/mover.md").exists());
+
+    let left = w.ok("", "transfer_undo", json!({}));
+    assert_eq!(left["items"], json!([]));
+    assert!(a.join("pages/mover.md").exists(), "back in the source");
+    assert!(!b.join("pages/mover.md").exists(), "gone from the target");
+    assert_eq!(
+        w.call("", "transfer_undo", json!({})).unwrap_err().code,
+        "invalid",
+        "only once"
+    );
+}
+
+#[test]
+fn undoing_an_append_takes_the_blocks_out_again_unless_the_page_changed() {
+    let (w, a, b) = two();
+    put(&w, "", &a, "note", "pages/note.md", "- from a\n");
+    put(&w, "1", &b, "note", "pages/note.md", "- from b\n");
+    let append = with(pages("note"), "clash", json!("append"));
+    w.ok("", "transfer_apply", append.clone());
+    w.ok("", "transfer_undo", json!({}));
+    assert_eq!(read(&b, "pages/note.md"), "- from b\n");
+
+    w.ok("", "transfer_apply", append);
+    let now = read(&b, "pages/note.md");
+    put(
+        &w,
+        "1",
+        &b,
+        "note",
+        "pages/note.md",
+        &format!("{now}- typed later\n"),
+    );
+    let left = w.ok("", "transfer_undo", json!({}));
+    assert_eq!(left["items"].as_array().unwrap().len(), 1, "{left}");
+    assert!(
+        read(&b, "pages/note.md").contains("typed later"),
+        "the later edit is not lost"
+    );
+}
+
+#[test]
+fn blocks_go_into_a_new_or_an_existing_page_and_can_be_moved() {
+    let (w, a, b) = two();
+    put(
+        &w,
+        "",
+        &a,
+        "src",
+        "pages/src.md",
+        "- one\n- two ^two222\n  - two-a\n- three\n",
+    );
+    let blocks = |paths: Value, target: &str, remove: bool| {
+        json!({"from": "", "to_slot": "1", "kind": "blocks", "page": "src", "blocks": paths,
+               "target_page": target, "remove": remove, "clash": "keep_both"})
+    };
+    // a copy of the second block with its child into a page that does not exist
+    w.ok("", "transfer_apply", blocks(json!([[1]]), "dest", false));
+    assert_eq!(read(&b, "pages/dest.md"), "- two ^two222\n  - two-a\n");
+    assert!(read(&a, "pages/src.md").contains("two-a"));
+    // a move of the first and the third into the existing page
+    w.ok(
+        "",
+        "transfer_apply",
+        blocks(json!([[0], [2]]), "dest", true),
+    );
+    assert_eq!(
+        read(&b, "pages/dest.md"),
+        "- two ^two222\n  - two-a\n- one\n- three\n"
+    );
+    assert_eq!(read(&a, "pages/src.md"), "- two ^two222\n  - two-a\n");
+    // and back
+    w.ok("", "transfer_undo", json!({}));
+    assert_eq!(
+        read(&a, "pages/src.md"),
+        "- one\n- two ^two222\n  - two-a\n- three\n"
+    );
+    assert_eq!(read(&b, "pages/dest.md"), "- two ^two222\n  - two-a\n");
+}
+
+#[test]
+fn a_graph_that_is_not_open_gets_the_notes_too() {
+    let w = w();
+    let a = w.open("", "from-graph");
+    let far = w.tmp.path().join("far-graph");
+    {
+        // made and closed again: a graph on this computer that no pane shows
+        w.open("9", "far-graph");
+        w.ok("", "close_slot", json!({"slot": "9"}));
+    }
+    put(&w, "", &a, "p", "pages/p.md", "- hello\n");
+    let args = json!({"from": "", "to_path": far.to_str().unwrap(), "kind": "pages", "page": "p",
+                      "remove": false, "clash": "keep_both"});
+    let r = w.ok("", "transfer_apply", args);
+    assert_eq!(r["plan"]["to_name"], "far-graph");
+    assert_eq!(read(&far, "pages/p.md"), "- hello\n");
+    // the same graph is refused
+    let same = json!({"from": "", "to_path": a.to_str().unwrap(), "kind": "pages", "page": "p",
+                      "remove": false, "clash": "keep_both"});
+    assert_eq!(
+        w.call("", "transfer_apply", same).unwrap_err().code,
+        "invalid"
+    );
+    // and so is a folder that is no graph
+    let none = json!({"from": "", "to_path": w.tmp.path().to_str().unwrap(), "kind": "pages", "page": "p",
+                      "remove": false, "clash": "keep_both"});
+    assert_eq!(
+        w.call("", "transfer_apply", none).unwrap_err().code,
+        "invalid"
+    );
+}
+
+#[test]
+fn encryption_only_warns_it_never_stops_a_transfer() {
+    let (w, a, b) = two();
+    // the first graph encrypts everything (a vault with scope all), the second has a server and no encryption
+    w.ok(
+        "",
+        "encryption_setup",
+        json!({"password": "correct horse battery"}),
+    );
+    w.ok("", "encryption_confirm", json!({}));
+    let dirs = Dirs::under(&w.tmp.path().join("device"));
+    let mut dev = notatnik_graph::DeviceSettings::load(&dirs).unwrap();
+    let id_b = w.ok("1", "graph_info", json!({}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    dev.set_remote(
+        &id_b,
+        Some(notatnik_graph::RemoteConfig {
+            url: "https://cloud.example.org/remote.php/dav/files/me/b".into(),
+            user: "me".into(),
+            trust_folder_etags: false,
+            merge: true,
+        }),
+    );
+    dev.save(&dirs).unwrap();
+    put(&w, "", &a, "secret", "pages/secret.md", "- private\n");
+    let plan = w.ok("", "transfer_plan", pages("secret"));
+    assert_eq!(plan["items"][0]["encrypted_in_source"], true);
+    assert_eq!(plan["items"][0]["encrypted_in_target"], false);
+    let warning = plan["warnings"][0].as_str().unwrap();
+    assert!(
+        warning.contains("plain text") && warning.contains("to-graph"),
+        "{warning}"
+    );
+    w.ok("", "transfer_apply", pages("secret"));
+    assert_eq!(read(&b, "pages/secret.md"), "- private\n");
+
+    // the other way: the second graph is not encrypted, the first is; the first is locked
+    w.ok("", "encryption_lock", json!({}));
+    put(&w, "1", &b, "open", "pages/open.md", "- plain\n");
+    let back = json!({"from": "1", "to_slot": "", "kind": "pages", "page": "open",
+                      "remove": false, "clash": "keep_both"});
+    let plan = w.ok("1", "transfer_plan", back.clone());
+    assert_eq!(plan["target_locked"], true);
+    w.ok("1", "transfer_apply", back);
+    assert_eq!(
+        read(&a, "pages/open.md"),
+        "- plain\n",
+        "written although the key is locked"
+    );
+}

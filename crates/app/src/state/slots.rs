@@ -62,7 +62,7 @@ impl AppState {
     }
 
     /// The state for a slot name that may be empty (the root itself, as `None`).
-    fn existing_slot(&self, slot: &str) -> Option<Arc<AppState>> {
+    pub(super) fn existing_slot(&self, slot: &str) -> Option<Arc<AppState>> {
         self.slots
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
