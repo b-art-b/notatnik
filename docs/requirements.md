@@ -102,6 +102,12 @@ A **graph** is a folder of notes.
 | VH-1 | Every file the app writes, and every change from outside it notices, is recorded in a per-page version history on this device (outside the graph, never synced); the text before the first change is kept too. | V1 |
 | VH-2 | Versions thin out: all of the last 10 minutes (bursts of typing are one), then one per 10 minutes for 3 hours, one per hour for 2 days, one per day for 30 days; the oldest is kept for 30 days. The history follows a renamed or moved page. | V1 |
 | VH-3 | *History* under a page's title (journal days too) lists the versions, shows what restoring would change as a line diff and restores one; the text it replaces becomes a version. | V1 |
+| MG-1 | Several graphs can be open at once in one app, each in its own slot with its own index, key, sync, undo and watcher. The same graph cannot be open twice; only the first slot decides which graph the app starts with. | V1 |
+| MG-2 | *Copy to graph…* and *Move to graph…* take a page, a page with its subpages, or a selection of blocks to another graph, which need not be open in a slot. A name clash is resolved by keeping both, appending, or skipping; a journal day is appended. | V1 |
+| MG-3 | Pictures and attachments below `assets/` that the transferred text mentions are copied with it: the same bytes are reused, other bytes under the same name get a new name, and the relative paths are rewritten. Block IDs that clash in the target are replaced and the references inside the copy follow. | V1 |
+| MG-4 | A transfer says what it will do before it does it (pages, assets, links the target lacks, links left behind), warns when a page that is encrypted in the source would be plain on the target's server, and works when the target's key is locked. A move can be undone. | V1 |
+| MG-5 | Each graph has a color (a device setting by graph id) and is always shown with its name: sidebar bar, graph switcher, window title, and a chip in the head of a page while two graphs are open. | V1 |
+| MG-6 | *Open beside* shows a second graph next to the first, in a pane with its own sidebar, shortcuts and palette; a page or block dragged from one pane to the other opens the transfer dialog. | V1 |
 
 ## 4. Outliner editor
 

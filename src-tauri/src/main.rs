@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use notatnik_app::{ApiError, AppOptions, AppState, Secrets, dispatch};
+use notatnik_app::{ApiError, AppOptions, AppState, Secrets, dispatch, dispatch_slot};
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
 
@@ -13,8 +13,9 @@ fn invoke_api(
     state: State<'_, Arc<AppState>>,
     name: String,
     args: Value,
+    slot: Option<String>,
 ) -> Result<Value, ApiError> {
-    dispatch(&state, &name, args)
+    dispatch_slot(&state, slot.as_deref().unwrap_or(""), &name, args)
 }
 
 /// Opens an http(s)/mailto link in the system browser, and a `file:///` link with the system's program for that
@@ -61,9 +62,10 @@ fn open_asset(
     app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
     path: String,
+    slot: Option<String>,
 ) -> Result<(), String> {
     let file = state
-        .asset_file(&percent_decode(&path))
+        .asset_file_in(slot.as_deref().unwrap_or(""), &percent_decode(&path))
         .map_err(|e| e.message)?;
     open_local(&app, &file)
 }
@@ -168,10 +170,17 @@ fn main() {
         // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
         .register_uri_scheme_protocol("asset", |ctx, req| {
             let path = percent_decode(req.uri().path().trim_start_matches('/'));
+            // `?slot=1`: the picture is in the graph of that slot (MG-1)
+            let slot = req
+                .uri()
+                .query()
+                .and_then(|q| q.split('&').find_map(|kv| kv.strip_prefix("slot=")))
+                .unwrap_or("")
+                .to_string();
             let bytes = ctx
                 .app_handle()
                 .try_state::<Arc<AppState>>()
-                .and_then(|s| s.read_asset(&path).ok());
+                .and_then(|s| s.read_asset_in(&slot, &path).ok());
             match bytes {
                 Some(b) => tauri::http::Response::builder()
                     .header("Content-Type", notatnik_app::asset_content_type(&path))

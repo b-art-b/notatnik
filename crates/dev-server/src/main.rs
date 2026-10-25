@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use chrono::NaiveDate;
 use clap::Parser;
-use notatnik_app::{AppOptions, AppState, dispatch};
+use notatnik_app::{AppOptions, AppState, dispatch, dispatch_slot};
 use notatnik_graph::Dirs;
 use serde_json::{Value, json};
 
@@ -88,6 +88,14 @@ impl Events {
     }
 }
 
+/// The value of `key` in the query of `url` (not decoded).
+fn query_value<'a>(url: &'a str, key: &str) -> Option<&'a str> {
+    let query = url.split_once('?')?.1;
+    query
+        .split('&')
+        .find_map(|kv| kv.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
+}
+
 fn handle(app: &AppState, events: &Events, req: Request) -> Reply {
     let url = req.url.as_str();
     if req.method == "OPTIONS" {
@@ -103,9 +111,9 @@ fn handle(app: &AppState, events: &Events, req: Request) -> Reply {
         return Reply::json(200, &json!({"last": last, "events": evs}));
     }
     if req.method == "GET" && url.starts_with("/asset") {
-        let path = url.split_once("path=").map(|x| x.1).unwrap_or("");
+        let path = query_value(url, "path").unwrap_or("");
         let decoded: String = path.replace("%2F", "/").replace("%20", " ");
-        return match app.read_asset(&decoded) {
+        return match app.read_asset_in(query_value(url, "slot").unwrap_or(""), &decoded) {
             Ok(bytes) => Reply {
                 status: 200,
                 content_type: notatnik_app::asset_content_type(&decoded).to_string(),
@@ -118,14 +126,17 @@ fn handle(app: &AppState, events: &Events, req: Request) -> Reply {
         return Reply::json(200, &json!({"ok": true}));
     }
     if req.method == "POST" {
-        if let Some(name) = url.strip_prefix("/api/") {
+        if let Some(rest) = url.strip_prefix("/api/") {
+            // `/api/<command>?slot=1`: the graph in that slot (MG-1)
+            let (name, _) = rest.split_once('?').unwrap_or((rest, ""));
+            let slot = query_value(url, "slot").unwrap_or("");
             let body = String::from_utf8_lossy(&req.body);
             let args: Value = if body.trim().is_empty() {
                 json!({})
             } else {
                 serde_json::from_str(&body).unwrap_or(Value::Null)
             };
-            return match dispatch(app, name, args) {
+            return match dispatch_slot(app, slot, name, args) {
                 Ok(v) => Reply::json(200, &v),
                 Err(e) => Reply::json(400, &json!({"code": e.code, "message": e.message})),
             };

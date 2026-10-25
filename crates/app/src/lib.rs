@@ -44,6 +44,24 @@ pub fn dispatch(state: &AppState, name: &str, args: Value) -> Result<Value, ApiE
     result
 }
 
+/// Commands the root state answers itself, whatever slot a call names: they look at several graphs (MG-1).
+const WORKSPACE_COMMANDS: &[&str] = &["slots", "close_slot"];
+
+/// Like [`dispatch`], for a call that names a slot: `""` is the first graph (the state itself), any other slot is
+/// another open graph with its own state, made on first use (MG-1).
+pub fn dispatch_slot(
+    state: &AppState,
+    slot: &str,
+    name: &str,
+    args: Value,
+) -> Result<Value, ApiError> {
+    if slot.is_empty() || WORKSPACE_COMMANDS.contains(&name) {
+        return dispatch(state, name, args);
+    }
+    let other = state.slot_state(slot)?;
+    dispatch(&other, name, args)
+}
+
 /// Declares every command once: its name, argument type, result type and implementation. Generates
 /// [`dispatch`] and the TypeScript `Commands` map.
 macro_rules! commands {
@@ -75,6 +93,8 @@ commands! {
     list_graphs(NoArgs) -> Vec<GraphHistoryEntry> => list_graphs,
     forget_graph(ForgetGraphArgs) -> Vec<GraphHistoryEntry> => forget_graph,
     graph_info(NoArgs) -> GraphInfo => graph_info,
+    slots(NoArgs) -> Vec<SlotInfo> => slots_cmd,
+    close_slot(SlotArgs) -> Vec<SlotInfo> => close_slot,
     today(NoArgs) -> StringValue => today_cmd,
     get_page(GetPageArgs) -> PageView => get_page,
     apply_ops(ApplyOpsArgs) -> ApplyResult => apply_ops,

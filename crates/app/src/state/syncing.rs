@@ -547,6 +547,14 @@ impl AppState {
     /// A last sync when the app quits (SY-6): something written a moment ago should not wait for the next start.
     /// The caller bounds the wait.
     pub fn sync_on_quit(&self) {
+        self.sync_on_quit_own();
+        for s in self.other_states() {
+            s.sync_on_quit_own();
+        }
+    }
+
+    /// The last sync of the graph of this state only.
+    pub(super) fn sync_on_quit_own(&self) {
         let ctx = {
             let g = self.lock();
             g.as_ref()

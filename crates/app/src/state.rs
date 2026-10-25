@@ -298,6 +298,7 @@ mod conflicts;
 mod encryption;
 mod favorites;
 mod filesources;
+pub mod slots;
 mod syncing;
 pub use syncing::{MemorySecrets, Secrets};
 
@@ -315,7 +316,7 @@ struct Open {
     warnings: Vec<String>,
 }
 
-/// The application: one open graph at a time.
+/// The application: one open graph per state. The first state also holds the other open graphs (`slots.rs`).
 pub struct AppState {
     inner: Mutex<Option<Open>>,
     emit: Emitter,
@@ -324,8 +325,8 @@ pub struct AppState {
     watch: bool,
     /// The plan of a rename that stopped half way (for `rename_revert`).
     last_rename: Mutex<Option<notatnik_graph::RenamePlan>>,
-    /// The unlocked backup vault (EN-2), if any.
-    backup_keys: Mutex<Option<Unlocked>>,
+    /// The unlocked backup vault (EN-2), if any. One for the device, so every slot shares it (MG-1).
+    backup_keys: Arc<Mutex<Option<Unlocked>>>,
     /// Passwords of server logins.
     secrets: Arc<dyn Secrets>,
     /// The unlocked key of the open graph's vault (EN-13, EN-14), shared with the sync thread.
@@ -334,6 +335,12 @@ pub struct AppState {
     graph_pending: Mutex<Option<encryption::PendingVault>>,
     /// A calendar server to use instead of the real one (tests).
     calendar_client: Option<Arc<dyn notatnik_caldav::CalDavClient + Send + Sync>>,
+    /// Which slot this state is: `""` for the root (the first graph), otherwise the name it was opened under (MG-1).
+    slot: String,
+    /// The other open graphs by slot. Only the root has any: it routes the commands that name a slot.
+    slots: Mutex<HashMap<String, Arc<AppState>>>,
+    /// The folder of the graph open in each slot (all states share this list), so the same graph is not opened twice.
+    open_roots: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
 /// Options for [`AppState::new`].
@@ -386,11 +393,14 @@ impl AppState {
             dirs: o.dirs,
             watch: o.watch,
             last_rename: Mutex::new(None),
-            backup_keys: Mutex::new(None),
+            backup_keys: Arc::default(),
             secrets: Arc::new(MemorySecrets::default()),
             graph_keys: Arc::default(),
             graph_pending: Mutex::new(None),
             calendar_client: None,
+            slot: String::new(),
+            slots: Mutex::new(HashMap::new()),
+            open_roots: Arc::default(),
         }
     }
 
@@ -418,6 +428,7 @@ impl AppState {
     /// `open_graph`
     pub fn open_graph(&self, a: OpenGraphArgs) -> ApiResult<GraphInfo> {
         let path = PathBuf::from(&a.path);
+        self.refuse_if_open_elsewhere(&path)?;
         let started = std::time::Instant::now();
         let (graph, report) =
             if a.create && !path.join(".notatnik").exists() && !path.join("pages").exists() {
@@ -454,12 +465,18 @@ impl AppState {
         });
         // the history of graphs: this one is now the last opened (opened by the app only, not by the CLI)
         let mut dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
+        let last = dev.last_graph.clone();
         dev.register(&graph.id(), graph.root());
+        if !self.slot.is_empty() {
+            // a graph opened beside the first one is not the one the app starts with (MG-1)
+            dev.last_graph = last;
+        }
         let _ = dev.save(&self.dirs);
         // snapshots run on a thread of their own, only where the file watcher runs too (not in unit tests)
         let backup = self.watch.then(|| self.start_backups(&graph));
         self.unlock_from_keyring(&graph);
         let sync = self.start_sync(&graph, wake);
+        self.note_open_root(&graph);
         *self.lock() = Some(Open {
             graph,
             _watcher: watcher,
@@ -3174,6 +3191,14 @@ impl AppState {
     /// A snapshot when the app quits (BK-3): taken when automatic backups are on, something changed and the newest
     /// snapshot is at least an hour old; the second folder is brought up to date too. The caller bounds the wait.
     pub fn backup_on_quit(&self) {
+        self.backup_on_quit_own();
+        for s in self.other_states() {
+            s.backup_on_quit_own();
+        }
+    }
+
+    /// The snapshot of the graph of this state only.
+    pub(super) fn backup_on_quit_own(&self) {
         let dev = notatnik_graph::DeviceSettings::load(&self.dirs).unwrap_or_default();
         if !dev.ui.backup_auto {
             return;

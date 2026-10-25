@@ -1,5 +1,5 @@
 import type { GraphChangedEvent } from './bindings'
-import { type Backend, CommandError } from './types'
+import { CommandError, type Transport } from './types'
 
 function apiBase(): string {
   const fromQuery = new URLSearchParams(window.location.search).get('api')
@@ -19,13 +19,13 @@ function apiBase(): string {
 }
 
 /** Talks to `notatnik-dev-server` over HTTP; events arrive by long-polling. */
-export function createHttpBackend(): Backend {
+export function createHttpTransport(): Transport {
   const base = apiBase()
   const listeners = new Set<(e: GraphChangedEvent) => void>()
   let polling = false
   return {
-    async call(name, args) {
-      const res = await fetch(`${base}/api/${name}`, {
+    async call(name, args, slot) {
+      const res = await fetch(`${base}/api/${name}${slot ? `?slot=${slot}` : ''}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(args),
@@ -64,13 +64,14 @@ export function createHttpBackend(): Backend {
         listeners.delete(cb)
       }
     },
-    assetUrl: (path) => `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}`,
+    assetUrl: (path, slot) =>
+      `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}${slot ? `&slot=${slot}` : ''}`,
     openExternal: (url) => {
       window.open(url, '_blank', 'noopener,noreferrer')
     },
-    openAsset: (path) => {
+    openAsset: (path, slot) => {
       window.open(
-        `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}`,
+        `${base}/asset?path=${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}${slot ? `&slot=${slot}` : ''}`,
         '_blank',
         'noopener,noreferrer',
       )

@@ -207,7 +207,7 @@ pub fn typescript_bindings() -> String {
         MovedCopies,
         CalendarEventView,
     );
-    out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };\n\n");
+    out.push_str("\nexport type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean; slot?: string };\n\n");
     out.push_str(&crate::commands_ts());
     out
 }

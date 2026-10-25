@@ -802,6 +802,26 @@ pub struct ForgetGraphArgs {
     pub id: String,
 }
 
+/// `close_slot`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SlotArgs {
+    /// The slot to close (`""`, the first graph, cannot be closed: open another graph in it instead).
+    pub slot: String,
+}
+
+/// One open graph, for `slots` (MG-1).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SlotInfo {
+    /// The slot (`""` for the first graph).
+    pub slot: String,
+    /// Graph ID.
+    pub graph_id: String,
+    /// The folder's name.
+    pub name: String,
+    /// The folder.
+    pub root: String,
+}
+
 /// `get_page`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct GetPageArgs {

@@ -2,10 +2,12 @@ import type { ApiError, Commands, GraphChangedEvent } from './bindings'
 
 export type CommandName = keyof Commands
 
-/** What the UI needs from "the backend". Two implementations: HTTP (tests, browser) and Tauri (desktop). */
+/** What the UI needs from "the backend", for the graph of one slot. */
 export interface Backend {
+  /** Which open graph this backend talks to: `''` is the first graph, `'1'` the one beside it (MG-1). */
+  readonly slot: string
   call<K extends CommandName>(name: K, args: Commands[K]['args']): Promise<Commands[K]['result']>
-  /** Subscribes to `graph-changed`; returns an unsubscribe function. */
+  /** Subscribes to `graph-changed` of this slot; returns an unsubscribe function. */
   onGraphChanged(cb: (e: GraphChangedEvent) => void): () => void
   /** URL for an image below the graph's `assets/` folder. */
   assetUrl(path: string): string
@@ -20,6 +22,26 @@ export interface Backend {
   clipboardImage?: () => Promise<string | null>
   pickFolder?: () => Promise<string | null>
   /** The system's file chooser (the desktop app only): the file picked, `null` when cancelled. */
+  pickFile?: () => Promise<string | null>
+}
+
+/**
+ * The way to the Rust side, for every slot. Two implementations: HTTP (tests, browser) and Tauri (desktop). The window
+ * has one; a pane in a frame uses the one of its parent window (the frame has no connection of its own), see `index.ts`.
+ */
+export interface Transport {
+  call<K extends CommandName>(
+    name: K,
+    args: Commands[K]['args'],
+    slot: string,
+  ): Promise<Commands[K]['result']>
+  /** Subscribes to `graph-changed` of every slot (each event says its `slot`). */
+  onGraphChanged(cb: (e: GraphChangedEvent) => void): () => void
+  assetUrl(path: string, slot: string): string
+  openExternal(url: string): void
+  openAsset(path: string, slot: string): void
+  clipboardImage?: () => Promise<string | null>
+  pickFolder?: () => Promise<string | null>
   pickFile?: () => Promise<string | null>
 }
 

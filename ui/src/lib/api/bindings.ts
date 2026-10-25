@@ -2471,13 +2471,15 @@ start: string | null, end: string | null, location: string | null,
  */
 calendar: string, };
 
-export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean };
+export type GraphChangedEvent = { pages: string[]; paths: string[]; own?: boolean; slot?: string };
 
 export type Commands = {
   open_graph: { args: OpenGraphArgs; result: GraphInfo };
   list_graphs: { args: NoArgs; result: GraphHistoryEntry[] };
   forget_graph: { args: ForgetGraphArgs; result: GraphHistoryEntry[] };
   graph_info: { args: NoArgs; result: GraphInfo };
+  slots: { args: NoArgs; result: SlotInfo[] };
+  close_slot: { args: SlotArgs; result: SlotInfo[] };
   today: { args: NoArgs; result: StringValue };
   get_page: { args: GetPageArgs; result: PageView };
   apply_ops: { args: ApplyOpsArgs; result: ApplyResult };
