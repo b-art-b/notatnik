@@ -92,26 +92,33 @@ settings.
 
 - [x] Unit test for the default color; browser test: computed color of the bar and chip, title text, never color alone (the name is there)
 
-### M5 Side pane as a frame (MG-6): built, then reverted
+### M5 A second graph in the sidebar (MG-6)
 
-- [ ] _Beside_ next to each other graph in the graph switcher (the pane is there as long as the backend has a graph in slot 1, so a reload keeps it); the second graph in a frame on the right with a header (color, name, swap, close); the frame's backend goes through the parent; the pane's own switcher chooses another graph; drag a page or block from one pane to the other opens the transfer dialog
+**Design.** The sidebar gets one *section* per open graph, stacked: the header (color dot, name, padlock, the graph menu), then Journals, Agenda, All pages, Search, Settings, the sync line, Favorites, Recent, Saved queries and Pages of that graph. The first section is the graph in slot `""`, the second the graph in slot `"1"`. The second starts folded to its header; a click on anything in a section opens it. The page area shows what was opened last, from either graph, and the *active* graph is the one whose page it shows. Every UI store that holds the state of one graph moves into a `GraphState` (one per section): its backend, bus, recent pages, favorites, icons, archived pages, encryption status, sync status, calendar sync, saved queries and tree folds. No frames: each sidebar section reads its own `GraphState` through Svelte context, and the code of the page area keeps importing the same modules, which now answer for the active graph (thin facades over `active().…`).
+
+- **Route.** `#/page/X` is a page of the active graph; `#/g/1/page/X` is a page of the graph in slot 1 (the prefix is on every route kind; slot `""` has none, so existing links and tests keep working). A hash with another slot makes that graph active; the page area is rebuilt (`{#key}`), the open documents are flushed and dropped, and editing state is reset. A `PageDoc` keeps the backend it was made with, so a late save never goes to the other graph.
+- **Opening and closing.** *Open as second graph* in a section's graph menu (for the other graphs of this device); the second section's menu has *Close*. The second graph is remembered on this device and reopened at start.
+- **Moving notes.** Drag a page row (tree, Recent, Favorites) or a block bullet onto a page row or the header of the other section, or onto the page area when it shows the other graph: the transfer dialog opens with source and target fixed. *To graph…* stays as the button.
+- **Identity.** Each section has its graph's color along its header; the page area keeps the chip with the graph's name and color while two graphs are open; the active section is marked.
+
+### M5 tasks
+- [ ] R1 `GraphState` and the per-graph stores as classes; the old modules are facades over the active graph; the single-graph app behaves as before
+- [ ] R2 Route with a slot, activation, a second graph opened and closed, remembered at start
+- [ ] R3 The sidebar as sections (components read their graph from context)
+- [ ] R4 Section colors, active mark, folding
+- [ ] R5 Drag between sections and onto the page area; the dialog with source and target fixed
+- [ ] R6 Docs, WebKit run, manual check list
 
 **Verify**
+- [ ] Unit tests for the route with a slot and for the per-graph stores (two instances do not share state)
+- [ ] Every existing browser test passes unchanged (single graph)
+- [ ] Browser tests: two sections with their own pages, Recent, Favorites, icons and padlocks; opening a page of the second graph switches the page area and back; edits go to the right graph (files on disk); closing the second section; a page row dragged to the other section's header opens the dialog with the target fixed and the copy lands; a block bullet dragged onto a row of the other section appends; a reload keeps both
+- [ ] WebKit run of the new specs
 
-- [x] Browser tests: open beside, edit in both panes, each pane's recent list and encryption mark are its own, a transfer by drag, close the pane
+## M5 as a frame, built and reverted
+
+The first M5 showed the second graph as the whole app in a frame on the right of the page. It was reverted: it was not what was wanted. The backend slots, the transfer engine and dialog and the graph colors stay.
 
 ## Not in this phase
 
-Links between graphs; the same graph in two panes; more than two panes in the UI (the backend allows it); a lock
-file across processes; remembering the side pane after a restart.
-
-## What was decided on the way
-
-- The second pane is a frame of the same app, not keyed stores (see Design). Its sidebar starts closed and that state is not remembered, so the first pane's setting is left alone.
-- A drop of a block or page from the other pane never reaches the code that moves blocks inside a page: that code works from the module state of its own pane (`dnd.from`), which the other pane's drag does not set.
-- The drag effect of a block is `move` and of a page `copyMove`; the drop target answers with an effect the drag allows, otherwise the browser cancels the drop.
-- The transfer undo is one level and lives in the root state (`last_transfer`).
-
-## M5 reverted
-
-The frame pane (the whole app for the second graph on the right of the page) is gone. The backend slots, the transfer engine and dialog and the graph colors stay: a second sidebar for the other graph needs them. MG-6 is open again.
+Links between graphs; the same graph twice; more than two graphs in the sidebar (the backend allows it); a lock file across processes.
