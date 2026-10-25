@@ -3,7 +3,8 @@
   // folder is looked at first without changing anything; an empty or new folder becomes a new graph, a folder that
   // already holds a graph can be downloaded to this device.
   import { backend, CommandError, type WebdavTest } from '../api'
-  import { adoptGraph, app, errorMessage } from '../stores/app.svelte'
+  import { errorMessage } from '../stores/app.svelte'
+  import { adoptGraph, refreshActiveInfo } from '../stores/graphs.svelte'
   import WebdavFolderBrowser from './WebdavFolderBrowser.svelte'
   import { refreshSync } from '../stores/sync.svelte'
 
@@ -43,7 +44,7 @@
     try {
       if (connect) {
         // the same graph, now with a server: no reload, Settings stays where it is
-        app.graph = await backend.call('connect_remote', args(false))
+        await refreshActiveInfo(await backend.call('connect_remote', args(false)))
         await refreshSync()
         ondone?.()
       } else await adoptGraph(await backend.call('create_remote_graph', args(attach)))

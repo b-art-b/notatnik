@@ -1,8 +1,6 @@
 import { backend, CommandError, type GraphInfo } from '../api'
-import { parseRoute, routeHash, type Route } from '../route'
+import { parseHash, routeHash, type Route } from '../route'
 import { setDateFormat, setDateLocale } from '../dates'
-import { loadIcons } from './icons.svelte'
-import { useRecentFor } from './recent.svelte'
 
 /** What the "To another graph" dialog was opened for. */
 export interface TransferRequest {
@@ -12,6 +10,12 @@ export interface TransferRequest {
   blocks?: number[][]
   /** `pages`: the page has pages below it. */
   hasSubpages?: boolean
+  /** The slot the notes are in, when it is not the active graph (they were dragged from the other section). */
+  from?: string
+  /** The slot they go to, fixed (they were dropped on a section or on the page area); without it the person chooses. */
+  to?: string
+  /** `blocks`: the page they are added to (the page on screen, or the page of the row they were dropped on). */
+  targetPage?: string
 }
 
 export interface Toast {
@@ -94,7 +98,7 @@ export const app = $state({
   graph: null as GraphInfo | null,
   needsGraph: false,
   today: '',
-  route: parseRoute(window.location.hash) as Route,
+  route: parseHash(window.location.hash).route as Route,
   toasts: [] as Toast[],
   theme: 'system' as Theme,
   conflicts: [] as string[],
@@ -251,30 +255,6 @@ export async function refreshConflicts() {
   }
 }
 
-export async function bootstrap() {
-  window.addEventListener('hashchange', () => {
-    app.route = parseRoute(window.location.hash)
-  })
-  let theme: Theme = 'system'
-  try {
-    theme = (localStorage.getItem('notatnik-theme') as Theme | null) ?? 'system'
-  } catch {
-    /* default */
-  }
-  applyTheme(theme)
-  try {
-    app.graph = await backend.call('graph_info', {})
-    useRecentFor(app.graph.id)
-    app.today = (await backend.call('today', {})).value
-    await refreshConflicts()
-    await loadDeviceSettings()
-    void loadIcons()
-  } catch (e) {
-    if (e instanceof CommandError && e.code === 'no_graph') app.needsGraph = true
-    else toast(errorMessage(e), 'error')
-  }
-}
-
 /** Rendered links show `[[ ]]` only when this device setting is on (the CSS reads the attribute). */
 export function applyLinkBrackets(show: boolean) {
   document.documentElement.dataset.linkBrackets = show ? 'show' : 'hide'
@@ -302,34 +282,3 @@ export async function loadDeviceSettings() {
     /* keep the defaults */
   }
 }
-
-export async function openGraph(path: string, create: boolean) {
-  try {
-    await adoptGraph(await backend.call('open_graph', { path, create }))
-  } catch (e) {
-    toast(errorMessage(e), 'error')
-  }
-}
-
-/** Makes `info` (a graph the backend has just opened) the graph shown. Used after `open_graph` and after
- * `create_remote_graph`, which opens the new graph itself. */
-export async function adoptGraph(info: GraphInfo) {
-  if (app.graph) {
-    // another graph: nothing of the pages loaded so far applies, so start the page over. Until the reload
-    // finishes the screen stays as it is, so nothing of the new graph is shown with the old pages.
-    window.location.hash = '#/journals'
-    window.location.reload()
-    return
-  }
-  app.graph = info
-  app.needsGraph = false
-  useRecentFor(info.id)
-  app.today = (await backend.call('today', {})).value
-  await refreshConflicts()
-  await loadDeviceSettings()
-  void loadIcons()
-}
-
-backend.onGraphChanged(() => {
-  void refreshConflicts()
-})

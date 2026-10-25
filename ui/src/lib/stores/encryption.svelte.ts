@@ -1,24 +1,20 @@
 // Encrypting chosen paths on the graph's server (EN-11 to EN-18): what the backend reports, and the one rule the UI
 // needs itself, whether a file is stored encrypted (for the lock mark of a page).
-import { backend, type EncryptionStatus } from '../api'
-import { app } from './app.svelte'
+import type { EncryptionStatus } from '../api'
+import { active } from './active.svelte'
 
-export const encryption = $state({
-  status: null as EncryptionStatus | null,
-})
+/** The encryption status of the active graph (`EncryptionStore`). */
+export const encryption = {
+  get status() {
+    return active().encryption.status
+  },
+  set status(v: EncryptionStatus | null) {
+    active().encryption.status = v
+  },
+}
 
 /** Reads the status now. */
-export async function refreshEncryption() {
-  if (!app.graph) {
-    encryption.status = null
-    return
-  }
-  try {
-    encryption.status = await backend.call('encryption_status', {})
-  } catch {
-    /* the graph was closed meanwhile */
-  }
-}
+export const refreshEncryption = () => active().encryption.refresh()
 
 /** The settings folder and the folder of hidden objects: never encrypted, never a page. */
 const RESERVED = /^\.notatnik(-enc)?(\/|$)/

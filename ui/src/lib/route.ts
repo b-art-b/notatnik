@@ -10,6 +10,30 @@ export type Route =
   | { kind: 'segment'; name: string }
   | { kind: 'saved'; name: string }
 
+/** A route and the graph it is in: `#/g/1/page/X` is a page of the graph in slot 1, `#/page/X` one of the first graph
+ * (slot `''`, which has no prefix, so links written before there were two graphs keep working). */
+export interface Located {
+  slot: string
+  route: Route
+}
+
+export function parseHash(hash: string): Located {
+  let h = hash.replace(/^#/, '')
+  let slot = ''
+  const g = /^\/g\/([a-z0-9]{1,8})(\/.*|\?.*)?$/.exec(h)
+  if (g) {
+    slot = g[1]
+    h = g[2]?.startsWith('?') ? `/journals${g[2]}` : (g[2] ?? '/journals')
+  }
+  return { slot, route: parseRoute(h) }
+}
+
+/** The slot that links are written for (the active graph's): `pageHash(...)` and the other helpers add its prefix. */
+let hashSlot = ''
+export function setRouteSlot(slot: string) {
+  hashSlot = slot
+}
+
 export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, '')
   const [path, query = ''] = h.split('?')
@@ -45,7 +69,12 @@ export function parseRoute(hash: string): Route {
   return { kind: 'journals' }
 }
 
-export function routeHash(r: Route): string {
+export function routeHash(r: Route, slot = hashSlot): string {
+  const h = plainHash(r)
+  return slot ? `#/g/${slot}${h.slice(1)}` : h
+}
+
+function plainHash(r: Route): string {
   switch (r.kind) {
     case 'journals':
       return '#/journals'
@@ -69,6 +98,10 @@ export function routeHash(r: Route): string {
 }
 
 export const pageHash = (name: string, zoom: number[] = []) => routeHash({ kind: 'page', name, zoom })
+
+/** A link to a page of the graph in `slot`, whichever graph is active (a sidebar section's links). */
+export const pageHashIn = (slot: string, name: string, zoom: number[] = []) =>
+  routeHash({ kind: 'page', name, zoom }, slot)
 
 /** The view of all pages that have a page property (optionally with one value). */
 export const propertyHash = (key: string, value: string | null = null) =>

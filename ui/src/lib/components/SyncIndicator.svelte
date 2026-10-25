@@ -1,20 +1,25 @@
 <script lang="ts">
   import { goToSettings } from '../stores/settingsParts.svelte'
+  import { routeHash } from '../route'
+  import { useGraph } from '../graphContext'
   // One line in the sidebar for a graph that is kept in a server folder: how the last sync went. A click syncs now;
   // the details are in Settings → Sync. Nothing is shown for a graph that is only a local folder.
   import { onMount } from 'svelte'
-  import { app } from '../stores/app.svelte'
-  import { sync, syncLine, syncNow, watchSync } from '../stores/sync.svelte'
+  import { syncLine } from '../stores/sync.svelte'
+
+  // the graph of this section: its own server folder and its own state
+  const g = useGraph()
+  const sync = g.sync
 
   // `onMount` runs once; the function it returns stops the polling when the component goes away
-  onMount(() => watchSync())
+  onMount(() => sync.watch())
 
   const problem = $derived(
     !!sync.status && (sync.status.state === 'error' || sync.status.state === 'offline'),
   )
 </script>
 
-{#if app.graph?.remote && sync.status}
+{#if g.info?.remote && sync.status}
   <button
     type="button"
     class="sync"
@@ -25,7 +30,7 @@
       ? `${sync.status.error}\nClick to try again.`
       : `Click to sync now (also: Ctrl+K → Sync now).\nKept in step with ${sync.status.url}`}
     disabled={sync.busy || sync.status.state === 'syncing'}
-    onclick={() => syncNow()}
+    onclick={() => sync.now()}
   >
     <span aria-hidden="true">☁</span>
     {syncLine(sync.status)}
@@ -33,7 +38,7 @@
   {#if sync.status.left_alone > 0}
     <a
       class="sync warn"
-      href="#/settings"
+      href={routeHash({ kind: 'settings' }, g.slot)}
       onclick={() => goToSettings('sync', 'encryption')}
       data-testid="sync-locked"
       title="The encryption key is locked: encrypted files are neither sent nor received. Open Settings → Sync to unlock it."
@@ -43,7 +48,7 @@
   {#if sync.status.warnings.length}
     <a
       class="sync warn"
-      href="#/settings"
+      href={routeHash({ kind: 'settings' }, g.slot)}
       onclick={() => goToSettings('sync', 'server')}
       data-testid="sync-warning"
       title={`Look reformatted by another editor:\n${sync.status.warnings.join('\n')}\nOpen Settings → Sync.`}

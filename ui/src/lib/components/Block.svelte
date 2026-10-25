@@ -2,7 +2,7 @@
   import { timeLabel } from '../clock'
   import TaskChain from './TaskChain.svelte'
   import BlockMenu from './BlockMenu.svelte'
-  import type { BlockView } from '../api'
+  import { backend, type BlockView } from '../api'
   import { editing, editingPath, startEditing, stopEditing } from '../stores/editing.svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { dnd, endDrag } from '../stores/dnd.svelte'
@@ -107,7 +107,8 @@
     e.dataTransfer.setData('application/x-notatnik-block', JSON.stringify({ docName, path: block.path }))
     const row = (e.currentTarget as HTMLElement).closest('.row')
     if (row) e.dataTransfer.setDragImage(row, 12, 12)
-    dnd.from = { docName, path: [...block.path] }
+    // `slot`: the graph the block is in; a drop on the other graph is a transfer (`transferDrag.ts`), not a move
+    dnd.from = { docName, path: [...block.path], slot: backend.slot }
   }
 
   /** Upper half: before. Lower half: first child if this block shows children, else after it, or a child when the
@@ -121,7 +122,7 @@
 
   function dragOver(e: DragEvent) {
     const from = dnd.from
-    if (readonly || !from || from.docName !== docName) return
+    if (readonly || !from || from.docName !== docName || from.slot !== backend.slot) return
     const zone = zoneAt(e)
     if (!dropMove(from.path, block.path, zone)) {
       dnd.over = null // nothing would change here: no drop line, no drop
@@ -140,7 +141,7 @@
 
   async function drop(e: DragEvent) {
     const from = dnd.from
-    if (readonly || !from || from.docName !== docName) return
+    if (readonly || !from || from.docName !== docName || from.slot !== backend.slot) return
     e.preventDefault()
     const op = dropMove(from.path, block.path, zoneAt(e))
     endDrag()

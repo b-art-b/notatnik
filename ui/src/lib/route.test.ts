@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pageHash, parseRoute, routeHash } from './route'
+import { pageHash, pageHashIn, parseHash, parseRoute, routeHash, setRouteSlot } from './route'
 
 describe('routes', () => {
   it('round-trips page names with slashes, spaces and diacritics', () => {
@@ -22,5 +22,28 @@ describe('routes', () => {
   it('defaults to the journals', () => {
     expect(parseRoute('')).toEqual({ kind: 'journals' })
     expect(parseRoute('#/unknown')).toEqual({ kind: 'journals' })
+  })
+
+  it('puts the graph of a link in the hash, and none for the first graph', () => {
+    expect(pageHashIn('', 'a b')).toBe('#/page/a%20b')
+    expect(pageHashIn('1', 'a b')).toBe('#/g/1/page/a%20b')
+    expect(parseHash('#/g/1/page/a%20b')).toEqual({
+      slot: '1',
+      route: { kind: 'page', name: 'a b', zoom: [] },
+    })
+    expect(parseHash('#/page/x')).toEqual({ slot: '', route: { kind: 'page', name: 'x', zoom: [] } })
+    expect(parseHash('#/g/1')).toEqual({ slot: '1', route: { kind: 'journals' } })
+    expect(parseHash('#/g/1/agenda').route).toEqual({ kind: 'agenda' })
+    expect(parseHash(routeHash({ kind: 'property', key: 'type', value: 'person' }, '1'))).toEqual({
+      slot: '1',
+      route: { kind: 'property', key: 'type', value: 'person' },
+    })
+  })
+  it('writes the links of the active graph with its prefix', () => {
+    setRouteSlot('1')
+    expect(pageHash('x', [0])).toBe('#/g/1/page/x?zoom=0')
+    expect(routeHash({ kind: 'settings' })).toBe('#/g/1/settings')
+    setRouteSlot('')
+    expect(pageHash('x')).toBe('#/page/x')
   })
 })

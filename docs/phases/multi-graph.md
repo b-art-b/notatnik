@@ -102,11 +102,11 @@ settings.
 - **Identity.** Each section has its graph's color along its header; the page area keeps the chip with the graph's name and color while two graphs are open; the active section is marked.
 
 ### M5 tasks
-- [ ] R1 `GraphState` and the per-graph stores as classes; the old modules are facades over the active graph; the single-graph app behaves as before
-- [ ] R2 Route with a slot, activation, a second graph opened and closed, remembered at start
-- [ ] R3 The sidebar as sections (components read their graph from context)
-- [ ] R4 Section colors, active mark, folding
-- [ ] R5 Drag between sections and onto the page area; the dialog with source and target fixed
+- [x] R1 `GraphState` and the per-graph stores as classes; the old modules are facades over the active graph; the single-graph app behaves as before
+- [x] R2 Route with a slot, activation, a second graph opened and closed, remembered at start
+- [x] R3 The sidebar as sections (components read their graph from context)
+- [x] R4 Section colors, active mark, folding
+- [x] R5 Drag between sections and onto the page area; the dialog with source and target fixed
 - [ ] R6 Docs, WebKit run, manual check list
 
 **Verify**

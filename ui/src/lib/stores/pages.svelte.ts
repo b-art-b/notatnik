@@ -1,4 +1,4 @@
-import { backend, CommandError, type BlockOp, type PageView } from '../api'
+import { backend, backendFor, CommandError, type Backend, type BlockOp, type PageView } from '../api'
 import { collapsedHashes } from '../tree'
 import { app, errorMessage, toast } from './app.svelte'
 import { bus } from './events.svelte'
@@ -17,9 +17,12 @@ export class PageDoc {
   loaded: Promise<void> = Promise.resolve()
   private chain: Promise<unknown> = Promise.resolve()
   private pending = 0
+  /** The graph this page is in: a late save must never go to the graph that became active meanwhile. */
+  private readonly api: Backend
 
   constructor(name: string) {
     this.requested = name
+    this.api = backendFor(backend.slot)
   }
 
   get name(): string {
@@ -32,7 +35,7 @@ export class PageDoc {
 
   async load(): Promise<void> {
     try {
-      this.view = await backend.call('get_page', { name: this.requested })
+      this.view = await this.api.call('get_page', { name: this.requested })
       this.loadError = null
       if (this.view.name !== this.requested) registry.set(this.view.name, this)
     } catch (e) {
@@ -59,7 +62,7 @@ export class PageDoc {
       try {
         const ops = build(this.view)
         if (!ops || ops.length === 0) return this.view
-        const r = await backend.call('apply_ops', {
+        const r = await this.api.call('apply_ops', {
           page: this.name,
           base_hash: this.view?.hash ?? null,
           ops,
@@ -109,7 +112,7 @@ export class PageDoc {
     }
     flip(v.blocks)
     try {
-      await backend.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) })
+      await this.api.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) })
       // Blocks shown outside this page's own view (linked references, agenda, query results) are copies that
       // read the saved state when fetched: tell them to fetch again.
       bus.version++
@@ -128,7 +131,7 @@ export class PageDoc {
       }
     }
     walk(v.blocks)
-    return backend.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) }).then(() => {
+    return this.api.call('set_collapsed', { page: v.name, collapsed: collapsedHashes(v.blocks) }).then(() => {
       bus.version++
     })
   }
@@ -148,6 +151,12 @@ export function getDoc(name: string): PageDoc {
     queueMicrotask(() => registryState.version++) // not during a derived: Svelte forbids state writes there
   }
   return d
+}
+
+/** The active graph changed: the open documents belong to the other graph (their edits were flushed first). */
+export function resetDocs() {
+  registry.clear()
+  registryState.version++
 }
 
 /** Pages of all open documents (for the graph-changed handler). */

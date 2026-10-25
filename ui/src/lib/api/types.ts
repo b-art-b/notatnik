@@ -4,7 +4,7 @@ export type CommandName = keyof Commands
 
 /** What the UI needs from "the backend", for the graph of one slot. */
 export interface Backend {
-  /** Which open graph this backend talks to: `''` is the first graph, `'1'` the one beside it (MG-1). */
+  /** Which open graph this backend talks to: `''` is the first graph, `'1'` the second graph (MG-1). */
   readonly slot: string
   call<K extends CommandName>(name: K, args: Commands[K]['args']): Promise<Commands[K]['result']>
   /** Subscribes to `graph-changed` of this slot; returns an unsubscribe function. */
@@ -25,10 +25,7 @@ export interface Backend {
   pickFile?: () => Promise<string | null>
 }
 
-/**
- * The way to the Rust side, for every slot. Two implementations: HTTP (tests, browser) and Tauri (desktop). The window
- * has one; a pane in a frame uses the one of its parent window (the frame has no connection of its own), see `index.ts`.
- */
+/** The way to the Rust side, for every slot. Two implementations: HTTP (tests, browser) and Tauri (desktop). */
 export interface Transport {
   call<K extends CommandName>(
     name: K,

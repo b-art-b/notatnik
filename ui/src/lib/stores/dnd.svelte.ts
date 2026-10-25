@@ -4,7 +4,7 @@ import type { DropZone, Path } from '../tree'
 
 export const dnd = $state({
   /** The block being dragged. */
-  from: null as null | { docName: string; path: Path },
+  from: null as null | { docName: string; path: Path; slot: string },
   /** Where it would land if dropped now. */
   over: null as null | { viewKey: string; path: Path; zone: DropZone },
 })

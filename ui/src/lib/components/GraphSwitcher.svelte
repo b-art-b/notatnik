@@ -1,18 +1,24 @@
 <script lang="ts">
   // The name of the open graph at the top of the sidebar; a click lists the other graphs of this device to switch
   // to, and leads to the start screen to add one or to see them all.
-  import { backend, type GraphHistoryEntry } from '../api'
-  import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
-  import { encryption, graphPadlock, refreshEncryption } from '../stores/encryption.svelte'
+  import type { GraphHistoryEntry } from '../api'
+  import { app, errorMessage, toast } from '../stores/app.svelte'
+  import { active } from '../stores/active.svelte'
+  import { graphs as open_graphs, openGraph, openSecond } from '../stores/graphs.svelte'
+  import { graphPadlock } from '../stores/encryption.svelte'
+  import { routeHash } from '../route'
+  import { useGraph } from '../graphContext'
   import { goToSettings } from '../stores/settingsParts.svelte'
   import { GRAPH_COLOR_NAMES, graphColorName, graphColorVar } from '../graphColor'
   import { refreshWorkspace } from '../stores/workspace.svelte'
 
-  // what the graph encrypts by default (see `graphPadlock`); read again whenever another graph is open
-  const padlock = $derived(graphPadlock(encryption.status))
+  // the graph of this section: its name, color and padlock; the menu switches this section to another graph
+  const g = useGraph()
+  // what the graph encrypts by default (see `graphPadlock`)
+  const padlock = $derived(graphPadlock(g.encryption.status))
   $effect(() => {
-    void app.graph?.id
-    void refreshEncryption()
+    void g.info?.id
+    void g.encryption.refresh()
   })
 
   let open = $state(false)
@@ -20,30 +26,40 @@
   // the wrapper, to tell clicks inside the menu from clicks outside
   let box: HTMLDivElement | undefined = $state()
 
-  /** Only the graphs that can be switched to: not the open one, folder still there. */
-  const others = $derived(graphs.filter((g) => g.id !== app.graph?.id && g.exists))
+  /** Only the graphs that can be shown here: not one that is open in a section, folder still there. */
+  const others = $derived(
+    graphs.filter((e) => e.exists && !open_graphs.list.some((x) => x.info?.id === e.id)),
+  )
 
   async function toggle() {
     open = !open
     if (!open) return
     try {
-      graphs = await backend.call('list_graphs', {})
+      graphs = await g.backend.call('list_graphs', {})
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
   }
 
-  async function switchTo(g: GraphHistoryEntry) {
+  async function switchTo(e: GraphHistoryEntry) {
     open = false
-    await openGraph(g.path, false)
+    if (g.slot === '') await openGraph(e.path, false, '')
+    else await openSecond(e.path)
+  }
+
+  /** The first section's menu can also open a graph in the second section. */
+  async function asSecond(e: GraphHistoryEntry) {
+    open = false
+    await openSecond(e.path)
   }
 
   let colors = $state(false)
   async function pickColor(color: number | null) {
-    if (!app.graph) return
+    if (!g.info) return
     try {
-      graphs = await backend.call('graph_color_set', { id: app.graph.id, color })
-      app.graph = await backend.call('graph_info', {})
+      graphs = await g.backend.call('graph_color_set', { id: g.info.id, color })
+      await g.refreshInfo()
+      if (g === active()) app.graph = g.info
       void refreshWorkspace()
     } catch (e) {
       toast(errorMessage(e), 'error')
@@ -53,7 +69,7 @@
   function encryptionSettings() {
     open = false
     goToSettings('sync', 'encryption')
-    location.hash = '#/settings'
+    location.hash = routeHash({ kind: 'settings' }, g.slot)
   }
 
   function startScreen() {
@@ -82,11 +98,11 @@
     aria-haspopup="menu"
     aria-expanded={open}
     data-testid="graph-switcher"
-    title={app.graph?.root}
+    title={g.info?.root}
     onclick={toggle}
   >
     <span class="gdot" data-testid="graph-dot" aria-hidden="true"></span>
-    <span class="name">{app.graph?.name ?? 'Graph'}</span>
+    <span class="name">{g.info?.name ?? 'Graph'}</span>
     {#if padlock}<span
         class="padlock"
         class:some={padlock.kind === 'some'}
@@ -102,11 +118,24 @@
     <div class="menu" role="menu" aria-label="Graphs" data-testid="graph-menu">
       {#if others.length}
         <div class="head">Switch to:</div>
-        {#each others as g (g.id)}
-          <button type="button" role="menuitem" class="item" title={g.path} onclick={() => switchTo(g)}
-            ><span class="gdot" style:background={graphColorVar(g.color)} aria-hidden="true"
-            ></span>{g.name}{#if g.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
-          >
+        {#each others as e (e.id)}
+          <div class="entry">
+            <button type="button" role="menuitem" class="item" title={e.path} onclick={() => switchTo(e)}
+              ><span class="gdot" style:background={graphColorVar(e.color)} aria-hidden="true"
+              ></span>{e.name}{#if e.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
+            >
+            {#if g.slot === ''}
+              <button
+                type="button"
+                role="menuitem"
+                class="second-btn"
+                data-testid="graph-second"
+                title={`Show ${e.name} in a second section of the sidebar`}
+                aria-label={`Open ${e.name} as the second graph`}
+                onclick={() => asSecond(e)}>Second</button
+              >
+            {/if}
+          </div>
         {/each}
         <hr />
       {/if}
@@ -126,7 +155,7 @@
               class="swatch"
               style:background={graphColorVar(i)}
               aria-label={n}
-              aria-pressed={app.graph?.color === i}
+              aria-pressed={g.info?.color === i}
               title={n}
               data-testid={`graph-color-${i}`}
               onclick={() => pickColor(i)}
@@ -137,7 +166,7 @@
           >
         </div>
         <p class="colorname" data-testid="graph-color-name">
-          {app.graph ? graphColorName(app.graph.color) : ''}
+          {g.info ? graphColorName(g.info.color) : ''}
         </p>
       {/if}
       <hr />
@@ -270,6 +299,31 @@
   .item:hover,
   .item:focus-visible {
     background: var(--chip);
+  }
+  .entry .item {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+  .entry {
+    display: flex;
+    align-items: center;
+    gap: 0.2em;
+  }
+  .second-btn {
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8em;
+    padding: 0.1em 0.5em;
+    cursor: pointer;
+  }
+  .second-btn:hover,
+  .second-btn:focus-visible {
+    background: var(--chip);
+    color: var(--text);
   }
   hr {
     border: none;

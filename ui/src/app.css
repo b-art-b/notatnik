@@ -160,10 +160,9 @@ a {
 }
 .left {
   position: relative;
-  /* the graph's color along the top of its sidebar */
-  border-top: 3px solid var(--graph-color, transparent);
   border-right: 1px solid var(--border);
-  padding: 0.8em;
+  /* each graph's section starts with a bar of its color across the whole width (GraphSection) */
+  padding: 0 0.8em 0.8em;
   overflow-y: auto;
   background: var(--panel);
 }
@@ -257,6 +256,11 @@ a {
 main {
   padding: 1.2em 2em 4em;
   overflow-y: auto;
+}
+/* something from the other graph is dragged over the page area: it takes the drop */
+main.foreign-drop {
+  outline: 2px dashed var(--graph-color, var(--accent));
+  outline-offset: -6px;
 }
 /* the reading column: centred in the space between the side panels, as wide as a page needs */
 main > .column {

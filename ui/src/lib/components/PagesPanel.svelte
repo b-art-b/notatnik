@@ -1,12 +1,13 @@
 <script lang="ts">
   // The "Pages" part of the left panel: the namespace tree, or the pages grouped by a page property
   // (`type: person` → a "person" group, a "client" group, ...). The choice is remembered per device.
-  import { backend, type PageKeyView } from '../api'
-  import { bus } from '../stores/events.svelte'
+  import type { PageKeyView } from '../api'
+  import { useGraph } from '../graphContext'
   import NamespaceTree from './NamespaceTree.svelte'
   import GroupedPages from './GroupedPages.svelte'
-  import { foldAll } from '../stores/pagesFold.svelte'
 
+  // the graph of this section (or the active one)
+  const g = useGraph()
   const STORE = 'notatnik-pages-group-by'
   let groupBy = $state('') // '' = the namespace tree
   let keys = $state<PageKeyView[]>([])
@@ -25,9 +26,9 @@
   })
 
   $effect(() => {
-    void bus.version
+    void g.bus.version
     let cancelled = false
-    backend.call('page_property_keys', {}).then((r) => {
+    g.backend.call('page_property_keys', {}).then((r) => {
       if (!cancelled) keys = r
     })
     return () => {
@@ -44,10 +45,12 @@
 <div class="head">
   <h3>Pages</h3>
   <span class="fold">
-    <button type="button" aria-label="Collapse all" title="Collapse all" onclick={() => foldAll(true)}
+    <button type="button" aria-label="Collapse all" title="Collapse all" onclick={() => g.tree.foldAll(true)}
       >⊟</button
     >
-    <button type="button" aria-label="Expand all" title="Expand all" onclick={() => foldAll(false)}>⊞</button>
+    <button type="button" aria-label="Expand all" title="Expand all" onclick={() => g.tree.foldAll(false)}
+      >⊞</button
+    >
   </span>
   <select aria-label="Group pages by" bind:value={groupBy} title="Group pages by">
     <option value="">by namespace</option>

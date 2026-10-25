@@ -3,7 +3,8 @@
   // Settings → Sync: the server folder of the open graph and how the sync is doing. A graph that is only a local
   // folder shows how to get one on a server. The sync itself runs in the backend (see stores/sync.svelte.ts).
   import { backend, type SyncVerify } from '../../api'
-  import { app, errorMessage, adoptGraph, toast } from '../../stores/app.svelte'
+  import { app, errorMessage, toast } from '../../stores/app.svelte'
+  import { adoptGraph } from '../../stores/graphs.svelte'
   import { refreshSync, sync, syncLine, syncNow } from '../../stores/sync.svelte'
   import SettingRow from './SettingRow.svelte'
   import WebdavForm from '../WebdavForm.svelte'

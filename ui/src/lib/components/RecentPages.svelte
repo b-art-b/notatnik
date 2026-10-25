@@ -1,17 +1,18 @@
 <script lang="ts">
   // "Recent": the pages you opened last, newest first, like Logseq's sidebar list.
-  import { pageHash } from '../route'
+  import { pageHashIn } from '../route'
   import { app } from '../stores/app.svelte'
-  import { clearRecent, recent } from '../stores/recent.svelte'
-  import { archived, isArchived } from '../stores/archived.svelte'
+  import { active } from '../stores/active.svelte'
   import { shownDate } from '../stores/format.svelte'
-  import { backend } from '../api'
-  import { bus } from '../stores/events.svelte'
-  import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
+  import { padlockOf } from '../stores/encryption.svelte'
+  import { useGraph } from '../graphContext'
+  import { endPageDrag, startPageDrag } from '../transferDrag.svelte'
   import Padlock from './Padlock.svelte'
 
+  // the graph of this section: its own pages, icons, locks; the page on screen is marked only when it is this graph's
+  const g = useGraph()
   const SHOWN = 10
-  const current = $derived(app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
+  const current = $derived(g === active() && app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
   const isDate = (n: string) => /^\d{4}-\d{2}-\d{2}$/.test(n)
   import PageIcon from './PageIcon.svelte'
 
@@ -19,34 +20,37 @@
   // Recent keeps names only, so the files are asked for.
   let files = $state<Record<string, string | null>>({})
   $effect(() => {
-    void refreshEncryption()
+    void g.encryption.refresh()
   })
   $effect(() => {
-    void bus.version
-    const names = recent.items.slice(0, SHOWN + 5)
+    void g.bus.version
+    const names = g.recent.items.slice(0, SHOWN + 5)
     let cancelled = false
-    void backend.call('page_files', { names }).then((r) => {
+    void g.backend.call('page_files', { names }).then((r) => {
       if (!cancelled) files = Object.fromEntries(names.map((n, i) => [n.toLowerCase(), r.files[i] ?? null]))
     })
     return () => {
       cancelled = true
     }
   })
-  const padlock = (name: string) => padlockOf(encryption.status, files[name.toLowerCase()] ?? '')
+  const padlock = (name: string) => padlockOf(g.encryption.status, files[name.toLowerCase()] ?? '')
 </script>
 
-{#if recent.items.length > 0}
+{#if g.recent.items.length > 0}
   <section class="recent" aria-label="Recent pages" data-testid="recent-pages">
     <div class="head">
       <h3>Recent</h3>
-      <button class="clear" onclick={clearRecent} title="Clear the list">clear</button>
+      <button class="clear" onclick={() => g.recent.clear()} title="Clear the list">clear</button>
     </div>
     <ul>
-      {#each (void archived.names, recent.items.filter((n) => !isArchived(n))).slice(0, SHOWN) as name (name.toLowerCase())}
+      {#each (void g.archived.names, g.recent.items.filter((n) => !g.archived.is(n))).slice(0, SHOWN) as name (name.toLowerCase())}
         <li>
           <a
-            href={pageHash(name)}
+            href={pageHashIn(g.slot, name)}
             data-recent={name}
+            draggable="true"
+            ondragstart={(e) => startPageDrag(e, g.slot, name)}
+            ondragend={endPageDrag}
             aria-current={current === name.toLowerCase() ? 'page' : undefined}
             class:on={current === name.toLowerCase()}
             title={name}><PageIcon {name} align />{isDate(name) ? shownDate(name) : name}</a

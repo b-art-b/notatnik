@@ -19,12 +19,12 @@
     applyTheme,
     errorMessage,
     LEFT_DEFAULT,
-    openGraph,
     setLeftWidth,
     setPlacement,
     toast,
     type Theme,
   } from '../stores/app.svelte'
+  import { openGraph, refreshActiveInfo } from '../stores/graphs.svelte'
   import { DATE_FORMATS, formatDate, setDateFormat, setDateLocale, type DateFormat } from '../dates'
   import { currentZoom, setZoom, stepZoom } from '../zoom'
   import { untrack } from 'svelte'
@@ -535,7 +535,7 @@
       app.pasteTitles = s.paste_titles
       app.taskDetails = s.task_details === 'compact' ? 'compact' : 'full'
       app.blockProps = s.block_properties === 'compact' ? 'compact' : 'full'
-      app.graph = await backend.call('graph_info', {})
+      await refreshActiveInfo()
       if (change.page_icons) void loadIcons()
       // task views carry the labels: load the open pages again
       if (change.priorities) void reloadOpenDocs()

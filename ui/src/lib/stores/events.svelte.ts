@@ -1,9 +1,14 @@
-import { backend, type GraphChangedEvent } from '../api'
+import { active } from './active.svelte'
 
-/** One shared subscription to `graph-changed`; components read `bus.version` inside `$effect`s to refresh. */
-export const bus = $state({ version: 0, last: null as GraphChangedEvent | null })
-
-backend.onGraphChanged((e) => {
-  bus.last = e
-  bus.version++
-})
+/** The active graph's `graph-changed` subscription; components read `bus.version` inside `$effect`s to refresh. */
+export const bus = {
+  get version() {
+    return active().bus.version
+  },
+  set version(v: number) {
+    active().bus.version = v
+  },
+  get last() {
+    return active().bus.last
+  },
+}

@@ -1,18 +1,19 @@
 <script lang="ts">
   // Pages grouped by the value of one page property. A group can be folded; folds are remembered.
-  import { backend, type PageGroupView } from '../api'
-  import { bus } from '../stores/events.svelte'
-  import { pageHash } from '../route'
-  import { archived, isArchived } from '../stores/archived.svelte'
-  import { pagesFold } from '../stores/pagesFold.svelte'
+  import type { PageGroupView } from '../api'
+  import { pageHashIn } from '../route'
+  import { useGraph } from '../graphContext'
+
+  // the graph of this section (or the active one)
+  const gr = useGraph()
 
   let { key }: { key: string } = $props()
   let loadedGroups = $state<PageGroupView[]>([])
   // archived pages are not listed; a group left without pages disappears
   const groups = $derived(
-    (void archived.names,
+    (void gr.archived.names,
     loadedGroups
-      .map((g) => ({ ...g, pages: g.pages.filter((p) => !isArchived(p)) }))
+      .map((g) => ({ ...g, pages: g.pages.filter((p) => !gr.archived.is(p)) }))
       .filter((g) => g.pages.length > 0)),
   )
   let loaded = $state(false)
@@ -35,11 +36,12 @@
   })
 
   // the buttons of the panel (requests made before this list existed are not repeated)
-  let seen = pagesFold.n
+  const tree = gr.tree
+  let seen = tree.foldN
   $effect(() => {
-    if (pagesFold.n === seen) return
-    seen = pagesFold.n
-    foldedByDefault = pagesFold.collapsed
+    if (tree.foldN === seen) return
+    seen = tree.foldN
+    foldedByDefault = tree.foldCollapsed
     folded = {}
     try {
       localStorage.setItem(storeKey(key), '{}')
@@ -50,10 +52,10 @@
   })
 
   $effect(() => {
-    void bus.version
+    void gr.bus.version
     const k = key
     let cancelled = false
-    backend.call('page_groups', { key: k }).then((r) => {
+    gr.backend.call('page_groups', { key: k }).then((r) => {
       if (!cancelled) {
         loadedGroups = r
         loaded = true
@@ -89,7 +91,7 @@
       {#if !isFolded(g)}
         <ul>
           {#each g.pages as p (p)}
-            <li><a href={pageHash(p)} data-page={p}><PageIcon name={p} align />{p}</a></li>
+            <li><a href={pageHashIn(gr.slot, p)} data-page={p}><PageIcon name={p} align />{p}</a></li>
           {/each}
         </ul>
       {/if}

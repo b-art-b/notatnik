@@ -6,38 +6,12 @@ export type { Backend, Transport } from './types'
 export { CommandError } from './types'
 export type * from './bindings'
 
-declare global {
-  interface Window {
-    /** The window's way to the Rust side, shared with the panes in frames (MG-6). */
-    __notatnik?: Transport
-  }
-}
-
-/**
- * The slot this page shows: `''` is the first graph. A second graph is shown in a frame of the same origin whose
- * address says `?slot=1`; the frame has its own copy of every store, so each pane is a whole app of its own.
- */
-function slotOfThisPage(): string {
-  if (window.parent === window) return ''
-  return new URLSearchParams(window.location.search).get('slot') ?? ''
-}
-
 /** Chosen at build time: `VITE_BACKEND=tauri` for the desktop app, otherwise the HTTP dev backend. */
-function transportOfThisWindow(): Transport {
-  if (window.parent !== window) {
-    try {
-      if (window.parent.__notatnik) return window.parent.__notatnik
-    } catch {
-      /* a parent of another origin is none of ours; fall through to a transport of our own */
-    }
-  }
-  window.__notatnik ??=
-    import.meta.env.VITE_BACKEND === 'tauri' ? createTauriTransport() : createHttpTransport()
-  return window.__notatnik
-}
+const transport: Transport =
+  import.meta.env.VITE_BACKEND === 'tauri' ? createTauriTransport() : createHttpTransport()
 
 /** A backend for one slot: the transport with the slot added to every call and the other slots' events left out. */
-export function createBackend(transport: Transport, slot: string): Backend {
+export function backendFor(slot: string): Backend {
   return {
     slot,
     call: (name, args) => transport.call(name, args, slot),
@@ -51,7 +25,30 @@ export function createBackend(transport: Transport, slot: string): Backend {
   }
 }
 
-export const backend: Backend = createBackend(transportOfThisWindow(), slotOfThisPage())
+let activeSlot = ''
 
-/** The backend of the window itself (the first graph), whatever pane this page is: for calls that look at all graphs. */
-export const workspace: Backend = createBackend(transportOfThisWindow(), '')
+/** Makes the graph in `slot` the one `backend` talks to (the page area shows that graph). */
+export function setActiveSlot(slot: string) {
+  activeSlot = slot
+}
+
+/**
+ * The backend of the *active* graph: the one whose page the page area shows. Everything in the page area uses this one;
+ * a sidebar section talks to its own graph with `backendFor(slot)` (`GraphState.backend`).
+ */
+export const backend: Backend = {
+  get slot() {
+    return activeSlot
+  },
+  call: (name, args) => transport.call(name, args, activeSlot),
+  onGraphChanged: (cb) => transport.onGraphChanged((e) => (e.slot ?? '') === activeSlot && cb(e)),
+  assetUrl: (path) => transport.assetUrl(path, activeSlot),
+  openExternal: (url) => transport.openExternal(url),
+  openAsset: (path) => transport.openAsset(path, activeSlot),
+  clipboardImage: transport.clipboardImage,
+  pickFile: transport.pickFile,
+  pickFolder: transport.pickFolder,
+}
+
+/** Calls that look at all graphs (`slots`, `close_slot`, the transfer) go to the first graph's state, whichever is active. */
+export const workspace: Backend = backendFor('')

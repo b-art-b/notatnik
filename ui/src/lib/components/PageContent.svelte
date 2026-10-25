@@ -15,7 +15,9 @@
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
-  import { hasOtherGraph, known } from '../stores/workspace.svelte'
+  import { hasOtherGraph } from '../stores/workspace.svelte'
+  import { twoOpen } from '../stores/graphs.svelte'
+  import { endPageDrag, startPageDrag } from '../transferDrag.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
@@ -272,7 +274,7 @@
   <article class="page" data-page={view.name} aria-label={view.title}>
     {#if !compact}
       <header>
-        {#if known.slots.length > 1 && app.graph}
+        {#if twoOpen() && app.graph}
           <!-- two graphs are open: each page says which one it belongs to (the color is never the only cue) -->
           <p class="graph-chip" data-testid="graph-chip" title={app.graph.root}>
             <span class="gdot" aria-hidden="true"></span>{app.graph.name}
@@ -295,12 +297,20 @@
         </nav>
         <h1>
           {#if titleLink && isoTitle}
-            <a class="title" href={pageHash(view.name)} title="Open this day as a page"
-              ><PageIcon name={view.name} journal />{isoTitle}</a
+            <a
+              class="title"
+              draggable="true"
+              ondragstart={(e) => startPageDrag(e, backend.slot, view!.name, view!.child_pages.length > 0)}
+              ondragend={endPageDrag}
+              href={pageHash(view.name)}
+              title="Open this day as a page"><PageIcon name={view.name} journal />{isoTitle}</a
             >
           {:else}
             <button
               class="title"
+              draggable="true"
+              ondragstart={(e) => startPageDrag(e, backend.slot, view!.name, view!.child_pages.length > 0)}
+              ondragend={endPageDrag}
               title={view.is_journal ? `Page name: ${view.name}` : 'Rename page'}
               onclick={() => (renaming = !view.is_journal)}
               ><PageIcon name={view.name} />{isoTitle ??

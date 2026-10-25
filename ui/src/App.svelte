@@ -3,8 +3,8 @@
   import './app.css'
   import {
     app,
-    bootstrap,
     dismissToast,
+    refreshConflicts,
     LEFT_DEFAULT,
     onSide,
     RIGHT_DEFAULT,
@@ -15,15 +15,10 @@
     toggleRightFocus,
     PAGE_MIN,
   } from './lib/stores/app.svelte'
-  import { watchArchived } from './lib/stores/archived.svelte'
+  import { bootstrap, graphs, refreshActiveInfo } from './lib/stores/graphs.svelte'
+  import { active } from './lib/stores/active.svelte'
   import { editing, isEditingDoc, stopEditing } from './lib/stores/editing.svelte'
-  import {
-    flushAll,
-    getDoc,
-    handleExternalChange,
-    overallStatus,
-    reloadOpenDocs,
-  } from './lib/stores/pages.svelte'
+  import { flushAll, getDoc, handleExternalChange, reloadOpenDocs } from './lib/stores/pages.svelte'
   import { bus } from './lib/stores/events.svelte'
   import {
     globalUndo,
@@ -44,13 +39,9 @@
   import { getBlock } from './lib/tree'
   import PageContent from './lib/components/PageContent.svelte'
   import JournalsView from './lib/components/JournalsView.svelte'
-  import PagesPanel from './lib/components/PagesPanel.svelte'
-  import GraphSwitcher from './lib/components/GraphSwitcher.svelte'
+  import GraphSection from './lib/components/GraphSection.svelte'
+  import OpenSecond from './lib/components/OpenSecond.svelte'
   import SidePanel from './lib/components/SidePanel.svelte'
-  import SyncIndicator from './lib/components/SyncIndicator.svelte'
-  import CalendarAuto from './lib/components/CalendarAuto.svelte'
-  import FavoritePages from './lib/components/FavoritePages.svelte'
-  import RecentPages from './lib/components/RecentPages.svelte'
   import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
@@ -69,10 +60,9 @@
   import BlockProperties from './lib/components/BlockProperties.svelte'
   import SegmentView from './lib/components/SegmentView.svelte'
   import SavedQueryPage from './lib/components/SavedQueryPage.svelte'
-  import { backend } from './lib/api'
-  import type { SavedQueryView } from './lib/api'
   import { initZoom, zoomKey, zoomWheel } from './lib/zoom'
   import { installNavigation } from './lib/mouse'
+  import { dropOn, foreignTo } from './lib/transferDrag.svelte'
 
   const route = $derived(app.route)
   // The right panel: this page's references and tasks (when Settings put them there), and the pages opened beside it
@@ -81,11 +71,18 @@
   const rightShown = $derived(rightExists && app.rightOpen)
   // the page is folded away: the panel has the window
   const focus = $derived(rightShown && app.rightFocus)
-  let saved = $state<SavedQueryView[]>([])
+  // something from the other graph is dragged over the page area (MG-6): it takes the drop
+  let foreignOver = $state(false)
+
+  // the saved queries of the graph change (the saved-query page and the palette bump `savedVersion`)
   $effect(() => {
     void app.savedVersion
-    void app.graph
-    if (app.graph) backend.call('list_saved_queries', {}).then((l) => (saved = l))
+    void active().refreshSaved()
+  })
+  // a conflict copy can arrive with any change of the graph
+  $effect(() => {
+    void bus.version
+    void refreshConflicts()
   })
 
   // the graphs of this device, for the "To another graph" dialog and its button (read again for each graph that opens)
@@ -101,13 +98,6 @@
     const r = route
     const what = r.kind === 'page' ? r.name : r.kind === 'journals' ? 'Journals' : 'Notatnik'
     document.title = g ? `${what} — ${g.name}` : 'Notatnik'
-  })
-
-  // icons depend on page properties: refresh them (a little later, edits come in bursts) when pages change
-  $effect(() => {
-    void bus.version
-    const t = setTimeout(() => void loadIcons(), 300)
-    return () => clearTimeout(t)
   })
 
   // every page you open goes to the top of the "Recent" list
@@ -129,7 +119,7 @@
 
   async function configChanged() {
     try {
-      app.graph = await backend.call('graph_info', {})
+      await refreshActiveInfo()
       await loadIcons()
       await reloadOpenDocs()
     } catch {
@@ -139,7 +129,6 @@
 
   onMount(() => {
     void bootstrap()
-    watchArchived()
     initZoom()
     const removeNavigation = installNavigation()
     const onKey = (e: KeyboardEvent) => void globalKey(e)
@@ -334,7 +323,7 @@
 
 {#if app.needsGraph}
   <Welcome />
-{:else}
+{:else if app.graph}
   <div
     class="app"
     class:left-closed={!app.leftOpen}
@@ -366,40 +355,10 @@
       ></button
     >
     <aside class="left" aria-label="Sidebar">
-      <GraphSwitcher />
-      <nav>
-        <a href="#/journals" class:active={route.kind === 'journals'}
-          ><span class="ico ico-journals" aria-hidden="true"></span>Journals</a
-        >
-        <a href="#/agenda" class:active={route.kind === 'agenda'}
-          ><span class="ico ico-agenda" aria-hidden="true"></span>Agenda</a
-        >
-        <a href="#/pages" class:active={route.kind === 'pages'}
-          ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
-        >
-        <button class="link" onclick={() => (app.searchOpen = true)}
-          ><span class="ico ico-search" aria-hidden="true"></span>Search</button
-        >
-        <a href="#/settings" class:active={route.kind === 'settings'}
-          ><span class="ico ico-settings" aria-hidden="true"></span>Settings</a
-        >
-      </nav>
-      <div class="status" role="status" data-testid="save-status" data-status={overallStatus()}>
-        {overallStatus() === 'saved' ? '✓ saved' : overallStatus() === 'saving' ? '… saving' : '⚠ not saved'}
-      </div>
-      <SyncIndicator />
-      <CalendarAuto />
-      <FavoritePages />
-      <RecentPages />
-      {#if saved.length}
-        <h3>Saved queries</h3>
-        <ul class="saved">
-          {#each saved as s (s.name)}<li>
-              <a href={`#/saved/${encodeURIComponent(s.name)}`}>{s.name}</a>
-            </li>{/each}
-        </ul>
-      {/if}
-      <PagesPanel />
+      {#each graphs.list as g (g)}
+        <GraphSection {g} />
+      {/each}
+      {#if graphs.list.length === 1}<OpenSecond />{/if}
     </aside>
     <!-- a focusable separator: drag it, or use the arrow keys (Home resets) -->
     {#if app.leftOpen}
@@ -420,7 +379,23 @@
         ondblclick={() => setLeftWidth(LEFT_DEFAULT)}
       ></div>
     {/if}
-    <main>
+    <main
+      class:foreign-drop={foreignOver}
+      ondragover={(e) => {
+        if (!foreignTo(active().slot)) return
+        e.preventDefault() // the page area takes the drop
+        if (e.dataTransfer)
+          e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy'
+        foreignOver = true
+      }}
+      ondragleave={(e) => {
+        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) foreignOver = false
+      }}
+      ondrop={(e) => {
+        foreignOver = false
+        dropOn(e, active().slot, route.kind === 'page' ? route.name : undefined)
+      }}
+    >
       {#if focus}
         <button
           class="show-page"
@@ -431,30 +406,35 @@
       {/if}
       <div class="column" hidden={focus}>
         <ConflictBanner />
-        {#if route.kind === 'journals'}
-          <JournalsView />
-        {:else if route.kind === 'settings'}
-          <Settings />
-        {:else if route.kind === 'agenda'}
-          <AgendaView />
-        {:else if route.kind === 'pages'}
-          <AllPagesView />
-        {:else if route.kind === 'segment'}
-          {#key route.name}<SegmentView segment={route.name} />{/key}
-        {:else if route.kind === 'property'}
-          {#key `${route.key}\u0000${route.value}`}<PropertyPages key={route.key} value={route.value} />{/key}
-        {:else if route.kind === 'blockprop'}
-          {#key `${route.key}\u0000${route.value}`}<BlockProperties
-              key={route.key}
-              value={route.value}
-            />{/key}
-        {:else if route.kind === 'saved'}
-          {#key route.name}<SavedQueryPage name={route.name} />{/key}
-        {:else}
-          {#key route.name}
-            <PageContent name={route.name} viewKey="main" zoom={route.zoom} />
-          {/key}
-        {/if}
+        {#key active().slot}
+          {#if route.kind === 'journals'}
+            <JournalsView />
+          {:else if route.kind === 'settings'}
+            <Settings />
+          {:else if route.kind === 'agenda'}
+            <AgendaView />
+          {:else if route.kind === 'pages'}
+            <AllPagesView />
+          {:else if route.kind === 'segment'}
+            {#key route.name}<SegmentView segment={route.name} />{/key}
+          {:else if route.kind === 'property'}
+            {#key `${route.key}\u0000${route.value}`}<PropertyPages
+                key={route.key}
+                value={route.value}
+              />{/key}
+          {:else if route.kind === 'blockprop'}
+            {#key `${route.key}\u0000${route.value}`}<BlockProperties
+                key={route.key}
+                value={route.value}
+              />{/key}
+          {:else if route.kind === 'saved'}
+            {#key route.name}<SavedQueryPage name={route.name} />{/key}
+          {:else}
+            {#key route.name}
+              <PageContent name={route.name} viewKey="main" zoom={route.zoom} />
+            {/key}
+          {/if}
+        {/key}
       </div>
     </main>
     {#if rightExists}

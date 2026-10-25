@@ -4,7 +4,8 @@
   // reached from the palette ("Switch graph…") while a graph is open.
   import { onMount } from 'svelte'
   import { backend, type GraphHistoryEntry } from '../api'
-  import { app, errorMessage, openGraph, toast } from '../stores/app.svelte'
+  import { app, errorMessage, toast } from '../stores/app.svelte'
+  import { openGraph } from '../stores/graphs.svelte'
   import WebdavForm from './WebdavForm.svelte'
 
   let path = $state('')
