@@ -6,7 +6,7 @@ settings.
 
 **Requirements covered:** MG-1 to MG-6 (see `requirements.md`).
 **Depends on:** nothing new; builds on the single-graph `AppState`.
-**Status:** planned.
+**Status:** built and tested (Rust, Chromium and WebKit); the drag between panes needs a manual check in the desktop app (`testing.md`).
 
 ## Design
 
@@ -53,44 +53,51 @@ settings.
 ## Tasks
 
 ### M1 Several graphs in one app (MG-1)
-- [ ] `AppState` owns extra states by slot; `dispatch_slot(state, slot, name, args)` routes; `slots` and `close_slot` commands
-- [ ] Events from an extra slot carry `slot`; a second state does not register as `last_graph`; `already_open` for a graph that is open in another slot
-- [ ] The backup password is shared by all slots; a last sync and snapshot on quit for every slot
-- [ ] Dev server (`?slot=` on `/api/<name>`, `/asset`), Tauri (`slot` argument, `asset://localhost/<path>?slot=`), `backend` in the UI knows its slot
-- [ ] Bindings regenerated
+- [x] `AppState` owns extra states by slot; `dispatch_slot(state, slot, name, args)` routes; `slots` and `close_slot` commands
+- [x] Events from an extra slot carry `slot`; a second state does not register as `last_graph`; `already_open` for a graph that is open in another slot
+- [x] The backup password is shared by all slots; a last sync and snapshot on quit for every slot
+- [x] Dev server (`?slot=` on `/api/<name>` and `/asset`), Tauri (`slot` argument, `asset://localhost/<path>?slot=`), `backend` in the UI knows its slot
+- [x] Bindings regenerated
 
 **Verify**
-- [ ] App test: two graphs open in two slots; a page written in one does not exist in the other; undo is separate; the same graph twice is refused; closing a slot leaves the other; the root's events have no `slot`, the other's have
-- [ ] Dev-server test through HTTP with `?slot=`
+- [x] App test: two graphs open in two slots; a page written in one does not exist in the other; undo is separate; the same graph twice is refused; closing a slot leaves the other; the root's events have no `slot`, the other's have
+- [x] Dev-server routing through HTTP with `?slot=`: `ui/tests/beside.spec.ts` (`Backend.beside()` opens the graph in slot 1 that way)
 
 ### M2 Transfer engine (MG-2, MG-3, MG-4)
-- [ ] `transfer_plan` (what would happen: pages, clashes, assets, missing links, encryption warnings, locked target) and `transfer_apply` (copy or move; pages with subpages, or blocks) with `transfer_undo`
-- [ ] Assets copied with the rewrite rules above; block IDs; journal days appended
-- [ ] Target not open in a slot: written through a temporary handle
+- [x] `transfer_plan` (what would happen: pages, clashes, assets, missing links, encryption warnings, locked target) and `transfer_apply` (copy or move; pages with subpages, or blocks) with `transfer_undo`
+- [x] Assets copied with the rewrite rules above; block IDs; journal days appended
+- [x] Target not open in a slot: written through a temporary handle
 
 **Verify**
-- [ ] Rust tests: page copy, subpages, clash (keep both, append, skip), journal append, image reused and renamed on different bytes, `../` depth, block IDs and refs, move trashes the source, undo of copy, of move and of append, encrypted source to plain target warns, locked target still writes, graph not open in a slot
+- [x] Rust tests: page copy, subpages, clash (keep both, append, skip), journal append, image reused and renamed on different bytes, `../` depth, block IDs and refs, move trashes the source, undo of copy, of move and of append, encrypted source to plain target warns, locked target still writes, graph not open in a slot
 
 ### M3 Transfer in the UI (MG-2, MG-4)
-- [ ] *Copy to graph…* and *Move to graph…* in the page menu, the palette and the block menu; dialog with the plan, the choice for a clash and the warnings; an Undo toast
-- [ ] Paste/Copy of a picture between graphs is the same call (the block's images travel with it)
+- [x] *Copy to graph…* and *Move to graph…* in the page menu, the palette and the block menu; dialog with the plan, the choice for a clash and the warnings; an Undo toast
+- [x] Pictures travel with the notes in the same call (no separate picture command: copying a picture is copying the block or page that shows it)
 
 **Verify**
-- [ ] Browser tests: page copy and move from the dialog, warnings shown, undo, blocks into a new and an existing page
+- [x] Browser tests: page copy and move from the dialog, warnings shown, undo, blocks into a new and an existing page
 
 ### M4 Which graph is this (MG-5)
-- [ ] `graph_color` device setting by graph id (palette index; default from the id); graph switcher dot and menu to change it; sidebar bar; window title; chip in the page head when two graphs are open
+- [x] `graph_color` device setting by graph id (palette index; default from the id); graph switcher dot and menu to change it; sidebar bar; window title; chip in the page head when two graphs are open
 
 **Verify**
-- [ ] Unit test for the default color; browser test: computed color of the bar and chip, title text, never color alone (the name is there)
+- [x] Unit test for the default color; browser test: computed color of the bar and chip, title text, never color alone (the name is there)
 
 ### M5 Side pane (MG-6)
-- [ ] *Open beside* in the graph switcher; the second graph in a frame on the right with a header (color, name, swap, close); the frame's backend goes through the parent; the pane's own switcher chooses another graph; drag a page or block from one pane to the other opens the transfer dialog
+- [x] *Beside* next to each other graph in the graph switcher (the pane is there as long as the backend has a graph in slot 1, so a reload keeps it); the second graph in a frame on the right with a header (color, name, swap, close); the frame's backend goes through the parent; the pane's own switcher chooses another graph; drag a page or block from one pane to the other opens the transfer dialog
 
 **Verify**
-- [ ] Browser tests: open beside, edit in both panes, each pane's recent list and encryption mark are its own, a transfer by drag, close the pane
+- [x] Browser tests: open beside, edit in both panes, each pane's recent list and encryption mark are its own, a transfer by drag, close the pane
 
 ## Not in this phase
 
 Links between graphs; the same graph in two panes; more than two panes in the UI (the backend allows it); a lock
 file across processes; remembering the side pane after a restart.
+
+## What was decided on the way
+
+- The second pane is a frame of the same app, not keyed stores (see Design). Its sidebar starts closed and that state is not remembered, so the first pane's setting is left alone.
+- A drop of a block or page from the other pane never reaches the code that moves blocks inside a page: that code works from the module state of its own pane (`dnd.from`), which the other pane's drag does not set.
+- The drag effect of a block is `move` and of a page `copyMove`; the drop target answers with an effect the drag allows, otherwise the browser cancels the drop.
+- The transfer undo is one level and lives in the root state (`last_transfer`).

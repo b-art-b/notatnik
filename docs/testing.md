@@ -146,6 +146,10 @@ selection, moves) in Playwright's WebKit build (`ui/playwright.webkit.config.ts`
 100 MB). Run it after changes to the editor, focus handling or keys. The whole suite also runs there
 (`npx playwright test -c playwright.webkit.config.ts`): all but one test in `navigation.spec.ts` (clipboard) pass.
 
+## Two graphs at once (MG-1 to MG-6)
+
+`crates/app/tests/multi.rs` drives two graphs through `dispatch_slot`: separate pages, undo and events (`slot` only on the second), `already_open`, closing a slot, bad slot names, and the transfer: a page copied, subpages and the keep-both name with links that follow, append and skip, a journal day, pictures (reused, renamed on different bytes, `../` depth, missing), block IDs and references, a move with its undo (and an append whose page changed since), blocks into a new and an existing page, a graph that is not open, the same graph refused, encryption warnings and a locked target; the graph color (default, chosen, kept across a reopen, refused). `crates/app/src/transfer.rs` has unit tests for the text work. In the browser: `ui/tests/transfer.spec.ts` (the dialog: copy, move, undo, blocks from the bullet menu, no button with one graph), `ui/tests/graph-identity.spec.ts` (computed colors of the dot, bar, chip and dialog, the title, the picker) and `ui/tests/beside.spec.ts` (the pane and its frame: own pages, chip, color, edits, sidebar state, opening from the graph menu, closing, dragging a page and a block across). `Backend.beside()` in `ui/tests/fixtures.ts` opens a second graph in slot 1 of the test's app. All of them run in WebKit (`ui/tests/webkit.list`) except the two drags across frames: Playwright's WebKit cannot start a drag that ends in a frame. **Manual check for the desktop app:** drag a page title and a block bullet from one pane to the other with the mouse (WebKitGTK), and press *To graph…* as the fallback.
+
 ## Encryption of chosen paths
 
 `crates/sync/tests/encrypted.rs` (fake WebDAV server): what the server holds after a session with marked paths (a scan of

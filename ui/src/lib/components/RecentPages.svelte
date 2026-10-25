@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { endPageDrag, startPageDrag } from '../transferDrag'
   // "Recent": the pages you opened last, newest first, like Logseq's sidebar list.
   import { pageHash } from '../route'
   import { app } from '../stores/app.svelte'
@@ -47,6 +48,9 @@
           <a
             href={pageHash(name)}
             data-recent={name}
+            draggable="true"
+            ondragstart={(e) => startPageDrag(e, name)}
+            ondragend={endPageDrag}
             aria-current={current === name.toLowerCase() ? 'page' : undefined}
             class:on={current === name.toLowerCase()}
             title={name}><PageIcon {name} align />{isDate(name) ? shownDate(name) : name}</a

@@ -1093,6 +1093,196 @@ export type ForgetGraphArgs = {
  * Graph ID.
  */
 id: string, };
+export type GraphColorArgs = { 
+/**
+ * Graph ID.
+ */
+id: string, 
+/**
+ * An index into the palette (`0` to `7`); `null` goes back to the color the graph's ID gives it.
+ */
+color: number | null, };
+export type SlotArgs = { 
+/**
+ * The slot to close (`""`, the first graph, cannot be closed: open another graph in it instead).
+ */
+slot: string, };
+export type SlotInfo = { 
+/**
+ * The slot (`""` for the first graph).
+ */
+slot: string, 
+/**
+ * Graph ID.
+ */
+graph_id: string, 
+/**
+ * The folder's name.
+ */
+name: string, 
+/**
+ * The folder.
+ */
+root: string, 
+/**
+ * The graph's color: an index into the palette (MG-5).
+ */
+color: number, };
+export type TransferArgs = { 
+/**
+ * The slot the notes come from (`""` is the first graph).
+ */
+from: string, 
+/**
+ * The slot the notes go to ...
+ */
+to_slot?: string, 
+/**
+ * ... or a graph folder that is not open in any slot (it is opened for the transfer only).
+ */
+to_path?: string, 
+/**
+ * `pages`: a page, with its subpages when `include_subpages`; `blocks`: the blocks listed in `blocks`.
+ */
+kind: string, 
+/**
+ * The page in the source graph.
+ */
+page: string, 
+/**
+ * `pages`: take the pages below `page` too.
+ */
+include_subpages: boolean, 
+/**
+ * `blocks`: the paths of the selected blocks (each comes with its children).
+ */
+blocks: Array<Array<number>>, 
+/**
+ * `blocks`: the page the blocks are added to at the end, made when it does not exist (default: `page`).
+ */
+target_page?: string, 
+/**
+ * Remove the notes from the source graph afterwards (to its trash, or by deleting the blocks).
+ */
+remove: boolean, 
+/**
+ * When a page of that name exists in the target: `keep_both` (the copy is named `Name (from Graph)`), `append`
+ * (its blocks are added at the end) or `skip`. A journal day is always appended.
+ */
+clash: string, };
+export type TransferItem = { 
+/**
+ * The name in the source graph.
+ */
+source: string, 
+/**
+ * The name in the target graph.
+ */
+target: string, 
+/**
+ * `create`, `append` (to a page that exists) or `skip`.
+ */
+action: string, 
+/**
+ * The target name differs from the source name (a clash was resolved by keeping both).
+ */
+renamed: boolean, 
+/**
+ * Top-level blocks that go over.
+ */
+blocks: number, 
+/**
+ * The file is stored encrypted on the source graph's server.
+ */
+encrypted_in_source: boolean, 
+/**
+ * The file would be stored encrypted on the target graph's server.
+ */
+encrypted_in_target: boolean, };
+export type TransferAsset = { 
+/**
+ * Its path in the source graph.
+ */
+path: string, 
+/**
+ * Size in bytes.
+ */
+bytes: bigint, 
+/**
+ * `copy`, `reuse` (the target has the same file), `rename` (the target has another file of that name: the copy
+ * is named `new_path`) or `missing` (the source has no such file).
+ */
+action: string, 
+/**
+ * The path in the target graph.
+ */
+new_path: string, };
+export type TransferPlan = { 
+/**
+ * Folder name of the source graph.
+ */
+from_name: string, 
+/**
+ * Folder name of the target graph.
+ */
+to_name: string, 
+/**
+ * Graph ID of the source.
+ */
+from_id: string, 
+/**
+ * Graph ID of the target.
+ */
+to_id: string, 
+/**
+ * The notes are removed from the source afterwards.
+ */
+removes: boolean, 
+/**
+ * The pages.
+ */
+items: Array<TransferItem>, 
+/**
+ * The pictures and attachments that go with them.
+ */
+assets: Array<TransferAsset>, 
+/**
+ * Pages that the copied text links to and the target does not have.
+ */
+missing_links: Array<string>, 
+/**
+ * Pages of the source that link to what is removed (only when it is removed).
+ */
+left_behind: Array<string>, 
+/**
+ * References to blocks that do not go over; they point at nothing in the target.
+ */
+dangling_refs: number, 
+/**
+ * Tasks with a date among the notes.
+ */
+dated_tasks: number, 
+/**
+ * The target has encryption and its key is locked: its sync waits until it is unlocked.
+ */
+target_locked: boolean, 
+/**
+ * Things to know before: plain text on a server, queries ...
+ */
+warnings: Array<string>, };
+export type TransferResult = { 
+/**
+ * What was done.
+ */
+plan: TransferPlan, 
+/**
+ * The pages written in the target graph.
+ */
+written: Array<string>, 
+/**
+ * The notes were removed from the source and `transfer_undo` can bring everything back.
+ */
+undoable: boolean, };
 export type ChainArgs = { 
 /**
  * Page name.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { endPageDrag, startPageDrag } from '../transferDrag'
   // "Favorites": the pages you pinned, in the order you chose, above "Recent" in the sidebar. The list is a setting of
   // the graph, so it is the same on every device. Drag a row, or press Alt+↑ / Alt+↓ on it, to move it.
   import { pageHash } from '../route'
@@ -58,6 +59,8 @@
           ondragstart={(e) => {
             dragging = f.name
             e.dataTransfer?.setData('text/plain', f.name)
+            // dropped on the other pane it is a page to take there
+            startPageDrag(e, f.name)
           }}
           ondragover={(e) => {
             if (dragging === null) return
@@ -69,7 +72,10 @@
             e.preventDefault()
             drop(i)
           }}
-          ondragend={() => (dragging = over = null)}
+          ondragend={() => {
+            dragging = over = null
+            endPageDrag()
+          }}
         >
           <a
             href={pageHash(f.name)}

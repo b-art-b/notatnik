@@ -12,6 +12,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/placeholders.md`: `{{page}}`, `{{title}}`, `{{date}}` ... in templates and queries, and where the app offers them
 - `docs/date-formats.md`: display date formats and the custom pattern tokens (device setting)
 - `docs/logging.md`: what the app writes to the terminal log, at which level, and what is never logged (`RUST_LOG`)
+- `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)
 - `docs/TODO.md`: phase overview and status
@@ -60,4 +61,5 @@ Node is installed with fnm: `export PATH="$HOME/.local/share/fnm/node-versions/v
 - Svelte scoped CSS prunes selectors it cannot match: a child rendered by `<Self>` or another component, or a sibling reached through `~`/`:has()`, needs `:global(...)` (see the path connector in `Block.svelte`).
 - Svelte 5: never write state inside `$derived`, and never read-then-write the same state in an `$effect` (use `untrack`).
 - Settings: a setting that applies the moment it is flipped is a `<Switch>` (`ui/src/lib/components/Switch.svelte`, its style is its own because Svelte scopes styles); an option saved with a button, or in a form or list, is a plain checkbox. A long section is split with `SubNav` (Backup, Sync, Calendar); the open part is in `stores/settingsParts.svelte.ts`, and a link that should land on a part calls `goToSettings(section, part)`.
+- Two graphs can be open at once (`docs/phases/multi-graph.md`): the first graph is slot `""` and the pane beside it is slot `"1"`, an `<iframe>` of the same app whose `backend` is its parent window's transport plus the slot. UI stores are therefore per pane without any keying; never reach across panes through a module (`window.parent`) except in `ui/src/lib/api/index.ts`. A command that looks at several graphs belongs in `WORKSPACE_COMMANDS` (`crates/app/src/lib.rs`) and is answered by the root `AppState`; everything else runs on the state of the slot it names.
 - The user is new to Svelte: keep UI code idiomatic Svelte 5 (runes) and explain non-obvious idioms.

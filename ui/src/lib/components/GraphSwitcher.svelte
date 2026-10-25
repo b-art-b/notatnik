@@ -6,7 +6,7 @@
   import { encryption, graphPadlock, refreshEncryption } from '../stores/encryption.svelte'
   import { goToSettings } from '../stores/settingsParts.svelte'
   import { GRAPH_COLOR_NAMES, graphColorName, graphColorVar } from '../graphColor'
-  import { refreshWorkspace } from '../stores/workspace.svelte'
+  import { openBeside, refreshWorkspace } from '../stores/workspace.svelte'
 
   // what the graph encrypts by default (see `graphPadlock`); read again whenever another graph is open
   const padlock = $derived(graphPadlock(encryption.status))
@@ -31,6 +31,11 @@
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
+  }
+
+  async function showBeside(g: GraphHistoryEntry) {
+    open = false
+    await openBeside(g.path)
   }
 
   async function switchTo(g: GraphHistoryEntry) {
@@ -103,10 +108,23 @@
       {#if others.length}
         <div class="head">Switch to:</div>
         {#each others as g (g.id)}
-          <button type="button" role="menuitem" class="item" title={g.path} onclick={() => switchTo(g)}
-            ><span class="gdot" style:background={graphColorVar(g.color)} aria-hidden="true"
-            ></span>{g.name}{#if g.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
-          >
+          <div class="entry">
+            <button type="button" role="menuitem" class="item" title={g.path} onclick={() => switchTo(g)}
+              ><span class="gdot" style:background={graphColorVar(g.color)} aria-hidden="true"
+              ></span>{g.name}{#if g.remote_url}<span class="cloud" aria-hidden="true"> ☁</span>{/if}</button
+            >
+            {#if backend.slot === ''}
+              <button
+                type="button"
+                role="menuitem"
+                class="beside-btn"
+                data-testid="graph-beside"
+                title={`Show ${g.name} next to this graph`}
+                aria-label={`Open ${g.name} beside`}
+                onclick={() => showBeside(g)}>Beside</button
+              >
+            {/if}
+          </div>
         {/each}
         <hr />
       {/if}
@@ -270,6 +288,26 @@
   .item:hover,
   .item:focus-visible {
     background: var(--chip);
+  }
+  .entry {
+    display: flex;
+    align-items: center;
+    gap: 0.2em;
+  }
+  .beside-btn {
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8em;
+    padding: 0.1em 0.5em;
+    cursor: pointer;
+  }
+  .beside-btn:hover,
+  .beside-btn:focus-visible {
+    background: var(--chip);
+    color: var(--text);
   }
   hr {
     border: none;

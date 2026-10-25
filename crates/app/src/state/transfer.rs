@@ -932,6 +932,8 @@ impl AppState {
                 if let Some(d) = done {
                     undo.trash.push(d.trash_id);
                     undoable = true;
+                    // the pane of the source may be another window's: it hears that the pages are gone
+                    Self::emit_changed(&src, &d.deleted, &[]);
                 }
             }
             Removal::Blocks {
@@ -955,6 +957,11 @@ impl AppState {
                     })
                 })?;
                 let after = src.graph.read_page(&rel)?.hash;
+                Self::emit_changed(
+                    &src,
+                    std::slice::from_ref(&page),
+                    std::slice::from_ref(&rel),
+                );
                 undo.deleted_from = Some((rel, before, after));
                 undoable = true;
             }

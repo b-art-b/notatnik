@@ -2,7 +2,7 @@
   // "Copy or move to another graph" (MG-2 to MG-4): pages, or blocks, from the graph of this pane to another graph. The
   // dialog asks the backend what would happen (`transfer_plan`, which writes nothing) and shows it before the person
   // chooses; the toast afterwards has an Undo.
-  import { backend, type TransferArgs, type TransferPlan } from '../api'
+  import { backend, backendFor, type TransferArgs, type TransferPlan } from '../api'
   import { app, errorMessage, navigate, toast } from '../stores/app.svelte'
   import { openDocs } from '../stores/pages.svelte'
   import { removeRecent } from '../stores/recent.svelte'
@@ -11,6 +11,11 @@
 
   // `app.transfer` is set when the dialog opens and never null while it is shown: `req` is a snapshot of it
   const req = app.transfer!
+  // The notes are in this pane's graph, unless they were dropped here from the other pane (`req.from`).
+  const from = req.from ?? backend.slot
+  const here = from === backend.slot
+  // The target is fixed when the notes were dropped on a pane (`req.to`).
+  const fixedTo = req.to
 
   interface Target {
     key: string
@@ -28,11 +33,11 @@
   const targets = $derived.by(() => {
     const out: Target[] = []
     for (const s of known.slots)
-      if (s.slot !== backend.slot)
+      if (fixedTo !== undefined ? s.slot === fixedTo : s.slot !== from)
         out.push({ key: `slot:${s.slot}`, label: s.name, where: 'open beside', slot: s.slot, color: s.color })
     const open = new Set(known.slots.map((s) => s.graph_id))
     for (const g of known.graphs)
-      if (g.exists && !open.has(g.id))
+      if (fixedTo === undefined && g.exists && !open.has(g.id))
         out.push({ key: `path:${g.path}`, label: g.name, where: g.path, path: g.path, color: g.color })
     return out
   })
@@ -47,7 +52,17 @@
   let moving = $state(false)
   let withSub = $state(false)
   let clash = $state<'keep_both' | 'append' | 'skip'>('keep_both')
-  let targetPage = $state(req.page)
+  let targetPage = $state(req.targetPage ?? req.page)
+  // the pages below the page: known to the pane the notes are in
+  let hasSubpages = $state(req.hasSubpages ?? false)
+  $effect(() => {
+    if (req.kind !== 'pages' || req.hasSubpages !== undefined) return
+    void backendFor(from)
+      .call('subpages', { page: req.page })
+      .then((r) => (hasSubpages = r.some((p) => !p.is_virtual)))
+  })
+  const sourceName = $derived(known.slots.find((s) => s.slot === from)?.name ?? app.graph?.name ?? '')
+  const sourceColor = $derived(known.slots.find((s) => s.slot === from)?.color)
   let plan = $state<TransferPlan | null>(null)
   let error = $state('')
   let busy = $state(false)
@@ -55,7 +70,7 @@
   function args(): TransferArgs | null {
     if (!target) return null
     return {
-      from: backend.slot,
+      from,
       to_slot: target.slot,
       to_path: target.path,
       kind: req.kind,
@@ -112,6 +127,8 @@
 
   /** After notes left this graph: documents of the pages that are gone or changed are stale, the page on screen may be gone. */
   function leftThisGraph(names: string[]) {
+    // the pane the notes were in hears about it by the events; this one only knows its own graph
+    if (!here) return
     for (const n of names) removeRecent(n)
     for (const d of openDocs()) if (names.includes(d.name)) void d.load()
   }
@@ -127,7 +144,7 @@
       close()
       if (moving) {
         leftThisGraph(req.kind === 'blocks' ? [req.page] : sources)
-        if (req.kind === 'pages' && app.route.kind === 'page' && sources.includes(app.route.name))
+        if (here && req.kind === 'pages' && app.route.kind === 'page' && sources.includes(app.route.name))
           navigate({ kind: 'journals' })
       }
       const verb = moving ? 'Moved' : 'Copied'
@@ -181,13 +198,17 @@
     <p class="muted">
       {#if req.kind === 'blocks'}
         {req.blocks?.length} block{req.blocks?.length === 1 ? '' : 's'} of <strong>{req.page}</strong>, with
-        what is below {req.blocks?.length === 1 ? 'it' : 'them'}.
+        what is below {req.blocks?.length === 1 ? 'it' : 'them'}, from
       {:else}
         <strong>{req.page}</strong>, from
-        <span class="graph"
-          ><span class="gdot" aria-hidden="true"></span><strong>{app.graph?.name}</strong></span
-        >.
       {/if}
+      <span class="graph"
+        ><span
+          class="gdot"
+          style:background={sourceColor === undefined ? undefined : graphColorVar(sourceColor)}
+          aria-hidden="true"
+        ></span><strong data-testid="transfer-source">{sourceName}</strong></span
+      >.
     </p>
 
     {#if targets.length === 0}
@@ -227,7 +248,7 @@
         >
       </fieldset>
 
-      {#if req.kind === 'pages' && req.hasSubpages}
+      {#if req.kind === 'pages' && hasSubpages}
         <label class="choice"
           ><input type="checkbox" bind:checked={withSub} data-testid="transfer-subpages" /> Also the pages below
           it</label
