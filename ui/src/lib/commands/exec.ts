@@ -524,6 +524,18 @@ export function saveAsTemplate(): void {
   )
 }
 
+/** "To another graph…" for blocks: the selected blocks (or the block being edited) with their children. */
+export function sendSelectionToGraph(): void {
+  const view = editing.docName ? getDoc(editing.docName).view : undefined
+  const ids = editing.mode === 'select' ? editing.selection : editing.mode === 'edit' ? [editing.blockId] : []
+  const roots = view ? rootsIn(view, ids) : []
+  if (!view || roots.length === 0) {
+    toast('Select the blocks first (Esc in a block selects it)', 'info')
+    return
+  }
+  app.transfer = { kind: 'blocks', page: view.name, blocks: roots.map((r) => r.path) }
+}
+
 const plural = (n: number) => `${n} block${n === 1 ? '' : 's'}`
 
 /** Ctrl+C: the selected blocks and their children as Markdown, without block IDs (the pasted copies get their own). */

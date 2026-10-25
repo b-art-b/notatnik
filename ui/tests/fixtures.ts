@@ -26,6 +26,18 @@ export interface Backend {
   exists(rel: string): boolean
   call<T = unknown>(name: string, args?: unknown): Promise<T>
   open(route?: string): Promise<void>
+  /** Opens a second graph (a copy of `fixture`, or an empty graph) in slot 1 of the same app (MG-1). */
+  beside(name?: string, fixture?: string): Promise<Beside>
+}
+
+/** The graph in slot 1: what the tests need to look at it. */
+export interface Beside {
+  dir: string
+  slot: string
+  read(rel: string): string
+  write(rel: string, text: string): void
+  exists(rel: string): boolean
+  call<T = unknown>(name: string, args?: unknown): Promise<T>
 }
 
 async function startBackend(
@@ -71,6 +83,27 @@ async function startBackend(
     open: async (route = '') => {
       await page.goto(`/?api=${encodeURIComponent(api)}#${route}`)
       await page.waitForSelector('main, .welcome')
+    },
+    beside: async (name = 'Beta', fixture) => {
+      const dir2 = path.join(tmp, name)
+      if (fixture) copyDir(path.join(root, 'fixtures/graphs', fixture), dir2)
+      else fs.mkdirSync(dir2, { recursive: true })
+      const call2 = async <T>(n: string, args: unknown = {}) => {
+        const r = await fetch(`${api}/api/${n}?slot=1`, { method: 'POST', body: JSON.stringify(args) })
+        return (await r.json()) as T
+      }
+      await call2('open_graph', { path: dir2, create: !fixture })
+      return {
+        dir: dir2,
+        slot: '1',
+        read: (rel) => fs.readFileSync(path.join(dir2, rel), 'utf8'),
+        write: (rel, text) => {
+          fs.mkdirSync(path.dirname(path.join(dir2, rel)), { recursive: true })
+          fs.writeFileSync(path.join(dir2, rel), text)
+        },
+        exists: (rel) => fs.existsSync(path.join(dir2, rel)),
+        call: call2,
+      }
     },
   }
   return {

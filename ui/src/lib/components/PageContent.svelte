@@ -15,6 +15,7 @@
   import Editor from './Editor.svelte'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
+  import { hasOtherGraph } from '../stores/workspace.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
   import EncryptDialog from './EncryptDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
@@ -368,6 +369,19 @@
               onclick={() => view && setFavorite(view.name, !favorite)}
               >{favorite ? '★' : '☆'} Favorite</button
             >
+            {#if hasOtherGraph(app.graph?.id)}
+              <button
+                class="act"
+                data-testid="transfer-page"
+                title="Copy or move this page to another graph"
+                onclick={() =>
+                  (app.transfer = {
+                    kind: 'pages',
+                    page: view!.name,
+                    hasSubpages: view!.child_pages.length > 0,
+                  })}>To graph…</button
+              >
+            {/if}
             <button class="act" onclick={openProps} aria-expanded={showProps} data-testid="props-toggle"
               >{showProps ? '▾' : '▸'} Properties{propCount ? ` (${propCount})` : ''}</button
             >

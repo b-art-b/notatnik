@@ -54,9 +54,11 @@
   import { installDragSelect } from './lib/dragSelect'
   import { touchRecent } from './lib/stores/recent.svelte'
   import { loadIcons } from './lib/stores/icons.svelte'
+  import { refreshWorkspace } from './lib/stores/workspace.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
+  import TransferDialog from './lib/components/TransferDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
   import Settings from './lib/components/Settings.svelte'
   import Welcome from './lib/components/Welcome.svelte'
@@ -84,6 +86,12 @@
     void app.savedVersion
     void app.graph
     if (app.graph) backend.call('list_saved_queries', {}).then((l) => (saved = l))
+  })
+
+  // the graphs of this device, for the "To another graph" dialog and its button (read again for each graph that opens)
+  $effect(() => {
+    void app.graph?.id
+    void refreshWorkspace()
   })
 
   // icons depend on page properties: refresh them (a little later, edits come in bursts) when pages change
@@ -509,6 +517,7 @@
 {#if app.searchOpen}<SearchDialog />{/if}
 {#if app.paletteOpen}<Palette />{/if}
 {#if app.snippetText !== null}<SnippetDialog />{/if}
+{#if app.transfer}<TransferDialog />{/if}
 {#if app.templateAsks}<TemplateAskDialog />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>

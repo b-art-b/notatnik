@@ -4,6 +4,16 @@ import { setDateFormat, setDateLocale } from '../dates'
 import { loadIcons } from './icons.svelte'
 import { useRecentFor } from './recent.svelte'
 
+/** What the "To another graph" dialog was opened for. */
+export interface TransferRequest {
+  kind: 'pages' | 'blocks'
+  page: string
+  /** `blocks`: the paths of the selected blocks. */
+  blocks?: number[][]
+  /** `pages`: the page has pages below it. */
+  hasSubpages?: boolean
+}
+
 export interface Toast {
   id: number
   kind: 'info' | 'error'
@@ -95,6 +105,8 @@ export const app = $state({
   draftFor: '',
   /** Blocks (Markdown) waiting for a name in the "Save as template" dialog; `null` when it is closed. */
   snippetText: null as string | null,
+  /** Notes waiting in the "To another graph" dialog (MG-2); `null` when it is closed. */
+  transfer: null as TransferRequest | null,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
   templateAsks: null as { name: string; asks: { label: string; default: string }[] } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */

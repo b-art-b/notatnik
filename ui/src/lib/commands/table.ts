@@ -10,7 +10,7 @@ import {
 } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
 import { isFavorite, setFavorite } from '../stores/favorites.svelte'
-import { globalUndo, saveAsTemplate } from './exec'
+import { globalUndo, saveAsTemplate, sendSelectionToGraph } from './exec'
 import { syncNow } from '../stores/sync.svelte'
 import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
 
@@ -58,6 +58,20 @@ export const commands: Command[] = [
     title: 'Save as template…',
     keys: '',
     run: saveAsTemplate,
+  },
+  {
+    id: 'transfer-page',
+    title: 'Copy or move this page to another graph…',
+    keys: '',
+    run: () => {
+      if (app.route.kind === 'page') app.transfer = { kind: 'pages', page: app.route.name, hasSubpages: true }
+    },
+  },
+  {
+    id: 'transfer-blocks',
+    title: 'Copy or move the selected blocks to another graph…',
+    keys: '',
+    run: sendSelectionToGraph,
   },
   {
     id: 'favorite-toggle',
