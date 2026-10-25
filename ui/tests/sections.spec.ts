@@ -238,3 +238,60 @@ test('a page of the first graph dragged onto the page area of the second graph i
     .dragTo(main(page))
   await expect(dialog(page)).toHaveCount(0)
 })
+
+test('any section folds to its header with the triangle at its left, and the choice is remembered', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Saga.md', '- saga text\n')
+  await backend.open('/page/Saga')
+  // one graph: the section can be folded as well
+  const fold = section(page, '').getByTestId('section-fold')
+  await expect(fold).toHaveAttribute('aria-expanded', 'true')
+  await expect(section(page, '').getByRole('navigation')).toBeVisible()
+  await fold.click()
+  await expect(fold).toHaveAttribute('aria-expanded', 'false')
+  await expect(section(page, '').getByRole('navigation')).toHaveCount(0)
+  await expect(section(page, '').getByTestId('recent-pages')).toHaveCount(0)
+  await expect(section(page, '').getByTestId('graph-switcher')).toBeVisible()
+  // the page area is not touched by folding
+  await expect(main(page).getByText('saga text')).toBeVisible()
+  // the triangle points right when folded and down when open (computed transform), and is at the left of the name
+  const box = await fold.boundingBox()
+  const name = await section(page, '').getByTestId('graph-switcher').boundingBox()
+  expect(box!.x + box!.width).toBeLessThanOrEqual(name!.x + 1)
+  await page.reload()
+  await expect(section(page, '').getByRole('navigation')).toHaveCount(0)
+  await section(page, '').getByTestId('section-fold').click()
+  await expect(section(page, '').getByRole('navigation')).toBeVisible()
+})
+
+test('with two graphs both can be folded, and the active one stays folded while it is used', async ({
+  backend,
+  page,
+}) => {
+  const beta = await backend.beside('Beta')
+  beta.write('pages/Tale.md', '- tale of beta\n')
+  backend.write('pages/Saga.md', '- saga text\n')
+  await backend.open('/page/Saga')
+  await section(page, '1').getByTestId('section-fold').click()
+  await expect(section(page, '1').getByRole('navigation')).toBeVisible()
+  // fold the first one (the active graph): it stays folded, the page area keeps its page
+  await section(page, '').getByTestId('section-fold').click()
+  await expect(section(page, '').getByRole('navigation')).toHaveCount(0)
+  await expect(main(page).getByText('saga text')).toBeVisible()
+  // opening a page in the second graph makes it active; the first stays folded, the second open
+  await section(page, '1')
+    .getByRole('tree', { name: 'Namespaces' })
+    .getByRole('link', { name: 'Tale' })
+    .click()
+  await expect(section(page, '1')).toHaveClass(/active/)
+  await expect(section(page, '').getByRole('navigation')).toHaveCount(0)
+  // fold the active one too
+  await section(page, '1').getByTestId('section-fold').click()
+  await expect(section(page, '1').getByRole('navigation')).toHaveCount(0)
+  await expect(main(page).getByText('tale of beta')).toBeVisible()
+  // the second graph keeps the ✕ and its name while folded
+  await expect(section(page, '1').getByTestId('section-close')).toBeVisible()
+  await expect(section(page, '1').getByTestId('graph-switcher')).toContainText('Beta')
+})

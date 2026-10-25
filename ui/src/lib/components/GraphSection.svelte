@@ -33,7 +33,12 @@
   const link = (kind: 'journals' | 'agenda' | 'pages' | 'settings') => routeHash({ kind }, g.slot)
 
   // the active graph's section is open; the other one folds away to its header when the person asks
-  let wasActive = false
+  // a section that is active when it appears keeps the fold the person left; one that becomes active unfolds
+  let wasActive = untrack(() => isActive)
+  // ... unless the person never chose: the graph on the page area then starts open
+  untrack(() => {
+    if (isActive && !g.hasChosenFold()) g.expanded = true
+  })
   $effect(() => {
     const now = isActive
     untrack(() => {
@@ -41,7 +46,7 @@
       wasActive = now
     })
   })
-  const shown = $derived(!many || g.expanded)
+  const shown = $derived(g.expanded)
 
   // something from the other graph is dragged over this section: it takes the drop (the dialog opens)
   let over = $state(false)
@@ -80,27 +85,29 @@
   }}
 >
   <div class="head">
+    <!-- the triangle at the left folds the section (like a branch of a tree); the caret inside the name opens the menu -->
+    <button
+      type="button"
+      class="disclosure"
+      aria-label={g.expanded ? `Fold ${g.info?.name}` : `Unfold ${g.info?.name}`}
+      aria-expanded={shown}
+      title={g.expanded ? 'Fold this graph to its name' : 'Unfold this graph'}
+      data-testid="section-fold"
+      onclick={() => g.setExpanded(!g.expanded)}
+      ><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" class:open={shown}
+        ><path d="M3 1.5 7 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg
+      ></button
+    >
     <GraphSwitcher />
-    {#if many}
+    {#if many && g.slot !== ''}
       <button
         type="button"
-        class="fold"
-        aria-label={g.expanded ? `Fold ${g.info?.name}` : `Unfold ${g.info?.name}`}
-        aria-expanded={shown}
-        title={g.expanded ? 'Fold this graph' : 'Unfold this graph'}
-        data-testid="section-fold"
-        onclick={() => g.setExpanded(!g.expanded)}>{shown ? '▾' : '▸'}</button
+        class="close"
+        aria-label={`Close ${g.info?.name}`}
+        title="Close this graph (the first one stays)"
+        data-testid="section-close"
+        onclick={closeSecond}>✕</button
       >
-      {#if g.slot !== ''}
-        <button
-          type="button"
-          class="fold"
-          aria-label={`Close ${g.info?.name}`}
-          title="Close this graph (the first one stays)"
-          data-testid="section-close"
-          onclick={closeSecond}>✕</button
-        >
-      {/if}
     {/if}
   </div>
   {#if shown}
@@ -164,18 +171,40 @@
     flex: 1;
     min-width: 0;
   }
-  .fold {
+  /* the second section has no corner button to leave room for; its ✕ is at the right */
+  .graph-section:not([data-slot='']) .head :global(.switcher) {
+    margin-right: 0;
+  }
+  .disclosure,
+  .close {
     flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.9em;
+    height: 2.2em;
     border: none;
     background: none;
     color: var(--muted);
     cursor: pointer;
-    padding: 0.35em 0.4em;
     border-radius: 6px;
   }
-  .fold:hover,
-  .fold:focus-visible {
+  .disclosure:hover,
+  .disclosure:focus-visible,
+  .close:hover,
+  .close:focus-visible {
     background: var(--chip);
     color: var(--text);
+  }
+  /* the triangle points right while the section is folded and turns down when it is open */
+  .disclosure svg {
+    transition: transform 0.12s;
+  }
+  .disclosure svg.open {
+    transform: rotate(90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .disclosure svg {
+      transition: none;
+    }
   }
 </style>

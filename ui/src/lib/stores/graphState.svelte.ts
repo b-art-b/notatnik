@@ -64,6 +64,15 @@ export class GraphState {
     }
   }
 
+  /** Has the person folded or unfolded this graph's section before? */
+  hasChosenFold(): boolean {
+    try {
+      return localStorage.getItem(this.expandedKey) !== null
+    } catch {
+      return false
+    }
+  }
+
   setExpanded(on: boolean) {
     if (this.expanded === on) return
     this.expanded = on
