@@ -6543,3 +6543,76 @@ fn favorites_are_a_list_in_the_config_that_follows_renames_and_deletes() {
         json!({"page": "One too many", "favorite": true}),
     );
 }
+
+#[test]
+fn a_saved_query_is_edited_where_it_stands_and_can_be_renamed() {
+    let t = start("basic");
+    for (name, q) in [
+        ("First", "task: todo"),
+        ("Second", "task: done"),
+        ("Third", "tag: x"),
+    ] {
+        t.ok("save_query", json!({"name": name, "query": q}));
+    }
+    let names = |v: &Value| -> Vec<String> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|q| q["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    // saving under an existing name replaces it without moving it
+    let l = t.ok(
+        "save_query",
+        json!({"name": "Second", "query": "task: waiting"}),
+    );
+    assert_eq!(names(&l), ["First", "Second", "Third"]);
+    assert_eq!(l[1]["query"], "task: waiting");
+    // editing keeps the place, also with a new name
+    let l = t.ok(
+        "edit_saved_query",
+        json!({"old": "Second", "name": "Renamed", "query": "task: done\npath: work"}),
+    );
+    assert_eq!(names(&l), ["First", "Renamed", "Third"]);
+    assert_eq!(l[1]["query"], "task: done\npath: work");
+    let cfg = t.read(".notatnik/config.toml");
+    assert!(
+        cfg.contains("name = \"Renamed\"") && !cfg.contains("\"Second\""),
+        "{cfg}"
+    );
+    // refused: a name that another query has, a query that does not parse, an empty name, an unknown query
+    let code = |r: Result<Value, notatnik_app::ApiError>| r.unwrap_err().code;
+    assert_eq!(
+        code(t.call(
+            "edit_saved_query",
+            json!({"old": "Renamed", "name": "First", "query": "task: todo"})
+        )),
+        "exists"
+    );
+    assert_eq!(
+        code(t.call(
+            "edit_saved_query",
+            json!({"old": "Renamed", "name": "Renamed", "query": "nonsense: ((("})
+        )),
+        "invalid"
+    );
+    assert_eq!(
+        code(t.call(
+            "edit_saved_query",
+            json!({"old": "Renamed", "name": " ", "query": "task: todo"})
+        )),
+        "invalid"
+    );
+    assert_eq!(
+        code(t.call(
+            "edit_saved_query",
+            json!({"old": "Nope", "name": "X", "query": "task: todo"})
+        )),
+        "not_found"
+    );
+    // nothing changed by the refusals
+    assert_eq!(
+        names(&t.ok("list_saved_queries", json!({}))),
+        ["First", "Renamed", "Third"]
+    );
+}

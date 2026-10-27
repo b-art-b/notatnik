@@ -2798,11 +2798,48 @@ impl AppState {
         }
         self.with_open(|o| {
             o.graph.update_config(|c| {
-                c.saved_queries.retain(|q| q.name != a.name);
-                c.saved_queries.push(notatnik_graph::SavedQuery {
+                let new = notatnik_graph::SavedQuery {
                     name: a.name.clone(),
                     query: a.query.clone(),
-                });
+                };
+                // a name that exists is replaced where it is, a new one goes to the end
+                match c.saved_queries.iter_mut().find(|q| q.name == a.name) {
+                    Some(q) => *q = new,
+                    None => c.saved_queries.push(new),
+                }
+            })?;
+            Ok(Self::saved(o))
+        })
+    }
+
+    /// `edit_saved_query`: changes the name and the text of a saved query where it stands in the list.
+    pub fn edit_saved_query(&self, a: EditSavedQueryArgs) -> ApiResult<Vec<SavedQueryView>> {
+        if a.name.trim().is_empty() {
+            return Err(ApiError::new("invalid", "a saved query needs a name"));
+        }
+        let (_, errs) = notatnik_core::parse_query_partial(&a.query);
+        if let Some(e) = errs.first() {
+            return Err(ApiError::new("invalid", e.to_string()));
+        }
+        self.with_open(|o| {
+            let cfg = o.graph.config();
+            if !cfg.saved_queries.iter().any(|q| q.name == a.old) {
+                return Err(ApiError::new(
+                    "not_found",
+                    format!("no saved query `{}`", a.old),
+                ));
+            }
+            if a.name != a.old && cfg.saved_queries.iter().any(|q| q.name == a.name) {
+                return Err(ApiError::new(
+                    "exists",
+                    format!("a saved query called `{}` exists", a.name),
+                ));
+            }
+            o.graph.update_config(|c| {
+                if let Some(q) = c.saved_queries.iter_mut().find(|q| q.name == a.old) {
+                    q.name = a.name.clone();
+                    q.query = a.query.clone();
+                }
             })?;
             Ok(Self::saved(o))
         })

@@ -13,6 +13,7 @@
   import { calendarAuto } from '../stores/calendarAuto.svelte'
   import { calendarOf, calendarTargets, setCalendarTargets } from '../stores/calendarTargets.svelte'
   import { getDoc } from '../stores/pages.svelte'
+  import { plainWords } from '../agenda'
   import { jumpToBlock } from '../jump'
   import { loadEvents } from '../events'
   import { setProperty, taskStateOp } from '../commands/exec'
@@ -133,10 +134,12 @@
   /** The title of a task block as one plain line: no marker, priority or properties. */
   function titleOf(r: ResultRow): string {
     const line = (r.block?.text ?? '').split('\n')[0]
-    return line
-      .replace(/^(TODO|DOING|DONE|LATER|NOW|WAITING|CANCELED|CANCELLED)\s+/, '')
-      .replace(/^\[#\w+\]\s*/, '')
-      .trim()
+    // a task is one line of words here: `[[Page]]` shows as `Page`, not with its brackets
+    return plainWords(
+      line
+        .replace(/^(TODO|DOING|DONE|LATER|NOW|WAITING|CANCELED|CANCELLED)\s+/, '')
+        .replace(/^\[#\w+\]\s*/, ''),
+    )
   }
   const isDone = (r: ResultRow) => r.task_state === 'done' || r.task_state === 'canceled'
   const calProp = (r: ResultRow) => r.block?.props.find((p) => p.key.toLowerCase() === 'cal')?.raw.trim()

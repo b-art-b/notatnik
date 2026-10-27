@@ -297,3 +297,22 @@ test('overdue tasks can be shown rolled over to today or at their dates; nothing
   await page.mouse.up()
   await expect.poll(() => backend.read('pages/Late.md')).toContain('deadline:: 2026-10-04')
 })
+
+test('a task in the calendar tray shows its links as words, without the brackets', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Julian.md', '- hi\n')
+  backend.write(
+    'pages/Chores.md',
+    '- TODO Zrobic cos dla [[Julian]] and [site](https://example.org) and [[Julian|J]]\n',
+  )
+  await backend.open('/')
+  await backend.call('calendar_sync')
+  await page.reload()
+  await backend.open('/agenda')
+  await page.getByRole('button', { name: 'calendar', exact: true }).click()
+  await expect(page.getByTestId('cal-grid')).toBeVisible()
+  const task = page.getByTestId('cal-tray-item').filter({ hasText: 'Zrobic' })
+  await expect(task).toHaveText('Zrobic cos dla Julian and site and J')
+})

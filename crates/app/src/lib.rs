@@ -175,6 +175,7 @@ commands! {
     agenda(AgendaArgs) -> AgendaView => agenda,
     list_saved_queries(NoArgs) -> Vec<SavedQueryView> => list_saved_queries,
     save_query(SavedQueryView) -> Vec<SavedQueryView> => save_query,
+    edit_saved_query(EditSavedQueryArgs) -> Vec<SavedQueryView> => edit_saved_query,
     delete_saved_query(NameArgs) -> Vec<SavedQueryView> => delete_saved_query,
     favorites(NoArgs) -> Vec<FavoriteView> => favorites,
     favorite_set(FavoriteSetArgs) -> Vec<FavoriteView> => favorite_set,

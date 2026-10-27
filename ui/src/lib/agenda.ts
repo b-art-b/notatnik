@@ -102,9 +102,13 @@ export function groupItems(items: AgendaItem[], group: string): ItemGroup[] {
   return [...out.values()]
 }
 
-/** A parent block's raw text as plain words: `[[Page]]` → `Page`, `#tag` → `tag`, task marker and bold/italic marks dropped. */
-function plainCrumb(text: string): string {
+/** A block's raw text as plain words: `[[Page]]` → `Page`, `[[Page|label]]` → `label`, `[text](url)` → `text`, `#tag` →
+ * `tag`, task marker and bold/italic marks dropped. For places that show a task as one line of text (a tooltip, a chip,
+ * the calendar's grid and tray). */
+export function plainWords(text: string): string {
   return text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
     .replace(/\[\[([^\]]+)\]\]/g, '$1')
     .replace(/^(TODO|LATER|DOING|NOW|WAITING|DONE|CANCELED|\[[ xX]\])\s+/, '')
     .replace(/(^|\s)#(?=[\w[])/g, '$1')
@@ -114,13 +118,13 @@ function plainCrumb(text: string): string {
 
 /** Tooltip of the source link: the note, then the parent blocks the task is nested under. */
 export function sourceTitle(page: string, breadcrumbs: string[]): string {
-  const crumbs = breadcrumbs.map(plainCrumb).filter(Boolean)
+  const crumbs = breadcrumbs.map(plainWords).filter(Boolean)
   return crumbs.length ? `${page} › ${crumbs.join(' › ')}` : page
 }
 
 /** The parent blocks as plain words (`Notes › Meeting`), for a chip. */
 export function crumbText(breadcrumbs: string[]): string {
-  return breadcrumbs.map(plainCrumb).filter(Boolean).join(' › ')
+  return breadcrumbs.map(plainWords).filter(Boolean).join(' › ')
 }
 
 /** The source chip's text: a journal day in the device's date format, a page below `relativeTo` without that

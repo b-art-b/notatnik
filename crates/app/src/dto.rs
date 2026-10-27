@@ -1215,6 +1215,17 @@ pub struct SavedQueryView {
     pub query: String,
 }
 
+/// `edit_saved_query`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct EditSavedQueryArgs {
+    /// The name it has now.
+    pub old: String,
+    /// The name it gets (the same to keep it).
+    pub name: String,
+    /// The new query text.
+    pub query: String,
+}
+
 /// A favourite page (NS-26).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct FavoriteView {

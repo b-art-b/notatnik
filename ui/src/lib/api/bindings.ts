@@ -1093,6 +1093,19 @@ export type ForgetGraphArgs = {
  * Graph ID.
  */
 id: string, };
+export type EditSavedQueryArgs = { 
+/**
+ * The name it has now.
+ */
+old: string, 
+/**
+ * The name it gets (the same to keep it).
+ */
+name: string, 
+/**
+ * The new query text.
+ */
+query: string, };
 export type GraphColorArgs = { 
 /**
  * Graph ID.
@@ -2751,6 +2764,7 @@ export type Commands = {
   agenda: { args: AgendaArgs; result: AgendaView };
   list_saved_queries: { args: NoArgs; result: SavedQueryView[] };
   save_query: { args: SavedQueryView; result: SavedQueryView[] };
+  edit_saved_query: { args: EditSavedQueryArgs; result: SavedQueryView[] };
   delete_saved_query: { args: NameArgs; result: SavedQueryView[] };
   favorites: { args: NoArgs; result: FavoriteView[] };
   favorite_set: { args: FavoriteSetArgs; result: FavoriteView[] };
