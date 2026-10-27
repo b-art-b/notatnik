@@ -44,7 +44,10 @@ deb: ## build the .deb only (no version change, no checks): target/release/bundl
 
 install: ## install the newest .deb of this version (builds it when there is none); asks for sudo
 	@if [ -z "$(DEB)" ]; then $(MAKE) deb; fi
-	sudo apt install -y --reinstall "$$(ls -t dist/*$(VERSION)*.deb $(DEB_DIR)/*$(VERSION)*.deb 2>/dev/null | head -1)"
+	@deb="$$(ls -t dist/*$(VERSION)*.deb $(DEB_DIR)/*$(VERSION)*.deb 2>/dev/null | head -1)"; \
+	test -n "$$deb" || { echo "no .deb found"; exit 1; }; \
+	echo "installing $$deb"; \
+	sudo apt install -y --reinstall "$(CURDIR)/$$deb"
 
 uninstall: ## remove the installed app (graphs and settings stay)
 	sudo apt remove -y notatnik
