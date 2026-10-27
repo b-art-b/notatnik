@@ -172,6 +172,8 @@ The page area shows the graph you used last, the **active** graph: its section h
 
 **Dragging between the sections.** Drag a page (its title, a row of Recent, Favorites or the page tree) or a block (its bullet) onto the other graph's section, or onto the page area while it shows the other graph: the same dialog opens with the target fixed and, for blocks, the page on screen (or the page of the same name) as the page they are added to. Dropped on the graph they come from, nothing happens.
 
+**Aliases.** Open a page's *Properties*: the first row is *aliases*, the other names of the page. Type a name and press Enter (several at once with commas); × removes one. A `[[link]]` with an alias opens the page and is counted among its backlinks; search and the `[[` list find the page by it, and *Linked references* and the unlinked mentions include it. An alias that is already the name or an alias of another page is refused with a message (a link must never mean two pages); the page's own name and repeats are dropped. The list is the `aliases: [a, b]` line of the page's front matter, which can also be edited by hand.
+
 **Saved queries.** *save* in the toolbar of a query block pins it to the sidebar. Open it from there: **Edit** changes its name and its text (one `key: value` clause per line; Ctrl+Enter saves, Esc cancels) and keeps its place in the list; a name that another saved query has, or a query that does not parse, is refused with a message. **Remove from sidebar** deletes it.
 
 ## Settings

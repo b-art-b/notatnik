@@ -109,6 +109,7 @@ commands! {
     today(NoArgs) -> StringValue => today_cmd,
     get_page(GetPageArgs) -> PageView => get_page,
     apply_ops(ApplyOpsArgs) -> ApplyResult => apply_ops,
+    page_aliases(PageAliasesArgs) -> PageView => page_aliases,
     undo(NoArgs) -> UndoResult => undo,
     redo(NoArgs) -> UndoResult => redo,
     search(SearchArgs) -> Vec<SearchHitView> => search,

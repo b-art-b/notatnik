@@ -16,6 +16,7 @@
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import { hasOtherGraph } from '../stores/workspace.svelte'
+  import AliasEditor from './AliasEditor.svelte'
   import { twoOpen } from '../stores/graphs.svelte'
   import { endPageDrag, startPageDrag } from '../transferDrag.svelte'
   import HistoryDialog from './HistoryDialog.svelte'
@@ -405,10 +406,15 @@
         {/if}
         {#if showProps && !hideProps}
           <div class="fm" data-testid="page-props">
-            {#if view.frontmatter?.aliases.length}<div class="prop">
-                <span class="k">aliases</span><span class="v">{view.frontmatter.aliases.join(', ')}</span
-                ><span></span>
-              </div>{/if}
+            <AliasEditor
+              page={view.name}
+              aliases={view.frontmatter?.aliases ?? []}
+              onchange={(v) => {
+                // the page as it is now (with its new hash), and the lists that resolve names again
+                getDoc(view!.name).view = v
+                bus.version++
+              }}
+            />
             {#if view.frontmatter?.tags.length}<div class="prop">
                 <span class="k">tags</span>
                 <span class="v"

@@ -110,6 +110,7 @@ pub fn typescript_bindings() -> String {
         TemplateInfo,
         GraphHistoryEntry,
         ForgetGraphArgs,
+        PageAliasesArgs,
         EditSavedQueryArgs,
         GraphColorArgs,
         SlotArgs,

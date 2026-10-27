@@ -728,6 +728,68 @@ impl AppState {
         self.with_open(|o| Ok(Self::build_view(o, &name)?.0))
     }
 
+    /// `page_aliases`: sets the aliases of a page (LN-6): other names that `[[links]]` can use, that search and the
+    /// `[[` list find, and whose links count as backlinks of the page. An alias that is already the name (or an
+    /// alias) of another page is refused, so a link never means two pages.
+    pub fn page_aliases(&self, a: PageAliasesArgs) -> ApiResult<PageView> {
+        let name = Self::parse_name(&a.page)?;
+        let mut aliases: Vec<PageName> = Vec::new();
+        for raw in &a.aliases {
+            let raw = raw.trim();
+            if raw.is_empty() {
+                continue;
+            }
+            let n = Self::parse_name(raw)?;
+            // a name only differing in case is the same alias; the page's own name is no alias
+            if n.lookup_key() == name.lookup_key()
+                || aliases.iter().any(|x| x.lookup_key() == n.lookup_key())
+            {
+                continue;
+            }
+            aliases.push(n);
+        }
+        let (view, had) = self.with_open(|o| {
+            let (view, _) = Self::build_view(o, &name)?;
+            for n in &aliases {
+                let other = o
+                    .graph
+                    .with_index(|i| i.page_info(n.as_str()))?
+                    .filter(|i| !i.is_virtual && !i.name.eq_ignore_ascii_case(&view.name));
+                if let Some(other) = other {
+                    return Err(ApiError::new(
+                        "exists",
+                        format!("`{n}` is already the name of the page `{}`", other.name),
+                    ));
+                }
+            }
+            let had = view
+                .frontmatter
+                .as_ref()
+                .is_some_and(|f| !f.aliases.is_empty());
+            Ok((view, had))
+        })?;
+        let ops = if !aliases.is_empty() {
+            let items: Vec<String> = aliases.iter().map(|n| yaml_item(n.as_str())).collect();
+            vec![BlockOp::SetPageProperty {
+                key: "aliases".into(),
+                value: format!("[{}]", items.join(", ")),
+            }]
+        } else if had {
+            vec![BlockOp::RemovePageProperty {
+                key: "aliases".into(),
+            }]
+        } else {
+            return Ok(view);
+        };
+        Ok(self
+            .apply_ops(ApplyOpsArgs {
+                page: view.name.clone(),
+                base_hash: view.hash.clone(),
+                ops,
+            })?
+            .page)
+    }
+
     /// `apply_ops`
     pub fn apply_ops(&self, a: ApplyOpsArgs) -> ApiResult<ApplyResult> {
         self.apply_ops_with(a, None)
@@ -3810,6 +3872,21 @@ impl AppState {
                 items: vec![name.to_string()],
             })
         })
+    }
+}
+
+/// One item of a YAML flow list: plain when that is safe, otherwise in double quotes.
+fn yaml_item(s: &str) -> String {
+    let plain = !s.is_empty()
+        && s == s.trim()
+        && !s.starts_with(['-', '?', '!', '&', '*', '|', '>', '%', '@', '`', '\'', '"'])
+        && !s.contains([',', '[', ']', '{', '}', '#', '"', '\\'])
+        && !s.contains(": ")
+        && !s.ends_with(':');
+    if plain {
+        s.to_string()
+    } else {
+        format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
     }
 }
 

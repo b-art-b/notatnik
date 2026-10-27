@@ -6616,3 +6616,83 @@ fn a_saved_query_is_edited_where_it_stands_and_can_be_renamed() {
         ["First", "Renamed", "Third"]
     );
 }
+
+#[test]
+fn aliases_are_set_from_the_api_and_links_through_them_work() {
+    let t = start("basic");
+    t.ok(
+        "apply_ops",
+        json!({"page": "Target", "base_hash": null, "ops": [
+        {"op": "insert", "parent": [], "index": 0, "text": "the target"}]}),
+    );
+    t.ok(
+        "apply_ops",
+        json!({"page": "Linker", "base_hash": null, "ops": [
+        {"op": "insert", "parent": [], "index": 0, "text": "see [[tgt]] and [[Other Name]]"}]}),
+    );
+    // aliases, one of them with characters YAML needs quotes for; blanks, duplicates and the page's own name go
+    let p = t.ok(
+        "page_aliases",
+        json!({"page": "Target", "aliases": ["tgt", " TGT ", "Other Name", "Quoted, [odd]: name", "", "target"]}),
+    );
+    assert_eq!(
+        p["frontmatter"]["aliases"],
+        json!(["tgt", "Other Name", "Quoted, [odd]: name"])
+    );
+    let file = t.read("pages/Target.md");
+    assert!(
+        file.starts_with("---\naliases: [tgt, Other Name, \"Quoted, [odd]: name\"]\n---\n"),
+        "{file}"
+    );
+    // a link through the alias opens the page and counts as a backlink of it
+    assert_eq!(t.ok("get_page", json!({"name": "tgt"}))["name"], "Target");
+    let back = t.ok("backlinks", json!({"page": "Target"}));
+    assert!(
+        back.as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b["source_page"] == "Linker"),
+        "{back}"
+    );
+    // the `[[` list and search find the page by an alias
+    let hits = t.ok("search_titles", json!({"text": "tgt", "limit": 5}));
+    assert_eq!(hits[0]["name"], "Target", "{hits}");
+    // an alias another page has (a name or an alias) is refused, and nothing changes
+    let e = t
+        .call("page_aliases", json!({"page": "inbox", "aliases": ["tgt"]}))
+        .unwrap_err();
+    assert_eq!(e.code, "exists");
+    assert!(e.message.contains("Target"), "{}", e.message);
+    let e = t
+        .call(
+            "page_aliases",
+            json!({"page": "inbox", "aliases": ["people/anna"]}),
+        )
+        .unwrap_err();
+    assert_eq!(e.code, "exists");
+    assert_eq!(
+        t.call(
+            "page_aliases",
+            json!({"page": "inbox", "aliases": ["a/../b"]})
+        )
+        .unwrap_err()
+        .code,
+        "invalid"
+    );
+    assert!(!t.read("pages/inbox.md").contains("aliases"));
+    // changing the list keeps the others; an empty list removes the key
+    let p = t.ok(
+        "page_aliases",
+        json!({"page": "Target", "aliases": ["tgt"]}),
+    );
+    assert_eq!(p["frontmatter"]["aliases"], json!(["tgt"]));
+    let p = t.ok("page_aliases", json!({"page": "Target", "aliases": []}));
+    assert_eq!(p["frontmatter"]["aliases"], json!([]));
+    assert!(!t.read("pages/Target.md").contains("aliases"));
+    // an alias that no page has yet is fine, a missing page is made (with the alias in its front matter)
+    t.ok(
+        "page_aliases",
+        json!({"page": "Brand new", "aliases": ["bn"]}),
+    );
+    assert!(t.read("pages/Brand new.md").contains("aliases: [bn]"));
+}

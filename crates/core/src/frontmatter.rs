@@ -63,7 +63,15 @@ fn yaml_to_value(y: &Yaml, raw: &str) -> PropertyValue {
 
 fn as_strings(v: &PropertyValue) -> Vec<String> {
     match v {
-        PropertyValue::List(items) => items.iter().flat_map(as_strings).collect(),
+        // an item of a list is one value, even with a comma in it (`aliases: ["a, b"]`); only a bare scalar is split
+        PropertyValue::List(items) => items
+            .iter()
+            .flat_map(|i| match i {
+                PropertyValue::Text(s) => vec![s.trim().to_string()],
+                other => as_strings(other),
+            })
+            .filter(|s| !s.is_empty())
+            .collect(),
         PropertyValue::Text(s) => s
             .split(',')
             .map(|p| p.trim().to_string())
@@ -243,4 +251,22 @@ pub fn parse(src: &str, start: usize, diags: &mut Vec<Diagnostic>) -> (Option<Fr
         fm.entries.push(prop);
     }
     (Some(fm), fm_end)
+}
+
+#[cfg(test)]
+mod alias_tests {
+    use crate::parse_page;
+
+    #[test]
+    fn a_quoted_list_item_with_a_comma_is_one_alias() {
+        let src = "---\naliases: [tgt, \"Quoted, [odd]: name\", plain two]\n---\n- x\n";
+        let page = parse_page(src);
+        assert_eq!(
+            page.frontmatter.unwrap().aliases,
+            ["tgt", "Quoted, [odd]: name", "plain two"]
+        );
+        // a bare value is still split at commas
+        let page = parse_page("---\naliases: a, b\n---\n- x\n");
+        assert_eq!(page.frontmatter.unwrap().aliases, ["a", "b"]);
+    }
 }

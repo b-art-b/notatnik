@@ -1093,6 +1093,15 @@ export type ForgetGraphArgs = {
  * Graph ID.
  */
 id: string, };
+export type PageAliasesArgs = { 
+/**
+ * Page name.
+ */
+page: string, 
+/**
+ * The aliases the page should have, in order (empty removes the key).
+ */
+aliases: Array<string>, };
 export type EditSavedQueryArgs = { 
 /**
  * The name it has now.
@@ -2698,6 +2707,7 @@ export type Commands = {
   today: { args: NoArgs; result: StringValue };
   get_page: { args: GetPageArgs; result: PageView };
   apply_ops: { args: ApplyOpsArgs; result: ApplyResult };
+  page_aliases: { args: PageAliasesArgs; result: PageView };
   undo: { args: NoArgs; result: UndoResult };
   redo: { args: NoArgs; result: UndoResult };
   search: { args: SearchArgs; result: SearchHitView[] };

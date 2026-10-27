@@ -959,6 +959,15 @@ pub struct GetPageArgs {
     pub name: String,
 }
 
+/// `page_aliases`: sets the other names of a page (`aliases:` in its front matter, LN-6).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct PageAliasesArgs {
+    /// Page name.
+    pub page: String,
+    /// The aliases the page should have, in order (empty removes the key).
+    pub aliases: Vec<String>,
+}
+
 /// `apply_ops`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ApplyOpsArgs {
