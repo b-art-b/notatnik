@@ -70,6 +70,7 @@
 <ul
   role={parent === null ? 'tree' : 'group'}
   class="tree"
+  class:nested={parent !== null}
   aria-label={parent === null ? 'Namespaces' : undefined}
 >
   {#each entries as e (e.name)}
@@ -124,6 +125,10 @@
   .tree {
     list-style: none;
     margin: 0;
+    padding-left: 0;
+  }
+  /* each level below the first moves in, so the first level lines up with the group headers of the other views */
+  .tree.nested {
     padding-left: 0.9em;
   }
   .line {
