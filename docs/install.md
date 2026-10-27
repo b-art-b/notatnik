@@ -37,3 +37,7 @@ single-instance lock, so a second copy shares both. `scripts/dev.sh` starts `car
 own settings, graph history and webview storage. Delete that folder to start clean. The system keyring is not
 separated: use a scratch graph in the development build, never the graph the installed app has open (two instances
 writing one graph, and two sync loops on one server folder, are not supported).
+
+## With make
+
+The `Makefile` gives the commands short names; `make help` lists them. `make deb` builds the package, `make install` installs the newest `.deb` of the current version (building it first when there is none; it asks for sudo), `make uninstall` removes it, `make release RELEASE=X.Y.Z` is `scripts/release.sh X.Y.Z`, `make check` and `make dev` run the check script and the dev app.

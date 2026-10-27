@@ -45,6 +45,7 @@ scripts/gen-bindings.sh     # after changing Rust API types
 scripts/dev.sh              # cargo tauri dev with its own XDG dirs (~/.dev-notatnik), next to an installed app
 scripts/release.sh X.Y.Z    # version, checks, .deb into dist/, commit and tag (no push)
 cargo tauri build --bundles deb
+make help                   # the same as short names: make check, make deb, make install, make release RELEASE=X.Y.Z
 ```
 
 Node is installed with fnm: `export PATH="$HOME/.local/share/fnm/node-versions/v24.21.0/installation/bin:$PATH"`.
