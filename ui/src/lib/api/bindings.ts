@@ -1093,6 +1093,33 @@ export type ForgetGraphArgs = {
  * Graph ID.
  */
 id: string, };
+export type HidePagesArgs = { 
+/**
+ * The pages (each is hidden with everything below it).
+ */
+pages: Array<string>, 
+/**
+ * Hide them (`true`) or unhide them.
+ */
+hidden: boolean, };
+export type InheritedHide = { 
+/**
+ * The page.
+ */
+name: string, 
+/**
+ * The hidden page or folder above it.
+ */
+by: string, };
+export type HideResult = { 
+/**
+ * The names that were marked or unmarked.
+ */
+changed: Array<string>, 
+/**
+ * Pages that stay hidden because a folder above them is.
+ */
+inherited: Array<InheritedHide>, };
 export type PageAliasesArgs = { 
 /**
  * Page name.
@@ -2730,6 +2757,7 @@ export type Commands = {
   delete_pages: { args: DeletePagesArgs; result: DeletePagesResult };
   restore_pages: { args: RestorePagesArgs; result: StringList };
   archived_pages: { args: NoArgs; result: StringList };
+  hide_pages: { args: HidePagesArgs; result: HideResult };
   ensure_block_id: { args: EnsureBlockIdArgs; result: StringValue };
   get_block: { args: GetBlockArgs; result: BlockLookup | null };
   set_collapsed: { args: SetCollapsedArgs; result: NoArgs };

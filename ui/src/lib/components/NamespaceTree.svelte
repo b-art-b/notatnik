@@ -8,7 +8,7 @@
   import { active } from '../stores/active.svelte'
   import { endPageDrag, startPageDrag } from '../transferDrag.svelte'
   import Padlock from './Padlock.svelte'
-  import { toggleArchive } from '../pageActions'
+  import { toggleHide } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
 
   // `actions`: All pages shows Archive / Delete… on each page; the sidebar tree does not
@@ -19,7 +19,14 @@
     actions = false,
     lock = false,
     only = null,
-  }: { parent?: string | null; actions?: boolean; lock?: boolean; only?: Set<string> | null } = $props()
+    hidden = 'without',
+  }: {
+    parent?: string | null
+    actions?: boolean
+    lock?: boolean
+    only?: Set<string> | null
+    hidden?: 'without' | 'with' | 'only'
+  } = $props()
   // the graph the tree lists: its section's, or (All pages) the active one
   const g = useGraph()
   // the page on screen is marked in the sidebar tree when it is this graph's
@@ -34,7 +41,9 @@
   // archived pages (and what is below them) are not in the tree
   const entries = $derived(
     (void g.archived.names,
-    all.filter((e) => !g.archived.is(e.name) && (!only || only.has(e.name.toLowerCase())))),
+    all.filter(
+      (e) => (hidden !== 'without' || !g.archived.is(e.name)) && (!only || only.has(e.name.toLowerCase())),
+    )),
   )
   // What was opened or closed by hand; every other branch follows `ns.all` (Collapse all / Expand all).
   // The state is shared by all levels of the tree, so it is read once and saved by whichever level changes it.
@@ -95,28 +104,35 @@
         >
         <Padlock mark={padlock(e)} testid="row-lock" />
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
-        <!-- a page without a file has nothing to archive or delete -->
-        {#if actions && !e.is_virtual}
+        {#if g.archived.is(e.name)}<span class="hid" data-testid="row-hidden-badge">hidden</span>{/if}
+        <!-- a folder without a file can be hidden but not deleted -->
+        {#if actions}
           <span class="acts">
-            <button
-              class="act"
-              data-testid="row-archive"
-              title="Hide this page (and the pages below it) from the sidebar and the agenda"
-              onclick={() => toggleArchive(e.name)}>Archive</button
-            >
-            <button
-              class="act danger"
-              data-testid="row-delete"
-              aria-label={`Delete ${e.name}`}
-              onclick={() => (deleting = deleting === e.name ? '' : e.name)}>Delete…</button
-            >
+            {#if g.archived.itself(e.name)}
+              <button class="act" data-testid="row-hide" onclick={() => toggleHide(e.name)}>Unhide</button>
+            {:else if !g.archived.is(e.name)}
+              <button
+                class="act"
+                data-testid="row-hide"
+                title="Hide this page (and the pages below it) from the sidebar and the agenda"
+                onclick={() => toggleHide(e.name)}>Hide</button
+              >
+            {/if}
+            {#if !e.is_virtual}
+              <button
+                class="act danger"
+                data-testid="row-delete"
+                aria-label={`Delete ${e.name}`}
+                onclick={() => (deleting = deleting === e.name ? '' : e.name)}>Delete…</button
+              >
+            {/if}
           </span>
         {/if}
       </span>
       {#if actions && deleting === e.name}
         <DeleteDialog page={e.name} stay onclose={() => (deleting = '')} />
       {/if}
-      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} {lock} {only} />{/if}
+      {#if e.has_children && isOpen(e.name)}<Self parent={e.name} {actions} {lock} {only} {hidden} />{/if}
     </li>
   {/each}
 </ul>
@@ -159,6 +175,13 @@
   .virtual {
     color: var(--muted);
     font-style: italic;
+  }
+  .hid {
+    font-size: 0.7em;
+    color: var(--muted);
+    background: var(--chip);
+    border-radius: 6px;
+    padding: 0 0.4em;
   }
   .count {
     font-size: 0.7em;

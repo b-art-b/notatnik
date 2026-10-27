@@ -25,8 +25,8 @@ test('all pages: list with filter, sorting and toggles; namespaces mode; sidebar
   await expect(page.getByTestId('pages-count')).toHaveText('1')
   await expect(table.locator('a[data-page="zeta"]')).toBeVisible()
   const row = table.locator('tr', { has: page.locator('a[data-page="zeta"]') })
-  await expect(row.locator('td').nth(1)).toHaveText('3') // blocks
-  await expect(row.locator('td').nth(2)).toHaveText('1') // linked from alpha
+  await expect(row.locator('td').nth(2)).toHaveText('3') // blocks (after the tick box and the name)
+  await expect(row.locator('td').nth(3)).toHaveText('1') // linked from alpha
   await page.getByLabel('Filter pages').fill('')
 
   // sort by blocks, biggest first: zeta (3 blocks) comes before alpha (1)

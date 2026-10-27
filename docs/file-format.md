@@ -301,6 +301,7 @@ Other fenced languages are reserved for renderers (`mermaid`, `math`) and plugin
 
 ```toml
 favorites = ["Notatki", "P/Capgemini"]   # pages pinned at the top of the sidebar, in this order (at most 20); before the tables
+hidden = ["Docs", "ref/old"]              # names hidden with everything below them: for names without a page file (a page with one uses `archived: true` in its front matter); before the tables
 
 [graph]
 id = "g7f3k2"                # random, generated once

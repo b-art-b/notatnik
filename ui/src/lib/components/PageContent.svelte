@@ -26,7 +26,8 @@
   import { isFavorite, setFavorite } from '../stores/favorites.svelte'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
-  import { isArchived, isArchivedItself } from '../stores/archived.svelte'
+  import { archived, isArchived, isArchivedItself } from '../stores/archived.svelte'
+  import { toggleHide } from '../pageActions'
   import { shownDate } from '../stores/format.svelte'
 
   interface Props {
@@ -240,9 +241,10 @@
   async function setProp(key: string, value: string) {
     await doc.apply([{ op: 'set_page_property', key, value: yamlValue(value) }])
   }
-  async function toggleArchive() {
-    if (isArchivedItself(view?.name ?? '')) await removeProp('archived')
-    else await doc.apply([{ op: 'set_page_property', key: 'archived', value: 'true' }])
+  /** The hidden page or folder above `name` that hides it. */
+  function hiddenBy(name: string): string {
+    const n = name.toLowerCase()
+    return archived.names.find((a) => n.startsWith(a.toLowerCase() + '/')) ?? ''
   }
   async function removeProp(key: string) {
     await doc.apply([{ op: 'remove_page_property', key }])
@@ -366,11 +368,12 @@
             {#if !view.is_journal}
               <button
                 class="act"
-                data-testid="archive-toggle"
+                data-testid="hide-toggle"
                 title={isArchivedItself(view.name)
                   ? 'Show this page in the sidebar and the agenda again'
                   : 'Hide this page (and the pages below it) from the sidebar and the agenda'}
-                onclick={toggleArchive}>{isArchivedItself(view.name) ? 'Unarchive' : 'Archive'}</button
+                onclick={() => toggleHide(view!.name)}
+                >{isArchivedItself(view.name) ? 'Unhide' : 'Hide'}</button
               >
               <button class="act danger" data-testid="delete-page" onclick={() => (deleting = !deleting)}
                 >Delete…</button
@@ -553,12 +556,12 @@
       />{/if}
     {#if deleting}<DeleteDialog page={view.name} onclose={() => (deleting = false)} />{/if}
     {#if !compact && isArchived(view.name)}
-      <p class="archived" data-testid="archived-banner" role="status">
-        Archived: hidden from the sidebar and the agenda.
+      <p class="archived" data-testid="hidden-banner" role="status">
+        Hidden: not in the sidebar and the agenda.
         {#if isArchivedItself(view.name)}
-          <button class="act" onclick={toggleArchive}>Unarchive</button>
+          <button class="act" onclick={() => toggleHide(view!.name)}>Unhide</button>
         {:else}
-          It is below an archived page.
+          It is hidden because “{hiddenBy(view.name)}” is.
         {/if}
       </p>
     {/if}

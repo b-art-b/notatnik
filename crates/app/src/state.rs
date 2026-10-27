@@ -298,6 +298,7 @@ mod conflicts;
 mod encryption;
 mod favorites;
 mod filesources;
+mod hidden;
 pub mod slots;
 mod syncing;
 mod transfer;
@@ -2031,6 +2032,7 @@ impl AppState {
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
             // a favourite follows the page, and the pages below it when they moved with it (NS-26)
             Self::rename_favorites(o, &plan.old, &plan.new, a.include_subpages.unwrap_or(true));
+            Self::rename_hidden(o, &plan.old, &plan.new, a.include_subpages.unwrap_or(true));
             // history of the old name can't be undone safely
             o.undo.retain(|e| e.page != plan.old);
             o.redo.retain(|e| e.page != plan.old);
@@ -2092,6 +2094,7 @@ impl AppState {
         );
         // a deleted page is no favourite any more (NS-26)
         Self::remove_favorites(o, &names);
+        Self::remove_hidden(o, &names);
         // the history of a deleted page can't be undone any more
         o.undo.retain(|e| !names.contains(&e.page));
         o.redo.retain(|e| !names.contains(&e.page));
@@ -2135,11 +2138,12 @@ impl AppState {
         })
     }
 
-    /// `archived_pages`: pages with `archived: true` (the pages below them are archived too; the UI applies that).
+    /// `archived_pages`: the hidden names: pages with `archived: true` and the `hidden` list (the pages below them are
+    /// hidden too; the UI applies that).
     pub fn archived_pages(&self, _a: NoArgs) -> ApiResult<StringList> {
         self.with_open(|o| {
             Ok(StringList {
-                items: o.graph.with_index(|i| i.archived_pages())?,
+                items: Self::hidden_names(o)?,
             })
         })
     }
@@ -2775,9 +2779,7 @@ impl AppState {
             };
             let mut days: BTreeMap<String, Vec<AgendaItem>> = BTreeMap::new();
             // tasks of archived pages (and pages below them) are not on the agenda
-            let archived: Vec<String> = o
-                .graph
-                .with_index(|i| i.archived_pages())?
+            let archived: Vec<String> = Self::hidden_names(o)?
                 .into_iter()
                 .map(|n| n.to_lowercase())
                 .collect();

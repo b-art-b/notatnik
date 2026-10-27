@@ -94,14 +94,15 @@ settings.
 
 ### M5 A second graph in the sidebar (MG-6)
 
-**Design.** The sidebar gets one *section* per open graph, stacked: the header (color dot, name, padlock, the graph menu), then Journals, Agenda, All pages, Search, Settings, the sync line, Favorites, Recent, Saved queries and Pages of that graph. The first section is the graph in slot `""`, the second the graph in slot `"1"`. The second starts folded to its header; a click on anything in a section opens it. The page area shows what was opened last, from either graph, and the *active* graph is the one whose page it shows. Every UI store that holds the state of one graph moves into a `GraphState` (one per section): its backend, bus, recent pages, favorites, icons, archived pages, encryption status, sync status, calendar sync, saved queries and tree folds. No frames: each sidebar section reads its own `GraphState` through Svelte context, and the code of the page area keeps importing the same modules, which now answer for the active graph (thin facades over `active().…`).
+**Design.** The sidebar gets one _section_ per open graph, stacked: the header (color dot, name, padlock, the graph menu), then Journals, Agenda, All pages, Search, Settings, the sync line, Favorites, Recent, Saved queries and Pages of that graph. The first section is the graph in slot `""`, the second the graph in slot `"1"`. The second starts folded to its header; a click on anything in a section opens it. The page area shows what was opened last, from either graph, and the _active_ graph is the one whose page it shows. Every UI store that holds the state of one graph moves into a `GraphState` (one per section): its backend, bus, recent pages, favorites, icons, archived pages, encryption status, sync status, calendar sync, saved queries and tree folds. No frames: each sidebar section reads its own `GraphState` through Svelte context, and the code of the page area keeps importing the same modules, which now answer for the active graph (thin facades over `active().…`).
 
 - **Route.** `#/page/X` is a page of the active graph; `#/g/1/page/X` is a page of the graph in slot 1 (the prefix is on every route kind; slot `""` has none, so existing links and tests keep working). A hash with another slot makes that graph active; the page area is rebuilt (`{#key}`), the open documents are flushed and dropped, and editing state is reset. A `PageDoc` keeps the backend it was made with, so a late save never goes to the other graph.
-- **Opening and closing.** *Open as second graph* in a section's graph menu (for the other graphs of this device); the second section's menu has *Close*. The second graph is remembered on this device and reopened at start.
-- **Moving notes.** Drag a page row (tree, Recent, Favorites) or a block bullet onto a page row or the header of the other section, or onto the page area when it shows the other graph: the transfer dialog opens with source and target fixed. *To graph…* stays as the button.
+- **Opening and closing.** _Open as second graph_ in a section's graph menu (for the other graphs of this device); the second section's menu has _Close_. The second graph is remembered on this device and reopened at start.
+- **Moving notes.** Drag a page row (tree, Recent, Favorites) or a block bullet onto a page row or the header of the other section, or onto the page area when it shows the other graph: the transfer dialog opens with source and target fixed. _To graph…_ stays as the button.
 - **Identity.** Each section has its graph's color along its header; the page area keeps the chip with the graph's name and color while two graphs are open; the active section is marked.
 
 ### M5 tasks
+
 - [x] R1 `GraphState` and the per-graph stores as classes; the old modules are facades over the active graph; the single-graph app behaves as before
 - [x] R2 Route with a slot, activation, a second graph opened and closed, remembered at start
 - [x] R3 The sidebar as sections (components read their graph from context)
@@ -110,6 +111,7 @@ settings.
 - [ ] R6 Docs, WebKit run, manual check list
 
 **Verify**
+
 - [ ] Unit tests for the route with a slot and for the per-graph stores (two instances do not share state)
 - [ ] Every existing browser test passes unchanged (single graph)
 - [ ] Browser tests: two sections with their own pages, Recent, Favorites, icons and padlocks; opening a page of the second graph switches the page area and back; edits go to the right graph (files on disk); closing the second section; a page row dragged to the other section's header opens the dialog with the target fixed and the copy lands; a block bullet dragged onto a row of the other section appends; a reload keeps both
@@ -127,4 +129,4 @@ Links between graphs; the same graph twice; more than two graphs in the sidebar 
 
 A graph that is open is locked: `GraphLock` (`crates/graph/src/lock.rs`) takes an advisory file lock (`File::try_lock`) on a file named after the graph folder in the system's temp folder (`notatnik-locks-<user>/<hash>.lock`). Not in the graph folder (it would sync and be backed up), not in the device data folder (the installed app and `scripts/dev.sh` have different ones and can open the same graph folder). The system drops the lock when the program ends, so a crash leaves no stale lock. The file says which process holds it, for the message. It is taken by `open_graph` where the file watcher runs (the app and the dev server; unit tests that run without a watcher do not lock), kept when the same state opens the same graph again, and released when the graph is closed (a closed second graph lets go after its last sync). The command line tool does not lock: its commands are short.
 
-**Verify** `a_graph_open_in_one_app_cannot_be_opened_by_another_until_it_is_closed` and `a_closed_second_graph_is_free_for_another_app` in `crates/app/tests/multi.rs`, the unit test in `lock.rs`, and two dev servers with different device folders on one graph by hand (the second says *this graph is open in another Notatnik (process N)*).
+**Verify** `a_graph_open_in_one_app_cannot_be_opened_by_another_until_it_is_closed` and `a_closed_second_graph_is_free_for_another_app` in `crates/app/tests/multi.rs`, the unit test in `lock.rs`, and two dev servers with different device folders on one graph by hand (the second says _this graph is open in another Notatnik (process N)_).

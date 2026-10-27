@@ -1,11 +1,12 @@
 <script lang="ts">
   // All pages: a namespace tree, or a flat list you can filter and sort. Svelte idioms: `$state` holds what
   // the user changes, `$derived` the filtered/sorted rows computed from it (never written to).
+  import { untrack } from 'svelte'
   import { backend, type PageListRow } from '../api'
   import { bus } from '../stores/events.svelte'
   import { pageHash } from '../route'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
-  import { toggleArchive } from '../pageActions'
+  import { hidePages, toggleHide } from '../pageActions'
   import DeleteDialog from './DeleteDialog.svelte'
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
   import Padlock from './Padlock.svelte'
@@ -28,7 +29,10 @@
   let sortKey = $state<SortKey>('name')
   let desc = $state(false)
   let journals = $state(false)
-  let showArchived = $state(false)
+  // hidden pages (NS-27): left out, shown with the others, or the only ones shown
+  let hiddenMode = $state<'without' | 'with' | 'only'>('without')
+  // the rows ticked for Hide / Unhide (by page name)
+  let selected = $state<string[]>([])
   let onlyEncrypted = $state(false)
   let virtual = $state(true)
   let limit = $state(SHOWN)
@@ -77,13 +81,24 @@
     return out
   })
 
+  // the Namespaces view showing only hidden pages: the hidden pages and the names above them
+  const hiddenNames = $derived.by(() => {
+    const out = new Set<string>()
+    for (const r of rows) {
+      if (!isArchived(r.name)) continue
+      const parts = r.name.toLowerCase().split('/')
+      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('/'))
+    }
+    return out
+  })
+
   const visible = $derived.by(() => {
     const q = filter.trim().toLowerCase()
     const out = rows.filter(
       (r) =>
         (journals || !r.is_journal) &&
         (virtual || !r.is_virtual) &&
-        (showArchived || !isArchived(r.name)) &&
+        (hiddenMode === 'with' || (hiddenMode === 'only') === isArchived(r.name)) &&
         (!onlyEncrypted || !!padlock(r)) &&
         (!q || r.name.toLowerCase().includes(q)),
     )
@@ -103,6 +118,14 @@
     return out.sort((a, b) => dir * cmp(a, b) || a.name.localeCompare(b.name))
   })
 
+  // the rows on screen (the ticks of rows that left the list with a filter are dropped)
+  const shownNames = $derived(visible.slice(0, limit).map((r) => r.name))
+  $effect(() => {
+    const names = new Set(visible.map((r) => r.name))
+    const keep = untrack(() => selected.filter((n) => names.has(n)))
+    if (keep.length !== untrack(() => selected.length)) selected = keep
+  })
+
   function sortBy(key: SortKey) {
     if (sortKey === key) desc = !desc
     else {
@@ -120,7 +143,7 @@
   $effect(() => {
     void filter
     void journals
-    void showArchived
+    void hiddenMode
     void onlyEncrypted
     void virtual
     limit = SHOWN
@@ -149,8 +172,15 @@
     />
     <label><input type="checkbox" bind:checked={journals} /> Journals</label>
     <label><input type="checkbox" bind:checked={virtual} /> Pages without a file</label>
-    <label><input type="checkbox" bind:checked={showArchived} data-testid="show-archived" /> Archived</label>
   {/if}
+  <label class="hf"
+    >Hidden pages
+    <select bind:value={hiddenMode} data-testid="hidden-filter">
+      <option value="without">not shown</option>
+      <option value="with">shown too</option>
+      <option value="only">only hidden</option>
+    </select></label
+  >
   {#if encryption.status && (encryption.status.scope === 'all' || encryption.status.paths.length)}
     <label
       ><input type="checkbox" bind:checked={onlyEncrypted} data-testid="only-encrypted" />
@@ -161,16 +191,52 @@
 
 {#if mode === 'tree'}
   <div class="tree" data-testid="pages-tree">
-    <NamespaceTree actions lock only={onlyEncrypted ? encryptedNames : null} />
+    <NamespaceTree
+      actions
+      lock
+      hidden={hiddenMode}
+      only={onlyEncrypted ? encryptedNames : hiddenMode === 'only' ? hiddenNames : null}
+    />
   </div>
 {:else if !loaded}
   <p class="muted">Loading…</p>
 {:else if visible.length === 0}
   <p class="muted">No pages match.</p>
 {:else}
+  {#if selected.length}
+    <div class="selection" role="status" data-testid="selection-bar">
+      <strong>{selected.length}</strong> selected
+      <button
+        type="button"
+        data-testid="selection-hide"
+        onclick={async () => {
+          await hidePages(selected, true)
+          selected = []
+        }}>Hide</button
+      >
+      <button
+        type="button"
+        data-testid="selection-unhide"
+        onclick={async () => {
+          await hidePages(selected, false)
+          selected = []
+        }}>Unhide</button
+      >
+      <button type="button" class="plain" onclick={() => (selected = [])}>Clear</button>
+    </div>
+  {/if}
   <table data-testid="pages-table">
     <thead>
       <tr>
+        <th scope="col" class="pick">
+          <input
+            type="checkbox"
+            aria-label="Select all the pages shown"
+            data-testid="select-all"
+            checked={shownNames.length > 0 && shownNames.every((n) => selected.includes(n))}
+            onchange={(e) => (selected = e.currentTarget.checked ? [...shownNames] : [])}
+          />
+        </th>
         <th scope="col" aria-sort={ariaSort('name')}
           ><button onclick={() => sortBy('name')}>Page{arrow('name')}</button></th
         >
@@ -188,32 +254,47 @@
     </thead>
     <tbody>
       {#each visible.slice(0, limit) as r (r.name)}
-        <tr>
+        <tr class:hidden-row={isArchived(r.name)}>
+          <td class="pick">
+            <input
+              type="checkbox"
+              aria-label={`Select ${r.name}`}
+              data-testid="row-select"
+              checked={selected.includes(r.name)}
+              onchange={(e) =>
+                (selected = e.currentTarget.checked
+                  ? [...selected, r.name]
+                  : selected.filter((n) => n !== r.name))}
+            />
+          </td>
           <td>
             <a href={pageHash(r.name)} class:virtual={r.is_virtual} data-page={r.name}
               ><PageIcon name={r.name} align />{r.name}</a
             >
             {#if r.is_virtual}<span class="tag">no file</span>{/if}
+            {#if isArchived(r.name)}<span class="tag" data-testid="row-hidden-badge"
+                >{isArchivedItself(r.name) ? 'hidden' : 'hidden with its folder'}</span
+              >{/if}
             <Padlock mark={padlock(r)} testid="row-lock" size="0.85em" />
           </td>
           <td class="num">{r.is_virtual ? '' : r.blocks}</td>
           <td class="num">{r.backlinks || ''}</td>
           <td class="muted">{r.modified ?? ''}</td>
           <td class="acts">
-            <!-- a page without a file has nothing to archive or delete; a journal day is neither -->
-            {#if !r.is_virtual && !r.is_journal}
+            <!-- a journal day is neither hidden nor deleted here; a page without a file (a folder) can be hidden -->
+            {#if !r.is_journal}
               {#if isArchivedItself(r.name)}
-                <button class="act" data-testid="row-archive" onclick={() => toggleArchive(r.name)}
-                  >Unarchive</button
-                >
+                <button class="act" data-testid="row-hide" onclick={() => toggleHide(r.name)}>Unhide</button>
               {:else if !isArchived(r.name)}
                 <button
                   class="act"
-                  data-testid="row-archive"
+                  data-testid="row-hide"
                   title="Hide this page (and the pages below it) from the sidebar and the agenda"
-                  onclick={() => toggleArchive(r.name)}>Archive</button
+                  onclick={() => toggleHide(r.name)}>Hide</button
                 >
               {/if}
+            {/if}
+            {#if !r.is_virtual && !r.is_journal}
               <button
                 class="act danger"
                 data-testid="row-delete"
@@ -225,7 +306,7 @@
         </tr>
         {#if deleting === r.name}
           <tr class="confirm">
-            <td colspan="5"><DeleteDialog page={r.name} stay onclose={() => (deleting = '')} /></td>
+            <td colspan="6"><DeleteDialog page={r.name} stay onclose={() => (deleting = '')} /></td>
           </tr>
         {/if}
       {/each}
@@ -313,6 +394,30 @@
   }
   .tree {
     max-width: 40em;
+  }
+  .hf select {
+    margin-left: 0.3em;
+  }
+  .pick {
+    width: 1.6em;
+    padding-right: 0;
+  }
+  /* a hidden page, when the list shows hidden pages too */
+  .hidden-row td {
+    opacity: 0.6;
+  }
+  .hidden-row td.acts,
+  .hidden-row td.pick {
+    opacity: 1;
+  }
+  .selection {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    margin: 0 0 0.6em;
+    padding: 0.4em 0.7em;
+    background: var(--selection);
+    border-radius: 8px;
   }
   .acts {
     text-align: right;

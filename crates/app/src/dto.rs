@@ -1244,6 +1244,33 @@ pub struct FavoriteView {
     pub path: Option<String>,
 }
 
+/// `hide_pages` (NS-27)
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct HidePagesArgs {
+    /// The pages (each is hidden with everything below it).
+    pub pages: Vec<String>,
+    /// Hide them (`true`) or unhide them.
+    pub hidden: bool,
+}
+
+/// A page that is hidden by a folder above it, so it cannot be unhidden on its own.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct InheritedHide {
+    /// The page.
+    pub name: String,
+    /// The hidden page or folder above it.
+    pub by: String,
+}
+
+/// What `hide_pages` did.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct HideResult {
+    /// The names that were marked or unmarked.
+    pub changed: Vec<String>,
+    /// Pages that stay hidden because a folder above them is.
+    pub inherited: Vec<InheritedHide>,
+}
+
 /// `favorite_set`
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct FavoriteSetArgs {

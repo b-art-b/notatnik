@@ -653,12 +653,39 @@ pub fn apply(source: &str, page: &Page, op: &BlockOp) -> Result<EditResult, Edit
                 return Err(EditError::InvalidFrontmatter);
             }
             match fm.entries.iter().find(|e| e.key == *key) {
+                // the last line of the front matter: the empty `---` / `---` that would be left goes too, so that
+                // setting and removing a property brings back the file as it was
+                Some(e) if only_line_of_frontmatter(source, fm, e) => {
+                    // with the blank line that follows it (setting a property on a file without front matter adds one)
+                    let rest = source.get(fm.span.end..).unwrap_or("");
+                    let blank = if rest.starts_with("\r\n") {
+                        2
+                    } else {
+                        usize::from(rest.starts_with('\n'))
+                    };
+                    vec![delete_lines(source, fm.span.start, fm.span.end + blank)]
+                }
                 Some(e) => vec![delete_lines(source, e.span.start, e.span.end)],
                 None => Vec::new(),
             }
         }
     };
     Ok(finish(source, patches))
+}
+
+/// Is `entry` all that the front matter holds between its two `---` lines (no other key, no comment)?
+fn only_line_of_frontmatter(
+    source: &str,
+    fm: &crate::Frontmatter,
+    entry: &crate::Property,
+) -> bool {
+    let all = fm.span.slice(source);
+    let inner = all
+        .trim_start_matches("---")
+        .trim_end()
+        .trim_end_matches("---")
+        .trim();
+    inner == entry.span.slice(source).trim()
 }
 
 fn update_text(
@@ -1144,5 +1171,44 @@ mod replace_id_tests {
         assert_eq!(r.new_source, "- a ^abc123\n  - b ^qqq111\n");
         assert!(replace_block_id(src, &p, &[3], "zzz999").is_err());
         assert!(replace_block_id(src, &p, &[0], "BAD").is_err());
+    }
+}
+
+#[cfg(test)]
+mod remove_property_tests {
+    use super::*;
+    use crate::parse_page;
+
+    fn run(src: &str, op: BlockOp) -> String {
+        apply(src, &parse_page(src), &op).unwrap().new_source
+    }
+
+    #[test]
+    fn removing_the_last_page_property_takes_the_front_matter_with_it() {
+        let set = BlockOp::SetPageProperty {
+            key: "archived".into(),
+            value: "true".into(),
+        };
+        let rm = BlockOp::RemovePageProperty {
+            key: "archived".into(),
+        };
+        let src = "- a block\n";
+        let with = run(src, set);
+        assert_eq!(with, "---\narchived: true\n---\n\n- a block\n");
+        assert_eq!(
+            run(&with, rm.clone()),
+            src,
+            "set then remove is the file as it was"
+        );
+        // another key stays: only the line goes
+        assert_eq!(
+            run("---\ntitle: T\narchived: true\n---\n- x\n", rm.clone()),
+            "---\ntitle: T\n---\n- x\n"
+        );
+        // a comment in the front matter is the person's: it is kept, with its `---` lines
+        assert_eq!(
+            run("---\n# note\narchived: true\n---\n- x\n", rm),
+            "---\n# note\n---\n- x\n"
+        );
     }
 }

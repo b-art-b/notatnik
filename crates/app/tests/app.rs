@@ -6687,12 +6687,141 @@ fn aliases_are_set_from_the_api_and_links_through_them_work() {
     );
     assert_eq!(p["frontmatter"]["aliases"], json!(["tgt"]));
     let p = t.ok("page_aliases", json!({"page": "Target", "aliases": []}));
-    assert_eq!(p["frontmatter"]["aliases"], json!([]));
-    assert!(!t.read("pages/Target.md").contains("aliases"));
+    assert_eq!(
+        p["frontmatter"],
+        Value::Null,
+        "the empty front matter went with its last line"
+    );
+    assert_eq!(
+        t.read("pages/Target.md"),
+        "- the target\n",
+        "the file is as it was before the alias"
+    );
     // an alias that no page has yet is fine, a missing page is made (with the alias in its front matter)
     t.ok(
         "page_aliases",
         json!({"page": "Brand new", "aliases": ["bn"]}),
     );
     assert!(t.read("pages/Brand new.md").contains("aliases: [bn]"));
+}
+
+#[test]
+fn pages_and_folders_are_hidden_in_one_call_and_the_marks_follow_renames() {
+    let t = start("basic");
+    // the plain values at the top of the settings file (`[properties]` has a `hidden` of its own)
+    let top_of_config = |t: &T| {
+        t.read(".notatnik/config.toml")
+            .lines()
+            .take_while(|l| !l.starts_with('['))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let hidden = |t: &T| -> Vec<String> {
+        let mut v: Vec<String> = t.ok("archived_pages", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_str().unwrap().to_string())
+            .collect();
+        v.sort();
+        v
+    };
+    let agenda_pages = |t: &T| -> Vec<String> {
+        fn pages(v: &Value, out: &mut Vec<String>) {
+            match v {
+                Value::Object(m) => {
+                    for (k, x) in m {
+                        match (k.as_str(), x) {
+                            ("page", Value::String(s)) => out.push(s.clone()),
+                            _ => pages(x, out),
+                        }
+                    }
+                }
+                Value::Array(a) => a.iter().for_each(|x| pages(x, out)),
+                _ => {}
+            }
+        }
+        let a = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+        let mut v = Vec::new();
+        pages(&a, &mut v);
+        v.sort();
+        v.dedup();
+        v
+    };
+    assert!(agenda_pages(&t).iter().any(|p| p.starts_with("work/")));
+
+    // a page with a file: the front matter line, nothing in the settings
+    let r = t.ok("hide_pages", json!({"pages": ["inbox"], "hidden": true}));
+    assert_eq!(r["changed"], json!(["inbox"]));
+    assert!(
+        t.read("pages/inbox.md")
+            .starts_with("---\narchived: true\n---\n")
+    );
+    assert!(!top_of_config(&t).contains("hidden"));
+    assert_eq!(hidden(&t), ["inbox"]);
+
+    // a folder without a file: the list in the settings, and its pages leave the agenda
+    let r = t.ok("hide_pages", json!({"pages": ["work"], "hidden": true}));
+    assert_eq!(r["changed"], json!(["work"]));
+    assert!(
+        t.read(".notatnik/config.toml")
+            .contains("hidden = [\"work\"]")
+    );
+    assert!(
+        !t.graph().join("pages/work.md").exists(),
+        "no file was made"
+    );
+    assert_eq!(hidden(&t), ["inbox", "work"]);
+    assert!(!agenda_pages(&t).iter().any(|p| p.starts_with("work/")));
+
+    // below a hidden folder: nothing to mark; many at once: the one above covers the ones below
+    let r = t.ok(
+        "hide_pages",
+        json!({"pages": ["work/projects/alpha"], "hidden": true}),
+    );
+    assert_eq!(r["changed"], json!([]));
+    let r = t.ok(
+        "hide_pages",
+        json!({"pages": ["people", "people/anna", "reading"], "hidden": true}),
+    );
+    assert_eq!(r["changed"], json!(["people", "reading"]));
+    assert!(!t.read("pages/people/anna.md").contains("archived"));
+
+    // a page that is hidden by a folder above it cannot be unhidden alone
+    let r = t.ok(
+        "hide_pages",
+        json!({"pages": ["work/projects"], "hidden": false}),
+    );
+    assert_eq!(r["changed"], json!([]));
+    assert_eq!(
+        r["inherited"],
+        json!([{"name": "work/projects", "by": "work"}])
+    );
+    assert!(hidden(&t).contains(&"work".to_string()));
+
+    // renaming a hidden folder moves its entry (and a rename of a page below it leaves the list alone)
+    t.ok(
+        "rename_apply",
+        json!({"old": "people", "new": "persons", "include_subpages": true}),
+    );
+    let cfg = t.read(".notatnik/config.toml");
+    assert!(
+        cfg.contains("\"persons\"") && !cfg.contains("\"people\""),
+        "{cfg}"
+    );
+
+    // unhide: front matter line and list entries go, the files are otherwise as they were
+    let r = t.ok(
+        "hide_pages",
+        json!({"pages": ["inbox", "work", "persons", "reading"], "hidden": false}),
+    );
+    assert_eq!(r["changed"].as_array().unwrap().len(), 4);
+    assert!(!t.read("pages/inbox.md").contains("archived"));
+    assert!(
+        !top_of_config(&t).contains("hidden"),
+        "{}",
+        t.read(".notatnik/config.toml")
+    );
+    assert_eq!(hidden(&t), Vec::<String>::new());
+    assert!(agenda_pages(&t).iter().any(|p| p.starts_with("work/")));
 }

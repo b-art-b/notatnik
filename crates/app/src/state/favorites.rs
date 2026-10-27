@@ -12,6 +12,26 @@ fn same(a: &str, b: &str) -> bool {
         .unwrap_or(a == b)
 }
 
+/// A list of page names after `old` became `new`; with `subpages` the names below it move along.
+pub(super) fn renamed_list(list: &[String], old: &str, new: &str, subpages: bool) -> Vec<String> {
+    let prefix = format!("{old}/");
+    list.iter()
+        .map(|f| {
+            if same(f, old) {
+                new.to_string()
+            } else if subpages
+                && f.len() > prefix.len()
+                && f.is_char_boundary(prefix.len())
+                && f[..prefix.len()].to_lowercase() == prefix.to_lowercase()
+            {
+                format!("{new}/{}", &f[prefix.len()..])
+            } else {
+                f.clone()
+            }
+        })
+        .collect()
+}
+
 impl AppState {
     fn favorites_of(o: &Open) -> Vec<FavoriteView> {
         o.graph
@@ -83,23 +103,7 @@ impl AppState {
     /// After a rename: the favourite `old` is `new`, and with `subpages` the favourites below it move along.
     pub(super) fn rename_favorites(o: &Open, old: &str, new: &str, subpages: bool) {
         let list = o.graph.config().favorites;
-        let prefix = format!("{old}/");
-        let renamed: Vec<String> = list
-            .iter()
-            .map(|f| {
-                if same(f, old) {
-                    new.to_string()
-                } else if subpages
-                    && f.len() > prefix.len()
-                    && f.is_char_boundary(prefix.len())
-                    && f[..prefix.len()].to_lowercase() == prefix.to_lowercase()
-                {
-                    format!("{new}/{}", &f[prefix.len()..])
-                } else {
-                    f.clone()
-                }
-            })
-            .collect();
+        let renamed = renamed_list(&list, old, new, subpages);
         if renamed != list {
             if let Err(e) = o.graph.update_config(|c| c.favorites = renamed) {
                 log::warn!("favorites: could not follow a rename: {e}");

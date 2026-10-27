@@ -132,6 +132,7 @@ commands! {
     delete_pages(DeletePagesArgs) -> DeletePagesResult => delete_pages,
     restore_pages(RestorePagesArgs) -> StringList => restore_pages,
     archived_pages(NoArgs) -> StringList => archived_pages,
+    hide_pages(HidePagesArgs) -> HideResult => hide_pages,
     ensure_block_id(EnsureBlockIdArgs) -> StringValue => ensure_block_id,
     get_block(GetBlockArgs) -> Option<BlockLookup> => get_block,
     set_collapsed(SetCollapsedArgs) -> NoArgs => set_collapsed,

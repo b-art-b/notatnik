@@ -15,6 +15,11 @@ pub struct Config {
     /// First in the struct: a plain value must come before the tables in the file.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub favorites: Vec<String>,
+    /// `hidden = [...]`: page names that are hidden, each with everything below it (NS-27). A page that has a file is
+    /// hidden by `archived: true` in the file; this list is for names without one (a folder that exists because a page
+    /// below it does) and syncs with the graph.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden: Vec<String>,
     /// `[graph]`
     #[serde(default)]
     pub graph: GraphSection,
@@ -344,7 +349,10 @@ impl Config {
                         }
                     }
                 }
-                None if k == "saved_queries" || k == "page_icons" || k == "favorites" => {}
+                None if k == "saved_queries"
+                    || k == "page_icons"
+                    || k == "favorites"
+                    || k == "hidden" => {}
                 None if k == "namespaces" => {
                     if let Some(t) = v.as_table() {
                         for (ns, nv) in t {
@@ -960,6 +968,22 @@ mod priority_tests {
 #[cfg(test)]
 mod encryption_tests {
     use super::*;
+
+    #[test]
+    fn hidden_is_a_list_before_the_tables() {
+        let (c, w) =
+            Config::parse("hidden = [\"work\", \"ref/old\"]\n\n[graph]\nid = \"g1\"\n").unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(c.hidden, ["work", "ref/old"]);
+        let text = c.to_toml();
+        assert!(
+            text.find("hidden").unwrap() < text.find("[graph]").unwrap(),
+            "{text}"
+        );
+        let empty = Config::default().to_toml();
+        let top = empty.split("\n[").next().unwrap_or("");
+        assert!(!top.contains("hidden"), "{top}");
+    }
 
     #[test]
     fn favorites_are_a_list_before_the_tables() {
