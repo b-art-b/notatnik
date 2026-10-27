@@ -4,7 +4,7 @@ description = "Graph service: file I/O, atomic writes, file watching, conflict d
 version.workspace = true
 license.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+rust-version = "1.89" # File::try_lock (the graph lock)
 
 [dependencies]
 blake3 = "1.8.7"

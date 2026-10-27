@@ -142,12 +142,13 @@ impl Inner {
                 entries.insert(0, (next, false));
                 next += 1;
             }
-        } else if let Some(&(newest, true)) = entries.first() {
-            if app_write && now - newest < BURST_MS {
-                // a burst of edits: the newest version follows along instead of piling up
-                let _ = std::fs::remove_file(version_file(&dir, newest, true));
-                entries.remove(0);
-            }
+        } else if let Some(&(newest, true)) = entries.first()
+            && app_write
+            && now - newest < BURST_MS
+        {
+            // a burst of edits: the newest version follows along instead of piling up
+            let _ = std::fs::remove_file(version_file(&dir, newest, true));
+            entries.remove(0);
         }
         if std::fs::write(version_file(&dir, next, app_write), new).is_ok() {
             entries.insert(0, (next, app_write));

@@ -718,3 +718,78 @@ fn a_graph_has_a_color_that_is_chosen_or_comes_from_its_id() {
         );
     }
 }
+
+// ---- two programs on one graph ----------------------------------------------------------------------------------
+
+/// An app as the desktop shell runs it: the file watcher is on, so the graph is locked while it is open.
+fn real_app(tmp: &Path, name: &str) -> AppState {
+    let today = NaiveDate::parse_from_str("2026-10-03", "%Y-%m-%d").unwrap();
+    AppState::new(AppOptions {
+        dirs: Dirs::under(&tmp.join(name)),
+        emit: Arc::new(|_, _| {}),
+        today: Arc::new(move || today),
+        watch: true,
+    })
+}
+
+#[test]
+fn a_graph_open_in_one_app_cannot_be_opened_by_another_until_it_is_closed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("shared-graph");
+    let open = |app: &AppState| {
+        dispatch_slot(
+            app,
+            "",
+            "open_graph",
+            json!({"path": graph.to_str().unwrap(), "create": true}),
+        )
+    };
+    // two apps with their own device folders (the installed app and the dev app)
+    let first = real_app(tmp.path(), "device-a");
+    let second = real_app(tmp.path(), "device-b");
+    open(&first).unwrap();
+    let err = open(&second).unwrap_err();
+    assert_eq!(err.code, "locked");
+    // (both apps are this process here, so the message is the one for a graph that is still being closed)
+    assert!(err.message.contains("closed"), "{}", err.message);
+    // the same app opening the graph again (a reload) keeps its lock
+    open(&first).unwrap();
+    assert_eq!(open(&second).unwrap_err().code, "locked");
+    // the second app can open another graph, and this one when the first app is gone
+    drop(first);
+    open(&second).unwrap();
+}
+
+#[test]
+fn a_closed_second_graph_is_free_for_another_app() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, b) = (tmp.path().join("graph-a"), tmp.path().join("graph-b"));
+    let app = real_app(tmp.path(), "device-a");
+    let other = real_app(tmp.path(), "device-b");
+    let open = |app: &AppState, slot: &str, p: &Path| {
+        dispatch_slot(
+            app,
+            slot,
+            "open_graph",
+            json!({"path": p.to_str().unwrap(), "create": true}),
+        )
+    };
+    open(&app, "", &a).unwrap();
+    open(&app, "1", &b).unwrap();
+    assert_eq!(
+        open(&other, "", &b).unwrap_err().code,
+        "locked",
+        "the second graph is locked too"
+    );
+    dispatch_slot(&app, "", "close_slot", json!({"slot": "1"})).unwrap();
+    // the closed graph finishes its last sync on a thread of its own, then lets go
+    let mut opened = false;
+    for _ in 0..100 {
+        if open(&other, "", &b).is_ok() {
+            opened = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(opened, "the lock was not released");
+}

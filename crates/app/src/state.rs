@@ -304,6 +304,8 @@ mod transfer;
 pub use syncing::{MemorySecrets, Secrets};
 
 struct Open {
+    /// Keeps other programs from opening this graph; released when the graph is closed or the program ends.
+    _lock: Option<notatnik_graph::GraphLock>,
     graph: Graph,
     _watcher: Option<Watcher>,
     backup: Option<BackupTask>,
@@ -432,10 +434,34 @@ impl AppState {
 
     // ---- commands -------------------------------------------------------------------------
 
+    /// The lock of the graph folder `path`: the one this state holds already when it is the same folder, else a new one.
+    fn lock_graph(&self, path: &Path) -> ApiResult<notatnik_graph::GraphLock> {
+        let want = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let kept = self
+            .lock()
+            .as_mut()
+            .and_then(|o| o._lock.take_if(|l| l.root() == want));
+        if let Some(l) = kept {
+            return Ok(l);
+        }
+        notatnik_graph::GraphLock::acquire(&want).map_err(|e| match e {
+            notatnik_graph::LockError::Held(_) => ApiError::new("locked", e.to_string()),
+            notatnik_graph::LockError::Io(_) => ApiError::new("internal", e.to_string()),
+        })
+    }
+
     /// `open_graph`
     pub fn open_graph(&self, a: OpenGraphArgs) -> ApiResult<GraphInfo> {
         let path = PathBuf::from(&a.path);
         self.refuse_if_open_elsewhere(&path)?;
+        // Where the app runs for real (the watcher is on), another program with the same graph open is refused: two
+        // sync loops and two writers on one folder would corrupt it. Opening the graph this state has open again keeps
+        // its lock.
+        let lock = if self.watch {
+            Some(self.lock_graph(&path)?)
+        } else {
+            None
+        };
         let started = std::time::Instant::now();
         let (graph, report) =
             if a.create && !path.join(".notatnik").exists() && !path.join("pages").exists() {
@@ -486,6 +512,7 @@ impl AppState {
         let sync = self.start_sync(&graph, wake);
         self.note_open_root(&graph);
         *self.lock() = Some(Open {
+            _lock: lock,
             graph,
             _watcher: watcher,
             backup,

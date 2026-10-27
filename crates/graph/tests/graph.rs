@@ -238,10 +238,11 @@ fn readers_never_see_a_partial_file() {
         );
         std::thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                if let Ok(t) = std::fs::read_to_string(&path) {
-                    if t != a && t != b {
-                        bad.store(true, Ordering::Relaxed);
-                    }
+                if let Ok(t) = std::fs::read_to_string(&path)
+                    && t != a
+                    && t != b
+                {
+                    bad.store(true, Ordering::Relaxed);
                 }
             }
         })

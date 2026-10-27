@@ -121,4 +121,10 @@ The first M5 showed the second graph as the whole app in a frame on the right of
 
 ## Not in this phase
 
-Links between graphs; the same graph twice; more than two graphs in the sidebar (the backend allows it); a lock file across processes.
+Links between graphs; the same graph twice; more than two graphs in the sidebar (the backend allows it).
+
+## Two programs on one graph (MG-1)
+
+A graph that is open is locked: `GraphLock` (`crates/graph/src/lock.rs`) takes an advisory file lock (`File::try_lock`) on a file named after the graph folder in the system's temp folder (`notatnik-locks-<user>/<hash>.lock`). Not in the graph folder (it would sync and be backed up), not in the device data folder (the installed app and `scripts/dev.sh` have different ones and can open the same graph folder). The system drops the lock when the program ends, so a crash leaves no stale lock. The file says which process holds it, for the message. It is taken by `open_graph` where the file watcher runs (the app and the dev server; unit tests that run without a watcher do not lock), kept when the same state opens the same graph again, and released when the graph is closed (a closed second graph lets go after its last sync). The command line tool does not lock: its commands are short.
+
+**Verify** `a_graph_open_in_one_app_cannot_be_opened_by_another_until_it_is_closed` and `a_closed_second_graph_is_free_for_another_app` in `crates/app/tests/multi.rs`, the unit test in `lock.rs`, and two dev servers with different device folders on one graph by hand (the second says *this graph is open in another Notatnik (process N)*).

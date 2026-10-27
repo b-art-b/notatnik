@@ -10,6 +10,7 @@ pub mod backup;
 mod config;
 mod error;
 mod journal;
+mod lock;
 mod rename;
 pub mod synth;
 mod versions;
@@ -27,6 +28,7 @@ pub use config::{
     validate_priorities,
 };
 pub use error::{Error, Result};
+pub use lock::{GraphLock, LockError};
 pub use rename::{FileEdit, RenamePlan, RenameReport};
 pub use versions::PageVersion;
 pub use watch::{GraphChanged, Watcher};
@@ -931,10 +933,11 @@ impl Inner {
         // what was seen last time: with the new content it is a change to record in the page history
         let before = std::fs::read(&p).ok();
         let tmp = p.with_extension("tmp");
-        if std::fs::write(&tmp, &bytes).is_ok() && std::fs::rename(&tmp, &p).is_ok() {
-            if let Some(old) = before {
-                self.record_versions(rel, &old, &bytes, app_write);
-            }
+        if std::fs::write(&tmp, &bytes).is_ok()
+            && std::fs::rename(&tmp, &p).is_ok()
+            && let Some(old) = before
+        {
+            self.record_versions(rel, &old, &bytes, app_write);
         }
     }
 

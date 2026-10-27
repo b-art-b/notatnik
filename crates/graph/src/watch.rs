@@ -200,16 +200,14 @@ impl Graph {
                     }
                 }
             }
-            if full {
-                if let Ok(s) = g.index.reconcile(&root) {
-                    for rel in s.reindexed_paths.iter().chain(&s.deleted_paths) {
-                        changed.push(rel.clone());
-                    }
-                    for rel in &s.reindexed_paths {
-                        g.snapshot_file(rel);
-                    }
-                    dups.extend(s.duplicates);
+            if full && let Ok(s) = g.index.reconcile(&root) {
+                for rel in s.reindexed_paths.iter().chain(&s.deleted_paths) {
+                    changed.push(rel.clone());
                 }
+                for rel in &s.reindexed_paths {
+                    g.snapshot_file(rel);
+                }
+                dups.extend(s.duplicates);
             }
         }
         for (rel, d) in dups {

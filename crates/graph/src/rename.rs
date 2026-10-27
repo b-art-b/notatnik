@@ -169,13 +169,13 @@ impl Graph {
                 info.name
             )));
         }
-        if let Some(existing) = self.with_index(|i| i.page_info(new))? {
-            if !existing.is_virtual {
-                return Err(Error::Rename(format!(
-                    "a page named `{}` already exists",
-                    existing.name
-                )));
-            }
+        if let Some(existing) = self.with_index(|i| i.page_info(new))?
+            && !existing.is_virtual
+        {
+            return Err(Error::Rename(format!(
+                "a page named `{}` already exists",
+                existing.name
+            )));
         }
         let map = Mapper::new(&old_name, &new_name, subpages);
         let mut file_moves = Vec::new();
@@ -185,13 +185,13 @@ impl Graph {
                 .map(&d.name)
                 .ok_or_else(|| Error::Rename(format!("`{}` can't be moved to `{new}`", d.name)))?;
             // a page of that name that is not part of the moved subtree blocks the move
-            if let Some(existing) = self.with_index(|i| i.page_info(dest.as_str()))? {
-                if !existing.is_virtual {
-                    return Err(Error::Rename(format!(
-                        "a page named `{}` already exists",
-                        existing.name
-                    )));
-                }
+            if let Some(existing) = self.with_index(|i| i.page_info(dest.as_str()))?
+                && !existing.is_virtual
+            {
+                return Err(Error::Rename(format!(
+                    "a page named `{}` already exists",
+                    existing.name
+                )));
             }
             moved_pages.push((dest, d.file_path.clone()));
         }
@@ -218,12 +218,12 @@ impl Graph {
             for b in &page.blocks {
                 collect(b, &file.text, &map, &mut patches);
             }
-            if let Some(fm) = page.frontmatter.as_ref().filter(|f| f.valid) {
-                if fm.tags.iter().any(|t| map.map(t).is_some()) {
-                    warnings.push(format!(
-                        "{path}: frontmatter tags still mention `{old}`; edit them by hand"
-                    ));
-                }
+            if let Some(fm) = page.frontmatter.as_ref().filter(|f| f.valid)
+                && fm.tags.iter().any(|t| map.map(t).is_some())
+            {
+                warnings.push(format!(
+                    "{path}: frontmatter tags still mention `{old}`; edit them by hand"
+                ));
             }
             patches.sort_by_key(|p| p.range.start);
             patches.dedup_by_key(|p: &mut TextPatch| p.range);

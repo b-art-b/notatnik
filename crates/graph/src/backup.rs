@@ -1048,18 +1048,16 @@ impl Graph {
         let files = collect(&root, dir);
         let marks = marks_of(self, opts)?;
         let fp = fingerprint(&files, &opts.extras, marks.as_ref());
-        if !force {
-            if let Some(newest) = existing.first() {
-                if min_age.is_some_and(|a| now.signed_duration_since(newest.created) < a) {
-                    return Ok(None);
-                }
-                // a plain newest snapshot does not stand in for a sealed one (encryption was just turned on), and
-                // the other way round
-                if newest.encrypted == opts.seal_to.is_some()
-                    && stored_fingerprint(&newest.path).as_deref() == Some(fp.as_str())
-                {
-                    return Ok(None);
-                }
+        if !force && let Some(newest) = existing.first() {
+            if min_age.is_some_and(|a| now.signed_duration_since(newest.created) < a) {
+                return Ok(None);
+            }
+            // a plain newest snapshot does not stand in for a sealed one (encryption was just turned on), and
+            // the other way round
+            if newest.encrypted == opts.seal_to.is_some()
+                && stored_fingerprint(&newest.path).as_deref() == Some(fp.as_str())
+            {
+                return Ok(None);
             }
         }
         std::fs::create_dir_all(dir)?;
