@@ -47,6 +47,7 @@
         <li>
           <a
             href={pageHashIn(g.slot, name)}
+            class="page-link"
             data-recent={name}
             draggable="true"
             ondragstart={(e) => startPageDrag(e, g.slot, name)}

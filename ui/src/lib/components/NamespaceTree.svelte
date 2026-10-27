@@ -4,6 +4,8 @@
   import Self from './NamespaceTree.svelte'
   import { padlockOf } from '../stores/encryption.svelte'
   import { useGraph } from '../graphContext'
+  import { app } from '../stores/app.svelte'
+  import { active } from '../stores/active.svelte'
   import { endPageDrag, startPageDrag } from '../transferDrag.svelte'
   import Padlock from './Padlock.svelte'
   import { toggleArchive } from '../pageActions'
@@ -20,6 +22,8 @@
   }: { parent?: string | null; actions?: boolean; lock?: boolean; only?: Set<string> | null } = $props()
   // the graph the tree lists: its section's, or (All pages) the active one
   const g = useGraph()
+  // the page on screen is marked in the sidebar tree when it is this graph's
+  const current = $derived(g === active() && app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
   let deleting = $state('') // the page whose Delete… confirmation is open
   const padlock = (e: NamespaceEntry) =>
     actions || lock ? padlockOf(g.encryption.status, e.path ?? '') : null
@@ -77,12 +81,16 @@
             onclick={() => toggle(e.name)}>{isOpen(e.name) ? '▾' : '▸'}</button
           >{:else}<span class="tog"></span>{/if}
         <a
+          class="page-link"
+          class:on={!actions && current === e.name.toLowerCase()}
+          aria-current={!actions && current === e.name.toLowerCase() ? 'page' : undefined}
+          title={e.name}
           href={pageHashIn(g.slot, e.name)}
           class:virtual={e.is_virtual}
           data-ns={e.name}
           draggable={!e.is_virtual}
           ondragstart={(ev) => startPageDrag(ev, g.slot, e.name, e.descendants > 0)}
-          ondragend={endPageDrag}><PageIcon name={e.name} align />{e.leaf}</a
+          ondragend={endPageDrag}><PageIcon name={e.name} align /><span class="label">{e.leaf}</span></a
         >
         <Padlock mark={padlock(e)} testid="row-lock" />
         {#if e.descendants}<span class="count">{e.descendants}</span>{/if}
@@ -132,9 +140,13 @@
     cursor: pointer;
   }
   a {
+    flex: 1;
+    min-width: 0;
     color: var(--text);
     text-decoration: none;
-    flex: 1;
+  }
+  /* a long name is cut with an ellipsis (the whole name is the tooltip) */
+  .label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

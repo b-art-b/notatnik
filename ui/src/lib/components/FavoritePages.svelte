@@ -81,6 +81,7 @@
         >
           <a
             href={pageHashIn(g.slot, f.name)}
+            class="page-link"
             data-favorite={f.name}
             aria-current={current === f.name.toLowerCase() ? 'page' : undefined}
             class:on={current === f.name.toLowerCase()}

@@ -3,11 +3,14 @@
   import type { PageGroupView } from '../api'
   import { pageHashIn } from '../route'
   import { useGraph } from '../graphContext'
+  import { app } from '../stores/app.svelte'
+  import { active } from '../stores/active.svelte'
 
   // the graph of this section (or the active one)
   const gr = useGraph()
 
   let { key }: { key: string } = $props()
+  const current = $derived(gr === active() && app.route.kind === 'page' ? app.route.name.toLowerCase() : '')
   let loadedGroups = $state<PageGroupView[]>([])
   // archived pages are not listed; a group left without pages disappears
   const groups = $derived(
@@ -91,7 +94,20 @@
       {#if !isFolded(g)}
         <ul>
           {#each g.pages as p (p)}
-            <li><a href={pageHashIn(gr.slot, p)} data-page={p}><PageIcon name={p} align />{p}</a></li>
+            <li>
+              <a
+                class="page-link"
+                class:on={current === p.toLowerCase()}
+                aria-current={current === p.toLowerCase() ? 'page' : undefined}
+                href={pageHashIn(gr.slot, p)}
+                data-page={p}
+                title={p}
+                ><PageIcon name={p} align /><span class="label"
+                  >{#if p.includes('/')}<span class="ns">{p.slice(0, p.lastIndexOf('/') + 1)}</span
+                    >{/if}{p.slice(p.lastIndexOf('/') + 1)}</span
+                ></a
+              >
+            </li>
           {/each}
         </ul>
       {/if}
@@ -136,10 +152,10 @@
     padding: 0;
   }
   li {
-    padding: 0.1em 0;
-    overflow-wrap: anywhere;
+    padding: 0.05em 0;
   }
-  a {
-    text-decoration: none;
+  /* the folder part of a name is quiet, the page's own name is what you look for */
+  .ns {
+    color: var(--muted);
   }
 </style>

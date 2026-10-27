@@ -518,3 +518,32 @@ mark {
   right: auto;
   left: calc(var(--left-eff, 0px) + 35px);
 }
+
+/* One look for a page in the sidebar's lists (the namespace tree and the groups): the text color, the page you are on
+   in bold with a quiet background, the link color only under the pointer. A name that wraps continues under its
+   text, not under its icon. */
+.left .page-link {
+  display: flex;
+  align-items: baseline;
+  padding: 0.12em 0.4em;
+  margin-left: -0.4em;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.left .page-link .label {
+  min-width: 0;
+}
+/* the icon box keeps its width when the name wraps, so all names start at the same place */
+.left .page-link .picon {
+  flex: none;
+}
+.left .page-link:hover {
+  background: var(--chip);
+  color: var(--link);
+}
+.left .page-link.on {
+  background: var(--chip);
+  font-weight: 600;
+}

@@ -352,6 +352,8 @@ Drag a block's **bullet**. The block moves together with all its sub-bullets. Th
 - **Page icon style** (Settings → Appearance, this device): _Color_ draws the emoji as they are; _Muted_ (default) draws them smaller than the text, grey and faint in lists, the sidebar and Recent, and in full color in a page's title, on the row under the pointer and on the current page; _Grey_ keeps them grey everywhere. Each icon has a box of the same width, and in a list where some pages have an icon the others keep an empty box, so the names line up.
 - **Page icons:** Settings → Page icons has rules such as `type = person → 👤` (synced with the graph). A page can set its own icon with `icon: 🏢` in its properties. Icons show next to the page in titles, lists, the sidebar, the hierarchy and links.
 
+**One look for pages in the sidebar.** The namespace tree, the groups (*by type*, *by tag*, ...), Recent and Favorites show a page the same way: in the text color, the page you are on in bold on a quiet background, the link color only under the pointer. In the groups the folder part of a name (`Notes/`) is dimmed and the page's own name is in full color; a name that wraps continues under its text, not under its icon, so every name starts at the same place. In the tree a long name is cut with an ellipsis (the whole name is the tooltip).
+
 ## Recent pages
 
 The sidebar's **Recent** list shows the last pages you opened (newest first, up to 10; remembered on this device, separately for each graph). _clear_ empties it; renaming a page keeps its place.
