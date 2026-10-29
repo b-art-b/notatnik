@@ -373,6 +373,8 @@ A ` ```query ` block shows its results live. To change the query, click anywhere
 
 **This page:** `{{page}}` in a query stands for the page the query block is on. On the page `part. Capgemini`, `type: page` + `prop.partner: {{page}}` lists every page whose `partner` is that page; the same block pasted into another partner page lists that partner's pages. It works wherever a page is allowed (`page:`, `links:`, `prop.x:`; `[[{{page}}]]` is the same). `{{title}}` is the last part of the name, `{{namespace}}` the part before it, `{{date}}` today. In a saved query (sidebar) and in the agenda there is no page, so `{{page}}`, `{{title}}` and `{{namespace}}` are reported as an error. The older `[[]]` still works.
 
+**Sub-blocks:** a result is the matching block alone. Add `children: yes` to show it with its sub-blocks (`children: no` is the default).
+
 ## Tasks of a page
 
 In _In subpages_ and _Mentioning this page_ every task shows its source as a chip at the right end of its first row (the same as in the agenda): the name below this page in subpages (`Example` for `Conference/Example`), the date in your date format for a journal day, the full name otherwise; the tooltip has the full path of parent blocks and a click opens the note with the task flashed. In _On this page_ the chip is the parent blocks (when there are any) and shows the task in the page.

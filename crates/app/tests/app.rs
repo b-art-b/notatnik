@@ -695,6 +695,26 @@ fn page_variable_in_a_query_means_the_page_it_sits_on() {
     assert!(!none["errors"].as_array().unwrap().is_empty());
 }
 
+/// `children: yes` keeps the sub-blocks of a block result; without it only the block itself comes back.
+#[test]
+fn children_clause_keeps_the_sub_blocks_of_a_result() {
+    let t = start("queries");
+    let run = |text: &str| t.ok("run_query", json!({"text": text, "view": null}));
+    let alone = run("text: Daily notes");
+    let with = run("text: Daily notes\nchildren: yes");
+    assert_eq!(alone["errors"], json!([]));
+    assert_eq!(with["errors"], json!([]));
+    assert_eq!(alone["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(alone["rows"][0]["block"]["children"], json!([]));
+    assert_eq!(
+        with["rows"][0]["block"]["children"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
 /// `{{type}}` and `{{prop.<key>}}` in a query are the values of the page the query sits on; the date ones are
 /// relative to today.
 #[test]

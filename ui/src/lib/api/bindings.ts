@@ -989,7 +989,7 @@ page: string,
  */
 group: string | null, 
 /**
- * The block (children removed), for block queries.
+ * The block for block queries; its children only with `children: yes`.
  */
 block: BlockView | null, 
 /**

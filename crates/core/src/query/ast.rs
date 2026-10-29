@@ -27,6 +27,9 @@ pub struct Query {
     /// `direct: yes`: `links:` and `tag:` match only blocks that carry the link themselves. By default a block
     /// also matches through its ancestors (a link applies to everything below it).
     pub direct: bool,
+    /// `children: yes`: block results keep their sub-blocks (shown under the matching block). By default only
+    /// the block itself is shown.
+    pub children: bool,
     /// `inherit: client, type`: these properties also apply to everything below the block that has them (the
     /// nearest block wins; the page's frontmatter is the root). Ignored with `direct: yes` and for page queries.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -447,6 +450,9 @@ impl Query {
         }
         if self.direct {
             let _ = writeln!(out, "direct: yes");
+        }
+        if self.children {
+            let _ = writeln!(out, "children: yes");
         }
         if !self.inherit.is_empty() {
             let _ = writeln!(out, "inherit: {}", self.inherit.join(", "));

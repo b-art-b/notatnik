@@ -23,5 +23,6 @@ expression: q
   },
   "view": "table",
   "columns": [],
-  "direct": false
+  "direct": false,
+  "children": false
 }

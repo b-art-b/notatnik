@@ -21,5 +21,6 @@ expression: q
   "group": null,
   "view": null,
   "columns": [],
-  "direct": false
+  "direct": false,
+  "children": false
 }

@@ -2572,6 +2572,7 @@ impl AppState {
         o: &mut Open,
         cache: &mut HashMap<String, PageView>,
         r: &QueryRow,
+        children: bool,
     ) -> ApiResult<(Option<BlockView>, Vec<String>)> {
         let Some(path) = r.path.as_deref() else {
             return Ok((None, Vec::new()));
@@ -2590,7 +2591,9 @@ impl AppState {
         let crumbs = breadcrumbs_of(&view.blocks, &p);
         let block = find_block(&view.blocks, &p).map(|b| {
             let mut b = b.clone();
-            b.children = Vec::new();
+            if !children {
+                b.children = Vec::new();
+            }
             b
         });
         Ok((block, crumbs))
@@ -2693,7 +2696,7 @@ impl AppState {
             let mut keys: BTreeMap<String, usize> = BTreeMap::new();
             let mut rows = Vec::with_capacity(res.rows.len());
             for r in res.rows {
-                let (block, breadcrumbs) = Self::row_block(o, &mut cache, &r)?;
+                let (block, breadcrumbs) = Self::row_block(o, &mut cache, &r, query.children)?;
                 for k in r.props.keys().filter(|k| !hidden.contains(*k)) {
                     *keys.entry(k.clone()).or_default() += 1;
                 }
@@ -2801,7 +2804,7 @@ impl AppState {
                 .filter_map(|(d, t)| Some((d.clone()?, t.clone())))
                 .min_by(|a, b| (&a.0, a.1.is_none(), &a.1).cmp(&(&b.0, b.1.is_none(), &b.1)))
                 .map_or((None, None), |(d, t)| (Some(d), t));
-                let (block, crumbs) = Self::row_block(o, &mut cache, &r)?;
+                let (block, crumbs) = Self::row_block(o, &mut cache, &r, query.children)?;
                 let Some(block) = block else { continue };
                 let item = AgendaItem {
                     page: r.page,

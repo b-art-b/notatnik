@@ -188,6 +188,7 @@ export const QUERY_KEYS = [
   'group',
   'view',
   'columns',
+  'children',
 ]
 
 /** Where the cursor is: inside a ```query fence, and on which line of the block text. */

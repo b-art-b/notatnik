@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { propertyTrigger, queryPropValueTrigger } from './completion'
+import { propertyTrigger, queryPropValueTrigger, QUERY_KEYS } from './completion'
 
 describe('propertyTrigger', () => {
   it('knows the four stages of a property line', () => {
@@ -35,5 +35,11 @@ describe('queryPropValueTrigger', () => {
   it('is only for prop clauses', () => {
     expect(queryPropValueTrigger('tag: ur')).toBeNull()
     expect(queryPropValueTrigger('prop.partner')).toBeNull()
+  })
+})
+
+describe('QUERY_KEYS', () => {
+  it('offers children among the clause hints', () => {
+    expect(QUERY_KEYS).toContain('children')
   })
 })

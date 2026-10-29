@@ -81,5 +81,6 @@ expression: q
   },
   "view": "kanban",
   "columns": [],
-  "direct": false
+  "direct": false,
+  "children": false
 }

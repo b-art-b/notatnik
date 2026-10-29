@@ -233,6 +233,17 @@ fn direct_clause_parses_and_round_trips() {
 }
 
 #[test]
+fn children_clause_parses_and_round_trips() {
+    let q = notatnik_core::parse_query("task: todo\nchildren: yes").unwrap();
+    assert!(q.children);
+    assert_eq!(notatnik_core::parse_query(&q.to_text()).unwrap(), q);
+    assert!(!notatnik_core::parse_query("task: todo").unwrap().children);
+    assert!(!notatnik_core::parse_query("children: no").unwrap().children);
+    assert!(notatnik_core::parse_query("children: maybe").is_err());
+    assert!(notatnik_core::parse_query("children: yes\nchildren: no").is_err());
+}
+
+#[test]
 fn inherit_clause_parses_and_round_trips() {
     let q = notatnik_core::parse_query("prop.client: Acme\ninherit: client, type").unwrap();
     assert_eq!(q.inherit, ["client", "type"]);

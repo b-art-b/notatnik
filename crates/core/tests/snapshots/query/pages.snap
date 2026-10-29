@@ -47,5 +47,6 @@ expression: q
     "prop.rating",
     "prop.author"
   ],
-  "direct": false
+  "direct": false,
+  "children": false
 }

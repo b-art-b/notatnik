@@ -33,7 +33,7 @@ impl fmt::Display for QueryError {
 
 impl std::error::Error for QueryError {}
 
-const KEYS: [&str; 19] = [
+const KEYS: [&str; 20] = [
     "task",
     "tag",
     "links",
@@ -52,6 +52,7 @@ const KEYS: [&str; 19] = [
     "view",
     "columns",
     "direct",
+    "children",
     "inherit",
 ];
 
@@ -396,7 +397,8 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
         let single: Option<&'static str> = KEYS.iter().copied().find(|k| {
             *k == key
                 && [
-                    "type", "sort", "limit", "group", "view", "columns", "direct", "inherit",
+                    "type", "sort", "limit", "group", "view", "columns", "direct", "children",
+                    "inherit",
                 ]
                 .contains(k)
         });
@@ -450,7 +452,8 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
 
         if negated
             || ![
-                "type", "sort", "limit", "group", "view", "columns", "direct", "inherit",
+                "type", "sort", "limit", "group", "view", "columns", "direct", "children",
+                "inherit",
             ]
             .contains(&key)
         {
@@ -560,6 +563,18 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                     Problem {
                         offset: 0,
                         message: format!("unknown value `{value}` for `direct`"),
+                        suggestion: Some("use yes or no".into()),
+                    },
+                ),
+            },
+            "children" => match value {
+                "yes" | "true" => q.children = true,
+                "no" | "false" => q.children = false,
+                _ => err(
+                    voff,
+                    Problem {
+                        offset: 0,
+                        message: format!("unknown value `{value}` for `children`"),
                         suggestion: Some("use yes or no".into()),
                     },
                 ),
