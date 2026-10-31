@@ -106,6 +106,20 @@ test.describe('queries fixture', () => {
     await expect.poll(() => backend.read('pages/reading/books.md')).toContain('rating:: 4\n  status:: done')
   })
 
+  test('table with group: has a header row per group', async ({ backend, page }) => {
+    backend.write('pages/tg.md', PAGE('page: reading/books\ngroup: prop.status\nview: table'))
+    await backend.open('/page/tg')
+    const table = page.getByTestId('query-table')
+    await expect(table.locator('tr.group').first()).toBeVisible()
+    expect(await table.locator('tr.group').count()).toBeGreaterThan(1)
+    const rows = await table.locator('tr[data-row]').count()
+    await table
+      .getByRole('button', { name: /^Toggle / })
+      .first()
+      .click()
+    expect(await table.locator('tr[data-row]').count()).toBeLessThan(rows)
+  })
+
   test('timeline: tasks sit on their deadline; dragging moves the date by the dragged days', async ({
     backend,
     page,

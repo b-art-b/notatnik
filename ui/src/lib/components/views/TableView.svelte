@@ -7,13 +7,28 @@
   import Block from '../Block.svelte'
   import { cellValue, sortRows } from '../../views'
 
-  let { rows, columns, id }: { rows: ResultRow[]; columns: string[]; id: string } = $props()
+  let {
+    rows,
+    columns,
+    id,
+    groupBy = null,
+  }: { rows: ResultRow[]; columns: string[]; id: string; groupBy?: string | null } = $props()
   let sortCol = $state<string | null>(null)
   let desc = $state(false)
+  let collapsed = $state<Record<string, boolean>>({})
   let editing = $state<{ row: string; col: string } | null>(null)
 
   const cell = cellValue
-  const sorted = $derived(sortRows(rows, sortCol, desc))
+  // With `group:` the rows sit under one header row per group (labels come from the backend, in its order);
+  // the header-click sort then orders the rows inside each group. Without it: one unlabelled group.
+  const groups = $derived.by(() => {
+    const m = new Map<string | null, ResultRow[]>()
+    for (const r of rows) {
+      const key = groupBy ? (r.group ?? '(none)') : null
+      m.set(key, [...(m.get(key) ?? []), r])
+    }
+    return [...m.entries()].map(([label, items]) => ({ label, items: sortRows(items, sortCol, desc) }))
+  })
 
   function header(col: string) {
     if (sortCol === col) desc = !desc
@@ -43,36 +58,51 @@
     </tr>
   </thead>
   <tbody>
-    {#each sorted as r (r.id)}
-      <tr data-row={r.id}>
-        {#each columns as c (c)}
-          <td ondblclick={() => c.startsWith('prop.') && (editing = { row: r.id, col: c })}>
-            {#if editing && editing.row === r.id && editing.col === c}
-              <!-- svelte-ignore a11y_autofocus -->
-              <input
-                autofocus
-                aria-label={`Edit ${c}`}
-                value={cell(r, c)}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter') void save(r, c, (e.currentTarget as HTMLInputElement).value)
-                  if (e.key === 'Escape') editing = null
-                }}
-                onblur={(e) => void save(r, c, e.currentTarget.value)}
-              />
-            {:else if c === 'page'}
-              <a href={pageHash(r.page)}>{r.page}</a>
-            {:else if c === 'text' && r.block}
-              <Nodes nodes={r.block.content} />
-              <!-- the sub-blocks come with the row only for `children: yes` -->
-              {#each r.block.children as child (child.path.join('.'))}
-                <Block block={child} docName={r.page} viewKey={`${id}-${r.id}`} />
-              {/each}
-            {:else}
-              {cell(r, c)}
-            {/if}
-          </td>
-        {/each}
-      </tr>
+    {#each groups as g (g.label)}
+      {#if g.label !== null}
+        <tr class="group" data-group={g.label}>
+          <th scope="rowgroup" colspan={columns.length}>
+            <button
+              class="tog"
+              aria-expanded={!collapsed[g.label]}
+              aria-label={`Toggle ${g.label}`}
+              onclick={() => (collapsed[g.label!] = !collapsed[g.label!])}
+              >{collapsed[g.label] ? '▸' : '▾'} {g.label} <span class="n">{g.items.length}</span></button
+            >
+          </th>
+        </tr>
+      {/if}
+      {#each collapsed[g.label ?? ''] ? [] : g.items as r (r.id)}
+        <tr data-row={r.id}>
+          {#each columns as c (c)}
+            <td ondblclick={() => c.startsWith('prop.') && (editing = { row: r.id, col: c })}>
+              {#if editing && editing.row === r.id && editing.col === c}
+                <!-- svelte-ignore a11y_autofocus -->
+                <input
+                  autofocus
+                  aria-label={`Edit ${c}`}
+                  value={cell(r, c)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') void save(r, c, (e.currentTarget as HTMLInputElement).value)
+                    if (e.key === 'Escape') editing = null
+                  }}
+                  onblur={(e) => void save(r, c, e.currentTarget.value)}
+                />
+              {:else if c === 'page'}
+                <a href={pageHash(r.page)}>{r.page}</a>
+              {:else if c === 'text' && r.block}
+                <Nodes nodes={r.block.content} />
+                <!-- the sub-blocks come with the row only for `children: yes` -->
+                {#each r.block.children as child (child.path.join('.'))}
+                  <Block block={child} docName={r.page} viewKey={`${id}-${r.id}`} />
+                {/each}
+              {:else}
+                {cell(r, c)}
+              {/if}
+            </td>
+          {/each}
+        </tr>
+      {/each}
     {/each}
   </tbody>
 </table>
@@ -96,5 +126,24 @@
     font-weight: 650;
     cursor: pointer;
     color: var(--text);
+  }
+  tr.group th {
+    background: var(--hover, rgba(127, 127, 127, 0.12));
+    padding: 0.35em 0.6em;
+    font-weight: 650;
+    border-top: 2px solid var(--border);
+  }
+  tr.group .n {
+    font-weight: 400;
+    opacity: 0.6;
+    margin-left: 0.4em;
+  }
+  tr.group .tog {
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
   }
 </style>

@@ -129,7 +129,7 @@
           {/each}
         </ul>
       {:else if view === 'table'}
-        <TableView rows={result.rows} columns={result.columns} {id} />
+        <TableView rows={result.rows} columns={result.columns} {id} groupBy={result.group_by} />
       {:else if view === 'kanban'}
         <KanbanView rows={result.rows} groupBy={result.group_by} />
       {:else if view === 'timeline'}
