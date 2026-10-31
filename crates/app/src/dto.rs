@@ -1126,6 +1126,8 @@ pub struct ResultRow {
     pub group_link: bool,
     /// The block for block queries; its children only with `children: yes`.
     pub block: Option<BlockView>,
+    /// The blocks of the page for page queries with `children: yes`; empty otherwise.
+    pub page_blocks: Vec<BlockView>,
     /// Parent block texts, outermost first.
     pub breadcrumbs: Vec<String>,
     /// Properties (key → first value).

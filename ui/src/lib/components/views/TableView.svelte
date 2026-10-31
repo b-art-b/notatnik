@@ -134,6 +134,11 @@
                 {#each r.block.children as child (child.path.join('.'))}
                   <Block block={child} docName={r.page} viewKey={`${id}-${r.id}`} />
                 {/each}
+              {:else if c === 'text' && r.page_blocks.length}
+                <!-- a page row of a `children: yes` query: the page's own blocks -->
+                {#each r.page_blocks as b (b.path.join('.'))}
+                  <Block block={b} docName={r.page} viewKey={`${id}-${r.id}`} />
+                {/each}
               {:else}
                 {cell(r, c)}
               {/if}

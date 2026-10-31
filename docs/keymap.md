@@ -377,7 +377,7 @@ A ` ```query ` block shows its results live. To change the query, click anywhere
 
 **Property lines:** a block result shows its properties as a card under it. `properties: none` hides it, `properties: status, owner` shows only those two (the default is all of them); it applies to sub-blocks shown with `children: yes` as well.
 
-**Sub-blocks:** a result is the matching block alone. Add `children: yes` to show it with its sub-blocks (`children: no` is the default); the list shows them under the block, the table under the text in the _text_ column.
+**Sub-blocks:** a result is the matching block alone. Add `children: yes` to show it with its sub-blocks (`children: no` is the default); the list shows them under the block, the table under the text in the _text_ column. In a page query (`type: page`) `children: yes` gives each row the page's own blocks: show them with a `text` column in the table (`columns: page, prop.when, text`), or under the page name in the list.
 
 ### Example queries
 

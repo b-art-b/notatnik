@@ -2726,6 +2726,22 @@ impl AppState {
                     query.children,
                     query.properties.as_deref(),
                 )?;
+                // a page query with `children: yes` carries the page's blocks (shown in the `text` column)
+                let mut page_blocks = Vec::new();
+                if query.children && r.path.is_none() {
+                    if !cache.contains_key(&r.page) {
+                        let n = Self::parse_name(&r.page)?;
+                        cache.insert(r.page.clone(), Self::build_view(o, &n)?.0);
+                    }
+                    if let Some(view) = cache.get(&r.page) {
+                        page_blocks = view.blocks.clone();
+                        if let Some(keep) = query.properties.as_deref() {
+                            for b in &mut page_blocks {
+                                limit_properties(b, keep);
+                            }
+                        }
+                    }
+                }
                 for k in r.props.keys().filter(|k| !hidden.contains(*k)) {
                     *keys.entry(k.clone()).or_default() += 1;
                 }
@@ -2735,6 +2751,7 @@ impl AppState {
                     group: r.group,
                     group_link: r.group_link,
                     block,
+                    page_blocks,
                     breadcrumbs,
                     props: r.props,
                     scheduled: r.scheduled,

@@ -759,6 +759,26 @@ fn children_clause_keeps_the_sub_blocks_of_a_result() {
     );
 }
 
+/// A page query with `children: yes` carries each page's blocks (for the `text` column); without it the rows stay light.
+#[test]
+fn children_clause_gives_a_page_row_its_blocks() {
+    let t = start("queries");
+    let run = |text: &str| t.ok("run_query", json!({"text": text, "view": null}));
+    let alone = run("type: page\nprop.type: project");
+    let with = run("type: page\nprop.type: project\nchildren: yes");
+    assert_eq!(with["errors"], json!([]));
+    let rows = alone["rows"].as_array().unwrap();
+    assert!(!rows.is_empty());
+    assert!(rows.iter().all(|r| r["page_blocks"] == json!([])));
+    assert!(
+        with["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| !r["page_blocks"].as_array().unwrap().is_empty())
+    );
+}
+
 /// `{{type}}` and `{{prop.<key>}}` in a query are the values of the page the query sits on; the date ones are
 /// relative to today.
 #[test]

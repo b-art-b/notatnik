@@ -137,6 +137,18 @@ test.describe('queries fixture', () => {
     await expect(page.getByTestId('query-table').locator('[data-task="DOING"]')).toBeVisible()
   })
 
+  test('a page query with children: yes shows the blocks of each page in the text column', async ({
+    backend,
+    page,
+  }) => {
+    backend.write('pages/pc.md', '- First block of the page\n  - nested one\n')
+    backend.write('pages/pq.md', PAGE('page: pc\nchildren: yes\ncolumns: page, text\nview: table'))
+    await backend.open('/page/pq')
+    const table = page.getByTestId('query-table')
+    await expect(table).toContainText('First block of the page')
+    await expect(table).toContainText('nested one')
+  })
+
   test('timeline: tasks sit on their deadline; dragging moves the date by the dragged days', async ({
     backend,
     page,

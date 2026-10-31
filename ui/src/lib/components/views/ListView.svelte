@@ -57,6 +57,9 @@
                 <Block block={r.block} docName={r.page} viewKey={`${id}-${r.id}`} />
               {:else}
                 <a href={pageHash(r.page)}>{r.page}</a>
+                {#each r.page_blocks as b (b.path.join('.'))}
+                  <Block block={b} docName={r.page} viewKey={`${id}-${r.id}`} />
+                {/each}
               {/if}
             </div>
           {/each}

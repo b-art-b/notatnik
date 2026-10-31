@@ -997,6 +997,10 @@ group_link: boolean,
  */
 block: BlockView | null, 
 /**
+ * The blocks of the page for page queries with `children: yes`; empty otherwise.
+ */
+page_blocks: Array<BlockView>, 
+/**
  * Parent block texts, outermost first.
  */
 breadcrumbs: Array<string>, 
