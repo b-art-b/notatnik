@@ -397,6 +397,8 @@ pub struct AskAnswer {
 pub struct TemplateAsk {
     pub label: String,
     pub default: String,
+    /// `{{askpage:Label}}`: the answer is a page (an existing one or a new name), inserted as `[[Page]]`.
+    pub page: bool,
 }
 
 /// What `/template` inserts.

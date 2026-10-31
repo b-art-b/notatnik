@@ -2,6 +2,7 @@
   // The questions of a template (`{{ask:Label}}`, `{{ask:Label|default}}`) before its blocks are inserted.
   import { app } from '../stores/app.svelte'
   import { answerQuestions } from '../commands/asks'
+  import PageField from './PageField.svelte'
 
   // `app.templateAsks` is set when the dialog opens and not null while it is shown: a snapshot is enough
   const ask = app.templateAsks ?? { name: '', asks: [] }
@@ -10,7 +11,15 @@
   let first: HTMLInputElement | undefined = $state()
   $effect(() => first?.focus())
 
-  const done = () => answerQuestions(ask.asks.map((q, i) => ({ label: q.label, value: values[i] })))
+  const pageLink = (v: string) => (/^\[\[.*\]\]$/.test(v.trim()) ? v.trim() : `[[${v.trim()}]]`)
+  const done = () =>
+    answerQuestions(
+      ask.asks.map((q, i) => ({
+        label: q.label,
+        // a page question answers with a link; an empty answer stays empty
+        value: q.page && values[i].trim() ? pageLink(values[i]) : values[i],
+      })),
+    )
   const cancel = () => answerQuestions(null)
 
   function key(e: KeyboardEvent) {
@@ -42,7 +51,9 @@
         <label>
           {q.label}
           <!-- `bind:this` only on the first input: it gets the focus -->
-          {#if i === 0}
+          {#if q.page}
+            <PageField bind:value={values[i]} first={i === 0} />
+          {:else if i === 0}
             <input bind:this={first} bind:value={values[i]} />
           {:else}
             <input bind:value={values[i]} />

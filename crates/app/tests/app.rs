@@ -2824,7 +2824,7 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
     // questions: listed in the reply, answered by the second call
     t.ok(
         "save_snippet",
-        json!({"name": "Ask", "text": "- With {{ask:Who}} on {{ask:Topic|status}}\n", "replace": false}),
+        json!({"name": "Ask", "text": "- With {{ask:Who}} on {{ask:Topic|status}} for {{askpage:Partner}}\n", "replace": false}),
     );
     let q = t.ok(
         "template_blocks",
@@ -2832,13 +2832,17 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
     );
     assert_eq!(
         q["asks"],
-        json!([{"label": "Who", "default": ""}, {"label": "Topic", "default": "status"}])
+        json!([
+            {"label": "Who", "default": "", "page": false},
+            {"label": "Topic", "default": "status", "page": false},
+            {"label": "Partner", "default": "", "page": true}
+        ])
     );
     let a = t.ok(
         "template_blocks",
         json!({"name": "snippets/Ask", "page": "people/Eva", "answers": [{"label": "Who", "value": "Ann"}]}),
     );
-    assert_eq!(a["blocks"][0]["text"], "With Ann on status");
+    assert_eq!(a["blocks"][0]["text"], "With Ann on status for ");
     // deleted templates can be listed and restored; not over an existing one
     t.ok("delete_template", json!({"name": "person"}));
     let d = t.ok("deleted_templates", json!({}));

@@ -39,29 +39,42 @@ pub struct Vars<'a> {
 pub struct Ask {
     pub label: String,
     pub default: String,
+    /// `{{askpage:Label}}`: the answer is a page, picked from the existing ones or a new name.
+    pub page: bool,
 }
 
-/// `Label`, `default` of the placeholder `name` if it is a question (the text between the braces).
-fn parse_ask(name: &str) -> Option<(&str, &str)> {
+/// `Label`, `default`, is-a-page of the placeholder `name` if it is a question (the text between the braces):
+/// `ask:` or `askpage:`.
+fn parse_ask(name: &str) -> Option<(&str, &str, bool)> {
     let rest = name.trim_start();
-    let rest = rest
+    let (rest, page) = if rest
         .get(..4)
-        .filter(|p| p.eq_ignore_ascii_case("ask:"))
-        .map(|_| &rest[4..])?;
+        .is_some_and(|p| p.eq_ignore_ascii_case("ask:"))
+    {
+        (&rest[4..], false)
+    } else if rest
+        .get(..8)
+        .is_some_and(|p| p.eq_ignore_ascii_case("askpage:"))
+    {
+        (&rest[8..], true)
+    } else {
+        return None;
+    };
     let (label, default) = rest.split_once('|').unwrap_or((rest, ""));
     let label = label.trim();
-    (!label.is_empty()).then_some((label, default.trim()))
+    (!label.is_empty()).then_some((label, default.trim(), page))
 }
 
 /// The distinct questions of `text`, in the order they first appear (a label asked twice is asked once).
 pub fn asks(text: &str) -> Vec<Ask> {
     let mut out: Vec<Ask> = Vec::new();
     notatnik_core::placeholders::expand_with(text, |name| {
-        if let Some((label, default)) = parse_ask(name) {
+        if let Some((label, default, page)) = parse_ask(name) {
             if !out.iter().any(|a| a.label == label) {
                 out.push(Ask {
                     label: label.to_string(),
                     default: default.to_string(),
+                    page,
                 });
             }
         }
@@ -153,7 +166,7 @@ fn fill(text: &str, v: &Vars) -> String {
             "selection" => Some(v.selection.to_string()),
             "clipboard" => Some(v.clipboard.to_string()),
             _ => {
-                let (label, default) = parse_ask(name)?;
+                let (label, default, _) = parse_ask(name)?;
                 Some(
                     v.answers
                         .iter()
@@ -497,15 +510,26 @@ mod tests {
             vec![
                 Ask {
                     label: "Who".into(),
-                    default: String::new()
+                    default: String::new(),
+                    page: false
                 },
                 Ask {
                     label: "Topic".into(),
-                    default: "status".into()
+                    default: "status".into(),
+                    page: false
                 },
             ]
         );
         assert!(asks("{{ask:}} {{ask}} {{date}}").is_empty());
+        // a page question; asked once when the same label is also a plain question
+        assert_eq!(
+            asks("{{askpage:Partner}} {{ask:Partner}}"),
+            vec![Ask {
+                label: "Partner".into(),
+                default: String::new(),
+                page: true
+            }]
+        );
         let answers = vec![("Who".to_string(), "Ann {{date}}".to_string())];
         let t = parse_template(
             tpl,

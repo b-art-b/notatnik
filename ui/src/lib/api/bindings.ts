@@ -1461,7 +1461,11 @@ block: number,
  */
 offset: number, };
 export type AskAnswer = { label: string, value: string, };
-export type TemplateAsk = { label: string, default: string, };
+export type TemplateAsk = { label: string, default: string, 
+/**
+ * `{{askpage:Label}}`: the answer is a page (an existing one or a new name), inserted as `[[Page]]`.
+ */
+page: boolean, };
 export type TemplateContent = { 
 /**
  * The blocks, in insertion order.

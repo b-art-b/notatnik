@@ -7,7 +7,7 @@ let resolver: ((a: Answers | null) => void) | null = null
 /** Opens the dialog for `asks` and resolves with the answers, or `null` when it was cancelled. */
 export function askQuestions(
   name: string,
-  asks: { label: string; default: string }[],
+  asks: { label: string; default: string; page: boolean }[],
 ): Promise<Answers | null> {
   resolver?.(null) // a dialog that is still open is replaced
   app.templateAsks = { name, asks }

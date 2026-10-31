@@ -112,7 +112,7 @@ export const app = $state({
   /** Notes waiting in the "To another graph" dialog (MG-2); `null` when it is closed. */
   transfer: null as TransferRequest | null,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
-  templateAsks: null as { name: string; asks: { label: string; default: string }[] } | null,
+  templateAsks: null as { name: string; asks: { label: string; default: string; page: boolean }[] } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */
   subpageFor: '',
   /** The left sidebar is shown; remembered on this device. */

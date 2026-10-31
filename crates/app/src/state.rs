@@ -1284,6 +1284,7 @@ impl AppState {
                     .map(|q| TemplateAsk {
                         label: q.label,
                         default: q.default,
+                        page: q.page,
                     })
                     .collect(),
             })

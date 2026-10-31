@@ -169,6 +169,44 @@ test('/template asks the questions of a template; Cancel inserts nothing', async
     .toBe('- start\n- Meeting with Anna about budget\n  - Anna: hello\n')
 })
 
+// {{askpage:Label}}: the answer is a page, picked from the existing ones or a new name, and is inserted as a link.
+test('{{askpage:…}} picks an existing page or takes a new name, as a link', async ({ backend, page }) => {
+  backend.write('templates/snippets/Call.md', '- Call {{askpage:Partner}}\n')
+  backend.write('pages/people/Eva.md', '- hi\n')
+  backend.write('pages/Pg.md', '- start\n')
+  await backend.open('/page/Pg')
+  const insert = async () => {
+    await page.getByRole('tree', { name: 'Blocks' }).getByText('start', { exact: true }).click()
+    await expect(page.getByTestId('block-editor')).toBeFocused()
+    await page.keyboard.press('End')
+    await page.keyboard.type(' /template')
+    await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Enter')
+    await page.getByTestId('template-picker').getByRole('option', { name: 'Call' }).click()
+  }
+  const dialog = page.getByTestId('template-ask')
+  // an existing page: type a part of the name, pick it from the list, then Insert
+  await insert()
+  await dialog.getByLabel('Partner').fill('Eva')
+  await dialog.getByRole('option', { name: /people\/Eva/ }).click()
+  await expect(dialog.getByLabel('Partner')).toHaveValue('people/Eva')
+  await dialog.getByRole('button', { name: 'Insert' }).click()
+  await expect(page.getByTestId('block-editor')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect.poll(readOr(backend.read, 'pages/Pg.md')).toBe('- start\n- Call [[people/Eva]]\n')
+  // a name that is no page yet is offered as a new page and stays as typed
+  await insert()
+  await dialog.getByLabel('Partner').fill('Zed Newname')
+  await expect(dialog.getByRole('option', { name: /New page/ })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Insert' }).click()
+  await expect(page.getByTestId('block-editor')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(readOr(backend.read, 'pages/Pg.md'))
+    .toBe('- start\n- Call [[Zed Newname]]\n- Call [[people/Eva]]\n')
+})
+
 // In an empty block the template takes the block's place; the cursor still goes to {{cursor}} in it.
 test('/template in an empty block fills it and continues at {{cursor}}', async ({ backend, page }) => {
   backend.write('templates/snippets/Meet.md', '- Meet {{cursor}} today\n  - Notes\n')
