@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The main window may call the single API command and receive events; nothing else.",
   "windows": ["main"],
-  "permissions": ["core:event:default", "core:webview:allow-set-webview-zoom"]
+  "permissions": ["core:event:default", "core:webview:allow-set-webview-zoom", "core:window:allow-set-title"]
 }

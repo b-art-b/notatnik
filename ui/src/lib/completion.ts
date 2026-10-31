@@ -22,6 +22,7 @@ import {
 } from './commands/slash'
 import { EditorView } from '@codemirror/view'
 import { searchEmoji } from './emoji'
+import { app } from './stores/app.svelte'
 
 /** A slash-command completion; `icon` and `description` are drawn by `slashPart`. */
 type SlashCompletion = Completion & { icon?: string; description?: string }
@@ -189,6 +190,7 @@ export const QUERY_KEYS = [
   'view',
   'columns',
   'children',
+  'properties',
 ]
 
 /** Where the cursor is: inside a ```query fence, and on which line of the block text. */
@@ -244,6 +246,132 @@ export function queryPropValueTrigger(before: string): { key: string; typed: str
   if (!m) return null
   const typed = m[2]
   return { key: m[1], typed, bare: typed.replace(/^\[\[/, '').replace(/\]\]$/, '') }
+}
+
+/** Values of the clauses that take neither pages nor property values (what the query parser accepts). */
+const DATE_VALUES: [string, string][] = [
+  ['none', 'has no date'],
+  ['any', 'has a date'],
+  ['today', ''],
+  ['tomorrow', ''],
+  ['yesterday', ''],
+  ['this-week', 'Monday to Sunday'],
+  ['next-week', ''],
+  ['this-month', ''],
+  ['< today', 'before today (overdue)'],
+  ['< +7d', 'within the next 7 days'],
+  ['>= today', 'today or later'],
+]
+const FIXED_VALUES: Record<string, [string, string][]> = {
+  task: [
+    ['todo', ''],
+    ['doing', ''],
+    ['later', ''],
+    ['now', ''],
+    ['waiting', ''],
+    ['done', ''],
+    ['canceled', ''],
+    ['any', 'every task'],
+    ['none', 'not a task'],
+  ],
+  type: [
+    ['block', 'blocks (default)'],
+    ['page', 'pages'],
+  ],
+  view: [
+    ['list', ''],
+    ['table', ''],
+    ['kanban', ''],
+    ['timeline', ''],
+  ],
+  direct: [
+    ['yes', 'only blocks that hold the link themselves'],
+    ['no', 'also blocks below a link (default)'],
+  ],
+  children: [
+    ['yes', 'show the sub-blocks of each result'],
+    ['no', 'the block alone (default)'],
+  ],
+  scheduled: DATE_VALUES,
+  deadline: DATE_VALUES,
+}
+const SORT_FIELD_NAMES = ['deadline', 'scheduled', 'priority', 'page', 'text', 'task']
+
+/** In a query block: the cursor is in the value of a clause with fixed values. `typed` is the alternative being written. */
+export function queryValueTrigger(before: string): { key: string; typed: string } | null {
+  const m =
+    /^\s*-?(task|type|view|group|sort|direct|children|scheduled|deadline|priority|columns|inherit|properties):\s*(?:.*,\s*)?([^,\n]*)$/.exec(
+      before,
+    )
+  return m ? { key: m[1], typed: m[2] } : null
+}
+
+/**
+ * The hints for such a value: `replace` is how many typed characters they replace. `propKeys` are the property keys of
+ * the graph (for `group`, `sort`, `columns`, `inherit`), `priorities` the priority labels.
+ */
+export function queryValueOptions(
+  key: string,
+  typed: string,
+  propKeys: string[],
+  priorities: string[],
+): { replace: number; options: Completion[] } {
+  const item = (label: string, detail = ''): Completion => ({
+    label,
+    type: 'keyword',
+    detail: detail || 'value',
+  })
+  if (key === 'sort') {
+    // `deadline ` goes on with the direction
+    const m = /^(\S+)\s+(\S*)$/.exec(typed)
+    if (m)
+      return { replace: m[2].length, options: [item('asc', 'earliest first'), item('desc', 'latest first')] }
+    return {
+      replace: typed.length,
+      options: [...SORT_FIELD_NAMES, ...propKeys.map((k) => `prop.${k}`)].map((f) => ({
+        label: f,
+        type: 'keyword',
+        detail: 'sort by',
+        // goes on with the direction
+        apply: (view: EditorView, _c: Completion, from: number, to: number) => {
+          view.dispatch({
+            changes: { from, to, insert: `${f} ` },
+            selection: { anchor: from + f.length + 1 },
+          })
+          startCompletion(view)
+        },
+      })),
+    }
+  }
+  if (key === 'group') {
+    const fixed = ['page', 'task', 'scheduled', 'deadline']
+    return {
+      replace: typed.length,
+      options: [...fixed, ...propKeys.map((k) => `prop.${k}`)].map((v) => item(v)),
+    }
+  }
+  if (key === 'columns') {
+    return {
+      replace: typed.length,
+      options: ['text', 'page', ...propKeys.map((k) => `prop.${k}`)].map((v) => item(v, 'column')),
+    }
+  }
+  if (key === 'inherit') return { replace: typed.length, options: propKeys.map((k) => item(k, 'property')) }
+  if (key === 'properties') {
+    return {
+      replace: typed.length,
+      options: [
+        item('none', 'hide the property lines of the results'),
+        item('all', 'show them all (default)'),
+        ...propKeys.map((k) => item(k, 'show only this property')),
+      ],
+    }
+  }
+  if (key === 'priority') {
+    const labels = priorities.length ? priorities : ['A', 'B', 'C']
+    return { replace: typed.length, options: labels.map((l) => item(l, 'priority')) }
+  }
+  return { replace: typed.length, options: (FIXED_VALUES[key] ?? []).map(([l, d]) => item(l, d)) }
 }
 
 export function propertyTrigger(before: string): PropertyTrigger | null {
@@ -304,6 +432,7 @@ export function wikiCompletions(
   onfollowup: () => void = () => {},
   onfile: (at: number) => void = () => {},
   onpicktemplate: (at: number) => void = () => {},
+  onpickexample: (at: number) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -414,7 +543,14 @@ export function wikiCompletions(
                   label: key,
                   detail: 'clause',
                   type: 'keyword',
-                  apply: `${key}: `,
+                  // goes straight on to the values of the clause
+                  apply: (view: EditorView, _c: Completion, f: number, t: number) => {
+                    view.dispatch({
+                      changes: { from: f, to: t, insert: `${key}: ` },
+                      selection: { anchor: f + key.length + 2 },
+                    })
+                    startCompletion(view)
+                  },
                 })),
               }
             }
@@ -453,6 +589,15 @@ export function wikiCompletions(
                 filter: false,
                 options: [...queryVarOptions(v[1]), ...options.filter((o) => !o.displayLabel)],
               }
+            }
+            // values with a fixed set: `task: `, `view: `, `sort: deadline `, `children: `, ...
+            const qv = queryValueTrigger(cx.before)
+            if (qv) {
+              const keys = ['group', 'sort', 'columns', 'inherit'].includes(qv.key)
+                ? (await backend.call('property_keys', {})).items
+                : []
+              const r = queryValueOptions(qv.key, qv.typed, keys, app.graph?.priority_labels ?? [])
+              return { from: ctx.pos - r.replace, filter: true, options: r.options }
             }
             return null
           }
@@ -570,6 +715,13 @@ export function wikiCompletions(
                     const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
                     view.dispatch({ changes: { from: cut, to: t, insert: '' } })
                     onpicktemplate(cut)
+                    return
+                  }
+                  if (c.pickExample) {
+                    // the command goes away (with the space before it); the list opens where it was
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    onpickexample(cut)
                     return
                   }
                   if (c.template) {

@@ -25,6 +25,8 @@ query text.
 
 The empty link `[[]]` is still accepted in a query and means `{{page}}`.
 
+**Seeing the values.** In a query block, _show query_ displays the text as written and, under it, _with the placeholders replaced_: the query that runs on this page (`page: [[people/Jan]]`, `scheduled: 2026-10-30`). It is only shown when the query has a placeholder.
+
 ## In templates
 
 A template is `templates/<type>.md` in the graph (see keymap, "Templates for page types"). The placeholders may

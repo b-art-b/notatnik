@@ -695,6 +695,50 @@ fn page_variable_in_a_query_means_the_page_it_sits_on() {
     assert!(!none["errors"].as_array().unwrap().is_empty());
 }
 
+/// `properties:` limits which property lines a block result shows; the rest is only marked hidden.
+#[test]
+fn properties_clause_hides_the_property_lines_of_a_result() {
+    let t = start("queries");
+    let shown = |text: &str| -> Vec<String> {
+        let v = t.ok("run_query", json!({"text": text, "view": null}));
+        assert_eq!(v["errors"], json!([]), "{text}");
+        v["rows"][0]["block"]["props"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["hidden"] == json!(false))
+            .map(|p| p["key"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let all = shown("prop.rating: 5");
+    assert!(
+        all.contains(&"rating".to_string()) && all.contains(&"status".to_string()),
+        "{all:?}"
+    );
+    assert!(shown("prop.rating: 5\nproperties: none").is_empty());
+    assert_eq!(shown("prop.rating: 5\nproperties: status"), ["status"]);
+    assert_eq!(shown("prop.rating: 5\nproperties: all"), all);
+}
+
+/// `show query` can say what the placeholders became: `expanded` is set only when the text had any.
+#[test]
+fn run_query_reports_the_text_with_its_placeholders_replaced() {
+    let t = start("queries");
+    let plain = t.ok(
+        "run_query",
+        json!({"text": "task: todo", "view": null, "page": "work/tasks"}),
+    );
+    assert!(plain["expanded"].is_null());
+    let v = t.ok(
+        "run_query",
+        json!({"text": "page: {{page}}\ntask: todo\nscheduled: {{date}}", "view": null, "page": "work/tasks"}),
+    );
+    let e = v["expanded"].as_str().unwrap();
+    assert!(e.contains("[[work/tasks]]"), "{e}");
+    assert!(e.contains("2026-10-03"), "{e}");
+    assert!(!e.contains("{{"), "{e}");
+}
+
 /// `children: yes` keeps the sub-blocks of a block result; without it only the block itself comes back.
 #[test]
 fn children_clause_keeps_the_sub_blocks_of_a_result() {

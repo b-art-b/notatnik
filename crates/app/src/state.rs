@@ -2544,6 +2544,19 @@ impl AppState {
 use notatnik_core::query::GroupBy;
 use notatnik_index::{QueryContext, QueryRow};
 
+/// `properties:` of a query: hides every property of the block and of its sub-blocks that is not in `keep`. They stay
+/// in the view (editing finds them by key) and are only marked hidden, which is what the property card respects.
+fn limit_properties(b: &mut BlockView, keep: &[String]) {
+    for p in &mut b.props {
+        if !keep.iter().any(|k| k.eq_ignore_ascii_case(&p.key)) {
+            p.hidden = true;
+        }
+    }
+    for c in &mut b.children {
+        limit_properties(c, keep);
+    }
+}
+
 fn breadcrumbs_of(blocks: &[BlockView], path: &[u32]) -> Vec<String> {
     let mut out = Vec::new();
     let mut list = blocks;
@@ -2573,6 +2586,7 @@ impl AppState {
         cache: &mut HashMap<String, PageView>,
         r: &QueryRow,
         children: bool,
+        properties: Option<&[String]>,
     ) -> ApiResult<(Option<BlockView>, Vec<String>)> {
         let Some(path) = r.path.as_deref() else {
             return Ok((None, Vec::new()));
@@ -2593,6 +2607,9 @@ impl AppState {
             let mut b = b.clone();
             if !children {
                 b.children = Vec::new();
+            }
+            if let Some(keep) = properties {
+                limit_properties(&mut b, keep);
             }
             b
         });
@@ -2629,10 +2646,13 @@ impl AppState {
                     view: a.view.clone().unwrap_or_else(|| "list".into()),
                     columns: Vec::new(),
                     group_by: None,
+                    expanded: None,
                     rows: Vec::new(),
                 });
             }
         };
+        // what the placeholders became, for `show query` (only when there was something to replace)
+        let expanded = (text != a.text).then(|| text.clone());
         let (query, errs) = notatnik_core::parse_query_partial(&text);
         let view_name = a
             .view
@@ -2666,6 +2686,7 @@ impl AppState {
                 view: view_name,
                 columns: query.columns,
                 group_by,
+                expanded,
                 rows: Vec::new(),
             });
         }
@@ -2686,6 +2707,7 @@ impl AppState {
                         view: view_name,
                         columns: query.columns.clone(),
                         group_by,
+                        expanded: expanded.clone(),
                         rows: Vec::new(),
                     });
                 }
@@ -2696,7 +2718,13 @@ impl AppState {
             let mut keys: BTreeMap<String, usize> = BTreeMap::new();
             let mut rows = Vec::with_capacity(res.rows.len());
             for r in res.rows {
-                let (block, breadcrumbs) = Self::row_block(o, &mut cache, &r, query.children)?;
+                let (block, breadcrumbs) = Self::row_block(
+                    o,
+                    &mut cache,
+                    &r,
+                    query.children,
+                    query.properties.as_deref(),
+                )?;
                 for k in r.props.keys().filter(|k| !hidden.contains(*k)) {
                     *keys.entry(k.clone()).or_default() += 1;
                 }
@@ -2729,6 +2757,7 @@ impl AppState {
                 view: view_name,
                 columns,
                 group_by,
+                expanded,
                 rows,
             })
         })
@@ -2804,7 +2833,13 @@ impl AppState {
                 .filter_map(|(d, t)| Some((d.clone()?, t.clone())))
                 .min_by(|a, b| (&a.0, a.1.is_none(), &a.1).cmp(&(&b.0, b.1.is_none(), &b.1)))
                 .map_or((None, None), |(d, t)| (Some(d), t));
-                let (block, crumbs) = Self::row_block(o, &mut cache, &r, query.children)?;
+                let (block, crumbs) = Self::row_block(
+                    o,
+                    &mut cache,
+                    &r,
+                    query.children,
+                    query.properties.as_deref(),
+                )?;
                 let Some(block) = block else { continue };
                 let item = AgendaItem {
                     page: r.page,

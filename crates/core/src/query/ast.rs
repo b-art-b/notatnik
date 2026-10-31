@@ -34,6 +34,10 @@ pub struct Query {
     /// nearest block wins; the page's frontmatter is the root). Ignored with `direct: yes` and for page queries.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inherit: Vec<String>,
+    /// `properties: none` / `properties: status, owner`: which property lines a block result shows under the
+    /// block. `None` (the default) shows all of them, `Some([])` none, `Some(keys)` only these.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<Vec<String>>,
 }
 
 /// What a query returns.
@@ -453,6 +457,13 @@ impl Query {
         }
         if self.children {
             let _ = writeln!(out, "children: yes");
+        }
+        if let Some(keys) = &self.properties {
+            if keys.is_empty() {
+                let _ = writeln!(out, "properties: none");
+            } else {
+                let _ = writeln!(out, "properties: {}", keys.join(", "));
+            }
         }
         if !self.inherit.is_empty() {
             let _ = writeln!(out, "inherit: {}", self.inherit.join(", "));

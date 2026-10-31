@@ -45,6 +45,8 @@
   import DatePicker from './DatePicker.svelte'
   import EmojiPicker from './EmojiPicker.svelte'
   import TemplatePicker from './TemplatePicker.svelte'
+  import QueryExamplePicker from './QueryExamplePicker.svelte'
+  import { queryBlockText } from '../queryExamples'
   import FilePicker from './FilePicker.svelte'
 
   interface Props {
@@ -71,7 +73,7 @@
   let lastSent = untrack(() => text)
   /** The open date picker (from /date, /scheduled, /deadline), positioned under the cursor. */
   let picker = $state<{
-    kind: DateKind | 'emoji' | 'file' | 'template'
+    kind: DateKind | 'emoji' | 'file' | 'template' | 'example'
     at: number
     x: number
     y: number
@@ -140,7 +142,7 @@
     v.focus()
   }
 
-  function openPicker(kind: DateKind | 'emoji' | 'file' | 'template', at: number) {
+  function openPicker(kind: DateKind | 'emoji' | 'file' | 'template' | 'example', at: number) {
     if (!view) return
     const c = view.coordsAtPos(at)
     const h = host.getBoundingClientRect()
@@ -173,7 +175,14 @@
   }
 
   function pickDate(iso: string) {
-    if (!picker || !view || picker.kind === 'emoji' || picker.kind === 'file' || picker.kind === 'template')
+    if (
+      !picker ||
+      !view ||
+      picker.kind === 'emoji' ||
+      picker.kind === 'file' ||
+      picker.kind === 'template' ||
+      picker.kind === 'example'
+    )
       return
     const { kind, at } = picker
     view.dispatch({ changes: dateChanges(view.state.doc.toString(), at, kind, iso) })
@@ -186,6 +195,26 @@
     closePicker()
     clearTimeout(idle)
     void onaction({ kind: 'template', name: template, text: view.state.doc.toString(), prev: lastSent })
+  }
+
+  /** An example query from the list: written as a query block where `/query` was typed. In an empty block it is the
+   * block's text; otherwise it goes on new lines after the text before it. */
+  function pickExample(query: string) {
+    if (!view || !picker) return
+    const { at } = picker
+    const doc = view.state.doc.toString()
+    const block = queryBlockText(query)
+    if (doc.trim() === '') {
+      view.dispatch({
+        changes: { from: 0, to: doc.length, insert: block },
+        selection: { anchor: block.length },
+      })
+    } else {
+      const lead = at > 0 && doc[at - 1] !== '\n' ? '\n' : ''
+      const insert = lead + block
+      view.dispatch({ changes: { from: at, to: at, insert }, selection: { anchor: at + insert.length } })
+    }
+    closePicker()
   }
 
   /** A file link from the picker, written where `/file` was typed. */
@@ -468,6 +497,7 @@
             },
             (at) => openPicker('file', at),
             (at) => openPicker('template', at),
+            (at) => openPicker('example', at),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
@@ -605,6 +635,8 @@
         <EmojiPicker onpick={pickEmoji} oncancel={cancelEmoji} />
       {:else if picker.kind === 'template'}
         <TemplatePicker onpick={pickTemplate} oncancel={closePicker} />
+      {:else if picker.kind === 'example'}
+        <QueryExamplePicker onpick={pickExample} oncancel={closePicker} />
       {:else if picker.kind === 'file'}
         <FilePicker {pageName} oninsert={pickFile} oncancel={closePicker} />
       {:else}

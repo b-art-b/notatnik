@@ -4,9 +4,10 @@
   import { setProperty } from '../../commands/exec'
   import { getDoc } from '../../stores/pages.svelte'
   import Nodes from '../Nodes.svelte'
+  import Block from '../Block.svelte'
   import { cellValue, sortRows } from '../../views'
 
-  let { rows, columns }: { rows: ResultRow[]; columns: string[] } = $props()
+  let { rows, columns, id }: { rows: ResultRow[]; columns: string[]; id: string } = $props()
   let sortCol = $state<string | null>(null)
   let desc = $state(false)
   let editing = $state<{ row: string; col: string } | null>(null)
@@ -62,6 +63,10 @@
               <a href={pageHash(r.page)}>{r.page}</a>
             {:else if c === 'text' && r.block}
               <Nodes nodes={r.block.content} />
+              <!-- the sub-blocks come with the row only for `children: yes` -->
+              {#each r.block.children as child (child.path.join('.'))}
+                <Block block={child} docName={r.page} viewKey={`${id}-${r.id}`} />
+              {/each}
             {:else}
               {cell(r, c)}
             {/if}

@@ -61,6 +61,7 @@
   import SegmentView from './lib/components/SegmentView.svelte'
   import SavedQueryPage from './lib/components/SavedQueryPage.svelte'
   import { initZoom, zoomKey, zoomWheel } from './lib/zoom'
+  import { setWindowTitle } from './lib/windowTitle'
   import { installNavigation } from './lib/mouse'
   import { dropOn, foreignTo } from './lib/transferDrag.svelte'
 
@@ -97,7 +98,9 @@
     document.documentElement.dataset.graphColor = g ? String(g.color) : ''
     const r = route
     const what = r.kind === 'page' ? r.name : r.kind === 'journals' ? 'Journals' : 'Notatnik'
-    document.title = g ? `${what} — ${g.name}` : 'Notatnik'
+    const title = g ? `${what} — ${g.name}` : 'Notatnik'
+    document.title = title
+    void setWindowTitle(title)
   })
 
   // every page you open goes to the top of the "Recent" list

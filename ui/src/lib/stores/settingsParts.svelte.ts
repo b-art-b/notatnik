@@ -5,6 +5,8 @@ export type Parts = {
   calendar: 'account' | 'calendars' | 'tasks'
 }
 
+import type { SectionId } from '../components/settings/sections'
+
 const KEY = 'notatnik-settings-parts'
 const DEFAULTS: Parts = { sync: 'server', calendar: 'account' }
 
@@ -34,7 +36,11 @@ export function saveParts() {
 }
 
 /** Set by `goToSettings`; Settings switches to that section when it sees it, and clears it. */
-export const settingsGo = $state({ section: null as 'sync' | 'calendar' | null })
+export const settingsGo = $state({
+  section: null as SectionId | null,
+  /** The id of an element of that section to scroll to. */
+  anchor: null as string | null,
+})
 
 /** Opens Settings on a part of a section: the link that calls it still goes to `#/settings` by itself. */
 export function goToSettings<S extends keyof Parts>(section: S, part: Parts[S]) {
@@ -44,5 +50,17 @@ export function goToSettings<S extends keyof Parts>(section: S, part: Parts[S]) 
   } catch {
     /* see saveParts */
   }
+  settingsGo.section = section
+}
+
+/** Opens Settings on a section and scrolls to an element of it (`/query` links to the example queries). The caller
+ * goes to `#/settings` itself; a Settings that is not mounted yet reads both when it opens. */
+export function openSettingsSection(section: SectionId, anchor: string | null = null) {
+  try {
+    localStorage.setItem('notatnik-settings-tab', section)
+  } catch {
+    /* see saveParts */
+  }
+  settingsGo.anchor = anchor
   settingsGo.section = section
 }

@@ -679,12 +679,18 @@
     position: absolute;
     left: -21px;
     top: 0;
-    width: 21px;
+    /* 21px to the block's left edge plus 4px to just before the dot, which is centred 9px in */
+    width: 25px;
     height: 0.8em;
     border-left: 2px solid var(--path);
     border-bottom: 2px solid var(--path);
     border-bottom-left-radius: 8px;
     pointer-events: none;
+  }
+  /* the elbow runs through the gutter where the expand arrow sits: on the path the arrow shows only when
+     it is the pointer's target (or focused), not for every hover on the block */
+  .children > :global(.block.on-path > .row > .arrow:not(:hover):not(:focus-visible)) {
+    opacity: 0;
   }
   /* the dark guide also covers the siblings above the path block (`:global`: Svelte can't see the class
      through `~` and would drop the rule) */
@@ -743,20 +749,24 @@
     align-items: flex-start;
     gap: 2px;
   }
-  /* the expand arrow sits in the left gutter so the bullet is at the block's left edge, and the guide
-     line (which runs under the parent's bullet) lines up with it */
+  /* the expand arrow sits in the left gutter, right beside the dot (which spans 6px..12px of the row), like
+     Logseq's: the glyph's middle is 5px left of the row's edge */
   .arrow {
     position: absolute;
-    left: -17px;
+    left: -13px;
     top: 0;
     width: 16px;
+    /* 1.6em of the row, in this button's own font (0.8em) */
+    height: 2em;
     flex: none;
     border: none;
     background: none;
     color: var(--muted);
     cursor: pointer;
     padding: 0;
-    line-height: 1.7;
+    /* one line as high as the button: the glyph is centred on the dot's line, with no flex (not reliable on
+       a <button> in WebKit) */
+    line-height: 2;
     font-size: 0.8em;
     opacity: 0;
   }
@@ -783,8 +793,18 @@
     cursor: pointer;
     padding: 0;
   }
+  /* the dot is placed at the middle of the button explicitly: WebKit does not lay a <button> out as a flex
+     container, so `align-items`/`justify-content` put the dot off the middle there and the connector lines
+     (which run through the middle, x = 9px) missed it */
+  .bullet {
+    position: relative;
+  }
   .bullet::before {
     content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -3px 0 0 -3px;
     width: 6px;
     height: 6px;
     border-radius: 50%;
@@ -805,6 +825,7 @@
     --dot: var(--accent);
   }
   .bullet.collapsed::before {
+    margin: -4px 0 0 -4px;
     width: 8px;
     height: 8px;
     opacity: 1;

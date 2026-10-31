@@ -267,7 +267,7 @@ group: task
 ````
 
 Planned clauses (v0): `task`, `tag`, `links`, `ns`, `page`, `path`, `prop.<key>`, `scheduled`,
-`deadline`, `priority` (`priority: A, B`, a label of the graph), `text`, `type` (block | page), `sort`, `limit`, `group`, `view`, `columns`, `direct`, `children`, `inherit`.
+`deadline`, `priority` (`priority: A, B`, a label of the graph), `text`, `type` (block | page), `sort`, `limit`, `group`, `view`, `columns`, `direct`, `children`, `properties`, `inherit`.
 
 **Inheritance.** In block queries `links:` and `tag:` also match every descendant of a block that has the link or tag (a link applies to the subtree): `- [[Client One]]: call` followed by an indented `- TODO prepare offer` finds the todo under `links: Client One`. `direct: yes` matches only blocks that carry the link themselves. Link-valued properties (`client:: [[X]]`) count as links. Scheduled/deadline dates, priority and other properties are **not** inherited by default. Page queries are unaffected.
 
@@ -281,9 +281,9 @@ Planned clauses (v0): `task`, `tag`, `links`, `ns`, `page`, `path`, `prop.<key>`
 
 **Page-valued properties.** A property whose value is a page is written with the link quoted: `partner: "[[part. Capgemini]]"`, several as `partner: ["[[A]]", "[[B]]"]`. The link counts as a reference of the page (backlinks) and `prop.partner: [[part. Capgemini]]` finds it (the same clause finds block properties `partner:: [[part. Capgemini]]`). Written by hand, `partner: [[part. Capgemini]]` and `partner: [[A]], [[B]]` are also read as links, although YAML itself would see a list in a list and an error. The app parses a copy in which such lines are quoted and never changes the file; it writes the quoted form itself.
 
-**Sub-blocks of a result.** A block result shows only the block itself. `children: yes` shows it with all its sub-blocks (editable in place); a sub-block that matches too is also listed on its own. Page queries are unaffected.
+**Sub-blocks of a result.** A block result shows only the block itself. `children: yes` shows it with all its sub-blocks (editable in place; in the `list` view and under the text of the `table` view); a sub-block that matches too is also listed on its own. Page queries are unaffected.
 
-**Property inheritance.** `inherit: client, type` (a list of property keys) makes `prop.client:` and `prop.type:` also match every descendant of a block that has the property. The nearest block with the key decides (a child's own value wins over its parent's); for blocks with no value in their chain the page's frontmatter value counts. `direct: yes` turns it off. Task data (`scheduled`, `deadline`, `priority`, `repeat`) is never inherited this way; nothing is written to the files.
+**Property lines of a result.** A block result shows the block's properties as a card under it. `properties: none` hides the card, `properties: status, owner` shows only those keys (`properties: all` is the default). It applies to the sub-blocks shown by `children: yes` too; table columns (`columns:`) and the filters are not affected, and the file is never changed.\n\n**Property inheritance.** `inherit: client, type` (a list of property keys) makes `prop.client:` and `prop.type:` also match every descendant of a block that has the property. The nearest block with the key decides (a child's own value wins over its parent's); for blocks with no value in their chain the page's frontmatter value counts. `direct: yes` turns it off. Task data (`scheduled`, `deadline`, `priority`, `repeat`) is never inherited this way; nothing is written to the files.
 Relative dates: `today`, `yesterday`, `+3d`, `-2w`, `+1m`, `this-week`. Weeks start on **Monday**
 by default (`[graph] week_start` in config). Adding months clamps to the end of the month
 (`+1m` from 31 January → 28/29 February).

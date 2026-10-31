@@ -244,6 +244,25 @@ fn children_clause_parses_and_round_trips() {
 }
 
 #[test]
+fn properties_clause_parses_and_round_trips() {
+    let p = |t: &str| notatnik_core::parse_query(t).unwrap().properties;
+    assert_eq!(p("task: todo"), None);
+    assert_eq!(p("properties: all"), None);
+    assert_eq!(p("properties: none"), Some(vec![]));
+    assert_eq!(
+        p("properties: status, owner, status"),
+        Some(vec!["status".into(), "owner".into()])
+    );
+    for t in ["properties: none", "properties: status, owner"] {
+        let q = notatnik_core::parse_query(t).unwrap();
+        assert_eq!(notatnik_core::parse_query(&q.to_text()).unwrap(), q);
+    }
+    assert!(notatnik_core::parse_query("properties: Bad Key").is_err());
+    assert!(notatnik_core::parse_query("properties: none\nproperties: a").is_err());
+    assert!(notatnik_core::parse_query("-properties: none").is_err());
+}
+
+#[test]
 fn inherit_clause_parses_and_round_trips() {
     let q = notatnik_core::parse_query("prop.client: Acme\ninherit: client, type").unwrap();
     assert_eq!(q.inherit, ["client", "type"]);
@@ -251,4 +270,29 @@ fn inherit_clause_parses_and_round_trips() {
     assert_eq!(again, q);
     assert!(notatnik_core::parse_query("inherit: Bad Key").is_err());
     assert!(notatnik_core::parse_query("inherit: a\ninherit: b").is_err());
+}
+
+/// Every example offered by `/query` and listed in Settings (`ui/src/lib/queryExamples.json`) parses, with the
+/// placeholders the way the app fills them in.
+#[test]
+fn example_queries_parse() {
+    let json = include_str!("../../../ui/src/lib/queryExamples.json");
+    let list: serde_json::Value = serde_json::from_str(json).unwrap();
+    let list = list.as_array().unwrap();
+    assert!(list.len() >= 10);
+    for e in list {
+        let id = e["id"].as_str().unwrap();
+        assert!(!e["title"].as_str().unwrap().is_empty(), "{id}");
+        let q = e["query"]
+            .as_str()
+            .unwrap()
+            .replace("{{page}}", "[[series/x]]")
+            .replace("{{namespace}}", "x")
+            .replace("{{type}}", "series");
+        assert!(
+            !q.contains("{{"),
+            "{id}: a placeholder the test does not fill in"
+        );
+        notatnik_core::parse_query(&q).unwrap_or_else(|err| panic!("{id}\n{q}\n{err:?}"));
+    }
 }

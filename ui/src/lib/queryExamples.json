@@ -1,0 +1,86 @@
+[
+  {
+    "id": "series-pages",
+    "title": "Pages of one series",
+    "description": "Pages whose own properties are type: series and series: that page. Change the series name.",
+    "query": "type: page\nprop.type: [[series]]\nprop.series: [[series/Bart+Benoit - sync]]"
+  },
+  {
+    "id": "series-pages-here",
+    "title": "The same, on any series page",
+    "description": "{{page}} is the page the query is on, so the block works unchanged on every series page.",
+    "query": "type: page\nprop.type: [[series]]\nprop.series: {{page}}"
+  },
+  {
+    "id": "series-table",
+    "title": "As a table with the series in a column",
+    "description": "",
+    "query": "type: page\nprop.type: [[series]]\nprop.series: {{page}}\nview: table\ncolumns: page, prop.series"
+  },
+  {
+    "id": "series-entries",
+    "title": "Journal entries of a series, with what is written under them",
+    "description": "children: yes shows the sub-bullets under each entry.",
+    "query": "prop.type: [[series]]\nprop.series: {{page}}\nchildren: yes"
+  },
+  {
+    "id": "few-properties",
+    "title": "Fewer property lines under the results",
+    "description": "properties: none hides them all; properties: status, owner shows only those. Table columns are not affected.",
+    "query": "prop.type: [[series]]\nprop.series: {{page}}\nchildren: yes\nproperties: none"
+  },
+  {
+    "id": "client-tasks",
+    "title": "Open tasks of a client",
+    "description": "",
+    "query": "task: todo, doing\nlinks: Client One"
+  },
+  {
+    "id": "due-soon",
+    "title": "Tasks due in the next week, soonest first",
+    "description": "",
+    "query": "task: todo, doing\ndeadline: < +7d\nsort: deadline asc"
+  },
+  {
+    "id": "undated",
+    "title": "Tasks without a date",
+    "description": "",
+    "query": "task: todo\nscheduled: none\ndeadline: none"
+  },
+  {
+    "id": "board",
+    "title": "A board of the tasks of a namespace",
+    "description": "",
+    "query": "task: todo, doing, done\nns: work/projects\nview: kanban\ngroup: task"
+  },
+  {
+    "id": "path-name",
+    "title": "Everything under a name that occurs in several places",
+    "description": "path: matches the name anywhere in the page path.",
+    "query": "path: Renewal"
+  },
+  {
+    "id": "word",
+    "title": "Blocks that mention a word, ordered by page, the first 20",
+    "description": "",
+    "query": "text: invoice\nsort: page asc\nlimit: 20"
+  },
+  {
+    "id": "beside",
+    "title": "Pages beside this one (same namespace)",
+    "description": "",
+    "query": "type: page\nns: {{namespace}}"
+  },
+  {
+    "id": "same-type",
+    "title": "Pages of the same type as this one",
+    "description": "",
+    "query": "type: page\nprop.type: {{type}}"
+  },
+  {
+    "id": "no-hidden",
+    "title": "Leave hidden pages out of a query",
+    "description": "Add this line to any query.",
+    "query": "task: todo\n-prop.archived: true"
+  }
+]

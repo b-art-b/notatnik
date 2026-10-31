@@ -27,7 +27,8 @@
   import { openGraph, refreshActiveInfo } from '../stores/graphs.svelte'
   import { DATE_FORMATS, formatDate, setDateFormat, setDateLocale, type DateFormat } from '../dates'
   import { currentZoom, setZoom, stepZoom } from '../zoom'
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
+  import { QUERY_EXAMPLES, queryBlockText } from '../queryExamples'
   import { settingsGo } from '../stores/settingsParts.svelte'
   import { loadIcons } from '../stores/icons.svelte'
   import { reloadOpenDocs } from '../stores/pages.svelte'
@@ -453,6 +454,10 @@
     untrack(() => {
       tab = wanted
       settingsGo.section = null
+      // scroll to the part that was asked for, once the section is on screen
+      const anchor = settingsGo.anchor
+      settingsGo.anchor = null
+      if (anchor) void scrollToWhenThere(anchor)
     })
   })
   $effect(() => {
@@ -551,6 +556,26 @@
   function changeZoom(z: number) {
     setZoom(z)
     zoom = z
+  }
+
+  // the example queries of Templates are folded until asked for
+  let examplesOpen = $state(false)
+
+  /** The sections render once the settings have loaded, so the element may not exist yet: look for it for a second. */
+  async function scrollToWhenThere(id: string) {
+    for (let i = 0; i < 60; i++) {
+      await tick()
+      const el = document.getElementById(id)
+      if (el) {
+        if (id === 'example-queries') {
+          examplesOpen = true
+          await tick()
+        }
+        el.scrollIntoView({ block: 'start' })
+        return
+      }
+      await new Promise((r) => requestAnimationFrame(r))
+    }
   }
 
   async function copy(text: string) {
@@ -1066,6 +1091,28 @@
               </tr>
             </tbody>
           </table>
+          <h3 id="example-queries">Example queries</h3>
+          <p class="intro">
+            Queries to copy into a block (<code>/query</code> in the editor offers the same list and writes
+            the query block for you). Change the names to yours. <em>Show query</em> on a block shows the query
+            with its placeholders replaced.
+          </p>
+          <!-- folded until asked for; `/query`'s link opens it (see `scrollToWhenThere`) -->
+          <details class="help" bind:open={examplesOpen} data-testid="example-queries-fold">
+            <summary>{examplesOpen ? 'Hide' : 'Show'} the {QUERY_EXAMPLES.length} examples</summary>
+            <ul class="examples" data-testid="example-queries">
+              {#each QUERY_EXAMPLES as ex (ex.id)}
+                <li>
+                  <div class="ex-head">
+                    <strong>{ex.title}</strong>
+                    <button type="button" onclick={() => copy(queryBlockText(ex.query))}>Copy</button>
+                  </div>
+                  {#if ex.description}<p class="intro">{ex.description}</p>{/if}
+                  <pre>{ex.query}</pre>
+                </li>
+              {/each}
+            </ul>
+          </details>
           <h3>Your templates</h3>
           {#if newTpl === null}
             <p class="newtpl">
@@ -2028,6 +2075,32 @@
   }
   .tokens td {
     padding: 0.1em 1em 0.1em 0;
+  }
+  .examples {
+    list-style: none;
+    margin: 0 0 1em;
+    padding: 0;
+    display: grid;
+    gap: 0.9em;
+    max-width: 40em;
+  }
+  .ex-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+  }
+  .examples .intro {
+    margin: 0.1em 0 0.3em;
+  }
+  .examples pre {
+    margin: 0.2em 0 0;
+    padding: 0.4em 0.6em;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    overflow-x: auto;
   }
   .preview {
     margin: 0.6em 0;

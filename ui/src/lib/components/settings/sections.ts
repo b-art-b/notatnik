@@ -60,7 +60,8 @@ export const SETTINGS_GROUPS: { label: string; items: Section[] }[] = [
         id: 'templates',
         label: 'Templates',
         icon: 'M8 4h10a2 2 0 0 1 2 2v12 M4 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z',
-        words: 'templates placeholders journal new page namespace type automatic',
+        words:
+          'templates placeholders journal new page namespace type automatic example queries query search filter',
       },
     ],
   },

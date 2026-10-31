@@ -48,6 +48,7 @@
               view: 'list',
               columns: [],
               group_by: null,
+              expanded: null,
               rows: [],
             }
         }
@@ -111,7 +112,14 @@
       /><button onclick={save}>Save to sidebar</button>
     </div>
   {/if}
-  {#if showQuery}<pre class="code">{text}</pre>{/if}
+  {#if showQuery}
+    <pre class="code">{text}</pre>
+    {#if result?.expanded}
+      <!-- the same query with the placeholders replaced: what actually runs on this page -->
+      <div class="expanded-label">with the placeholders replaced:</div>
+      <pre class="code" data-testid="query-expanded">{result.expanded}</pre>
+    {/if}
+  {/if}
   {#if result}
     <div class="results" role="presentation" onclick={(e) => e.stopPropagation()}>
       {#if result.errors.length}
@@ -121,7 +129,7 @@
           {/each}
         </ul>
       {:else if view === 'table'}
-        <TableView rows={result.rows} columns={result.columns} />
+        <TableView rows={result.rows} columns={result.columns} {id} />
       {:else if view === 'kanban'}
         <KanbanView rows={result.rows} groupBy={result.group_by} />
       {:else if view === 'timeline'}
@@ -176,6 +184,11 @@
     color: var(--danger);
     margin: 0.3em 0;
     padding-left: 1.2em;
+  }
+  .expanded-label {
+    margin-top: 0.4em;
+    font-size: 0.8em;
+    color: var(--muted);
   }
   .code {
     background: var(--code-bg);

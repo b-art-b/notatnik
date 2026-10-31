@@ -266,7 +266,7 @@ The page has three parts, chosen in the row under its title: **Snapshots** (_Bac
 
 ## Placeholders
 
-`{{title}}`, `{{namespace}}`, `{{date}}` and `{{cursor}}` in templates, and `{{page}}`, `{{title}}`, `{{namespace}}` and `{{date}}` in queries, are replaced when a template is applied or a query runs. The full list and rules are in `placeholders.md`. In the app: **Settings → Templates → Placeholders** has the table, and typing `{{` in a query block offers the query placeholders.
+`{{title}}`, `{{namespace}}`, `{{date}}` and `{{cursor}}` in templates, and `{{page}}`, `{{title}}`, `{{namespace}}` and `{{date}}` in queries, are replaced when a template is applied or a query runs. The full list and rules are in `placeholders.md`. In the app: **Settings → Templates → Placeholders** has the table, and typing `{{` in a query block offers the query placeholders. Typing in a query block also offers the **clause keys** (picking one goes straight on to its values) and the **values**: task states, `view`, `type`, `yes`/`no` for `direct` and `children`, the date words for `scheduled` and `deadline` (`today`, `this-week`, `< +7d`, `none`, ...), the priority labels, `sort` fields and then `asc`/`desc`, `group` and `columns` with the graph's property keys, and for `prop.<key>:` the values in use and pages.
 
 ## Templates for page types
 
@@ -283,6 +283,8 @@ Setting `type` on a page adds the template's properties that the page lacks, and
 **New pages and days:** in _Settings → Templates_ pick a **Journal template** (every new journal day starts from it, `{{date}}` is that day) and add **namespace templates** (`people` → `person`: every new page below `people`, not `people` itself, starts from `person`: its `type`, properties and blocks). The longest matching namespace wins. What you type first comes after the template's blocks. The switch _Apply templates automatically_ covers these too.
 
 **/template:** type `/template` in a block and pick **Template…** (a template with `{{ask:…}}` questions asks them first, see `placeholders.md`): a list of the templates (page types) and, in a second group, the saved blocks opens under the cursor. Type to filter, ↑/↓ and Enter to choose, Esc to close. One entry keeps the `/` menu short however many templates there are; typing `/template-person` still offers a template by name. In an empty block the template's first block takes its place and the rest follows; in a block with text the template's blocks are inserted after it. The page also gets the template's `type` and properties that it lacks (an empty field in the template stays an empty field; values you already have are kept). `{{title}}`, `{{namespace}}` and `{{date}}` are filled in for the current page.
+
+**/query:** type `/query` and pick **Query example…**: a list of example queries (the ones in the table under _Example queries_ below), each with its query on one line. Type to filter, ↑/↓ and Enter to choose, Esc to close. In an empty block the example becomes the query block; in a block with text it is added on new lines after it. **Browse all examples in Settings →** at the end of the list opens **Settings → Templates → Example queries**, where every example is written out with a **Copy** button (the list is folded until you open it; the link opens it). Change the names in the query to yours.
 
 **Saving blocks as a template (snippets):** select blocks (Esc in a block selects it; Shift+↑/↓ or Ctrl+click for more), then right-click and choose **Save as template…**, or press Ctrl+K and choose it there (with no selection it takes the block being edited). A selected block takes its children along. The dialog shows the blocks and asks for a name; **Save** writes `templates/snippets/<name>.md`, only the blocks, no page type. A name that exists asks **Replace it** (the old text stays in the file's history). `/template` then lists it under **Saved blocks** next to the templates; it inserts the blocks after the block (in an empty block the first one takes its place), with `{{title}}`, `{{namespace}}` and `{{date}}` filled in, and adds no page properties. _Settings → Templates → Saved blocks_ lists them with _Edit_ (the text as it is), _Delete_ (30 days under _Deleted templates_, with _Restore_). To leave out the first block, select only its children.
 
@@ -369,11 +371,46 @@ modification time; journals and pages without a file can be hidden) or **Namespa
 
 ## Query blocks
 
-A ` ```query ` block shows its results live. To change the query, click anywhere on the block except the results: the header (it says "✎ click here to edit the query"), the frame around it or the text shown by _show query_ opens the block for editing. A click on a result keeps its own meaning (editing that block, opening a card, ...).
+A ` ```query ` block shows its results live. To change the query, click anywhere on the block except the results: the header (it says "✎ click here to edit the query"), the frame around it or the text shown by _show query_ (which also shows the query with its `{{placeholders}}` replaced) opens the block for editing. A click on a result keeps its own meaning (editing that block, opening a card, ...).
 
 **This page:** `{{page}}` in a query stands for the page the query block is on. On the page `part. Capgemini`, `type: page` + `prop.partner: {{page}}` lists every page whose `partner` is that page; the same block pasted into another partner page lists that partner's pages. It works wherever a page is allowed (`page:`, `links:`, `prop.x:`; `[[{{page}}]]` is the same). `{{title}}` is the last part of the name, `{{namespace}}` the part before it, `{{date}}` today. In a saved query (sidebar) and in the agenda there is no page, so `{{page}}`, `{{title}}` and `{{namespace}}` are reported as an error. The older `[[]]` still works.
 
-**Sub-blocks:** a result is the matching block alone. Add `children: yes` to show it with its sub-blocks (`children: no` is the default).
+**Property lines:** a block result shows its properties as a card under it. `properties: none` hides it, `properties: status, owner` shows only those two (the default is all of them); it applies to sub-blocks shown with `children: yes` as well.
+
+**Sub-blocks:** a result is the matching block alone. Add `children: yes` to show it with its sub-blocks (`children: no` is the default); the list shows them under the block, the table under the text in the _text_ column.
+
+### Example queries
+
+The same list is offered by `/query` in the editor and in Settings → Templates → Example queries (`ui/src/lib/queryExamples.json`). Copy one into a block as a ` ```query ` block (clauses and their rules are in `file-format.md` §6; `{{page}}` and the other placeholders in `placeholders.md`).
+
+| I want to see ...                                                   | Query                                                                               |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| All pages of one series (the page's own properties `type`, `series`) | `type: page` · `prop.type: [[series]]` · `prop.series: [[series/Bart+Benoit - sync]]` |
+| The same on any series page, without typing its name                | `type: page` · `prop.type: [[series]]` · `prop.series: {{page}}`                    |
+| The same as a table with the series in a column                     | add `view: table` · `columns: page, prop.series`                                    |
+| Journal entries of a series with everything written under them      | `prop.type: [[series]]` · `prop.series: {{page}}` · `children: yes`                 |
+| Open tasks of a client                                              | `task: todo, doing` · `links: Client One`                                           |
+| Tasks due in the next week, soonest first                           | `task: todo, doing` · `deadline: < +7d` · `sort: deadline asc`                      |
+| Tasks without a date                                                | `task: todo` · `scheduled: none` · `deadline: none`                                 |
+| A board of the tasks of a namespace                                 | `task: todo, doing, done` · `ns: work/projects` · `view: kanban` · `group: task`    |
+| Everything under a name that occurs in several places               | `path: Renewal`                                                                     |
+| Blocks that mention a word, ordered by page, the first 20           | `text: invoice` · `sort: page asc` · `limit: 20`                                    |
+| Pages beside this one (same namespace)                              | `type: page` · `ns: {{namespace}}`                                                  |
+| Pages of the same type as this one                                  | `type: page` · `prop.type: {{type}}`                                                |
+| Fewer property lines under results                                  | add `properties: none` or `properties: status, owner`                               |
+| Leave hidden pages out of any query                                 | add `-prop.archived: true`                                                          |
+
+Each `·` is a new line in the block. For example the first one is
+
+````
+```query
+type: page
+prop.type: [[series]]
+prop.series: [[series/Bart+Benoit - sync]]
+```
+````
+
+_show query_ on a block with placeholders also shows the query as it runs on that page, which is the quickest way to check an example you changed.
 
 ## Tasks of a page
 

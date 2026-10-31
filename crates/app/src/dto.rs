@@ -1147,6 +1147,8 @@ pub struct QueryView {
     pub columns: Vec<String>,
     /// `group:` clause as text (`task`, `page`, `prop.status`, ...).
     pub group_by: Option<String>,
+    /// The query text with its placeholders replaced (`{{date}}`, `{{page}}`, ...); `None` when it has none.
+    pub expanded: Option<String>,
     /// Results.
     pub rows: Vec<ResultRow>,
 }

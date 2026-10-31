@@ -33,7 +33,7 @@ impl fmt::Display for QueryError {
 
 impl std::error::Error for QueryError {}
 
-const KEYS: [&str; 20] = [
+const KEYS: [&str; 21] = [
     "task",
     "tag",
     "links",
@@ -53,6 +53,7 @@ const KEYS: [&str; 20] = [
     "columns",
     "direct",
     "children",
+    "properties",
     "inherit",
 ];
 
@@ -397,7 +398,15 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
         let single: Option<&'static str> = KEYS.iter().copied().find(|k| {
             *k == key
                 && [
-                    "type", "sort", "limit", "group", "view", "columns", "direct", "children",
+                    "type",
+                    "sort",
+                    "limit",
+                    "group",
+                    "view",
+                    "columns",
+                    "direct",
+                    "children",
+                    "properties",
                     "inherit",
                 ]
                 .contains(k)
@@ -452,7 +461,15 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
 
         if negated
             || ![
-                "type", "sort", "limit", "group", "view", "columns", "direct", "children",
+                "type",
+                "sort",
+                "limit",
+                "group",
+                "view",
+                "columns",
+                "direct",
+                "children",
+                "properties",
                 "inherit",
             ]
             .contains(&key)
@@ -598,6 +615,27 @@ pub fn parse_query_partial(text: &str) -> (Query, Vec<QueryError>) {
                     err(voff, problem(0, format!("invalid view name `{value}`")));
                 }
             }
+            "properties" => match value {
+                "all" => q.properties = None,
+                "none" => q.properties = Some(Vec::new()),
+                _ => {
+                    let mut keys: Vec<String> = Vec::new();
+                    let mut ok = true;
+                    for (o, p) in &parts {
+                        if valid_key(p) {
+                            if !keys.iter().any(|k| k == p) {
+                                keys.push((*p).to_string());
+                            }
+                        } else {
+                            ok = false;
+                            err(voff, problem(*o, format!("invalid property key `{p}`")));
+                        }
+                    }
+                    if ok {
+                        q.properties = Some(keys);
+                    }
+                }
+            },
             "inherit" => {
                 let mut keys = Vec::new();
                 for (o, p) in &parts {

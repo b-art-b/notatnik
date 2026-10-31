@@ -1034,6 +1034,10 @@ columns: Array<string>,
  */
 group_by: string | null, 
 /**
+ * The query text with its placeholders replaced (`{{date}}`, `{{page}}`, ...); `None` when it has none.
+ */
+expanded: string | null, 
+/**
  * Results.
  */
 rows: Array<ResultRow>, };

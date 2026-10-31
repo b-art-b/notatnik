@@ -41,6 +41,8 @@ export interface SlashCommand {
   template?: string
   /** `/template` opens a list of the templates and saved blocks, so the menu holds one entry, not one per template. */
   pickTemplate?: boolean
+  /** `/query` opens a list of example queries; the picked one is written as a query block. */
+  pickExample?: boolean
 }
 
 /** One entry of the template list: a page-type template, or blocks saved from a page. */
@@ -508,6 +510,16 @@ function baseCommands(): SlashCommand[] {
       keywords: ['snippet', 'saved blocks', 'insert blocks'],
       title: 'Pick a template or saved blocks to insert after this block',
       pickTemplate: true,
+      insert: () => ({ text: '' }),
+    },
+    {
+      name: 'query',
+      label: 'Query example…',
+      icon: '?',
+      group: 'Insert',
+      keywords: ['example', 'search', 'filter', 'find'],
+      title: 'Pick an example query to insert as a query block',
+      pickExample: true,
       insert: () => ({ text: '' }),
     },
     {

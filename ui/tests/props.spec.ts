@@ -107,7 +107,8 @@ test('settings: categories are tabs, changes apply at once and are confirmed', a
   await expect(page.getByText('This graph').first()).toBeVisible()
   await page.getByLabel('Completion dates to keep').fill('3')
   await page.getByLabel('Completion dates to keep').blur()
-  await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
+  // the settings' own confirmation (the sidebar and the toast say "saved" too, so a looser locator is ambiguous)
+  await expect(page.getByText('✓ Saved', { exact: true })).toBeVisible()
   await expect.poll(() => backend.read('.notatnik/config.toml')).toContain('completed_log_limit = 3')
   // the zoom stepper
   await page.getByRole('tab', { name: 'Appearance' }).click()
