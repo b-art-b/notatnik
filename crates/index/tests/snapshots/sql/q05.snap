@@ -7,6 +7,6 @@ tag: project
 prop.type: person
 sort: page
 ---
-SELECT p.id, p.name, p.file_path, NULL AS grp FROM pages p WHERE p.is_virtual = 0 AND EXISTS (SELECT 1 FROM refs r WHERE r.src_page_id = p.id AND r.src_block_id IS NULL AND r.kind IN ('tag') AND r.target_key IN (?1)) AND p.id IN (SELECT x.owner_id FROM props x WHERE x.owner_kind = 'page' AND x.key = ?2 AND x.value_fold = ?3) ORDER BY p.key ASC, p.key
+SELECT p.id, p.name, p.file_path, NULL AS grp, 0 AS grp_link FROM pages p WHERE p.is_virtual = 0 AND EXISTS (SELECT 1 FROM refs r WHERE r.src_page_id = p.id AND r.src_block_id IS NULL AND r.kind IN ('tag') AND r.target_key IN (?1)) AND p.id IN (SELECT x.owner_id FROM props x WHERE x.owner_kind = 'page' AND x.key = ?2 AND x.value_fold = ?3) ORDER BY p.key ASC, p.key
 ---
 [Text("project"), Text("type"), Text("person")]

@@ -2732,6 +2732,7 @@ impl AppState {
                     id: r.id,
                     page: r.page,
                     group: r.group,
+                    group_link: r.group_link,
                     block,
                     breadcrumbs,
                     props: r.props,

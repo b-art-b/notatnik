@@ -1120,6 +1120,8 @@ pub struct ResultRow {
     pub page: String,
     /// Group label when the query groups.
     pub group: Option<String>,
+    /// The group value is a page link (`[[...]]`), so the label can open the page.
+    pub group_link: bool,
     /// The block for block queries; its children only with `children: yes`.
     pub block: Option<BlockView>,
     /// Parent block texts, outermost first.

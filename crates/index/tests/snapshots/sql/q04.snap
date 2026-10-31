@@ -5,6 +5,6 @@ expression: dump
 scheduled: today..+7d, none
 sort: priority asc, page desc
 ---
-SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE (b.scheduled BETWEEN ?1 AND ?2 OR b.scheduled IS NULL) ORDER BY b.priority_rank IS NULL, b.priority_rank ASC, p.key DESC, p.key, b.id
+SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, NULL AS grp, 0 AS grp_link FROM blocks b JOIN pages p ON p.id = b.page_id WHERE (b.scheduled BETWEEN ?1 AND ?2 OR b.scheduled IS NULL) ORDER BY b.priority_rank IS NULL, b.priority_rank ASC, p.key DESC, p.key, b.id
 ---
 [Text("2026-10-03"), Text("2026-10-10")]

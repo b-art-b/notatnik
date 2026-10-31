@@ -260,7 +260,7 @@ fn insert_prop_rows(
     value: &PropertyValue,
 ) -> Result<()> {
     let mut st = tx.prepare_cached(
-        "INSERT INTO props(owner_kind, owner_id, key, ord, value_text, value_fold, value_num, value_date) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+        "INSERT INTO props(owner_kind, owner_id, key, ord, value_text, value_fold, value_num, value_date, is_link) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
     )?;
     let scalar = |v: &PropertyValue, text: &str| -> (Option<f64>, Option<String>, String) {
         match v {
@@ -298,7 +298,8 @@ fn insert_prop_rows(
                     t,
                     search_fold(&t),
                     n,
-                    d
+                    d,
+                    matches!(item, PropertyValue::Links(_)) as i64
                 ])?;
             }
         }
@@ -312,13 +313,14 @@ fn insert_prop_rows(
                     l,
                     search_fold(l),
                     Option::<f64>::None,
-                    Option::<String>::None
+                    Option::<String>::None,
+                    1
                 ])?;
             }
         }
         v => {
             let (n, d, t) = scalar(v, raw);
-            st.execute(params![kind, owner, key, 0i64, t, search_fold(&t), n, d])?;
+            st.execute(params![kind, owner, key, 0i64, t, search_fold(&t), n, d, 0])?;
         }
     }
     Ok(())

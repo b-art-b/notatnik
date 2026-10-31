@@ -989,6 +989,10 @@ page: string,
  */
 group: string | null, 
 /**
+ * The group value is a page link (`[[...]]`), so the label can open the page.
+ */
+group_link: boolean, 
+/**
  * The block for block queries; its children only with `children: yes`.
  */
 block: BlockView | null, 

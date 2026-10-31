@@ -75,6 +75,8 @@ pub struct QueryRow {
     pub priority: Option<String>,
     /// Group label when the query has `group:`.
     pub group: Option<String>,
+    /// The group value was written as a `[[link]]`.
+    pub group_link: bool,
     /// Properties (key → first value), for table-like views.
     pub props: BTreeMap<String, String>,
 }
@@ -515,6 +517,8 @@ pub fn compile(
 
     // grouping and ordering
     let mut select_group = "NULL".to_string();
+    // 1 when the group value was written as a `[[link]]` (the label alone does not say), else 0
+    let mut select_link = "0".to_string();
     let mut order: Vec<String> = Vec::new();
     if let Some(g) = &q.group {
         match g {
@@ -545,6 +549,10 @@ pub fn compile(
             GroupBy::Prop(k) => {
                 let sel = format!(
                     "(SELECT x.value_text FROM props x WHERE x.owner_kind = '{owner_kind}' AND x.owner_id = {owner} AND x.key = {} ORDER BY x.ord LIMIT 1)",
+                    b.p(k.clone())
+                );
+                select_link = format!(
+                    "COALESCE((SELECT x.is_link FROM props x WHERE x.owner_kind = '{owner_kind}' AND x.owner_id = {owner} AND x.key = {} ORDER BY x.ord LIMIT 1), 0)",
                     b.p(k.clone())
                 );
                 select_group = sel.clone();
@@ -599,7 +607,7 @@ pub fn compile(
     let sql = if pages {
         order.push("p.key".into());
         format!(
-            "SELECT p.id, p.name, p.file_path, {select_group} AS grp FROM pages p WHERE {} ORDER BY {}{}",
+            "SELECT p.id, p.name, p.file_path, {select_group} AS grp, {select_link} AS grp_link FROM pages p WHERE {} ORDER BY {}{}",
             wheres.join(" AND "),
             order.join(", "),
             q.limit.map_or(String::new(), |l| format!(" LIMIT {l}"))
@@ -613,7 +621,7 @@ pub fn compile(
             wheres.join(" AND ")
         };
         format!(
-            "SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, {select_group} AS grp FROM blocks b JOIN pages p ON p.id = b.page_id WHERE {where_sql} ORDER BY {}{}",
+            "SELECT b.id, b.page_id, p.name, p.file_path, b.path, b.uid, b.text, b.task_state, b.scheduled, b.scheduled_time, b.deadline, b.deadline_time, b.priority, {select_group} AS grp, {select_link} AS grp_link FROM blocks b JOIN pages p ON p.id = b.page_id WHERE {where_sql} ORDER BY {}{}",
             order.join(", "),
             q.limit.map_or(String::new(), |l| format!(" LIMIT {l}"))
         )
@@ -649,6 +657,7 @@ impl Index {
                     page: name,
                     file_path: r.get(2)?,
                     group: r.get(3)?,
+                    group_link: r.get(4)?,
                     block_id: Some(-r.get::<_, i64>(0)?),
                     ..QueryRow::default()
                 })
@@ -670,6 +679,7 @@ impl Index {
                     deadline_time: r.get(11)?,
                     priority: r.get(12)?,
                     group: r.get(13)?,
+                    group_link: r.get(14)?,
                     props: BTreeMap::new(),
                 })
             }

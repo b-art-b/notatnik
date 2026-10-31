@@ -120,6 +120,23 @@ test.describe('queries fixture', () => {
     expect(await table.locator('tr[data-row]').count()).toBeLessThan(rows)
   })
 
+  test('table group header opens the page only for a [[link]] value', async ({ backend, page }) => {
+    backend.write('pages/lk.md', '- Linked entry\n  series:: [[alpha]]\n- Plain entry\n  series:: beta\n')
+    backend.write('pages/tl.md', PAGE('page: lk\ntext: entry\ngroup: prop.series\nview: table'))
+    await backend.open('/page/tl')
+    const table = page.getByTestId('query-table')
+    await expect(table.locator('tr.group[data-group="alpha"] a')).toHaveAttribute('href', /alpha/)
+    await expect(table.locator('tr.group[data-group="beta"]')).toBeVisible()
+    await expect(table.locator('tr.group[data-group="beta"] a')).toHaveCount(0)
+  })
+
+  test('table shows the state of a task result', async ({ backend, page }) => {
+    backend.write('pages/ts.md', '- DOING Table task\n- plain note\n')
+    backend.write('pages/tt.md', PAGE('page: ts\ntext: table\nview: table'))
+    await backend.open('/page/tt')
+    await expect(page.getByTestId('query-table').locator('[data-task="DOING"]')).toBeVisible()
+  })
+
   test('timeline: tasks sit on their deadline; dragging moves the date by the dragged days', async ({
     backend,
     page,

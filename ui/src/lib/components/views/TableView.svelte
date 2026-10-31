@@ -30,7 +30,11 @@
       const key = groupBy ? (r.group ?? '(none)') : null
       m.set(key, [...(m.get(key) ?? []), r])
     }
-    return [...m.entries()].map(([label, items]) => ({ label, items: sortRows(items, sortCol, desc) }))
+    return [...m.entries()].map(([label, items]) => ({
+      label,
+      link: items.some((r) => r.group_link),
+      items: sortRows(items, sortCol, desc),
+    }))
   })
 
   function header(col: string) {
@@ -76,8 +80,8 @@
               onclick={() => (collapsed[g.label!] = !collapsed[g.label!])}
               >{collapsed[g.label] ? '▸' : '▾'}</button
             >
-            <!-- a `page` or `prop.` group is named after a page (a link value is stored without its brackets), so the name opens it -->
-            {#if g.label !== '(none)' && (groupBy === 'page' || groupBy?.startsWith('prop.'))}
+            <!-- the name opens its page for `group: page` and for a property value written as [[link]]; plain text stays text -->
+            {#if g.link || groupBy === 'page'}
               <a href={pageHash(g.label)}>{pageLabel(g.label)}</a>
             {:else}{g.label}{/if}
             <span class="n">{g.items.length}</span>
@@ -107,7 +111,25 @@
               {:else if c === 'page'}
                 <a href={pageHash(r.page)}>{pageLabel(r.page)}</a>
               {:else if c === 'text' && r.block}
-                <Nodes nodes={r.block.content} />
+                <!-- the list view shows a result as a full Block (state badge and all); a cell shows the text, so a task
+                   gets a read-only badge here (change the state in the list view or on its page) -->
+                {#if r.block.task}
+                  {@const st = r.block.task.state.toLowerCase()}
+                  <span
+                    class="state"
+                    style:--c={`var(--task-${st}, var(--muted))`}
+                    data-task={r.block.task.state}
+                    >{r.block.task.checkbox
+                      ? r.block.task.state === 'DONE'
+                        ? '☑'
+                        : '☐'
+                      : r.block.task.state}</span
+                  >
+                  {#if r.block.task.priority}<span class="prio">[#{r.block.task.priority}]</span>{/if}
+                {/if}
+                <span class:closed={r.block.task?.state === 'DONE' || r.block.task?.state === 'CANCELED'}
+                  ><Nodes nodes={r.block.content} /></span
+                >
                 <!-- the sub-blocks come with the row only for `children: yes` -->
                 {#each r.block.children as child (child.path.join('.'))}
                   <Block block={child} docName={r.page} viewKey={`${id}-${r.id}`} />
@@ -174,5 +196,32 @@
     color: inherit;
     cursor: pointer;
     padding: 0;
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    font-size: 0.8em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.05em 0.6em 0.05em 0.3em;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c) 18%, var(--chip));
+    margin-right: 0.3em;
+  }
+  .state::before {
+    content: '';
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--c);
+  }
+  .prio {
+    color: var(--muted);
+    margin-right: 0.3em;
+  }
+  .closed {
+    text-decoration: line-through;
+    color: var(--muted);
   }
 </style>
