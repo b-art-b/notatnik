@@ -149,6 +149,23 @@ test.describe('queries fixture', () => {
     await expect(table).toContainText('nested one')
   })
 
+  test('table: a property written as [[Page]] is a link, and linked-from lists who links to the page', async ({
+    backend,
+    page,
+  }) => {
+    backend.write('pages/lc.md', '- Entry\n  series:: [[alpha]]\n  note:: plain\n')
+    backend.write('pages/linker.md', '- see [[lc]]\n')
+    backend.write(
+      'pages/lt.md',
+      PAGE('page: lc\ntext: entry\ncolumns: text, prop.series, prop.note, linked-from\nview: table'),
+    )
+    await backend.open('/page/lt')
+    const row = page.getByTestId('query-table').locator('tr[data-row]').first()
+    await expect(row.getByRole('link', { name: 'alpha' })).toHaveAttribute('href', /alpha/)
+    await expect(row.getByRole('link', { name: 'plain' })).toHaveCount(0)
+    await expect(row.getByRole('link', { name: 'linker' })).toBeVisible()
+  })
+
   test('timeline: tasks sit on their deadline; dragging moves the date by the dragged days', async ({
     backend,
     page,

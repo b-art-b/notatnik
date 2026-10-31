@@ -2717,6 +2717,8 @@ impl AppState {
             let hidden: HashSet<String> =
                 o.graph.config().properties.hidden.iter().cloned().collect();
             let mut keys: BTreeMap<String, usize> = BTreeMap::new();
+            let wants_linked_from = query.columns.iter().any(|c| c == "linked-from");
+            let mut linked: HashMap<String, Vec<String>> = HashMap::new();
             let mut rows = Vec::with_capacity(res.rows.len());
             for r in res.rows {
                 let (block, breadcrumbs) = Self::row_block(
@@ -2742,6 +2744,21 @@ impl AppState {
                         }
                     }
                 }
+                // `columns: linked-from`: who links to the page of this row (one lookup per page)
+                let linked_from = if wants_linked_from {
+                    if !linked.contains_key(&r.page) {
+                        let mut from: Vec<String> = o
+                            .graph
+                            .with_index(|i| i.backlinks(&r.page))
+                            .map(|b| b.into_iter().map(|x| x.source_page).collect())
+                            .unwrap_or_default();
+                        from.dedup();
+                        linked.insert(r.page.clone(), from);
+                    }
+                    linked.get(&r.page).cloned().unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
                 for k in r.props.keys().filter(|k| !hidden.contains(*k)) {
                     *keys.entry(k.clone()).or_default() += 1;
                 }
@@ -2754,6 +2771,8 @@ impl AppState {
                     page_blocks,
                     breadcrumbs,
                     props: r.props,
+                    link_props: r.link_props.into_iter().collect(),
+                    linked_from,
                     scheduled: r.scheduled,
                     deadline: r.deadline,
                     task_state: r.task_state,

@@ -101,13 +101,21 @@
                 <input
                   autofocus
                   aria-label={`Edit ${c}`}
-                  value={cell(r, c)}
+                  value={r.link_props.includes(c.slice(5)) ? `[[${cell(r, c)}]]` : cell(r, c)}
                   onkeydown={(e) => {
                     if (e.key === 'Enter') void save(r, c, (e.currentTarget as HTMLInputElement).value)
                     if (e.key === 'Escape') editing = null
                   }}
                   onblur={(e) => void save(r, c, e.currentTarget.value)}
                 />
+              {:else if c === 'linked-from'}
+                <!-- the pages that link to this row's page, journal days among them -->
+                {#each r.linked_from as from, i (from)}{i ? ', ' : ''}<a href={pageHash(from)}
+                    >{pageLabel(from)}</a
+                  >{/each}
+              {:else if c.startsWith('prop.') && r.link_props.includes(c.slice(5)) && cell(r, c)}
+                <!-- a property written as [[Page]] is a page here too -->
+                <a href={pageHash(cell(r, c))}>{pageLabel(cell(r, c))}</a>
               {:else if c === 'page'}
                 <a href={pageHash(r.page)}>{pageLabel(r.page)}</a>
               {:else if c === 'text' && r.block}

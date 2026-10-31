@@ -1132,6 +1132,11 @@ pub struct ResultRow {
     pub breadcrumbs: Vec<String>,
     /// Properties (key → first value).
     pub props: std::collections::BTreeMap<String, String>,
+    /// The keys of `props` whose value is a page link, so a cell can open the page.
+    pub link_props: Vec<String>,
+    /// The pages that link to this row's page (journal days included), for the `linked-from` column; empty unless
+    /// the query asks for that column.
+    pub linked_from: Vec<String>,
     /// Scheduled date of the task, if any.
     pub scheduled: Option<String>,
     /// Deadline of the task, if any.

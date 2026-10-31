@@ -4,6 +4,7 @@ import type { ResultRow } from './api'
 export function cellValue(r: ResultRow, col: string): string {
   if (col === 'page') return r.page
   if (col === 'text') return (r.block?.text ?? '').split('\n')[0]
+  if (col === 'linked-from') return r.linked_from.join(', ')
   if (col === 'task') return r.task_state ?? ''
   if (col === 'scheduled') return r.scheduled ?? ''
   if (col === 'deadline') return r.deadline ?? ''

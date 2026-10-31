@@ -79,6 +79,8 @@ pub struct QueryRow {
     pub group_link: bool,
     /// Properties (key → first value), for table-like views.
     pub props: BTreeMap<String, String>,
+    /// The keys of `props` whose value was written as a `[[link]]`.
+    pub link_props: std::collections::BTreeSet<String>,
 }
 
 /// Query results.
@@ -681,6 +683,7 @@ impl Index {
                     group: r.get(13)?,
                     group_link: r.get(14)?,
                     props: BTreeMap::new(),
+                    link_props: Default::default(),
                 })
             }
         })?;
@@ -688,16 +691,26 @@ impl Index {
             rows.push(row?);
         }
         let kind = if pages { "page" } else { "block" };
-        let mut pst = self.conn.prepare_cached("SELECT key, value_text FROM props WHERE owner_kind = ?1 AND owner_id = ?2 ORDER BY key, ord")?;
+        let mut pst = self.conn.prepare_cached("SELECT key, value_text, is_link FROM props WHERE owner_kind = ?1 AND owner_id = ?2 ORDER BY key, ord")?;
         for row in &mut rows {
             let Some(id) = row.block_id else { continue };
             let owner = if pages { -id } else { id };
             let list = pst.query_map(rusqlite::params![kind, owner], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, bool>(2)?,
+                ))
             })?;
             for p in list {
-                let (k, v) = p?;
-                row.props.entry(k).or_insert_with(|| v.unwrap_or_default());
+                let (k, v, link) = p?;
+                // the first value of a key is the one shown; it is a link when it was written as `[[...]]`
+                if !row.props.contains_key(&k) {
+                    if link {
+                        row.link_props.insert(k.clone());
+                    }
+                    row.props.insert(k, v.unwrap_or_default());
+                }
             }
         }
         if pages {

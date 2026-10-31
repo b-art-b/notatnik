@@ -1009,6 +1009,15 @@ breadcrumbs: Array<string>,
  */
 props: { [key in string]: string }, 
 /**
+ * The keys of `props` whose value is a page link, so a cell can open the page.
+ */
+link_props: Array<string>, 
+/**
+ * The pages that link to this row's page (journal days included), for the `linked-from` column; empty unless
+ * the query asks for that column.
+ */
+linked_from: Array<string>, 
+/**
  * Scheduled date of the task, if any.
  */
 scheduled: string | null, 
