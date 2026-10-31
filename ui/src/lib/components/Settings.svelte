@@ -1041,6 +1041,14 @@
                 ><td>with <code>/template</code>: asks a question first and uses the answer</td>
               </tr>
               <tr>
+                <td><code>{'{{askpage:Partner}}'}</code>, <code>{'{{askpage:Partner|default}}'}</code></td><td
+                  >templates</td
+                ><td
+                  >with <code>/template</code>: asks for a page. The field suggests the existing pages (a new
+                  name is allowed) and the answer is inserted as <code>[[Page]]</code></td
+                >
+              </tr>
+              <tr>
                 <td><code>{'{{selection}}'}</code>, <code>{'{{clipboard}}'}</code></td><td>templates</td><td
                   >with <code>/template</code>: the text typed in the block, and the clipboard</td
                 >
