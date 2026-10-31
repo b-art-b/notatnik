@@ -49,7 +49,11 @@
   <thead>
     <tr>
       {#each columns as c (c)}
-        <th scope="col" aria-sort={sortCol === c ? (desc ? 'descending' : 'ascending') : 'none'}>
+        <th
+          scope="col"
+          class:text={c === 'text'}
+          aria-sort={sortCol === c ? (desc ? 'descending' : 'ascending') : 'none'}
+        >
           <button onclick={() => header(c)}
             >{c.replace(/^prop\./, '')}{sortCol === c ? (desc ? ' ▼' : ' ▲') : ''}</button
           >
@@ -75,7 +79,11 @@
       {#each collapsed[g.label ?? ''] ? [] : g.items as r (r.id)}
         <tr data-row={r.id}>
           {#each columns as c (c)}
-            <td ondblclick={() => c.startsWith('prop.') && (editing = { row: r.id, col: c })}>
+            <td
+              class:text={c === 'text'}
+              title={c === 'text' ? undefined : cell(r, c)}
+              ondblclick={() => c.startsWith('prop.') && (editing = { row: r.id, col: c })}
+            >
               {#if editing && editing.row === r.id && editing.col === c}
                 <!-- svelte-ignore a11y_autofocus -->
                 <input
@@ -119,6 +127,19 @@
     padding: 0.25em 0.6em;
     text-align: left;
     vertical-align: top;
+  }
+  /* compact columns keep their natural width on one line (long values are cut with an ellipsis, the full
+     value is the tooltip); the text column takes the rest and is the only one that wraps */
+  thead th:not(.text),
+  td:not(.text) {
+    white-space: nowrap;
+    max-width: 16em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  th.text,
+  td.text {
+    width: 100%;
   }
   th button {
     border: none;
