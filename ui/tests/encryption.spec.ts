@@ -88,6 +88,14 @@ test('a page is encrypted from its menu: the lock shows and the server holds no 
   await page.getByTestId('graph-enc-setup').click()
   await page.getByLabel('Password (8 to 200 characters)').fill('correct horse')
   await page.getByLabel('Password again').fill('correct horse')
+  // layout: both fields are as wide as each other, and a radio sits beside its text, not above it
+  const w1 = (await page.getByLabel('Password (8 to 200 characters)').boundingBox())!.width
+  const w2 = (await page.getByLabel('Password again').boundingBox())!.width
+  expect(Math.abs(w1 - w2)).toBeLessThan(1)
+  const radio = (await page.getByTestId('enc-scope-all').boundingBox())!
+  const text = (await page.getByText('Everything, except what I list').boundingBox())!
+  expect(text.x).toBeGreaterThan(radio.x + radio.width)
+  expect(Math.abs(text.y - radio.y)).toBeLessThan(12)
   await page.getByTestId('enc-scope-marked').check() // these tests mark paths themselves
   await page.getByRole('button', { name: 'Create' }).click()
   await expect(page.getByTestId('graph-recovery-key')).toContainText('-')

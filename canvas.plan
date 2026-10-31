@@ -1,0 +1,71 @@
+# Handwriting canvas: plan
+
+Goal: write by hand in a note (mouse, finger, iPad with Apple Pencil or another stylus) and keep the original
+handwriting. Joplin changes the shapes of what is written; Notatnik must not. Fixed or infinite canvas: the same
+approach as Joplin (infinite, a drawing is an image in the note, edited in an overlay). iPad is a real target.
+
+Status: plan only, nothing built. Per CLAUDE.md the next step is a phase doc (`docs/phases/drawing.md`, requirement
+IDs, Verify blocks) and only then the spike.
+
+## Recommendation
+
+Use js-draw first, behind a spike. Fall back to our own pen code if js-draw cannot keep the handwriting exact.
+
+js-draw (what Joplin's drawing plugin uses; the details below are from memory and are checked by the spike):
+- infinite canvas with pan and zoom
+- pen, stylus and touch input; eraser, selection, undo and redo
+- drawings saved and loaded as SVG
+- MIT licence; framework-agnostic, so it mounts into a plain `<div>` in a Svelte component
+
+Risk: fidelity. Joplin's plugin changes shapes. Possible causes: stroke smoothing and curve fitting, or a
+shape-snapping pen type. The spike must show that js-draw has a pen with smoothing and shape-snap off, and that the
+saved SVG still looks like the handwriting at high zoom.
+
+Fallback: capture the raw pen points ourselves (Pointer Events) and keep them in the file; the amount of smoothing is
+a choice, down to none; render with perfect-freehand. More work (toolbar, eraser, zoom are ours) but fidelity is
+guaranteed because the original points stay in the file.
+
+## Input (either way)
+
+Pointer Events: `pointerType` (`mouse`, `touch`, `pen`), `pressure`, `tiltX`/`tiltY`, `getCoalescedEvents()` for full
+sample rate, `touch-action: none` on the canvas. Pen draws, a finger scrolls and zooms (palm rejection). The stylus
+eraser end or barrel button arrives in `buttons` and maps to the eraser. Platform notes: Android WebView and iPad
+WebKit handle stylus input well; WebKitGTK on Linux is the one to test first (pressure from a Wacom tablet).
+
+## Storage (as Joplin: infinite canvas, a drawing is an image resource)
+
+- One SVG file per drawing in `assets/drawings/<id>.svg` of the graph.
+- The note holds only a link: `![](assets/drawings/<id>.svg)`. Markdown stays minimal and readable (ST-3).
+- The note shows the SVG inline; a click opens a full-screen editor; closing writes a new SVG file.
+- The raw points are embedded in the SVG, so a drawing can be opened and edited again.
+- Syncs like any other file; a conflict is a whole-file copy through the existing conflict mechanism (ST-2 holds:
+  the file is meant to be synced).
+
+## iPad
+
+Tauri 2 can target iOS, but that needs a Mac, Xcode and an Apple developer account.
+1. Installable web version (PWA): the same Svelte UI served over the network. Fastest way to test the Pencil (it
+   reports `pen`, a finger scrolls and zooms). Needs a way for the iPad to reach the graph: the existing sync.
+2. Tauri iOS app: the native route; can wait until the drawing itself works.
+
+## Phases
+
+1. Spike (about 1 to 2 days)
+   - Svelte wrapper around js-draw.
+   - Test on Linux (WebKitGTK, mouse and tablet) and on an iPad with a Pencil (dev server over the local network).
+   - Check: pen smoothing and shape-snap can be turned off; the SVG keeps the handwriting; js-draw works under the
+     app's content security policy.
+   - Gate: if the handwriting changes, switch to the fallback.
+2. Block
+   - `/draw` inserts the link; full-screen editor; save to `assets/drawings/`.
+   - Tool choices (colour, width) persist.
+3. Polish
+   - Ruled or grid background, PNG export, drawings in the page view and in search results.
+4. iPad
+   - PWA first, then Tauri iOS.
+
+## Open decisions
+
+- Confirm the spike-first approach (js-draw, with our own pen code as the fallback).
+- iPad route: PWA first, or go straight to Tauri iOS.
+- Whether drawings should also be exportable as PNG or PDF in the first release.

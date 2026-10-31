@@ -242,10 +242,13 @@
       }}
     >
       <label
-        >Password (8 to 200 characters)
+        ><span>Password <span class="hint">(8 to 200 characters)</span></span>
         <input type="password" autocomplete="new-password" bind:value={pw} /></label
       >
-      <label>Password again <input type="password" autocomplete="new-password" bind:value={pw2} /></label>
+      <label
+        ><span>Password again</span>
+        <input type="password" autocomplete="new-password" bind:value={pw2} /></label
+      >
       <fieldset class="scope">
         <legend>What to encrypt on the server</legend>
         <label class="check"
@@ -256,7 +259,9 @@
             bind:group={scopeChoice}
             data-testid="enc-scope-all"
           />
-          <span>Everything, except what I list <em>(recommended: a file you forget can never leak)</em></span
+          <span class="opt"
+            >Everything, except what I list <small>Recommended: a file you forget can never leak.</small
+            ></span
           ></label
         >
         <label class="check"
@@ -267,7 +272,9 @@
             bind:group={scopeChoice}
             data-testid="enc-scope-marked"
           />
-          <span>Only what I choose</span></label
+          <span class="opt"
+            >Only what I choose <small>Only the pages and folders you mark are encrypted.</small></span
+          ></label
         >
       </fieldset>
       <span class="open">
@@ -642,10 +649,38 @@
     letter-spacing: 0.04em;
     word-break: break-all;
   }
+  /* the form is one column of equal-width fields; labels sit above their field */
+  .encform {
+    align-items: stretch;
+    max-width: 28em;
+    gap: 0.8em;
+  }
   .encform label {
     display: flex;
     flex-direction: column;
-    gap: 0.2em;
+    gap: 0.25em;
+    font-weight: 600;
+  }
+  .encform input:not([type='radio']):not([type='checkbox']) {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-weight: 400;
+    padding: 0.4em 0.6em;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .encform input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .hint {
+    font-weight: 400;
+    font-size: 0.85em;
+    color: var(--muted);
+    margin-left: 0.4em;
   }
   .scope {
     border: 0;
@@ -657,12 +692,51 @@
   }
   .scope legend {
     padding: 0;
-    margin-bottom: 0.2em;
+    margin-bottom: 0.4em;
+    font-weight: 600;
   }
-  .check {
+  /* a radio or checkbox with its text beside it (more specific than `.encform label`, which stacks) */
+  .encform .check {
     flex-direction: row;
-    gap: 0.5em;
-    align-items: center;
+    gap: 0.6em;
+    align-items: flex-start;
+    font-weight: 400;
+  }
+  .check input {
+    margin-top: 0.25em;
+    flex: none;
+  }
+  .opt {
+    display: flex;
+    flex-direction: column;
+  }
+  .opt small {
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+  /* the actions: the main one first and filled, Cancel the same size but flat */
+  .encform .open {
+    display: flex;
+    gap: 0.6em;
+    margin-top: 0.2em;
+  }
+  .encform .open button {
+    font: inherit;
+    padding: 0.4em 1.1em;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: inherit;
+  }
+  .encform .open button[type='submit'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .encform .open button:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
   .more {
     margin: 0.2em 0;
