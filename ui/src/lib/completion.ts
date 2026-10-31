@@ -353,7 +353,9 @@ export function queryValueOptions(
   if (key === 'columns') {
     return {
       replace: typed.length,
-      options: ['text', 'page', ...propKeys.map((k) => `prop.${k}`)].map((v) => item(v, 'column')),
+      options: ['text', 'page', 'linked-from', ...propKeys.map((k) => `prop.${k}`)].map((v) =>
+        item(v, 'column'),
+      ),
     }
   }
   if (key === 'inherit') return { replace: typed.length, options: propKeys.map((k) => item(k, 'property')) }

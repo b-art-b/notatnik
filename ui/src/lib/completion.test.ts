@@ -83,7 +83,7 @@ describe('query value hints', () => {
   })
   it('group and columns add the property keys of the graph', () => {
     expect(labels('group', '', ['client'])).toEqual(['page', 'task', 'scheduled', 'deadline', 'prop.client'])
-    expect(labels('columns', '', ['client'])).toEqual(['text', 'page', 'prop.client'])
+    expect(labels('columns', '', ['client'])).toEqual(['text', 'page', 'linked-from', 'prop.client'])
     expect(labels('inherit', '', ['client', 'type'])).toEqual(['client', 'type'])
     expect(labels('properties', '', ['status'])).toEqual(['none', 'all', 'status'])
     expect(queryValueTrigger('properties: no')).toEqual({ key: 'properties', typed: 'no' })
