@@ -5,6 +5,7 @@
   import { getDoc } from '../../stores/pages.svelte'
   import Nodes from '../Nodes.svelte'
   import Block from '../Block.svelte'
+  import { shownDate } from '../../stores/format.svelte'
   import { cellValue, sortRows } from '../../views'
 
   let {
@@ -18,6 +19,8 @@
   let collapsed = $state<Record<string, boolean>>({})
   let editing = $state<{ row: string; col: string } | null>(null)
 
+  // a journal page is named by its day: show it in the user's date format, like the list view does
+  const pageLabel = (n: string) => (/^\d{4}-\d{2}-\d{2}$/.test(n) ? shownDate(n) : n)
   const cell = cellValue
   // With `group:` the rows sit under one header row per group (labels come from the backend, in its order);
   // the header-click sort then orders the rows inside each group. Without it: one unlabelled group.
@@ -97,7 +100,7 @@
                   onblur={(e) => void save(r, c, e.currentTarget.value)}
                 />
               {:else if c === 'page'}
-                <a href={pageHash(r.page)}>{r.page}</a>
+                <a href={pageHash(r.page)}>{pageLabel(r.page)}</a>
               {:else if c === 'text' && r.block}
                 <Nodes nodes={r.block.content} />
                 <!-- the sub-blocks come with the row only for `children: yes` -->
