@@ -74,8 +74,13 @@
               aria-expanded={!collapsed[g.label]}
               aria-label={`Toggle ${g.label}`}
               onclick={() => (collapsed[g.label!] = !collapsed[g.label!])}
-              >{collapsed[g.label] ? '▸' : '▾'} {g.label} <span class="n">{g.items.length}</span></button
+              >{collapsed[g.label] ? '▸' : '▾'}</button
             >
+            <!-- a `page` or `prop.` group is named after a page (a link value is stored without its brackets), so the name opens it -->
+            {#if g.label !== '(none)' && (groupBy === 'page' || groupBy?.startsWith('prop.'))}
+              <a href={pageHash(g.label)}>{pageLabel(g.label)}</a>
+            {:else}{g.label}{/if}
+            <span class="n">{g.items.length}</span>
           </th>
         </tr>
       {/if}
