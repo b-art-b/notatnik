@@ -39,6 +39,9 @@ reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV s
 
 ### P8.1 Android toolchain (you)
 
+**Status:** the shell builds for Android on Linux (`scripts/android.sh build` gave a debug APK for arm64; the Gradle project is in
+`src-tauri/gen/android`). It has not been run on a device or an emulator yet.
+
 `scripts/android.sh doctor` says what is found and what is missing; `scripts/android.sh init | dev | build` run the Tauri
 Android commands with the SDK, NDK and JDK it finds (`~/Android/Sdk` by default). The shell is already a library with
 the mobile entry point and keeps the device folders and the first graph in the app's own storage (`phases/ipad.md`

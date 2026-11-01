@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use notatnik_app::{ApiError, AppOptions, AppState, Secrets, dispatch, dispatch_slot};
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
+use notatnik_app::Secrets;
+use notatnik_app::{ApiError, AppOptions, AppState, dispatch, dispatch_slot};
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
 
@@ -83,6 +85,7 @@ async fn pick_file(app: tauri::AppHandle) -> Option<String> {
 
 /// Shows the system's folder chooser and returns the folder, or `None` when the user cancels. Called from the start
 /// screen and the settings to pick the folder of a graph instead of typing its path.
+#[cfg(desktop)]
 #[tauri::command]
 async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     use tauri_plugin_dialog::DialogExt;
@@ -92,6 +95,13 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
         .set_title("Choose the folder of your notes")
         .blocking_pick_folder()
         .map(|p| p.to_string())
+}
+
+/// A phone or tablet has no folder chooser for a graph: the graph is in the app's own storage (see `open_mobile_graph`).
+#[cfg(mobile)]
+#[tauri::command]
+async fn pick_folder() -> Option<String> {
+    None
 }
 
 /// The picture on the system clipboard (a screenshot from Flameshot, Spectacle ...) as a base64 PNG, or `None` when
