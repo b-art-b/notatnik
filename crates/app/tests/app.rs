@@ -2210,7 +2210,15 @@ fn backups_are_sealed_with_a_password_and_a_recovery_key() {
         .flatten()
         .map(|e| e.file_name())
         .collect();
-    std::fs::remove_file(t.tmp.path().join("device/config/backup-vault.json")).unwrap();
+    // the vault is the graph's own file, `<config>/graphs/<graph id>/backup-vault.json`
+    let vaults: Vec<_> = std::fs::read_dir(t.tmp.path().join("device/config/graphs"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path().join("backup-vault.json"))
+        .filter(|p| p.exists())
+        .collect();
+    assert_eq!(vaults.len(), 1, "{vaults:?}");
+    std::fs::remove_file(&vaults[0]).unwrap();
     let e = t.call("backup_now", json!({})).unwrap_err();
     assert!(e.message.contains("backup-vault.json"), "{e}");
     let after: Vec<_> = std::fs::read_dir(&dir)

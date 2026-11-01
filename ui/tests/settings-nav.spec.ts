@@ -70,3 +70,14 @@ test('backup has three parts, one open at a time', async ({ backend, page }) => 
   await page.getByText('How to restore', { exact: true }).click()
   await expect(page.getByText('Restore folder', { exact: false }).first()).toBeVisible()
 })
+
+// the backup folder, schedule and keys belong to each graph, kept on this device
+test('Backup says that its settings belong to this graph and stay on this device', async ({
+  backend,
+  page,
+}) => {
+  await backend.open('/settings')
+  await page.getByRole('tab', { name: 'Backup' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: 'Backup' })).toBeVisible()
+  await expect(page.getByTestId('settings-scope')).toHaveText('This graph, on this device')
+})

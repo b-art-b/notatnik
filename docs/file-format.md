@@ -42,8 +42,9 @@ Outside the graph (per device, never synced):
 └── state.json                   # collapsed blocks, open tabs, window layout
 ~/.config/notatnik/settings.toml # device settings; the history of graphs opened in the app (`[[graphs]]` id + path, the most recent last), `last_graph` (its id), a `color` (0 to 7) per graph if the person chose one (the default comes from the graph's id) and `[ui] open_last_graph`; written by the app only, the CLI does not add graphs
 ~/.local/share/notatnik/replicas/<name>/  # a graph kept on a WebDAV server: its local copy (WebDAV, SY-1); <name>.sync-state.json beside it holds the sync state
-~/.config/notatnik/backup-vault.json # the public descriptor of the backup encryption vault (EN-2, no secret that works without the password or recovery key); `backup-vault.pending.json` until the recovery key is confirmed
-~/.local/share/notatnik/backups/ # snapshots (default folder; the device setting `backup_dir` can change it)
+~/.config/notatnik/graphs/<graph-id>/backup-vault.json # the public descriptor of one graph's backup encryption vault (EN-2; each graph has its own password and recovery key; no secret that works without them); `backup-vault.pending.json` beside it until the recovery key is confirmed. `backup.json` there holds the graph's backup settings (folder, second folder, automatic, compression, encryption); never synced
+~/.config/notatnik/backup-vault.json # the vault of the time before backups were per graph: a graph without its own vault file still reads it, so older snapshots open (nothing new is written to it)
+~/.local/share/notatnik/backups/ # snapshots (default folder; each graph's `backup_dir` setting can change it; a snapshot's name carries the graph id)
 ~/.local/share/notatnik/graphs/<graph-id>/journal/pending.json   # operation in progress (D38); exists only after a crash
 ~/.local/share/notatnik/graphs/<graph-id>/versions/<hash>/<ms>.md # page history (D39); `<ms>-w.md` = written by the app
 ```

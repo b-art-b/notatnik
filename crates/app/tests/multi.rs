@@ -793,3 +793,92 @@ fn a_closed_second_graph_is_free_for_another_app() {
     }
     assert!(opened, "the lock was not released");
 }
+
+/// The backup folder and the backup encryption belong to a graph: setting them in one leaves the other alone.
+#[test]
+fn backup_folder_and_encryption_belong_to_each_graph() {
+    let w = w();
+    w.open("", "alpha-graph");
+    w.open("1", "beta-graph");
+    let dir_a = w.tmp.path().join("backups-a");
+    let dir_b = w.tmp.path().join("backups-b");
+    w.ok(
+        "",
+        "set_settings",
+        json!({"backup_dir": dir_a.to_str().unwrap()}),
+    );
+    w.ok(
+        "1",
+        "set_settings",
+        json!({"backup_dir": dir_b.to_str().unwrap()}),
+    );
+    assert_eq!(
+        w.ok("", "get_settings", json!({}))["backup_dir"],
+        dir_a.to_str().unwrap()
+    );
+    assert_eq!(
+        w.ok("1", "get_settings", json!({}))["backup_dir"],
+        dir_b.to_str().unwrap()
+    );
+
+    // a snapshot of each graph goes to its own folder
+    w.ok("", "backup_now", json!({}));
+    w.ok("1", "backup_now", json!({}));
+    let files = |d: &Path| std::fs::read_dir(d).unwrap().flatten().count();
+    assert_eq!(files(&dir_a), 1);
+    assert_eq!(files(&dir_b), 1);
+
+    // encryption is set up for the first graph only
+    w.ok(
+        "",
+        "backup_encryption_setup",
+        json!({"password": "correct horse"}),
+    );
+    w.ok("", "backup_encryption_confirm", json!({}));
+    let a = w.ok("", "backup_encryption_status", json!({}));
+    let b = w.ok("1", "backup_encryption_status", json!({}));
+    assert_eq!(
+        (a["configured"].clone(), a["enabled"].clone()),
+        (json!(true), json!(true))
+    );
+    assert_eq!(
+        (b["configured"].clone(), b["enabled"].clone()),
+        (json!(false), json!(false))
+    );
+    assert_eq!(w.ok("", "get_settings", json!({}))["backup_encrypt"], true);
+    assert_eq!(
+        w.ok("1", "get_settings", json!({}))["backup_encrypt"],
+        false
+    );
+    // the next snapshot of the first graph is sealed, the second one's is plain
+    w.ok("", "backup_now", json!({}));
+    let sealed = |d: &Path| {
+        std::fs::read_dir(d)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".zip.enc"))
+            .count()
+    };
+    assert_eq!(sealed(&dir_a), 1);
+    assert_eq!(sealed(&dir_b), 0);
+    // unlocking one graph's vault does not unlock another's
+    w.ok(
+        "1",
+        "backup_encryption_setup",
+        json!({"password": "another horse"}),
+    );
+    w.ok("1", "backup_encryption_confirm", json!({}));
+    w.ok("", "backup_lock", json!({}));
+    assert_eq!(
+        w.ok("1", "backup_encryption_status", json!({}))["unlocked"],
+        true
+    );
+    assert_eq!(
+        w.ok("", "backup_encryption_status", json!({}))["unlocked"],
+        false
+    );
+    assert!(
+        w.call("", "backup_unlock", json!({"secret": "another horse"}))
+            .is_err()
+    );
+}

@@ -4,7 +4,12 @@
   // they all read the same.
   import type { Snippet } from 'svelte'
 
-  let { title, scope, children }: { title: string; scope?: 'device' | 'graph'; children?: Snippet } = $props()
+  // `graph-device`: belongs to this graph, but is kept on this device and never synced (the backup folder and keys)
+  let {
+    title,
+    scope,
+    children,
+  }: { title: string; scope?: 'device' | 'graph' | 'graph-device'; children?: Snippet } = $props()
 </script>
 
 <header class="head">
@@ -16,8 +21,14 @@
         data-testid="settings-scope"
         title={scope === 'device'
           ? 'Kept on this device only and never synced'
-          : 'Kept in the graph, so it is synced with your notes'}
-        >{scope === 'device' ? 'This device' : 'This graph'}</span
+          : scope === 'graph-device'
+            ? 'Each graph has its own, kept on this device and never synced'
+            : 'Kept in the graph, so it is synced with your notes'}
+        >{scope === 'device'
+          ? 'This device'
+          : scope === 'graph-device'
+            ? 'This graph, on this device'
+            : 'This graph'}</span
       >
     {/if}
   </div>
@@ -47,7 +58,8 @@
     background: var(--chip);
     white-space: nowrap;
   }
-  .scope.graph {
+  .scope.graph,
+  .scope.graph-device {
     color: var(--text);
     background: var(--selection);
   }

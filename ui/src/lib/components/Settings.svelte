@@ -1293,8 +1293,9 @@
         {:else if tab === 'files'}
           <FileSources />
         {:else if tab === 'backup'}
-          <PaneHeader title="Backup" scope="device">
-            Snapshots are zip files of this graph's folder and of this device's settings. They are kept
+          <PaneHeader title="Backup" scope="graph-device">
+            Snapshots are zip files of this graph's folder and of this device's settings. Each graph has its
+            own backup folder, schedule and encryption (its own password and recovery key). They are kept
             outside the graph, so they are never synced.
           </PaneHeader>
           <p class="intro callout">
