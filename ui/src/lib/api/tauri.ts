@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ApiError, GraphChangedEvent } from './bindings'
 import { CommandError, type Transport } from './types'
@@ -25,8 +25,10 @@ export function createTauriTransport(): Transport {
         off?.()
       }
     },
+    // `asset://localhost/<path>` on Linux, macOS and iOS, `http://asset.localhost/<path>` on Android and Windows: the
+    // platform's webview decides how it reaches a custom protocol, and Tauri's helper knows (it encodes the path once)
     assetUrl: (path, slot) =>
-      `asset://localhost/${encodeURIComponent(path.replace(/^(\.\.\/)+/, ''))}${slot ? `?slot=${slot}` : ''}`,
+      `${convertFileSrc(path.replace(/^(\.\.\/)+/, ''), 'asset')}${slot ? `?slot=${slot}` : ''}`,
     openExternal: (url) => {
       void invoke('open_external', { url })
     },

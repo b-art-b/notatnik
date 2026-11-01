@@ -305,3 +305,62 @@ test('a drawing that another page links too stays as a file when it is deleted h
   expect(backend.exists(`assets/drawings/${name}`)).toBe(true)
   await expect(page.getByText('Another page links this drawing too')).toBeVisible()
 })
+
+// DR-2: the pen draws, a finger moves the canvas once a stylus has been seen (a resting hand does not draw). The
+// pointer events are made by hand: a touch screen and a stylus are what a test cannot press.
+async function pointerStroke(
+  page: Page,
+  pointerType: 'pen' | 'touch',
+  id: number,
+  points: [number, number][],
+) {
+  const canvas = page.getByTestId('drawing-editor').locator('canvas').first()
+  const box = (await canvas.boundingBox())!
+  const at = (p: [number, number], extra: object) => ({
+    pointerType,
+    pointerId: id,
+    isPrimary: true,
+    pressure: 0.5,
+    clientX: box.x + box.width / 2 + p[0],
+    clientY: box.y + box.height / 2 + p[1] + 40,
+    ...extra,
+  })
+  await canvas.dispatchEvent('pointerdown', at(points[0], { buttons: 1 }))
+  for (const p of points.slice(1)) await canvas.dispatchEvent('pointermove', at(p, { buttons: 1 }))
+  await canvas.dispatchEvent('pointerup', at(points[points.length - 1], { buttons: 0 }))
+}
+
+const strokesOf = (svg: string) => (svg.match(/fill="none"/g) ?? []).length
+
+test('without a stylus a finger draws', async ({ backend, page }) => {
+  backend.write('pages/d10.md', '- start\n')
+  await slashDraw(page, backend, 'd10', 'start')
+  await pointerStroke(page, 'touch', 21, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d10.md')).toMatch(SVG_LINK)
+  expect(strokesOf(drawingOf(backend, 'pages/d10.md').svg)).toBe(1)
+})
+
+test('once a stylus has been seen a finger moves the canvas and does not draw', async ({ backend, page }) => {
+  backend.write('pages/d11.md', '- start\n')
+  await slashDraw(page, backend, 'd11', 'start')
+  await pointerStroke(page, 'pen', 31, wobble)
+  // the hand rests on the glass and moves: no second stroke
+  await pointerStroke(
+    page,
+    'touch',
+    32,
+    wobble.map(([x, y]) => [x, y + 80] as [number, number]),
+  )
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d11.md')).toMatch(SVG_LINK)
+  expect(strokesOf(drawingOf(backend, 'pages/d11.md').svg)).toBe(1)
+  // and it is remembered: the next editor starts that way
+  expect(await page.evaluate(() => localStorage.getItem('notatnik.drawing.stylus'))).toBe('1')
+})

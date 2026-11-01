@@ -26,8 +26,8 @@ repository's development machine has. [xtool](https://github.com/xtool-org/xtool
   device has no hover), the right button (press and hold a bullet for the block menu), `Ctrl+V` of a picture (the
   webview's own `paste` event; the desktop-only `clipboard_image` command is not built), the folder chooser
   (not used on mobile). Keyboard shortcuts work with a hardware keyboard.
-- **The Pencil** reports itself as a `pen` through Pointer Events: it draws, a finger moves and zooms the canvas
-  (DR-2). The drawing editor needs no change.
+- **The Pencil** reports itself as a `pen` through Pointer Events: it draws, and from the first Pencil stroke on
+  a finger moves the canvas instead of drawing (DR-2). The drawing editor needs no change.
 
 ## Tasks
 

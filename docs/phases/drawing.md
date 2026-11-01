@@ -29,8 +29,9 @@ infinite canvas, edited in a full-screen overlay, as in Joplin.
 - **Opening again for editing** loads the SVG back into the editor as strokes (js-draw reads what it wrote).
 - **Only drawings are touched by the two commands** (`save_drawing`, `read_drawing`): the path has to be
   `assets/drawings/draw-<8 hex>.svg`; anything else is refused. Other assets keep their own rules (ST-8).
-- **Input:** Pointer Events (mouse, touch, pen in one code path). A stylus draws; a finger pans and zooms, so a
-  resting palm does not draw. Mouse draws with the primary button.
+- **Input:** Pointer Events (mouse, touch, pen in one code path). Two fingers pan and zoom.
+  The first time a stylus touches the canvas one finger starts to pan as well (remembered on the device), so a resting
+  palm does not draw; before that a finger draws. A mouse draws with the primary button.
 - **Where the overlay lives:** like the template questions, a promise-based `openDrawing(path | null)` opens a
   dialog mounted once in `App.svelte`; the editor and a click on a drawing in a block both use it.
 

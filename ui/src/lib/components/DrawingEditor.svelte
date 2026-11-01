@@ -6,6 +6,8 @@
   import Editor, {
     BackgroundComponentBackgroundType,
     Color4,
+    PanZoomMode,
+    PanZoomTool,
     PenTool,
     makeFreehandLineBuilder,
     makePressureSensitiveFreehandLineBuilder,
@@ -26,6 +28,8 @@
   }
   const isNew = !target.path
   const TOOLS_KEY = 'notatnik.drawing.tools'
+  // set once a stylus was seen on this device: from then on one finger moves the canvas, so a resting hand does not draw
+  const STYLUS_KEY = 'notatnik.drawing.stylus'
 
   let host: HTMLDivElement | undefined = $state()
   let editor: Editor | undefined
@@ -65,6 +69,24 @@
     }
   }
 
+  /** One finger moves the canvas (two fingers zoom) instead of drawing; the pen and the mouse still draw (DR-2). */
+  function fingerMovesCanvas(ed: Editor, on: boolean) {
+    for (const t of ed.toolController.getMatchingTools(PanZoomTool)) {
+      t.setModeEnabled(PanZoomMode.OneFingerTouchGestures, on)
+    }
+  }
+
+  /** The first time a stylus touches the canvas, fingers stop drawing, now and in the next sessions. */
+  function noticeStylus(e: PointerEvent) {
+    if (e.pointerType !== 'pen' || !editor) return
+    fingerMovesCanvas(editor, true)
+    try {
+      localStorage.setItem(STYLUS_KEY, '1')
+    } catch {
+      /* it is just noticed again next time */
+    }
+  }
+
   function restoreTools() {
     try {
       const saved = localStorage.getItem(TOOLS_KEY)
@@ -99,6 +121,13 @@
     for (const pen of ed.toolController.getMatchingTools(PenTool)) pen.setColor(Color4.black)
     restoreTools()
     keepHandwriting(ed)
+    try {
+      if (localStorage.getItem(STYLUS_KEY)) fingerMovesCanvas(ed, true)
+    } catch {
+      /* no storage: fingers draw until a stylus is seen */
+    }
+    // capture: before js-draw handles the same event
+    host.addEventListener('pointerdown', noticeStylus, true)
     void (async () => {
       try {
         if (target.path) {
@@ -126,6 +155,7 @@
       ed.focus()
     })()
     return () => {
+      host?.removeEventListener('pointerdown', noticeStylus, true)
       toolbar?.remove()
       ed.remove()
       editor = undefined
@@ -245,7 +275,9 @@
           ><input type="radio" name="drawing-mode" value="link" bind:group={mode} /> Link</label
         >
       </fieldset>
-      <span class="hint">Pen draws; with a stylus a finger moves and zooms the canvas</span>
+      <span class="hint"
+        >The pen draws; once a stylus has been used a finger moves the canvas and two fingers zoom</span
+      >
       <div class="actions">
         {#if !isNew && target.host}
           <button

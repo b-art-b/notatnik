@@ -39,8 +39,14 @@ reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV s
 
 ### P8.1 Android toolchain (you)
 
-**Status:** the shell builds for Android on Linux (`scripts/android.sh build` gave a debug APK for arm64; the Gradle project is in
-`src-tauri/gen/android`). It has not been run on a device or an emulator yet.
+**Status:** the shell builds for Android on Linux (`scripts/android.sh build`; the Gradle project is in
+`src-tauri/gen/android`) and was run in an emulator (a tablet, Android 14, x86_64 image, KVM): it starts, makes the graph
+`notes` in its own storage, shows today's journal, a typed line is saved as Markdown, `/draw` opens the drawing editor,
+Done stores the SVG below `assets/drawings/` and the picture shows in the note. **Not tried:** a real phone or tablet,
+the stylus, Nextcloud sync, the arm64 build on a device, a release build and signing, a phone-sized screen.
+Two things the emulator showed and that are fixed: the page was drawn under the status bar (`MainActivity` pads the
+content by the system bars) and pictures did not load (Android reaches a custom protocol as `http://asset.localhost`,
+not `asset://localhost`; the UI now asks Tauri's `convertFileSrc`).
 
 `scripts/android.sh doctor` says what is found and what is missing; `scripts/android.sh init | dev | build` run the Tauri
 Android commands with the SDK, NDK and JDK it finds (`~/Android/Sdk` by default). The shell is already a library with
