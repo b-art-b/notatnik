@@ -6,8 +6,9 @@ server by the built-in sync, touch and Apple Pencil for writing and drawing.
 **Requirements covered:** PL-5 (see `requirements.md`); drawing with the Pencil is DR-2/DR-8.
 **Depends on:** WebDAV sync (SY-1..SY-8), drawings (DR-1..DR-11).
 **Status:** the groundwork is built and tested on Linux (I1, the touch part of I2). **The iOS app itself has not been
-built or run**: that needs a Mac with Xcode, an Apple account and an iPad, none of which this repository's development
-machine has. I3 and I4 are written down, not done.
+built or run**: the supported route needs a Mac with Xcode, an Apple account and an iPad, none of which this
+repository's development machine has. [xtool](https://github.com/xtool-org/xtool) may allow building from Linux
+(see "Building from Linux" below, not tried). I3 and I4 are written down, not done.
 
 ## Design
 
@@ -74,6 +75,24 @@ machine has. I3 and I4 are written down, not done.
   - [ ] the Keychain keeps the server password across a restart
   - [ ] a drawing made with the Apple Pencil is saved and opens on the desktop; the Pencil does not scroll the page
         while drawing; a finger moves and zooms the canvas
+
+### Building from Linux with xtool (idea, not tried)
+
+[xtool](https://github.com/xtool-org/xtool) (MIT) is a cross-platform replacement for Xcode: it builds a **SwiftPM package**
+into an iOS app on Linux, signs it and installs it on a device over USB (`xtool dev`, `xtool install`). From its
+installation guide it needs the Swift toolchain, an iOS SDK it makes from an Xcode download (`Xcode.xip`, which needs an
+Apple ID login in a browser) and `usbmuxd`; it logs in to Apple either with an API key of a paid developer account or,
+with any Apple ID, through private APIs. It does not use an Xcode project, and Tauri's iOS tooling does (`cargo tauri
+ios` works on macOS only), so it cannot build the Tauri shell as it is. A possible shape, as a spike:
+
+- a small SwiftPM app: a `WKWebView` that serves the built UI (`ui/dist`) through a `WKURLSchemeHandler`, and a
+  `WKScriptMessageHandler` that passes the UI's `invoke` calls to Rust;
+- the Rust core as a static library for `aarch64-apple-ios` with a C entry point `notatnik_invoke(json) -> json`
+  (the UI already talks to the core through one JSON command, `dispatch`), cross-compiled on Linux with the clang of
+  that SDK (SQLite and the other C dependencies need it);
+- a second UI transport next to `tauri.ts` and `http.ts`, for events and assets.
+- **Verify the idea first** with the smallest thing: a SwiftPM app that shows a page in a `WKWebView` and installs on the
+  iPad with `xtool dev`; then link a Rust static library into it; only then the rest.
 
 ### I4 What is likely to need work after the first run (not done)
 
