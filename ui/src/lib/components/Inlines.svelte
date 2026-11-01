@@ -1,6 +1,7 @@
 <script lang="ts">
   // Renders inline content from the backend's typed AST. There is no innerHTML anywhere: text is
   // always inserted as text, so raw HTML in notes shows up literally (and can't run).
+  import { getContext } from 'svelte'
   import { backend, type Inline } from '../api'
   import { app } from '../stores/app.svelte'
   import { pageHash } from '../route'
@@ -8,7 +9,35 @@
   import Self from './Inlines.svelte'
   import BlockRefView from './BlockRefView.svelte'
   import EmbedView from './EmbedView.svelte'
-  import { drawingPath, openDrawing } from '../commands/drawing'
+  import {
+    DRAWING_HOST,
+    drawingPath,
+    openDrawing,
+    type DrawingHost,
+    type DrawingMode,
+  } from '../commands/drawing'
+
+  // the block this text is in, if any: it can rewrite or remove the reference to a drawing (`Block.svelte`)
+  const drawingHost = getContext<DrawingHost | undefined>(DRAWING_HOST) ?? null
+
+  /** The text of inline content, without its formatting (the name of a drawing written as a link). */
+  function plainText(items: Inline[]): string {
+    return items
+      .map((x) =>
+        x.type === 'text' || x.type === 'code'
+          ? x.text
+          : 'children' in x && Array.isArray(x.children)
+            ? plainText(x.children)
+            : '',
+      )
+      .join('')
+  }
+
+  /** A click on a drawing (a picture, or a link that is written as one): the editor opens on it with its name and
+   * form; a new name or form rewrites the reference in the block (DR-6). */
+  function editDrawing(path: string, name: string, mode: DrawingMode) {
+    void openDrawing({ page: null, path, name, mode, host: drawingHost })
+  }
 
   /** The address of an image; a drawing that was saved in this session gets a new one, so the cached picture is not shown. */
   function imageSrc(src: string): string {
@@ -35,28 +64,38 @@
     >{:else if it.type === 'italic'}<em><Self items={it.children} {chain} /></em
     >{:else if it.type === 'strike'}<del><Self items={it.children} {chain} /></del
     >{:else if it.type === 'highlight'}<mark><Self items={it.children} {chain} /></mark
-    >{:else if it.type === 'code'}<code>{it.text}</code>{:else if it.type === 'link'}<a
-      class="external"
-      href={it.href}
-      rel="noopener noreferrer"
-      onclick={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        // a link without a scheme is a file copied into the graph (`../assets/…`)
-        if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
-        else backend.openAsset(it.href)
-      }}><Self items={it.children} {chain} /></a
-    >{:else if it.type === 'image'}{@const drawing = drawingPath(
+    >{:else if it.type === 'code'}<code>{it.text}</code>{:else if it.type === 'link'}{@const linked =
+      drawingPath(it.href)}{#if linked}<!-- a drawing written as a link: a click opens the editor --><button
+        type="button"
+        class="drawing-link"
+        title="Open the drawing"
+        data-testid="drawing-link"
+        onclick={(e) => {
+          e.stopPropagation()
+          editDrawing(linked, plainText(it.children), 'link')
+        }}><span aria-hidden="true">✏️</span> <Self items={it.children} {chain} /></button
+      >{:else}<a
+        class="external"
+        href={it.href}
+        rel="noopener noreferrer"
+        onclick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          // a link without a scheme is a file copied into the graph (`../assets/…`)
+          if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
+          else backend.openAsset(it.href)
+        }}><Self items={it.children} {chain} /></a
+      >{/if}{:else if it.type === 'image'}{@const drawing = drawingPath(
       it.src,
     )}{#if drawing}<!-- a drawing of this app: a click opens the editor on it (DR-6) --><button
         type="button"
         class="drawing"
-        title="Edit the drawing"
-        aria-label="Edit the drawing"
+        title={it.alt ? `Edit the drawing “${it.alt}”` : 'Edit the drawing'}
+        aria-label={it.alt ? `Edit the drawing ${it.alt}` : 'Edit the drawing'}
         data-testid="drawing-image"
         onclick={(e) => {
           e.stopPropagation()
-          void openDrawing(null, drawing)
+          editDrawing(drawing, it.alt, 'picture')
         }}><img class="inline-image" src={imageSrc(it.src)} alt={it.alt} /></button
       >{:else}<img
         class="inline-image"

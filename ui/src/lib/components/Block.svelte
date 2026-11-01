@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { setContext } from 'svelte'
   import { timeLabel } from '../clock'
+  import { DRAWING_HOST, replaceDrawingRef, type DrawingHost } from '../commands/drawing'
   import TaskChain from './TaskChain.svelte'
   import BlockMenu from './BlockMenu.svelte'
   import { backend, type BlockView } from '../api'
@@ -72,6 +74,21 @@
 
   const doc = $derived(readonly ? null : getDoc(docName))
   const ctx = $derived<Ctx | null>(doc ? { doc, viewKey } : null)
+
+  // a drawing in this block can be renamed, shown as a picture or a link, or deleted: the block rewrites its own text
+  // (the functions read `block` and `ctx` when they run, so they follow the block as it changes)
+  setContext<DrawingHost>(DRAWING_HOST, {
+    get page() {
+      return docName
+    },
+    async replace(path, build) {
+      const c = ctx
+      if (!c) return
+      const text = block.text
+      const next = replaceDrawingRef(text, path, build)
+      if (next !== text) await commitText(c, block.id, next, text)
+    },
+  })
   const isEditing = $derived(
     !readonly &&
       editing.mode === 'edit' &&

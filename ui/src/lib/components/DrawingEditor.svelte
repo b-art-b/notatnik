@@ -3,14 +3,28 @@
   // one, so it is created in `onMount` into a `<div>` (`bind:this` gives us the element) and taken apart when the
   // component goes away; what it knows is read when a button is pressed, not tracked as state.
   import { onMount } from 'svelte'
-  import Editor, { BackgroundComponentBackgroundType, Color4, PenTool } from 'js-draw'
+  import Editor, {
+    BackgroundComponentBackgroundType,
+    Color4,
+    PenTool,
+    makeFreehandLineBuilder,
+    makePressureSensitiveFreehandLineBuilder,
+  } from 'js-draw'
   import 'js-draw/bundledStyles'
   import { backend } from '../api'
   import { app, toast, errorMessage } from '../stores/app.svelte'
-  import { finishDrawing } from '../commands/drawing'
+  import { drawingMarkdown, finishDrawing, type DrawingMode, type DrawingOpen } from '../commands/drawing'
+  import { makeRawInkBuilder } from '../rawInk'
 
   // `app.drawing` is set when the dialog opens and not null while it is shown: a snapshot is enough
-  const target = app.drawing ?? { page: '', path: null }
+  const target: DrawingOpen = app.drawing ?? {
+    page: null,
+    path: null,
+    name: '',
+    mode: 'picture',
+    host: null,
+  }
+  const isNew = !target.path
   const TOOLS_KEY = 'notatnik.drawing.tools'
 
   let host: HTMLDivElement | undefined = $state()
@@ -20,16 +34,31 @@
   let baseline = 0
   let loading = $state(true)
   let saving = $state(false)
-  // closing with changes asks first
+  // closing with changes asks first; deleting always asks
   let confirming = $state(false)
+  let deleting = $state(false)
+  // how the drawing is written in the note: its name (the label of the link) and picture or link. `$state` makes
+  // the inputs follow them; the page the drawing is in is only rewritten when Done is pressed
+  let name = $state(target.name)
+  let mode = $state<DrawingMode>(target.mode)
+  // an existing drawing can only be renamed or switched where a block holds it (a table cell cannot rewrite one)
+  const canDescribe = isNew || !!target.host
 
   const isEmpty = () => (editor?.image.getAllComponents().length ?? 0) === 0
-  const changed = () => !!editor && editor.history.undoStackSize !== baseline
+  const strokesChanged = () => !!editor && editor.history.undoStackSize !== baseline
+  const metaChanged = () => name.trim() !== target.name.trim() || mode !== target.mode
+  /** Something would be lost by closing: strokes, or for an existing drawing a new name or form. */
+  const dirty = () => (isNew ? !isEmpty() : strokesChanged() || metaChanged())
 
-  /** A pen writes what the hand wrote (DR-3): no shape correction, no pull toward a smoother path, and the
-   * pressure of a stylus changes the width. */
+  /** A pen writes what the hand wrote (DR-3): no shape correction, no pull toward a smoother path, no curve fitted
+   * to the points (`rawInk.ts` keeps all of them), and the pressure of a stylus changes the width. */
   function keepHandwriting(ed: Editor) {
     for (const pen of ed.toolController.getMatchingTools(PenTool)) {
+      // the stock freehand pens fit a curve; a shape pen the person chose (line, arrow, ...) stays as it is
+      const f = pen.getStrokeFactory()
+      if (f === makeFreehandLineBuilder || f === makePressureSensitiveFreehandLineBuilder) {
+        pen.setStrokeFactory(makeRawInkBuilder)
+      }
       pen.setStrokeAutocorrectEnabled(false)
       pen.setHasStabilization(false)
       pen.setPressureSensitivityEnabled(true)
@@ -55,7 +84,14 @@
 
   onMount(() => {
     if (!host) return
-    const ed = new Editor(host, { wheelEventsEnabled: true })
+    const ed = new Editor(host, {
+      wheelEventsEnabled: true,
+      // the pen list offers the handwriting pen and the shape pens, not the two that fit a curve to the stroke
+      pens: {
+        additionalPenTypes: [{ name: 'Handwriting', id: 'handwriting', factory: makeRawInkBuilder }],
+        filterPenTypes: (p) => p.id !== 'freehand-pen' && p.id !== 'pressure-sensitive-pen',
+      },
+    })
     editor = ed
     ed.getRootElement().style.height = '100%'
     toolbar = ed.addToolbar()
@@ -96,21 +132,54 @@
     }
   })
 
-  /** Done: a new drawing that is empty, or an old one that did not change, stores nothing. */
+  /** Done: a new drawing that is empty, or an old one with nothing changed, stores nothing. The file is written when
+   * the strokes changed; a new name or form only rewrites the reference in the block. */
   async function done() {
     const ed = editor
     if (!ed || saving || loading) return
-    if (!changed() || (!target.path && isEmpty())) {
+    if (isNew ? isEmpty() : !strokesChanged() && !metaChanged()) {
       rememberTools()
       finishDrawing(null)
       return
     }
     saving = true
     try {
-      const svg = new XMLSerializer().serializeToString(ed.toSVG())
-      const saved = await backend.call('save_drawing', { page: target.page, path: target.path, svg })
+      let path = target.path
+      let markdown = ''
+      if (isNew || strokesChanged()) {
+        const svg = new XMLSerializer().serializeToString(ed.toSVG())
+        const saved = await backend.call('save_drawing', { page: target.page, path: target.path, svg })
+        path = saved.path
+        // `![](…)` as the server wrote it: the path as this page links it, to write again with a name
+        if (isNew) {
+          const href = /^!\[\]\((.*)\)$/.exec(saved.markdown)?.[1] ?? saved.path
+          markdown = drawingMarkdown(href, name, mode)
+        }
+      }
+      // an existing drawing: the block writes the new name and form around the target it already has
+      if (!isNew && target.host && path && metaChanged())
+        await target.host.replace(path, (href) => drawingMarkdown(href, name, mode))
       rememberTools()
-      finishDrawing(saved)
+      finishDrawing({ path: path ?? '', markdown })
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+      saving = false
+    }
+  }
+
+  /** Delete (after asking): the reference goes out of the block, then the file to the trash if no other page
+   * links it. */
+  async function remove() {
+    const path = target.path
+    if (!path || !target.host || saving) return
+    saving = true
+    try {
+      await target.host.replace(path, null)
+      const unused = (await backend.call('list_orphan_assets', {})).items.some((i) => i.path === path)
+      if (unused) await backend.call('delete_orphan_assets', { paths: [path] })
+      else toast('Another page links this drawing too, so its file stays.')
+      rememberTools()
+      finishDrawing({ path, markdown: '', deleted: true })
     } catch (e) {
       toast(errorMessage(e), 'error')
       saving = false
@@ -120,7 +189,7 @@
   /** Cancel, and Escape: closes at once when nothing changed, else asks. */
   function cancel() {
     if (saving) return
-    if (changed()) {
+    if (dirty()) {
       confirming = true
       return
     }
@@ -133,8 +202,9 @@
     e.stopPropagation()
     if (e.key === 'Escape' && !e.defaultPrevented) {
       e.preventDefault()
-      if (confirming) {
+      if (confirming || deleting) {
         confirming = false
+        deleting = false
         editor?.focus()
       } else cancel()
     }
@@ -154,14 +224,63 @@
   >
     <header>
       <h2>Drawing</h2>
+      <label class="name">
+        <span class="sr">Name</span>
+        <input
+          bind:value={name}
+          placeholder="Name (optional)"
+          maxlength="120"
+          disabled={!canDescribe}
+          title={canDescribe ? '' : 'The name is changed where the drawing is written in a block'}
+          data-testid="drawing-name"
+          aria-label="Name"
+        />
+      </label>
+      <fieldset class="mode" disabled={!canDescribe}>
+        <legend class="sr">Show in the note as</legend>
+        <label title="The drawing is shown in the note"
+          ><input type="radio" name="drawing-mode" value="picture" bind:group={mode} /> Picture</label
+        >
+        <label title="Only a link is written; a click opens the drawing"
+          ><input type="radio" name="drawing-mode" value="link" bind:group={mode} /> Link</label
+        >
+      </fieldset>
       <span class="hint">Pen draws; with a stylus a finger moves and zooms the canvas</span>
       <div class="actions">
+        {#if !isNew && target.host}
+          <button
+            type="button"
+            class="plain danger"
+            onclick={() => (deleting = true)}
+            disabled={saving}
+            data-testid="drawing-delete">Delete…</button
+          >
+        {/if}
         <button type="button" class="plain" onclick={cancel} data-testid="drawing-cancel">Cancel</button>
         <button type="button" onclick={done} disabled={loading || saving} data-testid="drawing-done"
           >{saving ? 'Saving…' : 'Done'}</button
         >
       </div>
     </header>
+    {#if deleting}
+      <div
+        class="confirm"
+        role="alertdialog"
+        aria-label="Delete the drawing?"
+        data-testid="drawing-delete-confirm"
+      >
+        <span>Delete this drawing? It is removed from the note and its file goes to the trash.</span>
+        <button
+          type="button"
+          data-testid="drawing-delete-keep"
+          onclick={() => {
+            deleting = false
+            editor?.focus()
+          }}>Keep it</button
+        >
+        <button type="button" class="danger" data-testid="drawing-delete-yes" onclick={remove}>Delete</button>
+      </div>
+    {/if}
     {#if confirming}
       <div class="confirm" role="alertdialog" aria-label="Discard the drawing?" data-testid="drawing-confirm">
         <span>Discard what you drew?</span>
@@ -222,6 +341,44 @@
     color: var(--muted);
     font-size: 0.85em;
     flex: 1;
+    min-width: 12em;
+  }
+  header {
+    flex-wrap: wrap;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .name input {
+    font: inherit;
+    padding: 0.3em 0.6em;
+    width: 15em;
+    max-width: 40vw;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .mode {
+    display: flex;
+    gap: 0.9em;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .mode label {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    cursor: pointer;
+  }
+  .actions .danger {
+    color: var(--danger);
   }
   .actions {
     display: flex;

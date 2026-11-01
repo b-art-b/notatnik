@@ -433,6 +433,16 @@ button.drawing {
   cursor: pointer;
   line-height: 0;
 }
+/* a drawing written as a link: looks like a link, opens the editor */
+button.drawing-link {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link, var(--accent));
+  cursor: pointer;
+  text-decoration: underline;
+}
 button.drawing:hover,
 button.drawing:focus-visible {
   border-color: var(--accent);

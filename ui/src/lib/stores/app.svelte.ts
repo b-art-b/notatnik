@@ -1,4 +1,5 @@
 import { backend, CommandError, type GraphInfo } from '../api'
+import type { DrawingOpen } from '../commands/drawing'
 import { parseHash, routeHash, type Route } from '../route'
 import { setDateFormat, setDateLocale } from '../dates'
 
@@ -113,7 +114,7 @@ export const app = $state({
   transfer: null as TransferRequest | null,
   /** The drawing editor while it is open (DR-1): the page the drawing belongs to and the drawing being edited
    * (`null`: a new one). */
-  drawing: null as { page: string | null; path: string | null } | null,
+  drawing: null as DrawingOpen | null,
   /** When each drawing was last saved (ms), so a picture of it that was cached is fetched again. */
   drawingStamp: {} as Record<string, number>,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */

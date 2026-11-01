@@ -4,7 +4,8 @@ import { expect, test } from './fixtures'
 // DR-1 to DR-7: `/draw` opens the drawing editor, Done stores one SVG below assets/drawings and links it, a drawing
 // in a block opens again for editing, and the handwriting is kept as it was written.
 
-const SVG_LINK = /!\[\]\((?:\.\.\/)*assets\/drawings\/(draw-[0-9a-f]{8}\.svg)\)/
+// a drawing written as a picture or as a link, with or without a name
+const SVG_LINK = /!?\[[^\]]*\]\((?:\.\.\/)*assets\/drawings\/(draw-[0-9a-f]{8}\.svg)\)/
 
 type Backend = {
   write: (p: string, t: string) => void
@@ -28,13 +29,13 @@ async function slashDraw(page: Page, backend: Backend, pageName: string, text: s
 }
 
 /** One stroke with the mouse through `points` (offsets from the middle of the canvas); `hold` ms before it ends. */
-async function stroke(page: Page, points: [number, number][], hold = 0) {
+async function stroke(page: Page, points: [number, number][], hold = 0, steps = 3) {
   const box = (await page.getByTestId('drawing-editor').locator('canvas').first().boundingBox())!
   const cx = box.x + box.width / 2
   const cy = box.y + box.height / 2 + 40
   await page.mouse.move(cx + points[0][0], cy + points[0][1])
   await page.mouse.down()
-  for (const [x, y] of points.slice(1)) await page.mouse.move(cx + x, cy + y, { steps: 3 })
+  for (const [x, y] of points.slice(1)) await page.mouse.move(cx + x, cy + y, { steps })
   if (hold) await page.waitForTimeout(hold)
   await page.mouse.up()
 }
@@ -92,7 +93,8 @@ test('the handwriting stays as written: a held-still stroke is not turned into a
   await expect.poll(() => backend.read('pages/d2.md')).toMatch(SVG_LINK)
   const d = /<path d="([^"]+)" fill="none"/.exec(drawingOf(backend, 'pages/d2.md').svg)![1]
   const curves = d.match(/[qQcC]/g) ?? []
-  expect(curves.length).toBeGreaterThanOrEqual(5) // the wobbles are there
+  // nothing is fitted away: the 24 moves of the mouse (3 steps each) are all in the line, one piece per point
+  expect(curves.length).toBeGreaterThanOrEqual(60)
   expect(d).not.toMatch(/^M[\d.,-]+[lL][\d.,-]+$/) // not a single straight line
 })
 
@@ -176,4 +178,130 @@ test('keys in the drawing editor do not reach the page behind it', async ({ back
   await page.keyboard.press('Alt+2')
   await expect(page).toHaveURL(/#\/page\/d5/)
   await expect(page.getByTestId('drawing-editor')).toBeVisible()
+})
+
+// A drawing has a name (the label of its reference), is shown as a picture or only as a link, and can be deleted.
+test('a drawing can be named and written as a link; the link opens it with its name', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/d6.md', '- start\n')
+  await slashDraw(page, backend, 'd6', 'start')
+  await page.getByTestId('drawing-name').fill('Router sketch')
+  await page.getByRole('radio', { name: 'Link' }).check()
+  await stroke(page, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() => backend.read('pages/d6.md'))
+    .toMatch(/^- start \[Router sketch\]\(\.\.\/assets\/drawings\/draw-[0-9a-f]{8}\.svg\)\n$/)
+  // a link, not a picture
+  const link = page.getByTestId('drawing-link')
+  await expect(link).toContainText('Router sketch')
+  await expect(page.getByTestId('drawing-image')).toHaveCount(0)
+
+  // it opens with its name and form
+  await link.click()
+  await expect(page.getByTestId('drawing-done')).toBeEnabled()
+  await expect(page.getByTestId('drawing-name')).toHaveValue('Router sketch')
+  await expect(page.getByRole('radio', { name: 'Link' })).toBeChecked()
+})
+
+test('the name and the form change in the note, the file stays as it is', async ({ backend, page }) => {
+  backend.write('pages/d7.md', '- start\n')
+  await slashDraw(page, backend, 'd7', 'start')
+  await page.getByTestId('drawing-name').fill('First name')
+  await page.getByRole('radio', { name: 'Link' }).check()
+  await stroke(page, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d7.md')).toMatch(/\[First name\]/)
+  const before = drawingOf(backend, 'pages/d7.md')
+
+  // renamed and shown as a picture
+  await page.getByTestId('drawing-link').click()
+  await expect(page.getByTestId('drawing-done')).toBeEnabled()
+  await page.getByTestId('drawing-name').fill('Better name')
+  await page.getByRole('radio', { name: 'Picture' }).check()
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect
+    .poll(() => backend.read('pages/d7.md'))
+    .toBe(`- start ![Better name](../assets/drawings/${before.name})\n`)
+  // the drawing itself was not rewritten
+  expect(backend.read(`assets/drawings/${before.name}`)).toBe(before.svg)
+  const img = page.getByTestId('drawing-image').locator('img')
+  await expect(img).toHaveAttribute('alt', 'Better name')
+
+  // and back to a link without a name
+  await page.getByTestId('drawing-image').click()
+  await expect(page.getByTestId('drawing-done')).toBeEnabled()
+  await page.getByTestId('drawing-name').fill('')
+  await page.getByRole('radio', { name: 'Link' }).check()
+  await page.getByTestId('drawing-done').click()
+  await expect
+    .poll(() => backend.read('pages/d7.md'))
+    .toBe(`- start [Drawing](../assets/drawings/${before.name})\n`)
+})
+
+test('a drawing is deleted after asking: out of the note, its file to the trash', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/d8.md', '- start\n')
+  await slashDraw(page, backend, 'd8', 'start')
+  await stroke(page, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d8.md')).toMatch(SVG_LINK)
+  const { name } = drawingOf(backend, 'pages/d8.md')
+  expect(backend.exists(`assets/drawings/${name}`)).toBe(true)
+
+  await page.getByTestId('drawing-image').click()
+  await expect(page.getByTestId('drawing-done')).toBeEnabled()
+  // asked first; Keep it changes nothing
+  await page.getByTestId('drawing-delete').click()
+  await expect(page.getByTestId('drawing-delete-confirm')).toBeVisible()
+  await page.getByTestId('drawing-delete-keep').click()
+  await expect(page.getByTestId('drawing-delete-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('drawing-editor')).toBeVisible()
+  expect(backend.exists(`assets/drawings/${name}`)).toBe(true)
+
+  await page.getByTestId('drawing-delete').click()
+  await page.getByTestId('drawing-delete-yes').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect.poll(() => backend.read('pages/d8.md')).toBe('- start\n')
+  expect(backend.exists(`assets/drawings/${name}`)).toBe(false)
+  await expect(page.getByTestId('drawing-image')).toHaveCount(0)
+})
+
+test('a drawing that another page links too stays as a file when it is deleted here', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/d9.md', '- start\n')
+  await slashDraw(page, backend, 'd9', 'start')
+  await stroke(page, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d9.md')).toMatch(SVG_LINK)
+  const { name } = drawingOf(backend, 'pages/d9.md')
+  backend.write('pages/d9b.md', `- same drawing ![](../assets/drawings/${name})\n`)
+
+  await page.getByTestId('drawing-image').click()
+  await expect(page.getByTestId('drawing-done')).toBeEnabled()
+  await page.getByTestId('drawing-delete').click()
+  await page.getByTestId('drawing-delete-yes').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect.poll(() => backend.read('pages/d9.md')).toBe('- start\n')
+  // still there for the other page
+  expect(backend.exists(`assets/drawings/${name}`)).toBe(true)
+  await expect(page.getByText('Another page links this drawing too')).toBeVisible()
 })

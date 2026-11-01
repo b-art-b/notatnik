@@ -462,7 +462,9 @@ Fixtures made by an earlier build live in `fixtures/crypt/` and must keep openin
 ## Drawings (DR-1 to DR-7)
 
 A drawing made with `/draw` is one SVG file, `assets/drawings/draw-<8 lower-case hex>.svg`, linked from a block as an
-ordinary image, `![](../assets/drawings/draw-0f3a9c21.svg)` (relative to the page file, like any asset). The 8 hex digits
+ordinary image, `![](../assets/drawings/draw-0f3a9c21.svg)` (relative to the page file, like any asset). Its **name** is
+the label of the reference, `![Router sketch](…)`; written as a plain link, `[Router sketch](…)` (`[Drawing](…)` without a
+name), the note shows only the link and a click opens the drawing. Nothing about the name or the form is stored in the SVG. The 8 hex digits
 are random, not a hash of the content: editing the drawing again **overwrites the same file** (written atomically), so
 the link never changes and no old copy is left behind. The file is plain SVG (a `viewBox` that fits the strokes, a white
 background path with the class `js-draw-image-background`, one `<path>` per stroke with its colour and width) that any

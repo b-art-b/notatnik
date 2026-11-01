@@ -251,7 +251,13 @@
   async function drawHere(at: number) {
     const v = view
     if (!v) return
-    const saved = await openDrawing(pageName, null)
+    const saved = await openDrawing({
+      page: pageName,
+      path: null,
+      name: '',
+      mode: 'picture',
+      host: null,
+    })
     if (view !== v) return
     if (saved) insertLinks(v, [saved.markdown], at)
     v.focus()
