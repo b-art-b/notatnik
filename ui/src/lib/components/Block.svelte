@@ -200,6 +200,30 @@
     e.stopPropagation()
     menu = { x: e.clientX, y: e.clientY }
   }
+
+  // A finger has no right button: pressing the bullet for about half a second opens the block menu (PL-5). The click
+  // that ends the press must not also zoom into the block.
+  const LONG_PRESS_MS = 450
+  let pressTimer: ReturnType<typeof setTimeout> | undefined
+  let pressStart = { x: 0, y: 0 }
+  let longPressed = false
+  function pressDown(e: PointerEvent) {
+    if (e.pointerType !== 'touch') return
+    longPressed = false
+    pressStart = { x: e.clientX, y: e.clientY }
+    pressTimer = setTimeout(() => {
+      longPressed = true
+      menu = { x: pressStart.x, y: pressStart.y }
+    }, LONG_PRESS_MS)
+  }
+  function pressMove(e: PointerEvent) {
+    // a finger that moves is dragging or scrolling, not pressing
+    if (pressTimer && Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y) > 10) pressEnd()
+  }
+  function pressEnd() {
+    clearTimeout(pressTimer)
+    pressTimer = undefined
+  }
   async function copyRef(embed: boolean) {
     const uid = await ensureBlockUid(getDoc(docName), block.id)
     if (!uid) return toast('That block is gone', 'error')
@@ -449,12 +473,22 @@
         ondragstart={startDrag}
         ondragend={endDrag}
         title={(readonly
-          ? 'Right-click for the block menu'
-          : 'Click to zoom in, drag to move, right-click for more') + (block.uid ? ` · ^${block.uid}` : '')}
+          ? 'Right-click or press and hold for the block menu'
+          : 'Click to zoom in, drag to move, right-click or press and hold for more') +
+          (block.uid ? ` · ^${block.uid}` : '')}
         aria-label="Zoom into block"
         oncontextmenu={openMenu}
+        onpointerdown={pressDown}
+        onpointermove={pressMove}
+        onpointerup={pressEnd}
+        onpointercancel={pressEnd}
+        onpointerleave={pressEnd}
         onclick={(e) => {
-          if (e.altKey) openMenu(e)
+          if (longPressed) {
+            // the press that opened the menu ends here
+            longPressed = false
+            e.stopPropagation()
+          } else if (e.altKey) openMenu(e)
           else if (!readonly) navigate({ kind: 'page', name: docName, zoom: block.path })
         }}>●</button
       >
@@ -790,6 +824,19 @@
   .block:hover > .row > .arrow,
   .arrow:focus-visible {
     opacity: 1;
+  }
+  /* a touch screen has no hover: the arrow is always there, and big enough for a finger */
+  @media (hover: none) {
+    .arrow,
+    .children > :global(.block.on-path > .row > .arrow) {
+      opacity: 1;
+    }
+  }
+  @media (pointer: coarse) {
+    .arrow {
+      left: -22px;
+      width: 28px;
+    }
   }
   .bullet {
     flex: none;

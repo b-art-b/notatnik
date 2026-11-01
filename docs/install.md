@@ -25,6 +25,11 @@ Graphs and settings live in the graph folders and the user's config directory, n
 upgrading and removing never touch notes. Keep the old `.deb` files if you want to go back: nothing archives them. Take a
 backup (Settings → Backup) before a big upgrade.
 
+## iPad (and Android): not available yet
+
+There is no installable iPad or Android app. The iPad app needs a Mac with Xcode to build and sign; the steps and the helper
+script (`scripts/ios.sh`) are in [phases/ipad.md](phases/ipad.md). Android is [phase 8](phases/phase-8.md).
+
 ## Not available yet
 
 An AppImage, an apt repository, in-app updates and release builds in CI (the project has no remote).

@@ -33,6 +33,7 @@ flashcards, Logseq/Obsidian compatibility, a hosted/web version.
 | PL-2 | Builds for Windows and macOS from the same codebase (no platform-specific features required).    | Later    |
 | PL-3 | Android app sharing the same core and UI code, optimised for capture, journal, search and tasks. | Later    |
 | PL-4 | Fully functional offline; network only needed for sync, CalDAV and optional AI.                  | MVP      |
+| PL-5 | iPad app from the same core and UI: the graph in the app's own storage, synced by the built-in WebDAV sync; touch (no hover or right button needed) and Apple Pencil drawing. Groundwork built, the app itself needs a Mac to build ([phases/ipad.md](phases/ipad.md)). | Later   |
 
 ## 3. Graph and storage
 

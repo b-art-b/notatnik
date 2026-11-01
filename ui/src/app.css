@@ -121,6 +121,10 @@ a {
   display: grid;
   grid-template-columns: var(--left-w, 240px) minmax(0, 1fr) auto;
   height: 100vh;
+  /* an iPad's rounded corners and home indicator (the insets are 0 everywhere else) */
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 .app {
   position: relative;
@@ -210,6 +214,13 @@ a {
   color: var(--text);
   padding: 0.3em 0.55em;
   border-radius: 6px;
+}
+/* a finger needs more room than a pointer */
+@media (pointer: coarse) {
+  .left nav a,
+  .left nav button.link {
+    padding: 0.6em 0.7em;
+  }
 }
 /* the key of an entry: invisible until the entry is hovered or focused, so the list stays calm */
 .left nav .keyhint {

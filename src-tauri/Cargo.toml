@@ -7,6 +7,11 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[lib]
+# `rlib` for the desktop binary, `staticlib` (iOS) and `cdylib` (Android) for the mobile launchers
+name = "notatnik_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -20,10 +25,20 @@ serde_json = "1"
 chrono = "0.4"
 log = "0.4"
 tauri-plugin-dialog = "2"
+
+# the clipboard picture is read by the system (arboard) on a desktop only; a phone's webview pastes it itself
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3", default-features = false, features = ["image-data", "wayland-data-control"] }
 png = "0.17"
 base64 = "0.22"
+
+# passwords of server logins: the Secret Service on Linux, the Keychain on macOS and iOS (Android has no backend
+# yet; the app then keeps them in memory for the session)
+[target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+keyring = { version = "3", default-features = false, features = ["apple-native"] }
 
 [lints.rust]
 unsafe_code = "deny"
