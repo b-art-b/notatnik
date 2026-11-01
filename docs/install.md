@@ -28,7 +28,7 @@ backup (Settings → Backup) before a big upgrade.
 ## iPad (and Android): not available yet
 
 There is no installable iPad or Android app. The iPad app needs a Mac with Xcode to build and sign; the steps and the helper
-script (`scripts/ios.sh`) are in [phases/ipad.md](phases/ipad.md). Android is [phase 8](phases/phase-8.md).
+script (`scripts/ios.sh`) are in [phases/ipad.md](phases/ipad.md). Android is [phase 8](phases/phase-8.md); it can be built on Linux (`scripts/android.sh`).
 
 ## Not available yet
 

@@ -39,6 +39,12 @@ reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV s
 
 ### P8.1 Android toolchain (you)
 
+`scripts/android.sh doctor` says what is found and what is missing; `scripts/android.sh init | dev | build` run the Tauri
+Android commands with the SDK, NDK and JDK it finds (`~/Android/Sdk` by default). The shell is already a library with
+the mobile entry point and keeps the device folders and the first graph in the app's own storage (`phases/ipad.md`
+has the design; it is the same for Android). Android has no keyring backend yet: a server password is kept for the
+session only.
+
 - [ ] Install Android Studio (or the command-line tools), SDK platform + build tools, NDK; set `ANDROID_HOME` and `NDK_HOME`; `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`; a JDK (17+)
 
 **Verify**
