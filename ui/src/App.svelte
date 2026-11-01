@@ -4,6 +4,7 @@
   import {
     app,
     dismissToast,
+    navigate,
     refreshConflicts,
     LEFT_DEFAULT,
     onSide,
@@ -62,6 +63,7 @@
   import SavedQueryPage from './lib/components/SavedQueryPage.svelte'
   import { initZoom, zoomKey, zoomWheel } from './lib/zoom'
   import { setWindowTitle } from './lib/windowTitle'
+  import { navForAlt, navForChord, type NavTarget } from './lib/shortcuts'
   import { installNavigation } from './lib/mouse'
   import { dropOn, foreignTo } from './lib/transferDrag.svelte'
 
@@ -221,6 +223,14 @@
     e.preventDefault()
   }
 
+  // when `g` was pressed (a chord waits 1.5 s for its second key); 0 when none waits
+  let chordG = 0
+
+  function goTo(t: NavTarget) {
+    if (t === 'search') app.searchOpen = true
+    else navigate({ kind: t })
+  }
+
   async function globalKey(e: KeyboardEvent) {
     if (zoomKey(e)) return
     const mod = e.ctrlKey || e.metaKey
@@ -245,6 +255,13 @@
       return
     }
     if (app.paletteOpen || app.searchOpen) return
+    // Alt+1..5: Journals, Agenda, All pages, Search, Settings (also while typing)
+    const alt = navForAlt(e)
+    if (alt) {
+      e.preventDefault()
+      goTo(alt)
+      return
+    }
     const inField = (e.target as HTMLElement)?.closest('input, textarea, select, .cm-editor')
     if (editing.mode === 'select' && !inField) {
       const doc = getDoc(editing.docName)
@@ -277,6 +294,21 @@
       e.preventDefault()
       void globalUndo(e.shiftKey ? 'redo' : 'undo')
       return
+    }
+    // `g` then a letter, as in Logseq: `g j` journals, `g a` agenda, `g p` all pages, `g s` settings
+    if (!inField && editing.mode === 'none' && !mod && !e.altKey) {
+      if (chordG && Date.now() - chordG < 1500) {
+        chordG = 0
+        const t = navForChord(e.key)
+        if (t) {
+          e.preventDefault()
+          goTo(t)
+          return
+        }
+      } else if (e.key === 'g') {
+        chordG = Date.now()
+        return
+      }
     }
     if (!inField && editing.mode === 'none' && e.key === '/') {
       e.preventDefault()

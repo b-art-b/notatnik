@@ -681,7 +681,7 @@
           </SettingRow>
           <SettingRow
             title="Look up titles of pasted links"
-            description="Paste a web address on its own and it becomes [page title](address). The app then asks that site for the page: leave this off if you do not want that. An address pasted over selected text, a link copied from a web page, and Nextcloud and Notatnik addresses are always turned into links, with no request."
+            description="Paste a web address (or several, one per line) and it becomes [page title](address). The app then asks that site for the page: switch this off if you do not want that. These are always turned into links, with no request: an address pasted over selected text, a link copied from a web page, a Nextcloud or Notatnik address, a GitHub issue, pull request or commit (owner/repo#12), and a file of this computer (a link named after the file)."
             labelFor="paste-titles"
           >
             <Switch

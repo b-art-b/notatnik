@@ -6,3 +6,4 @@ sections
 transfer
 graph-identity
 tests/path.spec.ts
+tests/shortcuts.spec.ts

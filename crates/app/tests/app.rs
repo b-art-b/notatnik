@@ -6341,7 +6341,9 @@ fn a_link_title_is_looked_up_only_when_allowed() {
         )
         .unwrap();
     });
-    // off by default: refused without contacting anything
+    // on by default; switched off, it is refused without contacting anything
+    assert_eq!(t.ok("get_settings", json!({}))["paste_titles"], true);
+    t.ok("set_settings", json!({"paste_titles": false}));
     let off = t.call("link_title", json!({"url": url(port)}));
     assert_eq!(off.unwrap_err().code, "disabled");
     t.ok("set_settings", json!({"paste_titles": true}));

@@ -124,7 +124,7 @@ export const app = $state({
   /** Bumped when the date language/format change, so shown dates re-render (see `shownDate`). */
   dateVersion: 0,
   /** Device setting: a pasted web address gets the page's title as link text (the app contacts the site). */
-  pasteTitles: false,
+  pasteTitles: true,
   /** Device setting: `compact` shows a task's schedule, repeat and logbook as small indicators (details on hover). */
   taskDetails: 'full' as 'full' | 'compact',
   /** Device setting: `compact` shows a block's properties as one small indicator (the card opens on hover). */

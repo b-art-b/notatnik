@@ -19,6 +19,7 @@
   import FavoritePages from './FavoritePages.svelte'
   import RecentPages from './RecentPages.svelte'
   import PagesPanel from './PagesPanel.svelte'
+  import { navHint, navTitle, type NavTarget } from '../shortcuts'
 
   let { g }: { g: GraphState } = $props()
   // the section is made for one graph and never gets another (a different graph is a new section)
@@ -60,6 +61,12 @@
     app.searchOpen = true
   }
 </script>
+
+<!-- The key of a sidebar entry, shown at its right edge while the entry is hovered or has the keyboard focus. The keys
+     act on the active graph, so only its section shows them. -->
+{#snippet key(t: NavTarget)}
+  {#if isActive}<kbd class="keyhint" aria-hidden="true">{navHint(t)}</kbd>{/if}
+{/snippet}
 
 <section
   class="graph-section"
@@ -112,20 +119,20 @@
   </div>
   {#if shown}
     <nav>
-      <a href={link('journals')} class:active={here('journals')}
-        ><span class="ico ico-journals" aria-hidden="true"></span>Journals</a
+      <a href={link('journals')} class:active={here('journals')} title={navTitle('Journals', 'journals')}
+        ><span class="ico ico-journals" aria-hidden="true"></span>Journals{@render key('journals')}</a
       >
-      <a href={link('agenda')} class:active={here('agenda')}
-        ><span class="ico ico-agenda" aria-hidden="true"></span>Agenda</a
+      <a href={link('agenda')} class:active={here('agenda')} title={navTitle('Agenda', 'agenda')}
+        ><span class="ico ico-agenda" aria-hidden="true"></span>Agenda{@render key('agenda')}</a
       >
-      <a href={link('pages')} class:active={here('pages')}
-        ><span class="ico ico-pages" aria-hidden="true"></span>All pages</a
+      <a href={link('pages')} class:active={here('pages')} title={navTitle('All pages', 'pages')}
+        ><span class="ico ico-pages" aria-hidden="true"></span>All pages{@render key('pages')}</a
       >
-      <button class="link" onclick={search}
-        ><span class="ico ico-search" aria-hidden="true"></span>Search</button
+      <button class="link" onclick={search} title={navTitle('Search', 'search')}
+        ><span class="ico ico-search" aria-hidden="true"></span>Search{@render key('search')}</button
       >
-      <a href={link('settings')} class:active={here('settings')}
-        ><span class="ico ico-settings" aria-hidden="true"></span>Settings</a
+      <a href={link('settings')} class:active={here('settings')} title={navTitle('Settings', 'settings')}
+        ><span class="ico ico-settings" aria-hidden="true"></span>Settings{@render key('settings')}</a
       >
     </nav>
     {#if isActive}

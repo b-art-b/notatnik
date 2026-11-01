@@ -1,6 +1,6 @@
 // Smart paste of links (ED-27): what a pasted address or a copied link becomes in the text of a block. Pure
 // functions; the editor decides where the result goes (`Editor.svelte`).
-import { fileLink } from './filelinks'
+import { fileLink, fileUrl, nameForAddress } from './filelinks'
 
 /** Query parameters that only track where a click came from; they are dropped from pasted web addresses. */
 const TRACKING =
@@ -11,6 +11,35 @@ export function pastedUrl(text: string): string | null {
   const t = text.trim()
   if (/^https?:\/\/[^\s/?#]+\S*$/i.test(t) || /^(mailto:|notatnik:\/\/page\/)[^\s]+$/i.test(t)) return t
   return null
+}
+
+/** A pasted text that is one file of this computer: a `file:///…` address, or an absolute path with a file name
+ * (`/home/me/My Docs/a.pdf`, `C:\Users\me\a.pdf`). Returns the `file://` address. A path needs a folder and an
+ * extension, so a sentence that happens to start with a slash is not taken for one. */
+export function pastedFile(text: string): string | null {
+  const t = text.trim()
+  if (/[\n\r]/.test(t)) return null
+  if (/^file:\/\/\/[^\s]+$/i.test(t)) return t
+  const unix = /^\/[^/\0]+(?:\/[^/\0]+)*\/[^/\0]*[^/\0\s.]\.[A-Za-z0-9]{1,8}$/.test(t)
+  const windows = /^[A-Za-z]:[\\/][^\0<>|"?*]*[^\\/\0\s.]\.[A-Za-z0-9]{1,8}$/.test(t)
+  return unix || windows ? fileUrl(t) : null
+}
+
+/** The readable short form of a GitHub issue, pull request or commit address, or `null`:
+ * `…/o/r/issues/12` and `…/o/r/pull/12` give `o/r#12`, `…/o/r/commit/abcdef1…` gives `o/r@abcdef1`. */
+export function githubShort(url: string): string | null {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return null
+  }
+  if (u.protocol !== 'https:' || u.hostname.toLowerCase() !== 'github.com') return null
+  const m = /^\/([\w.-]+)\/([\w.-]+)\/(issues|pull|commit)\/(\w+)\/?$/.exec(u.pathname)
+  if (!m) return null
+  const [, owner, repo, kind, id] = m
+  if (kind === 'commit') return /^[0-9a-f]{7,40}$/i.test(id) ? `${owner}/${repo}@${id.slice(0, 7)}` : null
+  return /^\d+$/.test(id) ? `${owner}/${repo}#${id}` : null
 }
 
 /** The address without tracking parameters (`?utm_source=x&id=3` becomes `?id=3`); the rest stays as typed. */
@@ -117,7 +146,11 @@ function link(href: string, text: string): { md: string; bare: boolean } {
   const cloud = nextcloudFile(href)
   if (cloud) return { md: fileLink(text || 'Nextcloud file', cleanUrl(cloud)), bare: false }
   const clean = cleanUrl(href)
-  return text ? { md: fileLink(text, clean), bare: false } : { md: clean, bare: true }
+  if (text) return { md: fileLink(text, clean), bare: false }
+  // a known site has a short form that needs no request
+  const short = githubShort(clean)
+  if (short) return { md: fileLink(short, clean), bare: false }
+  return { md: clean, bare: true }
 }
 
 /** What a paste becomes, or `null` when the editor should paste the text as it is. */
@@ -126,6 +159,10 @@ export function smartPaste(i: PasteInput): PasteResult | null {
   const sel = i.selected
   const oneLineSelection = sel.trim() !== '' && !sel.includes('\n')
   if (sel !== '' && !oneLineSelection) return null
+
+  // a file of this computer: a link named after the file (a selection names it instead)
+  const file = pastedFile(i.plain)
+  if (file) return { insert: fileLink(oneLineSelection ? sel : nameForAddress(file), file) }
 
   const url = pastedUrl(i.plain)
   if (url) {
@@ -144,4 +181,34 @@ export function smartPaste(i: PasteInput): PasteResult | null {
   const h = oneLineSelection ? null : htmlLink(i.html, i.plain)
   if (h) return { insert: link(h.href, h.text).md }
   return null
+}
+
+/** The lines of a paste that is nothing but addresses and files, one per line (two or more); else `null`. */
+export function pastedAddressList(text: string): string[] | null {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+  if (lines.length < 2) return null
+  const out: string[] = []
+  for (const l of lines) {
+    const target = pastedUrl(l) ?? pastedFile(l)
+    if (!target) return null
+    out.push(target)
+  }
+  return out
+}
+
+/** The Markdown for one address of a list, once its title is known (`title` empty: no title). A file is named
+ * after its file name, an address that has a short form gets it. */
+export function addressLine(address: string, title: string): string {
+  if (/^file:\/\//i.test(address)) return fileLink(nameForAddress(address), address)
+  const r = link(address, '')
+  return r.bare && title ? fileLink(title, r.md) : r.md
+}
+
+/** The address of a list line is a plain web address whose title is worth asking for (not a page of the app, a
+ * Nextcloud file or a GitHub issue, which have their own readable form). */
+export function titleWanted(address: string): boolean {
+  return /^https?:/i.test(address) && link(address, '').bare
 }

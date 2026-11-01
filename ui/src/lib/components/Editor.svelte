@@ -18,8 +18,20 @@
     history,
     historyKeymap,
     isolateHistory,
+    cursorCharLeft,
+    cursorCharRight,
+    cursorGroupLeft,
+    cursorGroupRight,
+    cursorLineBoundaryBackward,
+    cursorLineBoundaryForward,
+    cursorLineDown,
     cursorLineEnd,
     cursorLineStart,
+    cursorLineUp,
+    deleteGroupBackward,
+    deleteGroupForward,
+    deleteToLineStart,
+    selectAll,
     selectLineEnd,
     selectLineStart,
     insertNewline,
@@ -39,7 +51,7 @@
   import { backend } from '../api'
   import { app, toast } from '../stores/app.svelte'
   import { fileLink } from '../filelinks'
-  import { smartPaste } from '../pastelink'
+  import { addressLine, cleanUrl, pastedAddressList, smartPaste, titleWanted } from '../pastelink'
   import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
@@ -103,6 +115,22 @@
 
   /** Looks up the title of the web address that was just pasted and turns the bare address into `[title](address)`.
    * Nothing happens when the lookup fails, the editor is gone or the address has been edited meanwhile. */
+  /** Several pasted addresses become one block each, `- [title](address)`. With the titles setting on, the pages are
+   * asked for their titles first, all at once and for no longer than a few seconds; an address that gets none stays
+   * plain. */
+  async function pasteAddresses(addresses: string[]) {
+    const wait = (ms: number) => new Promise<string>((r) => setTimeout(() => r(''), ms))
+    const ask = (a: string) =>
+      backend
+        .call('link_title', { url: cleanUrl(a) })
+        .then((r) => r.value)
+        .catch(() => '')
+    const titles = await Promise.all(
+      addresses.map((a) => (app.pasteTitles && titleWanted(a) ? Promise.race([ask(a), wait(4000)]) : '')),
+    )
+    void onpaste(addresses.map((a, i) => `- ${addressLine(a, titles[i])}`).join('\n'))
+  }
+
   async function addTitle(v: EditorView, url: string, from: number) {
     let title = ''
     try {
@@ -307,164 +335,189 @@
     ].map((key) => ({ key, run: () => true })),
   ]
 
+  // ArrowUp / ArrowDown: out of the first or last line the cursor goes to the previous or next block, in the same
+  // column; elsewhere (`false`) CodeMirror moves it a line
+  const up = (v: EditorView) => {
+    if (completionStatus(v.state) === 'active') return false
+    const i = lineInfo(v)
+    if (!i.first) return false
+    clearTimeout(idle)
+    void onaction({ kind: 'nav-up', text: v.state.doc.toString(), prev: lastSent, column: i.column })
+    return true
+  }
+  const down = (v: EditorView) => {
+    if (completionStatus(v.state) === 'active') return false
+    const i = lineInfo(v)
+    if (!i.last) return false
+    clearTimeout(idle)
+    void onaction({ kind: 'nav-down', text: v.state.doc.toString(), prev: lastSent, column: i.column })
+    return true
+  }
+
+  // Ctrl+Shift+A (Cmd+A on a Mac) selects the text of the block; pressed again (all of it is selected, or the block
+  // is empty) it selects every block of the page. Ctrl+A itself goes to the start of the line (below).
+  const selectTextOrBlocks = (v: EditorView) => {
+    const s = v.state.selection.main
+    if (s.from !== 0 || s.to !== v.state.doc.length) return selectAll(v)
+    clearTimeout(idle)
+    void onaction({ kind: 'select-all', text: v.state.doc.toString(), prev: lastSent })
+    return true
+  }
+
+  // Ctrl+Shift+A by its physical key, ahead of the keymap: CodeMirror would also match the plain `Ctrl-a` binding
+  const selectKey = EditorView.domEventHandlers({
+    keydown(e, v) {
+      if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey || e.code !== 'KeyA') return false
+      e.preventDefault()
+      return selectTextOrBlocks(v)
+    },
+  })
+
   function keys(): Extension {
-    return Prec.highest(
-      keymap.of([
-        ...(plain ? plainKeys() : []),
-        {
-          key: 'Enter',
-          run: (v) => {
-            if (completionStatus(v.state) === 'active') return acceptCompletion(v)
-            const { head } = lineInfo(v)
-            if (v.state.selection.main.from !== v.state.selection.main.to) return false
-            // run the split; if it declines (cursor not on the first line, in a fence) insert a newline
-            clearTimeout(idle)
-            void onaction({ kind: 'enter', text: v.state.doc.toString(), prev: lastSent, cursor: head }).then(
-              (done) => {
+    return [
+      Prec.highest(selectKey),
+      Prec.highest(
+        keymap.of([
+          ...(plain ? plainKeys() : []),
+          {
+            key: 'Enter',
+            run: (v) => {
+              if (completionStatus(v.state) === 'active') return acceptCompletion(v)
+              const { head } = lineInfo(v)
+              if (v.state.selection.main.from !== v.state.selection.main.to) return false
+              // run the split; if it declines (cursor not on the first line, in a fence) insert a newline
+              clearTimeout(idle)
+              void onaction({
+                kind: 'enter',
+                text: v.state.doc.toString(),
+                prev: lastSent,
+                cursor: head,
+              }).then((done) => {
                 if (!done) insertNewline(v)
-              },
-            )
-            return true
+              })
+              return true
+            },
           },
-        },
-        { key: 'Shift-Enter', run: insertNewline },
-        // Home / End go to the start / end of the whole line, also in text that wraps over several rows on screen
-        // (CodeMirror's own keys stop at the row)
-        { key: 'End', run: cursorLineEnd, shift: selectLineEnd },
-        { key: 'Home', run: cursorLineStart, shift: selectLineStart },
-        {
-          // ← at the very start of a block goes to the end of the block before it, → at the very end to the start
-          // of the next one (a collapsed block's children are skipped)
-          key: 'ArrowLeft',
-          run: (v) => {
-            const s = v.state.selection.main
-            if (completionStatus(v.state) === 'active' || !s.empty || s.head !== 0) return false
-            clearTimeout(idle)
-            void onaction({ kind: 'nav-left', text: v.state.doc.toString(), prev: lastSent })
-            return true
+          { key: 'Shift-Enter', run: insertNewline },
+          // Home / End go to the start / end of the whole line, also in text that wraps over several rows on screen
+          // (CodeMirror's own keys stop at the row)
+          { key: 'End', run: cursorLineEnd, shift: selectLineEnd },
+          { key: 'Home', run: cursorLineStart, shift: selectLineStart },
+          {
+            // ← at the very start of a block goes to the end of the block before it, → at the very end to the start
+            // of the next one (a collapsed block's children are skipped)
+            key: 'ArrowLeft',
+            run: (v) => {
+              const s = v.state.selection.main
+              if (completionStatus(v.state) === 'active' || !s.empty || s.head !== 0) return false
+              clearTimeout(idle)
+              void onaction({ kind: 'nav-left', text: v.state.doc.toString(), prev: lastSent })
+              return true
+            },
           },
-        },
-        {
-          key: 'ArrowRight',
-          run: (v) => {
-            const s = v.state.selection.main
-            if (completionStatus(v.state) === 'active' || !s.empty || s.head !== v.state.doc.length)
-              return false
-            clearTimeout(idle)
-            void onaction({ kind: 'nav-right', text: v.state.doc.toString(), prev: lastSent })
-            return true
+          {
+            key: 'ArrowRight',
+            run: (v) => {
+              const s = v.state.selection.main
+              if (completionStatus(v.state) === 'active' || !s.empty || s.head !== v.state.doc.length)
+                return false
+              clearTimeout(idle)
+              void onaction({ kind: 'nav-right', text: v.state.doc.toString(), prev: lastSent })
+              return true
+            },
           },
-        },
-        {
-          // Ctrl+A selects the text of the block; pressed again (all of it is selected, or the block is empty) it
-          // selects every block of the page
-          key: 'Mod-a',
-          run: (v) => {
-            const s = v.state.selection.main
-            if (s.from !== 0 || s.to !== v.state.doc.length) return false
-            clearTimeout(idle)
-            void onaction({ kind: 'select-all', text: v.state.doc.toString(), prev: lastSent })
-            return true
+          { mac: 'Cmd-a', run: selectTextOrBlocks },
+          // Emacs / readline keys, on every platform (Ctrl is the Control key itself, also on a Mac). Ctrl+K stays the
+          // command palette, Ctrl+A in a block is the line start, so selecting the whole text moved to Ctrl+Shift+A
+          { key: 'Ctrl-a', run: cursorLineBoundaryBackward },
+          { key: 'Ctrl-e', run: cursorLineBoundaryForward },
+          { key: 'Ctrl-b', run: cursorCharLeft },
+          { key: 'Ctrl-f', run: cursorCharRight },
+          { key: 'Alt-b', run: cursorGroupLeft },
+          { key: 'Alt-f', run: cursorGroupRight },
+          { key: 'Ctrl-w', run: deleteGroupBackward },
+          { key: 'Alt-d', run: deleteGroupForward },
+          { key: 'Ctrl-u', run: deleteToLineStart },
+          { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
+          { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
+          { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+          // WebKitGTK (the desktop app on Linux) names Shift+Tab `ISO_Left_Tab`
+          {
+            key: 'Shift-ISO_Left_Tab',
+            run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })),
           },
-        },
-        { key: 'Mod-Enter', run: (v) => act(v, (t) => ({ kind: 'cycle-task', text: t, prev: lastSent })) },
-        { key: 'Tab', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
-        { key: 'Shift-Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
-        // WebKitGTK (the desktop app on Linux) names Shift+Tab `ISO_Left_Tab`
-        {
-          key: 'Shift-ISO_Left_Tab',
-          run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })),
-        },
-        { key: 'ISO_Left_Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
-        // like org-mode's M-<right> / M-<left>: demote / promote the block (with its children)
-        { key: 'Alt-ArrowRight', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
-        { key: 'Alt-ArrowLeft', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
-        { key: 'Alt-ArrowUp', run: (v) => act(v, (t) => ({ kind: 'move-up', text: t, prev: lastSent })) },
-        { key: 'Alt-ArrowDown', run: (v) => act(v, (t) => ({ kind: 'move-down', text: t, prev: lastSent })) },
-        {
-          key: 'ArrowUp',
-          run: (v) => {
-            if (completionStatus(v.state) === 'active') return false
-            const i = lineInfo(v)
-            if (!i.first) return false
-            clearTimeout(idle)
-            void onaction({ kind: 'nav-up', text: v.state.doc.toString(), prev: lastSent, column: i.column })
-            return true
+          { key: 'ISO_Left_Tab', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+          // like org-mode's M-<right> / M-<left>: demote / promote the block (with its children)
+          { key: 'Alt-ArrowRight', run: (v) => act(v, (t) => ({ kind: 'indent', text: t, prev: lastSent })) },
+          { key: 'Alt-ArrowLeft', run: (v) => act(v, (t) => ({ kind: 'outdent', text: t, prev: lastSent })) },
+          { key: 'Alt-ArrowUp', run: (v) => act(v, (t) => ({ kind: 'move-up', text: t, prev: lastSent })) },
+          {
+            key: 'Alt-ArrowDown',
+            run: (v) => act(v, (t) => ({ kind: 'move-down', text: t, prev: lastSent })),
           },
-        },
-        {
-          key: 'ArrowDown',
-          run: (v) => {
-            if (completionStatus(v.state) === 'active') return false
-            const i = lineInfo(v)
-            if (!i.last) return false
-            clearTimeout(idle)
-            void onaction({
-              kind: 'nav-down',
-              text: v.state.doc.toString(),
-              prev: lastSent,
-              column: i.column,
-            })
-            return true
+          { key: 'ArrowUp', run: up },
+          { key: 'ArrowDown', run: down },
+          // the same two as Emacs / readline keys: out of the first or last line they go to the neighbour block
+          { key: 'Ctrl-p', run: (v) => up(v) || cursorLineUp(v) },
+          { key: 'Ctrl-n', run: (v) => down(v) || cursorLineDown(v) },
+          {
+            key: 'Backspace',
+            run: (v) => {
+              const s = v.state.selection.main
+              if (s.from !== 0 || s.to !== 0) return false
+              clearTimeout(idle)
+              void onaction({ kind: 'merge-prev', text: v.state.doc.toString(), prev: lastSent })
+              return true
+            },
           },
-        },
-        {
-          key: 'Backspace',
-          run: (v) => {
-            const s = v.state.selection.main
-            if (s.from !== 0 || s.to !== 0) return false
-            clearTimeout(idle)
-            void onaction({ kind: 'merge-prev', text: v.state.doc.toString(), prev: lastSent })
-            return true
+          {
+            key: 'Delete',
+            run: (v) => {
+              const s = v.state.selection.main
+              if (s.from !== v.state.doc.length || s.to !== v.state.doc.length) return false
+              clearTimeout(idle)
+              void onaction({ kind: 'merge-next', text: v.state.doc.toString(), prev: lastSent })
+              return true
+            },
           },
-        },
-        {
-          key: 'Delete',
-          run: (v) => {
-            const s = v.state.selection.main
-            if (s.from !== v.state.doc.length || s.to !== v.state.doc.length) return false
-            clearTimeout(idle)
-            void onaction({ kind: 'merge-next', text: v.state.doc.toString(), prev: lastSent })
-            return true
+          {
+            key: 'Escape',
+            run: (v) =>
+              completionStatus(v.state) === 'active'
+                ? closeCompletion(v)
+                : act(v, (t) => ({ kind: 'escape', text: t, prev: lastSent })),
           },
-        },
-        {
-          key: 'Escape',
-          run: (v) =>
-            completionStatus(v.state) === 'active'
-              ? closeCompletion(v)
-              : act(v, (t) => ({ kind: 'escape', text: t, prev: lastSent })),
-        },
-        {
-          key: 'Mod-z',
-          run: (v) => {
-            if (undoDepth(v.state) > 0) return cmUndo(v)
-            flushNow()
-            onundo('undo')
-            return true
+          {
+            key: 'Mod-z',
+            run: (v) => {
+              if (undoDepth(v.state) > 0) return cmUndo(v)
+              flushNow()
+              onundo('undo')
+              return true
+            },
           },
-        },
-        {
-          key: 'Mod-Shift-z',
-          mac: 'Mod-Shift-z',
-          run: (v) => {
-            if (redoDepth(v.state) > 0) return cmRedo(v)
-            flushNow()
-            onundo('redo')
-            return true
+          {
+            key: 'Mod-Shift-z',
+            mac: 'Mod-Shift-z',
+            run: (v) => {
+              if (redoDepth(v.state) > 0) return cmRedo(v)
+              flushNow()
+              onundo('redo')
+              return true
+            },
           },
-        },
-        {
-          key: 'Mod-y',
-          run: (v) => {
-            if (redoDepth(v.state) > 0) return cmRedo(v)
-            flushNow()
-            onundo('redo')
-            return true
+          {
+            key: 'Mod-y',
+            run: (v) => {
+              if (redoDepth(v.state) > 0) return cmRedo(v)
+              flushNow()
+              onundo('redo')
+              return true
+            },
           },
-        },
-      ]),
-    )
+        ]),
+      ),
+    ]
   }
 
   onMount(() => {
@@ -582,6 +635,16 @@
                   if (r.fetchTitle) void addTitle(v, r.fetchTitle, sel.from)
                   return true
                 }
+              }
+              // several addresses, one per line: one block each (ED-27); the titles are asked for first
+              const addresses = plain ? null : pastedAddressList(data)
+              if (addresses) {
+                e.preventDefault()
+                clearTimeout(idle)
+                const sel = v.state.selection.main
+                if (sel.from !== sel.to) v.dispatch({ changes: { from: sel.from, to: sel.to, insert: '' } })
+                void pasteAddresses(addresses)
+                return true
               }
               if (plain || !/\n/.test(data.trim())) return false
               e.preventDefault()

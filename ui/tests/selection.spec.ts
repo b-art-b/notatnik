@@ -53,15 +53,15 @@ async function pick(page: Page, t: string) {
   }).toPass({ timeout: 10000 })
 }
 
-test('Ctrl+A in a block selects its text, again every block of the page', async ({ backend, page }) => {
+test('Ctrl+Shift+A in a block selects its text, again every block of the page', async ({ backend, page }) => {
   backend.write('pages/t.md', TREE)
   await backend.open('/page/t')
   await settle(page)
   await text(page, 'b').click()
   await expect(page.getByTestId('block-editor')).toBeFocused()
-  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Shift+a')
   await expect(selected(page)).toHaveCount(0) // the text of the block, nothing more
-  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Control+Shift+a')
   await expect(selected(page)).toHaveCount(7)
   // and from a selection, Ctrl+A selects all as well
   await page.keyboard.press('Escape')

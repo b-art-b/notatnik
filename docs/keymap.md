@@ -9,6 +9,11 @@ The block being edited is marked with a light blue tint and a thin outline (they
 
 | Keys                                     | Action                                                                                                                                                                   |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ctrl+A / Ctrl+E                          | Go to the start / end of the line (Emacs and readline keys, on every platform)                                                 |
+| Ctrl+B / Ctrl+F, Alt+B / Alt+F           | Move a character / a word left and right                                                                                       |
+| Ctrl+P / Ctrl+N                          | A line up / down; out of the first or last line into the previous or next block, like the arrows                               |
+| Ctrl+W, Alt+D, Ctrl+U                    | Delete a word back, a word forward, and everything back to the start of the line                                               |
+| Ctrl+Shift+A (Cmd+A on a Mac)            | Select the text of the block; again, every block of the page                                                                   |
 | Enter                                    | Split the block at the cursor (new sibling; first child if the block has expanded children). Newline inside a code fence or below the first line                         |
 | Shift+Enter                              | Newline inside the block                                                                                                                                                 |
 | Tab / Shift+Tab, or Alt+→ / Alt+←        | Indent / outdent (demote / promote) the block with its children                                                                                                          |
@@ -25,7 +30,7 @@ The block being edited is marked with a light blue tint and a thin outline (they
 
 ## Selected blocks
 
-Select blocks with **Esc** in a block (it selects that block), with the mouse (below) or with **Ctrl+A**. A selected
+Select blocks with **Esc** in a block (it selects that block), with the mouse (below) or with **Ctrl+A** (while blocks are selected; in a block it is the line start, see below). A selected
 block takes its children along: copy, cut, duplicate, delete and the other commands work on the _top_ selected blocks
 and everything below them. Every command is one undo step.
 
@@ -33,7 +38,7 @@ and everything below them. Every command is one undo step.
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ↑ / ↓               | Move the selection                                                                                                                               |
 | Shift+↑ / Shift+↓   | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along) |
-| Ctrl+A              | Select all blocks of the page (in a block: first the text of the block, a second Ctrl+A all blocks)                                              |
+| Ctrl+A              | Select all blocks of the page (while blocks are selected). In a block: **Ctrl+Shift+A** (Cmd+A on a Mac) first selects the text of the block, a second press all blocks                                            |
 | Enter               | Edit the selected block                                                                                                                          |
 | Tab, or Alt+→       | Indent the selection (blocks at one level)                                                                                                       |
 | Shift+Tab, or Alt+← | Outdent the selection, whatever the levels: each block moves up one level, top-level blocks stay                                                 |
@@ -58,7 +63,11 @@ Pasting several lines while editing a block (not selecting) still makes several 
 | Ctrl+K                | Command palette: pages, commands, and **Create page** for a name that matches no page (Ctrl+Enter creates the page named as typed) |
 | Ctrl+Shift+F or `/`   | Search                                                                                                                             |
 | Ctrl+Z / Ctrl+Shift+Z | Global undo / redo (when not typing)                                                                                               |
+| Alt+1 … Alt+5         | Go to Journals, Agenda, All pages, Search, Settings (also while typing in a block) |
+| `g` then `j` `a` `p` `s` | The same for Journals, Agenda, All pages, Settings, as in Logseq; only when no text field has the focus, the second key within 1.5 s |
 | Shift+click a link    | Open the page in the right sidebar                                                                                                 |
+
+**Keys on the sidebar.** Hover a sidebar entry (or move to it with Tab) and its key appears at its right edge; the tooltip also names the `g` chord. The keys act on the active graph, so only its section shows them. The table above is the same one the code uses (`ui/src/lib/shortcuts.ts`).
 
 **New page** is part of the command palette (**Ctrl+K**, which also closes it): type a name (`people/Anna` makes a page in the namespace `people`). A name that matches no page shows **Create page “name”** as the last row (when a page or command matches, that one wins Enter; choose the create row with ↓ and Enter) or press **Ctrl+Enter** at any time to create the page named as typed. The page opens with its first block ready for typing; nothing is written to disk until you type something, so Esc or leaving it empty creates no file. An existing page with that name is listed and opened instead (there is no create row for it). A name the app cannot use (`../x`) is explained in the palette, which stays open.
 
@@ -108,7 +117,7 @@ The button on the sidebar's edge (or **Ctrl+\\**, or "Show or hide the sidebar" 
 
 ## Images
 
-- **Paste a link** (ED-27): an address pasted over selected text makes `[the text](address)`; a link copied from a web page (select its text, copy) keeps its text; tracking parameters (`utm_source=…`, `fbclid=…`) are removed; a `notatnik://page/Plan` address becomes `[[Plan]]` (over a selection `[[Plan|text]]`, with a block `((id))`); a Nextcloud Files address (`…/apps/files/?dir=…&fileid=123`) becomes `[Nextcloud file](…/f/123)`, which keeps working when the file is moved. Nothing is changed inside a link's address, a `[[ ]]`, `(( ))` or code, and an ordinary address with nothing to clean is pasted as it is. _Settings → Appearance → Look up titles of pasted links_ (this device, off by default): a lone web address becomes `[page title](address)` once the site answers (the app contacts that site); Ctrl+Z gives the plain address back; leaving the block before the title arrives keeps the address.
+- **Paste a link** (ED-27): an address pasted over selected text makes `[the text](address)`; a link copied from a web page (select its text, copy) keeps its text; tracking parameters (`utm_source=…`, `fbclid=…`) are removed; a `notatnik://page/Plan` address becomes `[[Plan]]` (over a selection `[[Plan|text]]`, with a block `((id))`); a Nextcloud Files address (`…/apps/files/?dir=…&fileid=123`) becomes `[Nextcloud file](…/f/123)`, which keeps working when the file is moved. Nothing is changed inside a link's address, a `[[ ]]`, `(( ))` or code, and an ordinary address with nothing to clean is pasted as it is. _Settings → Appearance → Look up titles of pasted links_ (this device, **on by default**; a device that saved it off keeps it off): a lone web address becomes `[page title](address)` once the site answers (the app contacts that site); Ctrl+Z gives the plain address back; leaving the block before the title arrives keeps the address. **No request is made** for these, whatever the setting: a GitHub issue, pull request or commit becomes `[owner/repo#12](address)` (`owner/repo@abc1234` for a commit); a file of this computer, pasted as a `file:///…` address or as an absolute path with a file name (`/home/me/My Docs/a.pdf`, `C:\Users\me\a.pdf`), becomes a link named after the file. **Several addresses**, one per line (web addresses and files, nothing else in the paste), become one block each, `- [title](address)`: with the setting on the titles are asked for first, all at once, for at most 4 seconds, and an address that gets none stays plain. Ctrl+Shift+V pastes the text as it is.
 - **Paste** a picture (a screenshot) while editing a block: the link `![](../assets/2026/10/pasted-1a2b3c4d.png)` is inserted at the cursor and the file is stored in the graph's `assets/` folder. A clipboard that also holds text pastes the text.
 - In the desktop app a paste that brings no text and no file (the webview does not pass a screenshot from Flameshot or Spectacle on every system) makes the shell read the picture from the system clipboard instead.
 - **Drop** an image file on a block that is being edited: the link goes where it is dropped, and the file name is kept in the stored name.

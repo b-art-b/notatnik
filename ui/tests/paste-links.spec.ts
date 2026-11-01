@@ -31,7 +31,7 @@ test('an address over selected text becomes a link with that text, without track
 }) => {
   backend.write('pages/Links.md', '- the report\n')
   await edit(page, backend, 'the report')
-  await page.keyboard.press('Control+a') // the text of the block
+  await page.keyboard.press('Control+Shift+a') // the text of the block
   await paste(page, 'https://x.org/r?utm_source=news&id=3')
   await page.keyboard.press('Escape')
   await expect.poll(() => backend.read('pages/Links.md')).toBe('- [the report](https://x.org/r?id=3)\n')
@@ -59,6 +59,7 @@ test('a bare address and text are pasted as they are; nothing changes inside a l
   backend,
   page,
 }) => {
+  await backend.call('set_settings', { paste_titles: false }) // on by default: it would ask x.org for a title
   backend.write('pages/Links.md', '- a\n')
   await edit(page, backend, 'a')
   await page.keyboard.press('End')
@@ -84,6 +85,7 @@ test('with the setting on, a lone address gets the page title; one undo gives th
     const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/p`
     backend.write('pages/Links.md', '- start\n')
     // off: the address stays as it is, and nothing was looked up
+    await backend.call('set_settings', { paste_titles: false })
     await edit(page, backend, 'start')
     await page.keyboard.press('End')
     await paste(page, ` ${url}`)
@@ -110,12 +112,52 @@ test('with the setting on, a lone address gets the page title; one undo gives th
   }
 })
 
-test('the setting is in Settings → Appearance and is off by default', async ({ backend, page }) => {
+test('the setting is in Settings → Appearance and is on by default', async ({ backend, page }) => {
   await backend.open('/settings')
   const sw = page.getByRole('switch', { name: 'Look up titles of pasted links' })
-  await expect(sw).not.toBeChecked()
+  await expect(sw).toBeChecked()
   await sw.click()
   await expect(page.getByText('✓ Saved', { exact: true })).toBeVisible()
   const s = await backend.call<{ paste_titles: boolean }>('get_settings', {})
-  expect(s.paste_titles).toBe(true)
+  expect(s.paste_titles).toBe(false)
+})
+
+test('a GitHub issue gets its short name and a file path a link named after the file, with no request', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Links.md', '- start\n')
+  await edit(page, backend, 'start')
+  await page.keyboard.press('End')
+  await page.keyboard.type(' ')
+  await paste(page, 'https://github.com/o/r/issues/12?utm_source=x')
+  await page.keyboard.type(' ')
+  await paste(page, '/home/me/My Docs/a.pdf')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() => backend.read('pages/Links.md'))
+    .toBe('- start [o/r#12](https://github.com/o/r/issues/12) [a.pdf](file:///home/me/My%20Docs/a.pdf)\n')
+})
+
+test('several addresses, one per line, become one block each with its title', async ({ backend, page }) => {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end(`<html><head><title>Page ${req.url}</title></head></html>`)
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+  try {
+    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+    backend.write('pages/Links.md', '- start\n')
+    await edit(page, backend, 'start')
+    await page.keyboard.press('End')
+    await paste(page, `${base}/one\n${base}/two?utm_source=x\nhttps://github.com/o/r/pull/3`)
+    await page.keyboard.press('Escape')
+    await expect
+      .poll(() => backend.read('pages/Links.md'))
+      .toBe(
+        `- start\n- [Page /one](${base}/one)\n- [Page /two](${base}/two)\n- [o/r#3](https://github.com/o/r/pull/3)\n`,
+      )
+  } finally {
+    server.close()
+  }
 })

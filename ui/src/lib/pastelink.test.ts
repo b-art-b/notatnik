@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { appTarget, cleanUrl, htmlLink, insideLink, nextcloudFile, pastedUrl, smartPaste } from './pastelink'
+import {
+  addressLine,
+  appTarget,
+  cleanUrl,
+  githubShort,
+  htmlLink,
+  insideLink,
+  nextcloudFile,
+  pastedAddressList,
+  pastedFile,
+  pastedUrl,
+  smartPaste,
+  titleWanted,
+} from './pastelink'
 
 const base = { plain: '', html: '', selected: '', before: '', titles: false }
 
@@ -114,5 +127,71 @@ describe('smartPaste', () => {
     expect(smartPaste({ ...base, plain: 'just text' })).toBeNull()
     expect(smartPaste({ ...base, plain: 'https://x.org/r', before: '[a](' })).toBeNull()
     expect(smartPaste({ ...base, plain: 'https://x.org/r', selected: 'two\nlines' })).toBeNull()
+  })
+})
+
+describe('GitHub addresses', () => {
+  it('have a short form', () => {
+    expect(githubShort('https://github.com/o/r/issues/12')).toBe('o/r#12')
+    expect(githubShort('https://github.com/o/r/pull/7/')).toBe('o/r#7')
+    expect(githubShort('https://github.com/o/r/commit/ABCDEF1234567')).toBe('o/r@ABCDEF1')
+    expect(githubShort('https://github.com/o/r')).toBeNull()
+    expect(githubShort('https://github.com/o/r/issues/new')).toBeNull()
+    expect(githubShort('https://example.com/o/r/issues/12')).toBeNull()
+  })
+  it('are pasted as a link with it, without asking for a title', () => {
+    const r = smartPaste({ ...base, plain: 'https://github.com/o/r/pull/7?utm_source=x', titles: true })
+    expect(r).toEqual({ insert: '[o/r#7](https://github.com/o/r/pull/7)' })
+    // a selection still names the link
+    expect(smartPaste({ ...base, plain: 'https://github.com/o/r/pull/7', selected: 'the fix' })?.insert).toBe(
+      '[the fix](https://github.com/o/r/pull/7)',
+    )
+  })
+})
+
+describe('files of this computer', () => {
+  it('are recognised as an address or an absolute path with a file name', () => {
+    expect(pastedFile('file:///home/me/a.pdf')).toBe('file:///home/me/a.pdf')
+    expect(pastedFile('/home/me/My Docs/a.pdf')).toBe('file:///home/me/My%20Docs/a.pdf')
+    expect(pastedFile('C:\\Users\\me\\a.pdf')).toBe('file:///C:/Users/me/a.pdf')
+    // not a file: prose that starts with a slash, a bare folder, one segment, several lines
+    expect(pastedFile('/ratio of 3.5 to 1')).toBeNull()
+    expect(pastedFile('/home/me/folder')).toBeNull()
+    expect(pastedFile('/a.pdf')).toBeNull()
+    expect(pastedFile('/a/b.pdf\n/a/c.pdf')).toBeNull()
+  })
+  it('are pasted as a link named after the file', () => {
+    expect(smartPaste({ ...base, plain: '/home/me/My Docs/a b.pdf' })?.insert).toBe(
+      '[a b.pdf](file:///home/me/My%20Docs/a%20b.pdf)',
+    )
+    expect(smartPaste({ ...base, plain: 'file:///x/y.pdf', selected: 'the contract' })?.insert).toBe(
+      '[the contract](file:///x/y.pdf)',
+    )
+  })
+})
+
+describe('several addresses', () => {
+  it('a list wants every line to be an address or a file, two lines at least', () => {
+    expect(pastedAddressList('https://a.org/1\n\nhttps://b.org/2\n')).toEqual([
+      'https://a.org/1',
+      'https://b.org/2',
+    ])
+    expect(pastedAddressList('https://a.org/1')).toBeNull()
+    expect(pastedAddressList('https://a.org/1\nand some text')).toBeNull()
+    expect(pastedAddressList('/x/a.pdf\n/x/b.pdf')).toEqual(['file:///x/a.pdf', 'file:///x/b.pdf'])
+  })
+  it('each line becomes a link with its title, or stays a clean address', () => {
+    expect(addressLine('https://a.org/1?utm_source=z', 'A page')).toBe('[A page](https://a.org/1)')
+    expect(addressLine('https://a.org/1', '')).toBe('https://a.org/1')
+    expect(addressLine('https://github.com/o/r/issues/3', '')).toBe(
+      '[o/r#3](https://github.com/o/r/issues/3)',
+    )
+    expect(addressLine('file:///x/a%20b.pdf', '')).toBe('[a b.pdf](file:///x/a%20b.pdf)')
+  })
+  it('only a plain web address is worth a title lookup', () => {
+    expect(titleWanted('https://a.org/1')).toBe(true)
+    expect(titleWanted('https://github.com/o/r/pull/3')).toBe(false)
+    expect(titleWanted('notatnik://page/Plan')).toBe(false)
+    expect(titleWanted('file:///x/a.pdf')).toBe(false)
   })
 })

@@ -638,9 +638,9 @@ pub struct UiSettings {
     /// Show `[[ ]]` around rendered page links (they are always visible while a block is edited).
     #[serde(default)]
     pub link_brackets: bool,
-    /// Pasting a web address on its own looks up the page's title and writes `[title](address)`. Off by default:
-    /// the app then contacts the site.
-    #[serde(default)]
+    /// Pasting a web address looks up the page's title and writes `[title](address)`; the app then contacts the
+    /// site. On by default; a device that saved it off keeps it off.
+    #[serde(default = "default_true")]
     pub paste_titles: bool,
     /// How page icons (emoji) are drawn: `color` as they are, `muted` (default) quieter in lists and in full color in
     /// titles, on hover and on the current page, or `mono` grey everywhere.
@@ -722,7 +722,7 @@ impl Default for UiSettings {
             theme: default_theme(),
             date_locale: default_date_locale(),
             link_brackets: false,
-            paste_titles: false,
+            paste_titles: true,
             icon_style: default_icon_style(),
             task_details: default_task_details(),
             block_properties: default_task_details(),

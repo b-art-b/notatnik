@@ -204,10 +204,28 @@ a {
 }
 .left nav a,
 .left nav button.link {
+  display: flex;
+  align-items: center;
   text-decoration: none;
   color: var(--text);
   padding: 0.3em 0.55em;
   border-radius: 6px;
+}
+/* the key of an entry: invisible until the entry is hovered or focused, so the list stays calm */
+.left nav .keyhint {
+  margin-left: auto;
+  padding-left: 0.8em;
+  font: inherit;
+  font-size: 0.78em;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.left nav a:hover .keyhint,
+.left nav a:focus-visible .keyhint,
+.left nav button.link:hover .keyhint,
+.left nav button.link:focus-visible .keyhint {
+  opacity: 1;
 }
 /* line icons for the sidebar entries: masks, so they take the text colour */
 .ico {
