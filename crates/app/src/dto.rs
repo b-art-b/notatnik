@@ -1688,6 +1688,25 @@ pub struct AssetLinkArgs {
     pub path: String,
 }
 
+/// `save_drawing`: a drawing made in the editor (DR-1, DR-5).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct SaveDrawingArgs {
+    /// The page the drawing is linked from; the link is written relative to this page's file. Without it (editing a
+    /// drawing again, whose link is already in a page) the link is the graph-relative path.
+    pub page: Option<String>,
+    /// The drawing to overwrite (`assets/drawings/draw-<8 hex>.svg`, also as a page link writes it); none: a new one.
+    pub path: Option<String>,
+    /// The SVG text.
+    pub svg: String,
+}
+
+/// `read_drawing`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ReadDrawingArgs {
+    /// `assets/drawings/draw-<8 hex>.svg`, also as a page link writes it (`../../assets/...`).
+    pub path: String,
+}
+
 /// `save_asset` result.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SavedAsset {

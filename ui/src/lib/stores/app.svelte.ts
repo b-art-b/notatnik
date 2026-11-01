@@ -111,6 +111,11 @@ export const app = $state({
   snippetText: null as string | null,
   /** Notes waiting in the "To another graph" dialog (MG-2); `null` when it is closed. */
   transfer: null as TransferRequest | null,
+  /** The drawing editor while it is open (DR-1): the page the drawing belongs to and the drawing being edited
+   * (`null`: a new one). */
+  drawing: null as { page: string | null; path: string | null } | null,
+  /** When each drawing was last saved (ms), so a picture of it that was cached is fetched again. */
+  drawingStamp: {} as Record<string, number>,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
   templateAsks: null as { name: string; asks: { label: string; default: string; page: boolean }[] } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */

@@ -68,6 +68,8 @@ export function zoomKey(e: KeyboardEvent): boolean {
 /** Ctrl+wheel zooms, as in Firefox. */
 export function zoomWheel(e: WheelEvent): void {
   if (!(e.ctrlKey || e.metaKey) || e.deltaY === 0) return
+  // Ctrl+wheel zooms the canvas of the drawing editor, not the page
+  if ((e.target as HTMLElement | null)?.closest?.('[data-testid="drawing-editor"]')) return
   e.preventDefault()
   setZoom(stepZoom(level, e.deltaY < 0 ? 1 : -1))
 }

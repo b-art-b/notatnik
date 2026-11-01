@@ -43,6 +43,8 @@ export interface SlashCommand {
   pickTemplate?: boolean
   /** `/query` opens a list of example queries; the picked one is written as a query block. */
   pickExample?: boolean
+  /** `/draw` opens the drawing editor; the saved drawing is linked where the command was. */
+  pickDraw?: boolean
 }
 
 /** One entry of the template list: a page-type template, or blocks saved from a page. */
@@ -520,6 +522,16 @@ function baseCommands(): SlashCommand[] {
       keywords: ['example', 'search', 'filter', 'find'],
       title: 'Pick an example query to insert as a query block',
       pickExample: true,
+      insert: () => ({ text: '' }),
+    },
+    {
+      name: 'draw',
+      label: 'Drawing…',
+      icon: '✏️',
+      group: 'Insert',
+      keywords: ['draw', 'sketch', 'handwriting', 'write', 'pen', 'canvas', 'stylus'],
+      title: 'Draw or write by hand on a canvas; the drawing is an image in the note',
+      pickDraw: true,
       insert: () => ({ text: '' }),
     },
     {

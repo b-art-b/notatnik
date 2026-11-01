@@ -423,6 +423,20 @@ h1 .picon,
 .chip.error {
   color: var(--danger);
 }
+/* a drawing in a block: the picture is a button that opens the drawing editor */
+button.drawing {
+  display: inline-block;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+button.drawing:hover,
+button.drawing:focus-visible {
+  border-color: var(--accent);
+}
 .inline-image {
   max-width: 100%;
   vertical-align: middle;

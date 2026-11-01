@@ -7,3 +7,4 @@ transfer
 graph-identity
 tests/path.spec.ts
 tests/shortcuts.spec.ts
+tests/drawing.spec.ts

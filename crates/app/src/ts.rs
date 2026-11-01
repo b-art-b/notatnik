@@ -175,6 +175,8 @@ pub fn typescript_bindings() -> String {
         BackupChangePasswordArgs,
         BackupPasswordArgs,
         SaveAssetArgs,
+        SaveDrawingArgs,
+        ReadDrawingArgs,
         AttachFileArgs,
         SavedAsset,
         RemoteInfo,

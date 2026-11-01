@@ -2125,6 +2125,25 @@ data: string,
  * The name of a dropped file; its cleaned stem is kept in the stored name.
  */
 name: string | null, };
+export type SaveDrawingArgs = { 
+/**
+ * The page the drawing is linked from; the link is written relative to this page's file. Without it (editing a
+ * drawing again, whose link is already in a page) the link is the graph-relative path.
+ */
+page: string | null, 
+/**
+ * The drawing to overwrite (`assets/drawings/draw-<8 hex>.svg`, also as a page link writes it); none: a new one.
+ */
+path: string | null, 
+/**
+ * The SVG text.
+ */
+svg: string, };
+export type ReadDrawingArgs = { 
+/**
+ * `assets/drawings/draw-<8 hex>.svg`, also as a page link writes it (`../../assets/...`).
+ */
+path: string, };
 export type AttachFileArgs = { 
 /**
  * The page the link is written in; the link is relative to this page's file.
@@ -2847,6 +2866,8 @@ export type Commands = {
   backup_unlock: { args: BackupUnlockArgs; result: BackupEncryption };
   asset_link: { args: AssetLinkArgs; result: StringValue };
   save_asset: { args: SaveAssetArgs; result: SavedAsset };
+  save_drawing: { args: SaveDrawingArgs; result: SavedAsset };
+  read_drawing: { args: ReadDrawingArgs; result: StringValue };
   attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };

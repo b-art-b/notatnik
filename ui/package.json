@@ -46,6 +46,7 @@
     "@codemirror/view": "^6.43.13",
     "@lezer/highlight": "^1.2.5",
     "@tauri-apps/api": "~2.11.1",
+    "js-draw": "1.33.0",
     "mermaid": "11.4.1"
   }
 }

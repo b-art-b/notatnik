@@ -2386,6 +2386,41 @@ impl AppState {
         })
     }
 
+    /// A drawing path as a page link writes it (`../../assets/drawings/...`), graph-relative.
+    fn drawing_rel(path: &str) -> String {
+        path.trim_start_matches("../")
+            .trim_start_matches("./")
+            .to_string()
+    }
+
+    /// `save_drawing`: stores a drawing as `assets/drawings/draw-<8 hex>.svg` (a new one, or the given one
+    /// overwritten in place) and returns the Markdown that links it from `page` (DR-1, DR-5).
+    pub fn save_drawing(&self, a: SaveDrawingArgs) -> ApiResult<SavedAsset> {
+        let name = a.page.as_deref().map(Self::parse_name).transpose()?;
+        self.with_open(|o| {
+            let page_rel = name.as_ref().map(|n| Self::page_file(o, n)).transpose()?;
+            let existing = a.path.as_deref().map(Self::drawing_rel);
+            let path = o.graph.save_drawing(existing.as_deref(), &a.svg)?;
+            let link = match &page_rel {
+                Some(p) => notatnik_graph::relative_asset_path(p, &path),
+                None => path.clone(),
+            };
+            Ok(SavedAsset {
+                markdown: format!("![]({link})"),
+                path,
+            })
+        })
+    }
+
+    /// `read_drawing`: the SVG text of a drawing, to edit it again.
+    pub fn read_drawing(&self, a: ReadDrawingArgs) -> ApiResult<StringValue> {
+        self.with_open(|o| {
+            Ok(StringValue {
+                value: o.graph.read_drawing(&Self::drawing_rel(&a.path))?,
+            })
+        })
+    }
+
     /// `attach_file`: copies a file into the graph's `assets/` and returns the Markdown link to it from `page`.
     pub fn attach_file(&self, a: AttachFileArgs) -> ApiResult<SavedAsset> {
         use base64::Engine as _;

@@ -8,6 +8,15 @@
   import Self from './Inlines.svelte'
   import BlockRefView from './BlockRefView.svelte'
   import EmbedView from './EmbedView.svelte'
+  import { drawingPath, openDrawing } from '../commands/drawing'
+
+  /** The address of an image; a drawing that was saved in this session gets a new one, so the cached picture is not shown. */
+  function imageSrc(src: string): string {
+    const url = backend.assetUrl(src)
+    const drawing = drawingPath(src)
+    const stamp = drawing ? app.drawingStamp[drawing] : undefined
+    return stamp ? `${url}${url.includes('?') ? '&' : '?'}v=${stamp}` : url
+  }
 
   let { items, chain = [] }: { items: Inline[]; chain?: string[] } = $props()
 
@@ -37,11 +46,23 @@
         if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
         else backend.openAsset(it.href)
       }}><Self items={it.children} {chain} /></a
-    >{:else if it.type === 'image'}<img
-      class="inline-image"
-      src={backend.assetUrl(it.src)}
-      alt={it.alt}
-    />{:else if it.type === 'page_ref'}<a
+    >{:else if it.type === 'image'}{@const drawing = drawingPath(
+      it.src,
+    )}{#if drawing}<!-- a drawing of this app: a click opens the editor on it (DR-6) --><button
+        type="button"
+        class="drawing"
+        title="Edit the drawing"
+        aria-label="Edit the drawing"
+        data-testid="drawing-image"
+        onclick={(e) => {
+          e.stopPropagation()
+          void openDrawing(null, drawing)
+        }}><img class="inline-image" src={imageSrc(it.src)} alt={it.alt} /></button
+      >{:else}<img
+        class="inline-image"
+        src={imageSrc(it.src)}
+        alt={it.alt}
+      />{/if}{:else if it.type === 'page_ref'}<a
       class="page-ref"
       href={pageHash(it.target)}
       data-page={it.target}

@@ -6923,3 +6923,98 @@ fn pages_and_folders_are_hidden_in_one_call_and_the_marks_follow_renames() {
     assert_eq!(hidden(&t), Vec::<String>::new());
     assert!(agenda_pages(&t).iter().any(|p| p.starts_with("work/")));
 }
+
+/// DR-1, DR-5, DR-7: a drawing is one SVG below `assets/drawings/`, overwritten in place when it is edited again,
+/// and only files of that name can be written or read through the drawing commands.
+#[test]
+fn drawings_are_saved_overwritten_in_place_and_read_back() {
+    let t = start("basic");
+    let svg = |n: u32| {
+        format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><path d=\"M0 0L{n} {n}\"/></svg>"
+        )
+    };
+    let first = t.ok(
+        "save_drawing",
+        json!({"page": "inbox", "path": null, "svg": svg(1)}),
+    );
+    let path = first["path"].as_str().unwrap().to_string();
+    assert!(
+        path.starts_with("assets/drawings/draw-") && path.ends_with(".svg") && path.len() == 33,
+        "{path}"
+    );
+    // the link is relative to the page file, as images are
+    assert_eq!(first["markdown"], format!("![](../{path})"));
+    let file = t.tmp.path().join("graph").join(&path);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), svg(1));
+
+    // edited again: the same file, the same path and link, new content; also when the path comes as a page link
+    // writes it
+    let again = t.ok(
+        "save_drawing",
+        json!({"page": "inbox", "path": format!("../{path}"), "svg": svg(5)}),
+    );
+    assert_eq!(again["path"], path.as_str());
+    assert_eq!(again["markdown"], first["markdown"]);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), svg(5));
+    assert_eq!(
+        t.ok("read_drawing", json!({"path": &path}))["value"],
+        svg(5)
+    );
+    assert_eq!(
+        t.ok("read_drawing", json!({"path": format!("../{path}")}))["value"],
+        svg(5)
+    );
+    // one file, no leftovers
+    let n = std::fs::read_dir(file.parent().unwrap()).unwrap().count();
+    assert_eq!(n, 1);
+
+    // refused: other paths, other names, text that is not an SVG, a script
+    for bad in [
+        "assets/2026/10/x.svg",
+        "assets/drawings/x.svg",
+        "assets/drawings/draw-ABCDEF12.svg",
+        "../../etc/passwd",
+    ] {
+        assert!(
+            t.call(
+                "save_drawing",
+                json!({"page": "inbox", "path": bad, "svg": svg(1)})
+            )
+            .is_err(),
+            "{bad}"
+        );
+        assert!(
+            t.call("read_drawing", json!({"path": bad})).is_err(),
+            "{bad}"
+        );
+    }
+    for bad in ["hello", "<svg><script>1</script></svg>", ""] {
+        assert!(
+            t.call(
+                "save_drawing",
+                json!({"page": "inbox", "path": null, "svg": bad})
+            )
+            .is_err(),
+            "{bad:?}"
+        );
+    }
+
+    // a drawing no page links is an unused image; once a page links it, it is not
+    let listed = |t: &T| {
+        t.ok("list_orphan_assets", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["path"] == path.as_str())
+    };
+    assert!(listed(&t));
+    let page = t.graph().join("pages/inbox.md");
+    let text = std::fs::read_to_string(&page).unwrap();
+    std::fs::write(
+        &page,
+        format!("{text}- {}\n", first["markdown"].as_str().unwrap()),
+    )
+    .unwrap();
+    assert!(!listed(&t));
+}

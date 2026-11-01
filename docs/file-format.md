@@ -25,7 +25,8 @@ Design goals:
 │       └── projects/
 │           └── alpha.md         # page "work/projects/alpha"
 ├── assets/
-│   └── 2026/10/diagram-a1b2c3d4.png   # <name>-<first 8 hex of the blake3 of the content>.<ext>; pasted: pasted-<hash8>.png
+│   ├── 2026/10/diagram-a1b2c3d4.png   # <name>-<first 8 hex of the blake3 of the content>.<ext>; pasted: pasted-<hash8>.png
+│   └── drawings/draw-0f3a9c21.svg     # a drawing made with /draw (DR-5): one SVG, overwritten in place when edited again
 └── .notatnik/                   # synced graph config
     ├── config.toml
     ├── templates/               # page/block templates (Markdown)
@@ -457,3 +458,14 @@ whose comment is `notatnik-entry v1 <path>`. The entry `<path>` itself is absent
 only when it carries that comment, so a user's own file called `x.enc` is left alone.
 
 Fixtures made by an earlier build live in `fixtures/crypt/` and must keep opening.
+
+## Drawings (DR-1 to DR-7)
+
+A drawing made with `/draw` is one SVG file, `assets/drawings/draw-<8 lower-case hex>.svg`, linked from a block as an
+ordinary image, `![](../assets/drawings/draw-0f3a9c21.svg)` (relative to the page file, like any asset). The 8 hex digits
+are random, not a hash of the content: editing the drawing again **overwrites the same file** (written atomically), so
+the link never changes and no old copy is left behind. The file is plain SVG (a `viewBox` that fits the strokes, a white
+background path with the class `js-draw-image-background`, one `<path>` per stroke with its colour and width) that any
+viewer opens; the editor reads it back as editable strokes. Only that exact name can be written or read through
+`save_drawing` and `read_drawing`; the text has to be an SVG without a `<script>` and at most 25 MB. Drawings sync like any
+other asset, and the Unused images list leaves a drawing alone as long as a page links it.

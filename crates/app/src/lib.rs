@@ -197,6 +197,8 @@ commands! {
     backup_unlock(BackupUnlockArgs) -> BackupEncryption => backup_unlock,
     asset_link(AssetLinkArgs) -> StringValue => asset_link,
     save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
+    save_drawing(SaveDrawingArgs) -> SavedAsset => save_drawing,
+    read_drawing(ReadDrawingArgs) -> StringValue => read_drawing,
     attach_file(AttachFileArgs) -> SavedAsset => attach_file,
     list_orphan_assets(NoArgs) -> OrphanAssets => orphan_assets,
     delete_orphan_assets(DeleteAssetsArgs) -> OrphanAssets => delete_orphan_assets,

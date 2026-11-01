@@ -31,6 +31,9 @@ importers:
       '@tauri-apps/api':
         specifier: ~2.11.1
         version: 2.11.1
+      js-draw:
+        specifier: 1.33.0
+        version: 1.33.0
       mermaid:
         specifier: 11.4.1
         version: 11.4.1
@@ -474,6 +477,12 @@ packages:
         integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==,
       }
 
+  '@js-draw/math@1.33.0':
+    resolution:
+      {
+        integrity: sha512-Q63U2h6fLp339K73XtcAUraNwP00SQ6SyJc0zzJItU8dIhG7CEENo1XL7hWBoLcgKJvV8yiwmScIOUZ+GmsrpQ==,
+      }
+
   '@keyv/bigmap@1.3.1':
     resolution:
       {
@@ -535,6 +544,12 @@ packages:
     resolution:
       {
         integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==,
+      }
+
+  '@melloware/coloris@0.22.0':
+    resolution:
+      {
+        integrity: sha512-i06nJM0xQrgOkLFUi8d+8mrJjvFgPrU/nTM9vtRGip/T6yHUFIrNV7QgCyps3dBkKVRP/CeJzAeAIvJBSTSbFQ==,
       }
 
   '@mermaid-js/parser@0.3.0':
@@ -1198,6 +1213,12 @@ packages:
         integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==,
       }
     engines: { node: 18 || 20 || >=22 }
+
+  bezier-js@6.1.3:
+    resolution:
+      {
+        integrity: sha512-VPFvkyO98oCJ1Tsi+bFBrKEWLdefAj4DJVaWp3xTEsdCbunC7Pt/nTeIgu/UdskBNcmHv8TOfsgdMZb1GsICmg==,
+      }
 
   bidi-js@1.1.0:
     resolution:
@@ -2027,6 +2048,12 @@ packages:
     resolution:
       {
         integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==,
+      }
+
+  js-draw@1.33.0:
+    resolution:
+      {
+        integrity: sha512-wz+ZiWq3Tc577dEdeXGDWxpdHYWuFLTYY8qg5xv5WpfC/xVu8n0q0OL/yA/pqA/3ToIsPbrbkUeOEgCsjAx0Yw==,
       }
 
   js-tokens@4.0.0:
@@ -3339,6 +3366,10 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
+  '@js-draw/math@1.33.0':
+    dependencies:
+      bezier-js: 6.1.3
+
   '@keyv/bigmap@1.3.1(keyv@5.6.0)':
     dependencies:
       hashery: 1.5.1
@@ -3381,6 +3412,8 @@ snapshots:
       '@lezer/highlight': 1.2.5
 
   '@marijn/find-cluster-break@1.0.4': {}
+
+  '@melloware/coloris@0.22.0': {}
 
   '@mermaid-js/parser@0.3.0':
     dependencies:
@@ -3755,6 +3788,8 @@ snapshots:
   axobject-query@4.1.0: {}
 
   balanced-match@4.0.4: {}
+
+  bezier-js@6.1.3: {}
 
   bidi-js@1.1.0:
     dependencies:
@@ -4244,6 +4279,11 @@ snapshots:
       '@types/estree': 1.0.9
 
   isexe@2.0.0: {}
+
+  js-draw@1.33.0:
+    dependencies:
+      '@js-draw/math': 1.33.0
+      '@melloware/coloris': 0.22.0
 
   js-tokens@4.0.0: {}
 

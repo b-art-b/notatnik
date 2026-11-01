@@ -49,6 +49,7 @@
   import { refreshWorkspace } from './lib/stores/workspace.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
+  import DrawingEditor from './lib/components/DrawingEditor.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
   import TransferDialog from './lib/components/TransferDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
@@ -233,6 +234,8 @@
 
   async function globalKey(e: KeyboardEvent) {
     if (zoomKey(e)) return
+    // the drawing editor has its own keys (undo, delete, ...): nothing here may act on the page behind it
+    if (app.drawing) return
     const mod = e.ctrlKey || e.metaKey
     if (mod && e.shiftKey && e.code === 'Backslash') {
       e.preventDefault()
@@ -543,6 +546,7 @@
 {#if app.snippetText !== null}<SnippetDialog />{/if}
 {#if app.transfer}<TransferDialog />{/if}
 {#if app.templateAsks}<TemplateAskDialog />{/if}
+{#if app.drawing}<DrawingEditor />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
       {t.message}

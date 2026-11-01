@@ -52,6 +52,7 @@
   import { app, toast } from '../stores/app.svelte'
   import { fileLink } from '../filelinks'
   import { addressLine, cleanUrl, pastedAddressList, smartPaste, titleWanted } from '../pastelink'
+  import { openDrawing } from '../commands/drawing'
   import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
@@ -243,6 +244,17 @@
       view.dispatch({ changes: { from: at, to: at, insert }, selection: { anchor: at + insert.length } })
     }
     closePicker()
+  }
+
+  /** `/draw`: the drawing editor opens; what is saved is linked where the command was typed (DR-1). The block stays
+   * in edit mode meanwhile (the blur handler leaves it alone while a drawing is open). */
+  async function drawHere(at: number) {
+    const v = view
+    if (!v) return
+    const saved = await openDrawing(pageName, null)
+    if (view !== v) return
+    if (saved) insertLinks(v, [saved.markdown], at)
+    v.focus()
   }
 
   /** A file link from the picker, written where `/file` was typed. */
@@ -551,6 +563,7 @@
             (at) => openPicker('file', at),
             (at) => openPicker('template', at),
             (at) => openPicker('example', at),
+            (at) => void drawHere(at),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
@@ -564,7 +577,13 @@
             blur: () => {
               queueMicrotask(() => {
                 // a popup (autocomplete) taking focus is not leaving the block
-                if (view && !view.hasFocus && !picker && !document.activeElement?.closest('.cm-tooltip')) {
+                if (
+                  view &&
+                  !view.hasFocus &&
+                  !picker &&
+                  !app.drawing &&
+                  !document.activeElement?.closest('.cm-tooltip')
+                ) {
                   clearTimeout(idle)
                   const t = currentText()
                   const prev = lastSent
