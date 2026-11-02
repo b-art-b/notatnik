@@ -27,6 +27,7 @@
   import { openGraph, refreshActiveInfo } from '../stores/graphs.svelte'
   import { DATE_FORMATS, formatDate, setDateFormat, setDateLocale, type DateFormat } from '../dates'
   import { currentZoom, setZoom, stepZoom } from '../zoom'
+  import { isMobile } from '../platform'
   import { tick, untrack } from 'svelte'
   import { QUERY_EXAMPLES, queryBlockText } from '../queryExamples'
   import { settingsGo } from '../stores/settingsParts.svelte'
@@ -601,8 +602,12 @@
       <div class="pane" role="tabpanel" id={`pane-${tab}`} aria-labelledby={`tab-${tab}`}>
         {#if tab === 'appearance'}
           <PaneHeader title="Appearance" scope="device">
-            How the app looks and where things are placed. Stored in
-            <code>~/.config/notatnik/settings.toml</code> and never synced.
+            How the app looks and where things are placed.
+            {#if isMobile}
+              Stored in the app's own storage on this device and never synced.
+            {:else}
+              Stored in <code>~/.config/notatnik/settings.toml</code> and never synced.
+            {/if}
           </PaneHeader>
           <SettingRow title="Theme" description="Light, dark, or follow your system setting.">
             <Segmented
@@ -1353,8 +1358,9 @@
                   <strong>Device settings:</strong> <em>Restore…</em>, <em>Compare…</em> lists the lines that
                   differ (<span class="add">+</span> in the snapshot, <span class="del">−</span> now).
                   <em>Restore settings</em>
-                  replaces <code>~/.config/notatnik/settings.toml</code>; the file it replaces is kept next to
-                  it as
+                  replaces {#if isMobile}the settings file of this device{:else}<code
+                      >~/.config/notatnik/settings.toml</code
+                    >{/if}; the file it replaces is kept next to it as
                   <code>settings.toml.before-restore-…</code>. No page changes. The settings are in the
                   snapshot under
                   <code>.notatnik-device/</code> together with the window state of the graph;

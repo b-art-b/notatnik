@@ -184,6 +184,15 @@ impl Secrets for KeyringSecrets {
     }
 }
 
+/// Sets `window.__NOTATNIK_MOBILE__` before the page runs (`ui/src/lib/platform.ts`). A plugin without commands: it
+/// needs no permission.
+#[cfg(mobile)]
+fn mobile_flag() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::new("device")
+        .js_init_script("window.__NOTATNIK_MOBILE__ = true;")
+        .build()
+}
+
 /// The device folders (settings, caches, keys of the backup vault): the XDG folders on a desktop; on iOS and Android
 /// the app's own data folder, the only place the system lets an app write to (PL-5).
 fn device_dirs(app: &tauri::App) -> notatnik_graph::Dirs {
@@ -238,6 +247,9 @@ pub fn run() {
     // the passwords of Android: a Kotlin plugin around the Android Keystore (AS1)
     #[cfg(target_os = "android")]
     let builder = builder.plugin(keystore::plugin());
+    // a phone or tablet: the UI leaves out what only a computer has (a folder chooser, paths of a computer)
+    #[cfg(mobile)]
+    let builder = builder.plugin(mobile_flag());
     builder
         // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
         .register_uri_scheme_protocol("asset", |ctx, req| {

@@ -6,6 +6,7 @@
   import { backend, type GraphHistoryEntry } from '../api'
   import { app, errorMessage, toast } from '../stores/app.svelte'
   import { openGraph } from '../stores/graphs.svelte'
+  import { isMobile } from '../platform'
   import WebdavForm from './WebdavForm.svelte'
 
   let path = $state('')
@@ -82,19 +83,23 @@
       {/each}
     </ul>
   {:else if loaded}
-    <p>Open a folder of notes, or create a new graph.</p>
+    <p>{isMobile ? 'Get your notes from a server.' : 'Open a folder of notes, or create a new graph.'}</p>
   {/if}
-  <h2>{graphs.length ? 'Another folder' : 'Open a folder'}</h2>
-  <input
-    bind:value={path}
-    placeholder="/home/you/notes"
-    aria-label="Graph folder"
-    onkeydown={(e) => e.key === 'Enter' && path.trim() && openGraph(path, true)}
-  />
-  <button onclick={() => openGraph(path, true)} disabled={!path.trim()}>Open / create</button>
-  {#if backend.pickFolder}
-    <button type="button" class="browse" data-testid="browse-folder" onclick={browse}>Choose a folder…</button
-    >
+  <!-- a phone keeps its graphs in the app's own storage: no folder to type or to choose -->
+  {#if !isMobile}
+    <h2>{graphs.length ? 'Another folder' : 'Open a folder'}</h2>
+    <input
+      bind:value={path}
+      placeholder="/home/you/notes"
+      aria-label="Graph folder"
+      onkeydown={(e) => e.key === 'Enter' && path.trim() && openGraph(path, true)}
+    />
+    <button onclick={() => openGraph(path, true)} disabled={!path.trim()}>Open / create</button>
+    {#if backend.pickFolder}
+      <button type="button" class="browse" data-testid="browse-folder" onclick={browse}
+        >Choose a folder…</button
+      >
+    {/if}
   {/if}
   <h2>On a server</h2>
   {#if serverForm}

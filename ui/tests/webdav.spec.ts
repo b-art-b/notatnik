@@ -283,3 +283,71 @@ test('a page that another editor rewrote with its lines joined is reported in th
   await expect(page.getByTestId('sync-warnings')).toContainText('pages/Joined.md')
   await expect(page.getByTestId('sync-warnings')).toContainText('History')
 })
+
+// AS2 (docs/phases/android-sync.md): the same route on a phone or tablet. The app's Rust shell sets
+// `window.__NOTATNIK_MOBILE__` before the page loads; the browser tests do it with an init script. No keyboard
+// shortcut is used: the way to the server form is the sidebar's graph switcher.
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 412, height: 915 }, hasTouch: true })
+
+  async function asPhone(page: import('@playwright/test').Page) {
+    await page.addInitScript(() => {
+      ;(window as unknown as { __NOTATNIK_MOBILE__: boolean }).__NOTATNIK_MOBILE__ = true
+    })
+    await page.reload()
+    // a narrow screen starts with the sidebar closed
+    const show = page.getByRole('button', { name: 'Show sidebar' })
+    if (await show.isVisible()) await show.tap()
+  }
+
+  test('the server form is reached by touch, without a folder to type or choose, and a graph is downloaded', async ({
+    backend,
+    page,
+    dav,
+  }) => {
+    await backend.open('/journals')
+    // a graph for the phone to download: put one there through a first device
+    await backend.call('create_remote_graph', {
+      server: dav.server,
+      user: dav.user,
+      password: dav.password,
+      folder: 'Notes/phone',
+      attach: false,
+    })
+    await asPhone(page)
+
+    await page.getByTestId('graph-switcher').tap()
+    await page.getByRole('menuitem', { name: 'Add new graph…' }).tap()
+
+    // the start screen: the graphs of this device and the server, no free folder field, no folder chooser
+    await expect(page.getByRole('heading', { name: 'On a server' })).toBeVisible()
+    await expect(page.getByLabel('Graph folder')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Another folder' })).toHaveCount(0)
+    await expect(page.getByTestId('browse-folder')).toHaveCount(0)
+
+    await page.getByTestId('new-server-graph').tap()
+    const form = page.getByTestId('webdav-form')
+    await form.getByLabel('Server', { exact: true }).fill(dav.server)
+    await form.getByLabel('User name').fill(dav.user)
+    await form.getByLabel(/^Password/).fill(dav.password)
+    await form.getByLabel('Folder on the server').fill('Notes/phone')
+    await form.getByRole('button', { name: 'Check the folder' }).tap()
+    await expect(page.getByTestId('webdav-seen')).toContainText('already holds a Notatnik graph')
+    await form.getByRole('button', { name: 'Download and open' }).tap()
+
+    // the downloaded graph opens and is synced with the server
+    await expect(page.getByTestId('journals')).toBeVisible({ timeout: 15000 })
+    const show = page.getByRole('button', { name: 'Show sidebar' })
+    if (await show.isVisible()) await show.tap()
+    await expect(page.getByTestId('sync-status')).toContainText('Synced', { timeout: 15000 })
+  })
+
+  test('Settings does not name a path of a computer', async ({ backend, page }) => {
+    await backend.open('/journals')
+    await asPhone(page)
+    await page.goto(page.url().replace(/#.*/, '#/settings'))
+    const pane = page.getByRole('tabpanel')
+    await expect(pane).toContainText("Stored in the app's own storage on this device")
+    await expect(pane).not.toContainText('~/.config')
+  })
+})

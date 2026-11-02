@@ -56,39 +56,45 @@ No Android permission is missing (`INTERNET` is in the manifest). The gaps:
 
 **Verify:**
 
-- [x] On the emulator: connect to a server, force-stop the app, start it again: the sync runs without asking for the password (debug and release x86_64 builds; a page written on the server while the app was stopped came down after the restart)
+- [x] On the emulator: connect to a server, force-stop the app, start it again: the sync runs without asking for the password
+      (debug and release x86_64 builds; a page written on the server while the app was stopped came down after the restart)
 - [x] `adb shell run-as eu.cdfg.notatnik` and `grep -r` for the password in the app's whole data folder: found nowhere (debug build; a release build refuses `run-as` at all)
-- [x] Disconnecting deletes the secret (the file no longer holds that entry); a value that cannot be decrypted makes the (corrupted the stored value by hand: the sidebar says _Sign in needed_, nothing crashes, the bad entry is removed, entering the password in Settings → Sync stores a new one)
-      sync ask for the password, never crash
+- [x] Disconnecting deletes the secret (the file no longer holds that entry); a value that cannot be decrypted makes the
+      sync ask for the password, never crash (corrupted the stored value by hand: the sidebar says _Sign in needed_, nothing
+      crashes, the bad entry is removed, entering the password in Settings → Sync stores a new one)
 - [x] Rust: `Secrets` is still the only seam, `scripts/check.sh` passes (the Linux keyring and `MemorySecrets` paths unchanged)
 
 ### AS2 Reaching the server form by touch
 
 - [x] _Switch graph…_ and _New graph on a server…_ can be reached on a phone-sized screen without a keyboard shortcut (the graph switcher at the top of the sidebar → _Add new graph…_ → _New graph on a server…_; no shortcut needed)
-- [x] The form's fields are visible above the on-screen keyboard (the `MainActivity` IME padding), and a password (typed with Gboard; Tab moves between the fields)
-      manager's fill or a paste works in them
+- [x] The form's fields are visible above the on-screen keyboard (the `MainActivity` IME padding); typed with Gboard on the
+      emulator, Tab moves between the fields
+- [ ] A paste and a password manager's fill work in the form's fields (not tried)
 
 **Verify:**
 
-- [ ] Playwright, mobile viewport with touch: Settings → Switch graph… → New graph on a server → fake server → _Download and open_
-      opens the graph (scoped locators, `docs/testing.md` §4)
+- [x] Playwright, mobile viewport with touch: graph switcher → _Add new graph…_ → New graph on a server → fake server → _Download and open_
+      opens the graph (scoped locators, `docs/testing.md` §4; `webdav.spec.ts`, "on a phone"; checked to fail when the flag is off)
 - [x] Emulator: the same route, every field typed with the soft keyboard
+- [x] Emulator, release build: the shell sets the flag before the page loads (the start screen has no folder field or chooser,
+      Settings → Appearance names the app's own storage)
 
-**Found on the emulator, still to do for AS2** (the route works, but these are wrong or confusing on Android):
+**Found on the emulator, fixed in AS2** (the route works, but these are wrong or confusing on Android):
 
-- [ ] The start screen offers _Another folder_ with a path field and _Choose a folder…_, which can do nothing on a phone
+- [x] The start screen offers _Another folder_ with a path field and _Choose a folder…_, which can do nothing on a phone
       (`pick_folder` answers `None`); on mobile only the graph list and _On a server_ should be there
-- [ ] Settings → Appearance says "Stored in `~/.config/notatnik/settings.toml`" and mentions `Ctrl`; the texts that name a
-      desktop path or key need a mobile wording (search the Settings panes for `~/` and `Ctrl`)
-- [ ] After _Download and open_ the first sync takes a while; the sidebar says "Not synced yet" meanwhile, which is fine, but
-      the journal of the day that is on the server shows empty until the sync has finished, which looks like data loss
+- [x] Settings → Appearance says "Stored in `~/.config/notatnik/settings.toml`" (and the restore text names the same file):
+      on a phone they say "the app's own storage" / "the settings file of this device". The `Ctrl` hints stay: a tablet with a
+      keyboard uses them
 
 ### AS3 First download over a real network
 
 **Verify:**
 
-- [x] Emulator against the Docker Nextcloud (`http://10.0.2.2:…`): _Check the folder_ finds a graph, _Download and open_ (the first download took about 9 s on the emulator; Nextcloud needs `10.0.2.2:8081` in `trusted_domains`, `dev/nextcloud/setup.sh` now sets it)
-      brings every page and drawing down, the journal opens, the sidebar shows `☁ Synced …`
+- [x] Emulator against the Docker Nextcloud (`http://10.0.2.2:…`): _Check the folder_ finds a graph, _Download and open_ brings
+      the pages down, the journal opens, the sidebar shows `☁ Synced …` (the first download took about 9 s on the emulator;
+      Nextcloud needs `10.0.2.2:8081` in `trusted_domains`, `dev/nextcloud/setup.sh` now sets it). **Not covered:** a drawing
+      in the graph (see AS4)
 - [ ] A phone (real, arm64 release APK) against a real Nextcloud over `https://`: the same, which also shows that the
       bundled TLS roots work on the device
 - [ ] A wrong password and an unreachable server give the messages of `docs/webdav.md`, not a blank screen

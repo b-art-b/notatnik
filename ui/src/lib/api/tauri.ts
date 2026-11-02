@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import type { ApiError, GraphChangedEvent } from './bindings'
+import { isMobile } from '../platform'
 import { CommandError, type Transport } from './types'
 
 /** Talks to the Rust side through the single `invoke_api` command (see src-tauri). */
@@ -38,8 +39,14 @@ export function createTauriTransport(): Transport {
         slot: slot || null,
       })
     },
-    clipboardImage: async () => ((await invoke('clipboard_image')) as string | null) ?? null,
     pickFile: async () => ((await invoke('pick_file')) as string | null) ?? null,
-    pickFolder: async () => ((await invoke('pick_folder')) as string | null) ?? null,
+    // a phone has no folder chooser and no system clipboard to ask (the webview pastes a picture itself): without the
+    // function the UI does not offer the button
+    ...(isMobile
+      ? {}
+      : {
+          clipboardImage: async () => ((await invoke('clipboard_image')) as string | null) ?? null,
+          pickFolder: async () => ((await invoke('pick_folder')) as string | null) ?? null,
+        }),
   }
 }
