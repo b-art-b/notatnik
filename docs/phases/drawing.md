@@ -86,6 +86,28 @@ infinite canvas, edited in a full-screen overlay, as in Joplin.
 - `docs/keymap.md`, `docs/file-format.md`, `docs/requirements.md`; the browser tests run in WebKit as well.
 - **Verify:** `scripts/check.sh` and `scripts/check-webkit.sh tests/drawing.spec.ts` pass.
 
+### D6 Make space (done)
+
+Like OneNote's "Insert Space": a tool with a horizontal line that is dragged up or down; everything that lies below the
+line moves with it, so there is room to draw (or to take a gap away again) without selecting by hand. (DR-12)
+
+- A toolbar button "Make space". Pressing the pen, a finger or the mouse on the canvas sets the line at that height
+  (a thin dashed line across the whole width, a handle in the middle); dragging moves everything whose top is below the
+  line, by the distance dragged; releasing ends the drag. Dragging up closes a gap but never moves a stroke above the
+  line (nothing is moved past the line, so strokes cannot be pushed over each other).
+- One undo step per drag. Works in the infinite canvas, at any zoom. Text boxes and strokes both move; a stroke that
+  crosses the line stays where it is (it is above the line by its top edge).
+- Built as a js-draw tool: `BaseTool` for the pointer events, `AbstractComponent.transformBy(translation)` per element
+  and `uniteCommands` for the single undo step. No change to the file format: the SVG is saved as before.
+- **Verify:**
+  - [x] unit test (`makeSpaceMath.test.ts`): the elements chosen for a line at y are exactly those whose top edge is at or below y
+  - [x] browser test: draw three strokes, one above and one below a line, drag the line down 100 px; the lower stroke
+        moved by 100 px (by its bounding box in the saved SVG), the upper one did not
+  - [x] one undo restores both; redo moves again
+  - [x] it works with a pen pointer as well as a mouse (Chromium and WebKit); dragging up stops at the line; picking a pen switches the tool off
+  - [ ] it works after zooming and panning (the maths is in canvas units; not tested)
+  - [ ] on a real tablet: a stylus drag moves the content smoothly (not run)
+
 ### D5 iPad (not started)
 
 - The same UI as an installable web app (PWA) reached through the sync, tested with an Apple Pencil: the pen draws,

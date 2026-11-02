@@ -467,7 +467,7 @@ the label of the reference, `![Router sketch](…)`; written as a plain link, `[
 name), the note shows only the link and a click opens the drawing. Nothing about the name or the form is stored in the SVG. The 8 hex digits
 are random, not a hash of the content: editing the drawing again **overwrites the same file** (written atomically), so
 the link never changes and no old copy is left behind. The file is plain SVG (a `viewBox` that fits the strokes, a white
-background path with the class `js-draw-image-background`, one `<path>` per stroke with its colour and width) that any
+background with the class `js-draw-image-background` (a `<g>` that also holds the grid lines, `js-draw-image-background-grid`, for a drawing that was started on the grid, which is the default), one `<path>` per stroke with its colour and width) that any
 viewer opens; the editor reads it back as editable strokes. Only that exact name can be written or read through
 `save_drawing` and `read_drawing`; the text has to be an SVG without a `<script>` and at most 25 MB. Drawings sync like any
 other asset, and the Unused images list leaves a drawing alone as long as a page links it.

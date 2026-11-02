@@ -42,6 +42,9 @@ async function stroke(page: Page, points: [number, number][], hold = 0, steps = 
 
 const wobble: [number, number][] = Array.from({ length: 24 }, (_, i) => [i * 12, Math.sin(i / 1.7) * 14])
 
+/** The sheet the drawing is on (white, with its grid, DR-1) is a group of its own in the file: it is not a stroke. */
+const withoutSheet = (svg: string) => svg.replace(/<g class="js-draw-image-background[^"]*">.*?<\/g>/g, '')
+
 /** The drawing the block links, as the text of its file. */
 function drawingOf(backend: Backend, pageFile: string) {
   const name = SVG_LINK.exec(backend.read(pageFile))![1]
@@ -91,7 +94,7 @@ test('the handwriting stays as written: a held-still stroke is not turned into a
   await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect.poll(() => backend.read('pages/d2.md')).toMatch(SVG_LINK)
-  const d = /<path d="([^"]+)" fill="none"/.exec(drawingOf(backend, 'pages/d2.md').svg)![1]
+  const d = /<path d="([^"]+)" fill="none"/.exec(withoutSheet(drawingOf(backend, 'pages/d2.md').svg))![1]
   const curves = d.match(/[qQcC]/g) ?? []
   // nothing is fitted away: the 24 moves of the mouse (3 steps each) are all in the line, one piece per point
   expect(curves.length).toBeGreaterThanOrEqual(60)
@@ -133,7 +136,7 @@ test('a drawing in a block opens again; the same file is overwritten and the pic
   const after = drawingOf(backend, 'pages/d3.md')
   expect(after.name).toBe(before.name)
   expect(backend.read('pages/d3.md')).toBe(textBefore)
-  expect(after.svg.match(/stroke-width/g)?.length).toBe(2)
+  expect(withoutSheet(after.svg).match(/stroke-width/g)?.length).toBe(2)
   // no second file
   expect(backend.exists('assets/drawings')).toBe(true)
   // the picture on the page is fetched again
@@ -330,7 +333,7 @@ async function pointerStroke(
   await canvas.dispatchEvent('pointerup', at(points[points.length - 1], { buttons: 0 }))
 }
 
-const strokesOf = (svg: string) => (svg.match(/fill="none"/g) ?? []).length
+const strokesOf = (svg: string) => (withoutSheet(svg).match(/fill="none"/g) ?? []).length
 
 test('without a stylus a finger draws', async ({ backend, page }) => {
   backend.write('pages/d10.md', '- start\n')
@@ -363,4 +366,140 @@ test('once a stylus has been seen a finger moves the canvas and does not draw', 
   expect(strokesOf(drawingOf(backend, 'pages/d11.md').svg)).toBe(1)
   // and it is remembered: the next editor starts that way
   expect(await page.evaluate(() => localStorage.getItem('notatnik.drawing.stylus'))).toBe('1')
+})
+
+// DR-12: "Make space" moves everything below a line, in one undo step.
+
+/** The height of the first point of each stroke in a saved drawing, top to bottom as they were drawn. */
+function strokeHeights(svg: string): number[] {
+  return [
+    ...withoutSheet(svg).matchAll(
+      /<path(?![^>]*js-draw-image-background)[^>]*\sd="[Mm]\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/g,
+    ),
+  ].map((m) => Number(m[2]))
+}
+
+/** Three strokes (C above A above the line, B below it), then the Make space tool dragged from the line by `drag`
+ * (down when positive), with the mouse or with a pen pointer made by hand. */
+async function makeSpace(page: Page, drag: number, how: 'mouse' | 'pen' = 'mouse') {
+  const line = (r: number): [number, number][] => [
+    [0, r],
+    [140, r],
+  ]
+  await stroke(page, line(-120)) // C
+  await stroke(page, line(-60)) // A
+  await stroke(page, line(60)) // B
+  const editor = page.getByTestId('drawing-editor')
+  await editor.getByRole('button', { name: 'Make space' }).click()
+  await expect(page.getByTestId('drawing-hint')).toContainText('Make space')
+  const shown = page.getByTestId('space-line')
+  if (how === 'pen') {
+    await pointerStroke(page, 'pen', 41, [
+      [60, 0],
+      [60, drag / 2],
+      [60, drag],
+    ])
+    await expect(shown).toHaveCount(0)
+    return
+  }
+  const box = (await editor.locator('canvas').first().boundingBox())!
+  const x = box.x + box.width / 2 + 60
+  const y = box.y + box.height / 2 + 40
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  // while dragging the line is shown, as a dashed line that is really visible
+  await page.mouse.move(x, y + drag / 2, { steps: 4 })
+  await expect(shown).toBeVisible()
+  expect(await shown.evaluate((e) => getComputedStyle(e).borderTopStyle)).toBe('dashed')
+  await page.mouse.move(x, y + drag, { steps: 4 })
+  await page.mouse.up()
+  await expect(shown).toHaveCount(0)
+}
+
+/** Done, and the heights of the three strokes C, A, B as they were saved. */
+async function savedHeights(page: Page, backend: Backend, pageName: string) {
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read(`pages/${pageName}.md`)).toMatch(SVG_LINK)
+  return strokeHeights(drawingOf(backend, `pages/${pageName}.md`).svg)
+}
+
+const undo = (page: Page) => page.getByTestId('drawing-editor').getByRole('button', { name: 'Undo' }).click()
+const redo = (page: Page) => page.getByTestId('drawing-editor').getByRole('button', { name: 'Redo' }).click()
+
+test('Make space moves what is below the line and nothing above it', async ({ backend, page }) => {
+  backend.write('pages/d12.md', '- start\n')
+  await slashDraw(page, backend, 'd12', 'start')
+  await makeSpace(page, 100)
+  const [c, a, b] = await savedHeights(page, backend, 'd12')
+  // C and A are still 60 apart; B was 120 below A and is now 100 further down
+  expect(a - c).toBeCloseTo(60, 0)
+  expect(b - a).toBeCloseTo(220, 0)
+})
+
+test('Make space: one undo moves everything back, one redo moves it again', async ({ backend, page }) => {
+  backend.write('pages/d13.md', '- start\n')
+  await slashDraw(page, backend, 'd13', 'start')
+  await makeSpace(page, 100)
+  await undo(page)
+  // the whole drag was one step: the three strokes are drawn again as they were, not left half way
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d13.md')).toMatch(SVG_LINK)
+  const [c, a, b] = strokeHeights(drawingOf(backend, 'pages/d13.md').svg)
+  expect(a - c).toBeCloseTo(60, 0)
+  expect(b - a).toBeCloseTo(120, 0)
+
+  backend.write('pages/d14.md', '- start\n')
+  await slashDraw(page, backend, 'd14', 'start')
+  await makeSpace(page, 100)
+  await undo(page)
+  await redo(page)
+  const [c2, a2, b2] = await savedHeights(page, backend, 'd14')
+  expect(a2 - c2).toBeCloseTo(60, 0)
+  expect(b2 - a2).toBeCloseTo(220, 0)
+})
+
+test('Make space: dragging up never takes the lower part above the line', async ({ backend, page }) => {
+  backend.write('pages/d15.md', '- start\n')
+  await slashDraw(page, backend, 'd15', 'start')
+  await makeSpace(page, -500)
+  const [c, a, b] = await savedHeights(page, backend, 'd15')
+  expect(a - c).toBeCloseTo(60, 0)
+  // B came up to the line (its top edge is 2 above its centre) and no further: it is still below A, by about 60
+  expect(b - a).toBeGreaterThan(55)
+  expect(b - a).toBeLessThan(70)
+})
+
+test('Make space works with a pen pointer', async ({ backend, page }) => {
+  backend.write('pages/d16.md', '- start\n')
+  await slashDraw(page, backend, 'd16', 'start')
+  await makeSpace(page, 100, 'pen')
+  const [c, a, b] = await savedHeights(page, backend, 'd16')
+  expect(a - c).toBeCloseTo(60, 0)
+  expect(b - a).toBeCloseTo(220, 0)
+})
+
+test('Make space is switched off by picking a pen, and the pen draws again', async ({ backend, page }) => {
+  backend.write('pages/d17.md', '- start\n')
+  await slashDraw(page, backend, 'd17', 'start')
+  const editor = page.getByTestId('drawing-editor')
+  await editor.getByRole('button', { name: 'Make space' }).click()
+  await expect(page.getByTestId('drawing-hint')).toContainText('Make space')
+  await editor
+    .getByRole('button', { name: /^Handwriting|^Pen/ })
+    .first()
+    .click()
+  await expect(page.getByTestId('drawing-hint')).not.toContainText('Make space')
+  await stroke(page, wobble)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d17.md')).toMatch(SVG_LINK)
+  expect(strokesOf(drawingOf(backend, 'pages/d17.md').svg)).toBe(1)
 })

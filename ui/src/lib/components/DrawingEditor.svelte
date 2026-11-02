@@ -17,6 +17,7 @@
   import { app, toast, errorMessage } from '../stores/app.svelte'
   import { drawingMarkdown, finishDrawing, type DrawingMode, type DrawingOpen } from '../commands/drawing'
   import { makeRawInkBuilder } from '../rawInk'
+  import { MakeSpaceTool } from '../makeSpaceTool'
 
   // `app.drawing` is set when the dialog opens and not null while it is shown: a snapshot is enough
   const target: DrawingOpen = app.drawing ?? {
@@ -34,6 +35,10 @@
   let host: HTMLDivElement | undefined = $state()
   let editor: Editor | undefined
   let toolbar: ReturnType<Editor['addToolbar']> | undefined
+  // "Make space" (DR-12): whether the tool is on, and where its line is while dragging (client pixels, null: none).
+  // Both are `$state` because the template shows them; the tool itself is a plain js-draw object.
+  let spaceOn = $state(false)
+  let spaceLine = $state<number | null>(null)
   // the undo depth right after the drawing was loaded: the drawing is changed when it differs
   let baseline = 0
   let loading = $state(true)
@@ -87,6 +92,21 @@
     }
   }
 
+  /** The toolbar icon: a line with an arrow down and an arrow up, the gap that opens. */
+  function makeSpaceIcon(): SVGSVGElement {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 24 24')
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', 'M3 12h18M12 9V3m-3 3 3-3 3 3M12 15v6m-3-3 3 3 3-3')
+    path.setAttribute('fill', 'none')
+    path.setAttribute('stroke', 'currentColor')
+    path.setAttribute('stroke-width', '2')
+    path.setAttribute('stroke-linecap', 'round')
+    path.setAttribute('stroke-linejoin', 'round')
+    svg.appendChild(path)
+    return svg
+  }
+
   function restoreTools() {
     try {
       const saved = localStorage.getItem(TOOLS_KEY)
@@ -116,7 +136,18 @@
     })
     editor = ed
     ed.getRootElement().style.height = '100%'
+    // a primary tool: choosing a pen in the toolbar switches it off. It must be added before the toolbar is made.
+    const space = new MakeSpaceTool(ed, (y) => (spaceLine = y))
+    ed.toolController.addPrimaryTool(space)
     toolbar = ed.addToolbar()
+    const spaceButton = toolbar.addActionButton({ label: 'Make space', icon: makeSpaceIcon() }, () =>
+      space.setEnabled(true),
+    )
+    // the button looks pressed while the tool is on; `onUpdate` runs now and at every change
+    space.enabledValue().onUpdate((on) => {
+      spaceOn = on
+      spaceButton.setSelected(on)
+    })
     // ink is black until the person chose another colour, which is remembered with the other tool settings
     for (const pen of ed.toolController.getMatchingTools(PenTool)) pen.setColor(Color4.black)
     restoreTools()
@@ -135,11 +166,12 @@
           await ed.loadFromSVG(text, true)
           ed.dispatch(ed.image.setAutoresizeEnabled(true), false)
         } else {
-          // a white sheet: the file reads on a dark theme as well, and the canvas grows as it is drawn
+          // a white sheet with a grid (an existing drawing keeps the background it was saved with): the file reads on a
+          // dark theme as well, and the canvas grows as it is drawn. Not in the undo history.
           ed.dispatch(
             ed.setBackgroundStyle({
               color: Color4.white,
-              type: BackgroundComponentBackgroundType.SolidColor,
+              type: BackgroundComponentBackgroundType.Grid,
               autoresize: true,
             }),
             false,
@@ -275,8 +307,10 @@
           ><input type="radio" name="drawing-mode" value="link" bind:group={mode} /> Link</label
         >
       </fieldset>
-      <span class="hint"
-        >The pen draws; once a stylus has been used a finger moves the canvas and two fingers zoom</span
+      <span class="hint" data-testid="drawing-hint"
+        >{#if spaceOn}Make space: press where the space should start and drag; everything below follows. Pick
+          a pen to stop{:else}The pen draws; once a stylus has been used a finger moves the canvas and two
+          fingers zoom{/if}</span
       >
       <div class="actions">
         {#if !isNew && target.host}
@@ -337,6 +371,10 @@
       </div>
     {/if}
     <div class="host" bind:this={host} class:loading></div>
+    {#if spaceLine !== null}
+      <!-- the line of "Make space": fixed on the page at the height the tool reports -->
+      <div class="space-line" style:top="{spaceLine}px" data-testid="space-line" aria-hidden="true"></div>
+    {/if}
   </div>
 </div>
 
@@ -368,6 +406,15 @@
   h2 {
     margin: 0;
     font-size: 1.05em;
+  }
+  .space-line {
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 2px dashed var(--accent, #2563eb);
+    pointer-events: none;
+    z-index: 70;
   }
   .hint {
     color: var(--muted);
