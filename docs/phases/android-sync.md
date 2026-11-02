@@ -101,13 +101,15 @@ No Android permission is missing (`INTERNET` is in the manifest). The gaps:
 
 ### AS4 Edits both ways, and sync on resume
 
-- [ ] The app starts a sync when it comes back to the foreground (the page's `visibilitychange`), in addition to the
-      triggers of SY-6
+- [x] The app starts a sync when it comes back to the foreground (the page's `visibilitychange`), in addition to the
+      triggers of SY-6 (`SyncStore.resume`; quiet, not within 5 s of a sync, not while one runs or a login is refused)
 
 **Verify:**
 
 - [x] Edit on the phone: the file is on the server within about 10 s while the app is open (20 s, measured, while the editor was still open)
-- [ ] Edit on the desktop: visible on the phone within about 10 s of opening the app again
+- [x] Edit on the desktop: visible on the phone within about 10 s of opening the app again (emulator, release build: Home,
+      a file written on the server, app back to the front: the sync started 0.2 s later and took 2.7 s; the engine's own
+      timer was 30 s away; a unit test, a browser test that fails without the listener, and this run)
 - [ ] The same block edited on both while the phone is offline (airplane mode): after reconnecting, the page merges or
       a conflict copy appears in the Conflicts view; nothing is lost
 - [ ] A drawing made on the phone is on the server as an SVG below `assets/drawings/` and opens on the desktop

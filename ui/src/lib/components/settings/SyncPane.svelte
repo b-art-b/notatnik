@@ -117,7 +117,7 @@
     </SettingRow>
     <SettingRow
       title="Status"
-      description="Changes here are sent a few seconds after you stop typing, changes elsewhere arrive within a minute, and the app syncs once more when it closes."
+      description="Changes here are sent a few seconds after you stop typing, changes elsewhere arrive within a minute (at once when you come back to the app), and the app syncs once more when it closes."
     >
       <div class="status">
         <strong data-testid="sync-line">{syncLine(st)}</strong>

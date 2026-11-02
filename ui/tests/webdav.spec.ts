@@ -284,6 +284,52 @@ test('a page that another editor rewrote with its lines joined is reported in th
   await expect(page.getByTestId('sync-warnings')).toContainText('History')
 })
 
+// SY-10 (AS4): coming back to the app syncs at once. The engine's own timer is a minute; the test waits seconds.
+test('a sync starts when the app comes back to the foreground', async ({ backend, page, dav }) => {
+  await backend.open('/journals')
+  await page.keyboard.press('Control+k')
+  await page.getByLabel('Command or page').fill('Switch graph')
+  await page.keyboard.press('Enter')
+  await page.getByTestId('new-server-graph').click()
+  const form = page.getByTestId('webdav-form')
+  await form.getByLabel('Server', { exact: true }).fill(dav.server)
+  await form.getByLabel('User name').fill(dav.user)
+  await form.getByLabel(/^Password/).fill(dav.password)
+  await form.getByLabel('Folder on the server').fill('Notes/resume')
+  await form.getByRole('button', { name: 'Check the folder' }).click()
+  await form.getByRole('button', { name: 'Create the graph' }).click()
+  const status = page.getByTestId('sync-status')
+  await expect(status).toContainText('Synced', { timeout: 15000 })
+  // settle: a sync of our own, then another device writes a file
+  await status.click()
+  await expect(status).toHaveAttribute('data-state', 'idle')
+  const syncStatus = () => backend.call<{ last_sync: string; pulled: number }>('sync_status', {})
+  // the engine syncs once more 5 s after the last change on this device (the graph was just made): let that one
+  // pass, or it would fetch the file below by itself and the test could not tell
+  await page.waitForTimeout(6500)
+  const before = (await syncStatus()).last_sync
+  const put = await fetch(`${dir(dav.server, dav.user, 'Notes/resume')}/Elsewhere.md`, {
+    method: 'PUT',
+    headers: { Authorization: 'Basic ' + Buffer.from(`${dav.user}:${dav.password}`).toString('base64') },
+    body: '- written on another device\n',
+  })
+  expect(put.ok).toBe(true)
+  await page.waitForTimeout(1100) // `last_sync` has a resolution of a second, and a sync that just ended is not repeated
+
+  // the page goes to the background and comes back: the browser's page visibility events
+  await page.evaluate(() => {
+    const set = (v: string) => {
+      Object.defineProperty(document, 'visibilityState', { value: v, configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    set('hidden')
+    set('visible')
+  })
+  // within seconds, not at the timer of the next minute
+  await expect.poll(async () => (await syncStatus()).last_sync, { timeout: 8000 }).not.toBe(before)
+  expect((await syncStatus()).pulled).toBe(1)
+})
+
 // AS2 (docs/phases/android-sync.md): the same route on a phone or tablet. The app's Rust shell sets
 // `window.__NOTATNIK_MOBILE__` before the page loads; the browser tests do it with an init script. No keyboard
 // shortcut is used: the way to the server form is the sidebar's graph switcher.

@@ -99,8 +99,9 @@ with an error and asks (Settings → Sync → "Delete N files and sync"). An emp
 spread to the other side.
 
 **When it runs** (SY-6): about two seconds after the graph opens, five seconds after the last change on this
-device, every minute, when the app closes (limited to 30 seconds together with the quit backup), and on
-"Sync now". One sync at a time. Network errors stop the sync and are retried at the next round; a wrong password
+device, every minute, when the app comes back to the foreground (the page becomes visible again: a phone unlocked or
+switched back to, a window shown again; SY-10; not when a sync ended a moment ago or is running, and not while a login
+is refused), when the app closes (limited to 30 seconds together with the quit backup), and on "Sync now". One sync at a time. Network errors stop the sync and are retried at the next round; a wrong password
 stops it until a new one is entered.
 
 ## Passwords (SY-7)
