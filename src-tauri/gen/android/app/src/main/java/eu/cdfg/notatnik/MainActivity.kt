@@ -18,7 +18,11 @@ class MainActivity : TauriActivity() {
       val bars = insets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
       )
-      view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+      // The on-screen keyboard (IME) is an inset as well: with it in the bottom padding the page gets shorter while
+      // the keyboard is up and the web view scrolls the field that has the focus into view. Without it the keyboard
+      // covers the lower part of the page and the text typed into a field there cannot be seen.
+      val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime())
+      view.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, keyboard.bottom))
       WindowInsetsCompat.CONSUMED
     }
   }

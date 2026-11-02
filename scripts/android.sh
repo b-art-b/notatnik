@@ -46,13 +46,44 @@ if ((${#problems[@]})); then
 fi
 [[ "${1:-}" == "doctor" ]] && { echo "everything is there"; exit 0; }
 
+# the release key lives outside the repository; a release build is signed with it when it is there
+KEYDIR="${NOTATNIK_KEYDIR:-$HOME/.config/notatnik-android}"
+if [[ -f "$KEYDIR/release.keystore" && -f "$KEYDIR/password" ]]; then
+  export NOTATNIK_KEYSTORE="$KEYDIR/release.keystore"
+  NOTATNIK_KEYSTORE_PASSWORD="$(cat "$KEYDIR/password")"
+  export NOTATNIK_KEYSTORE_PASSWORD
+fi
+
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 (cd ui && pnpm install --frozen-lockfile)
 
 case "${1:-}" in
   init) cargo tauri android init ;;
   dev) shift; cargo tauri android dev "$@" ;;
-  build) shift; cargo tauri android build --apk "${@:---debug}" ;;
+  build)
+    shift
+    args=("${@:---debug}")
+    cargo tauri android build --apk "${args[@]}"
+    # Gradle calls the file app-universal-release.apk; a copy in dist/ says what it is: notatnik-0.1.0-android-arm64.apk
+    kind=release
+    abi=universal
+    for a in "${args[@]}"; do
+      [[ "$a" == "--debug" ]] && kind=debug
+    done
+    case " ${args[*]} " in
+      *" aarch64 "*) abi=arm64 ;;
+      *" armv7 "*) abi=armv7 ;;
+      *" x86_64 "*) abi=x86_64 ;;
+      *" i686 "*) abi=x86 ;;
+    esac
+    version="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json | head -1)"
+    src="$(ls -t src-tauri/gen/android/app/build/outputs/apk/*/"$kind"/*.apk | head -1)"
+    name="notatnik-$version-android-$abi"
+    [[ "$kind" == debug ]] && name="$name-debug"
+    mkdir -p dist
+    cp "$src" "dist/$name.apk"
+    echo "APK: dist/$name.apk"
+    ;;
   *)
     echo "usage: scripts/android.sh init | dev | build | doctor" >&2
     exit 2

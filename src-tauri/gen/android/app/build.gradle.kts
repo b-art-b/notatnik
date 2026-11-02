@@ -25,6 +25,19 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    // The release key is kept outside the repository (PL-3): NOTATNIK_KEYSTORE is the file, NOTATNIK_KEYSTORE_PASSWORD
+    // the password of the store and of the key `notatnik`. scripts/android.sh sets both from ~/.config/notatnik-android.
+    val keystore = System.getenv("NOTATNIK_KEYSTORE")
+    if (keystore != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("NOTATNIK_KEYSTORE_PASSWORD")
+                keyAlias = "notatnik"
+                keyPassword = System.getenv("NOTATNIK_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
@@ -39,6 +52,7 @@ android {
             }
         }
         getByName("release") {
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
             optimization {
                enable = true
             }

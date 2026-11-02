@@ -24,4 +24,6 @@ unsafe_code = "deny"
 all = { level = "warn", priority = -1 }
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-Oz"]
+# the workspace release profile (size-optimised, LTO) makes rustc emit bulk-memory instructions (memory.copy), which
+# wasm-opt only accepts when told; Node and every browser run them
+wasm-opt = ["-Oz", "--enable-bulk-memory"]
