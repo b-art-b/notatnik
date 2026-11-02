@@ -90,7 +90,10 @@
     >
       <code data-testid="sync-url">{st.url}</code>
     </SettingRow>
-    <SettingRow title="Login" description="The password is kept in the system's keyring, never in a file.">
+    <SettingRow
+      title="Login"
+      description="The password is kept in the device's secure storage (the system keyring on a computer, the Keystore on Android), never in a file."
+    >
       <span data-testid="sync-user">{st.user}</span>
     </SettingRow>
     <SettingRow

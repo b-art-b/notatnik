@@ -19,3 +19,5 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# The secrets plugin is found by its name and its @Command methods by reflection (Rust: keystore.rs): R8 must keep both.
+-keep class eu.cdfg.notatnik.SecretsPlugin { *; }

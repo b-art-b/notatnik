@@ -241,6 +241,14 @@ impl WebDavRemote {
             409 | 412 => Error::Changed(what.to_string()),
             507 => Error::Server("the server has no space left for this account (HTTP 507)".into()),
             423 => Error::Server(format!("{what} is locked on the server (HTTP 423)")),
+            // a Nextcloud answers 400 to an address that is not in its `trusted_domains` (an address of the local
+            // network, a new host name); that is the most common first failure, so the message names it
+            400 => Error::Server(
+                "HTTP 400: the server refused the request. A Nextcloud does this when the address used here is not in its trusted_domains"
+                    .into(),
+            ),
+            // the root of the server has no name to show
+            s if what.is_empty() => Error::Server(format!("HTTP {s}")),
             s => Error::Server(format!("HTTP {s} for {what}")),
         }
     }

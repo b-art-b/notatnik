@@ -46,7 +46,10 @@ Done stores the SVG below `assets/drawings/` and the picture shows in the note. 
 the stylus, Nextcloud sync, the arm64 build on a device, a release build and signing, a phone-sized screen.
 Two things the emulator showed and that are fixed: the page was drawn under the status bar (`MainActivity` pads the
 content by the system bars) and pictures did not load (Android reaches a custom protocol as `http://asset.localhost`,
-not `asset://localhost`; the UI now asks Tauri's `convertFileSrc`).
+not `asset://localhost`; the UI now asks Tauri's `convertFileSrc`). A third one found later: the on-screen keyboard
+covered the lower part of the page, so text typed into a field there (the custom date pattern in Settings) could not be
+seen; `MainActivity` now adds the keyboard's height to the bottom padding, so the page gets shorter and the field stays
+in view (tried in the emulator with Gboard: the field is shown above the keyboard and typed text appears).
 
 `scripts/android.sh doctor` says what is found and what is missing; `scripts/android.sh init | dev | build` run the Tauri
 Android commands with the SDK, NDK and JDK it finds (`~/Android/Sdk` by default). The shell is already a library with
@@ -73,6 +76,9 @@ session only.
 - [ ] The same build runs on your real phone over USB (`adb devices` lists it)
 
 ## 8B: Built-in WebDAV sync
+
+> **Superseded:** the WebDAV client and the sync engine (P8.3 to P8.7) were built for the desktop (`crates/sync`, SY-1..SY-9). What Android still needs
+> (the password in the Keystore, the server form by touch, sync on resume) is in [android-sync.md](android-sync.md).
 
 ### P8.3 WebDAV client
 

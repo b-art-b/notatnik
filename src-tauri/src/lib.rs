@@ -4,6 +4,9 @@
 
 use std::sync::Arc;
 
+#[cfg(target_os = "android")]
+mod keystore;
+
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
 use notatnik_app::Secrets;
 use notatnik_app::{ApiError, AppOptions, AppState, dispatch, dispatch_slot};
@@ -231,7 +234,11 @@ pub fn run() {
         env!("CARGO_PKG_VERSION"),
         notatnik_graph::Dirs::from_env().data.display()
     );
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // the passwords of Android: a Kotlin plugin around the Android Keystore (AS1)
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(keystore::plugin());
+    builder
         // `asset://localhost/<path>`: the images below the graph's `assets/` folder (ST-8)
         .register_uri_scheme_protocol("asset", |ctx, req| {
             let path = percent_decode(req.uri().path().trim_start_matches('/'));
@@ -272,6 +279,10 @@ pub fn run() {
             let state = AppState::new(options);
             #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
             let state = state.with_secrets(Arc::new(KeyringSecrets));
+            #[cfg(target_os = "android")]
+            let state = state.with_secrets(Arc::new(keystore::KeystoreSecrets::new(
+                app.state::<keystore::SecretsHandle>().0.clone(),
+            )));
             let state = Arc::new(state);
             // reopen the last graph without asking only when the device setting says so; otherwise the start
             // screen lists the graphs, the last one selected

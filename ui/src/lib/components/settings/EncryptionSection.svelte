@@ -421,7 +421,7 @@
       >
     </p>
     <SettingRow
-      title="Keep the key in the system keyring"
+      title="Keep the key in the device's secure storage"
       description="The app then unlocks itself when the graph opens. Anyone who is logged in to this computer can use the key; the files on the server stay protected from everyone else. Needs an unlocked key."
       labelFor="graph-enc-keyring"
     >

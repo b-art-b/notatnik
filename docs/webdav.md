@@ -110,6 +110,17 @@ and folder address. It is not in `settings.toml`, so it is not in backups either
 cannot be stored and the graph cannot be created; the error says so. The browser test build keeps passwords in
 memory.
 
+**Android** (SY-10, [phases/android-sync.md](phases/android-sync.md)): the passwords are kept with the Android
+Keystore. One AES-256-GCM key, which cannot leave the device, encrypts them; the encrypted values are in a private
+preferences file of the app, each bound to its own name. `SecretsPlugin.kt` (in `src-tauri/gen/android`) does this and
+`src-tauri/src/keystore.rs` connects it to the same `Secrets` seam as the desktop keyring. A value that cannot be
+decrypted (a restore onto another phone, a wiped Keystore) counts as no password: the sidebar says _Sign in needed_ and
+Settings → Sync asks for it again. Disconnecting deletes the value.
+
+To try the app against the test Nextcloud from the emulator, use `http://10.0.2.2:<port>` (plain `http` is allowed for
+the local network) and a server that trusts that host name: `dev/nextcloud/setup.sh` adds it to `trusted_domains`;
+otherwise Nextcloud answers 400 and the connection test says so.
+
 ## Encrypted paths
 
 A file under a path listed in `[encryption] paths` of `.notatnik/config.toml` is stored as `<path>.enc` (EN-11,

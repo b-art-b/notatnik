@@ -26,6 +26,8 @@ for _ in $(seq 1 120); do
 done
 installed || { echo "Nextcloud did not come up" >&2; exit 1; }
 
+# the Android emulator reaches this machine as 10.0.2.2; a Nextcloud answers 400 to a host name it does not trust
+occ config:system:set trusted_domains 1 --value="10.0.2.2:$NC_PORT" >/dev/null
 occ app:install calendar >/dev/null 2>&1 || occ app:enable calendar >/dev/null
 occ app:install tasks >/dev/null 2>&1 || occ app:enable tasks >/dev/null
 
