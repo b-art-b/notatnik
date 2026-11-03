@@ -110,10 +110,15 @@ No Android permission is missing (`INTERNET` is in the manifest). The gaps:
 - [x] Edit on the desktop: visible on the phone within about 10 s of opening the app again (emulator, release build: Home,
       a file written on the server, app back to the front: the sync started 0.2 s later and took 2.7 s; the engine's own
       timer was 30 s away; a unit test, a browser test that fails without the listener, and this run)
-- [ ] The same block edited on both while the phone is offline (airplane mode): after reconnecting, the page merges or
-      a conflict copy appears in the Conflicts view; nothing is lost
+- [x] The same block edited on both while the phone is offline (airplane mode): after reconnecting, the page merges or
+      a conflict copy appears in the Conflicts view; nothing is lost (emulator, release build: the server kept its text,
+      the phone's text went into `Server page (conflicted copy …).md` on the server about 50 s after reconnecting, and the
+      phone showed the conflict banner; both texts exist. Only the banner was looked at, not the Conflicts view)
 - [ ] A drawing made on the phone is on the server as an SVG below `assets/drawings/` and opens on the desktop
 - [ ] Airplane mode: edits are kept and uploaded after reconnecting, in order; the sidebar says offline, not an error
+      (emulator: one edit made offline, the sidebar said "Offline" in red text, no error toast; it reached the server 49 s
+      after reconnecting with no conflict copy. **Not tried:** several edits, and "in order"; reconnecting waits for the
+      60 s timer, nothing listens for the network coming back)
 
 ### AS5 Encryption key (EN-10) and release
 
