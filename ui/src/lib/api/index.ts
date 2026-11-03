@@ -22,6 +22,7 @@ export function backendFor(slot: string): Backend {
     clipboardImage: transport.clipboardImage,
     pickFile: transport.pickFile,
     pickFolder: transport.pickFolder,
+    saveExport: transport.saveExport,
   }
 }
 
@@ -48,6 +49,7 @@ export const backend: Backend = {
   clipboardImage: transport.clipboardImage,
   pickFile: transport.pickFile,
   pickFolder: transport.pickFolder,
+  saveExport: transport.saveExport,
 }
 
 /** Calls that look at all graphs (`slots`, `close_slot`, the transfer) go to the first graph's state, whichever is active. */

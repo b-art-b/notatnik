@@ -47,6 +47,8 @@ export function createTauriTransport(): Transport {
       : {
           clipboardImage: async () => ((await invoke('clipboard_image')) as string | null) ?? null,
           pickFolder: async () => ((await invoke('pick_folder')) as string | null) ?? null,
+          saveExport: async (name: string, data: string) =>
+            ((await invoke('save_export', { name, data })) as string | null) ?? null,
         }),
   }
 }

@@ -8,4 +8,5 @@ graph-identity
 tests/path.spec.ts
 tests/shortcuts.spec.ts
 tests/drawing.spec.ts
+tests/drawing-extras.spec.ts
 tests/touch.spec.ts

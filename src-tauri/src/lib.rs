@@ -134,6 +134,47 @@ async fn clipboard_image() -> Option<String> {
     None
 }
 
+/// Asks where to save a file and writes it (DR-22: a drawing as PNG or SVG). `data` is the file as base64; returns the
+/// path written, or `None` when the person cancels.
+#[cfg(desktop)]
+#[tauri::command]
+async fn save_export(
+    app: tauri::AppHandle,
+    name: String,
+    data: String,
+) -> Result<Option<String>, String> {
+    use base64::Engine as _;
+    use tauri_plugin_dialog::DialogExt;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| e.to_string())?;
+    // a name from the page is only a suggestion: nothing but its last part is used
+    let name = name
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("drawing")
+        .to_string();
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_title("Save the drawing")
+        .set_file_name(name)
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+/// A phone or tablet has no save dialog: the UI copies the picture instead.
+#[cfg(mobile)]
+#[tauri::command]
+async fn save_export(_name: String, _data: String) -> Result<Option<String>, String> {
+    Ok(None)
+}
+
 /// Decodes `%XX` escapes (the UI sends the asset path as one `encodeURIComponent` segment).
 fn percent_decode(s: &str) -> String {
     let b = s.as_bytes();
@@ -322,7 +363,8 @@ pub fn run() {
             pick_folder,
             pick_file,
             open_asset,
-            clipboard_image
+            clipboard_image,
+            save_export
         ])
         .build(tauri::generate_context!())
         .expect("error while building Notatnik")

@@ -109,6 +109,40 @@ line moves with it, so there is room to draw (or to take a gap away again) witho
   - [ ] it works after zooming and panning (the maths is in canvas units; not tested)
   - [ ] on a real tablet: a stylus drag moves the content smoothly (not run)
 
+### D7 More in the editor (DR-13 to DR-24, built and tested in Chromium and WebKit)
+
+- **Layout:** the header is one row (title, name, Picture/Link, pen presets, Cancel, Done); the help line moved under the
+  canvas into a bar with the zoom, Pen only and a More menu (background, snap shapes, toolbar position, focus, copy and
+  save). The js-draw toolbar is 40 px high (48 px with a coarse pointer, presets and bar buttons 44 px).
+- **Drafts (DR-13):** `drawing/draft.ts`, IndexedDB `notatnik-drawing`/`drafts`, key `file:<path>` or `new:<page>`; written
+  3 s after the first change, at once when the page is hidden; removed by Done, Discard and Delete.
+- **Search (DR-14):** `crates/index/src/svgtext.rs` reads `<text>` of the drawings a page links while it is indexed
+  (`Parsed.drawings`); `save_drawing` of an existing drawing indexes the pages that mention it again
+  (`Index::files_mentioning`). Schema version 8.
+- **Presets, Pen only, snap, zoom, background, focus (DR-15 to DR-21):** `drawing/presets.ts`, `prefs.ts`, `view.ts`;
+  the lasso is js-draw's own mode of the selection tool (it was in the tool's menu), made the default once per device
+  (`notatnik.drawing.lasso`). Snapping needs `RawInkBuilder.autocorrectShape`, which feeds js-draw's shape fitter with
+  the same points; without the switch nothing calls it.
+- **Export (DR-22):** `drawing/exportImage.ts`; `save_export` in `src-tauri` (desktop only: the save dialog and the write).
+- **Copies of other devices (DR-23):** `drawing_copies` and `discard_drawing_copy` in the API; `read_drawing` reads a copy
+  too. Strokes are compared by what they are made of (without the id), so a stroke both versions have is not doubled; what
+  one side erased comes back.
+- **Not done, on purpose:** a "fit the page to the drawing" action (the sheet already follows the drawing, also after
+  Make space and erasing), dots or ruled lines as a background (js-draw has grid and plain only), locking a pasted
+  picture against selection, a width for the picture in the note.
+- **Verify:**
+  - [x] unit tests (`presets.test.ts`, `draft.test.ts`, `view.test.ts`, `svgtext` in `notatnik-index`): presets, the draft
+        saver (one write per burst, flush, clear), zoom steps, export names and sizes, the words of an SVG
+  - [x] integration tests: a search finds the words of a drawing and not the old ones after it was saved again
+        (`notatnik-index`, `notatnik-app`); a conflict copy is listed, read and trashed, and nothing else can be
+  - [x] browser tests (`drawing-extras.spec.ts`, Chromium and WebKit): presets and storing a pen, Pen only (also
+        against a stylus), snapping, zoom, background (three sizes, blank, reopened), focus and toolbar position, lasso,
+        draft restore and discard, the three ways to deal with a copy, SVG and PNG download, a pasted picture
+  - [ ] on a real iPad: the presets with a Pencil, a long press on a preset, Pen only with a finger and the Pencil, the
+        toolbar below the canvas, a draft after the app was killed in the background (not run)
+  - [ ] in the desktop app: Save as PNG and SVG open the system's dialog, Copy as a picture reaches another app
+        (WebKitGTK may refuse the clipboard; then a message says so) (not run)
+
 ### D5 iPad (not started)
 
 - The same UI as an installable web app (PWA) reached through the sync, tested with an Apple Pencil: the pen draws,

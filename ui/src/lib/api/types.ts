@@ -23,6 +23,10 @@ export interface Backend {
   pickFolder?: () => Promise<string | null>
   /** The system's file chooser (the desktop app only): the file picked, `null` when cancelled. */
   pickFile?: () => Promise<string | null>
+  /** The system's save dialog and the file written (the desktop app only; DR-22): `data` is the file as base64, the
+   * result the path written or `null` when cancelled. Absent in the browser (the page downloads the file) and on a
+   * phone or tablet. */
+  saveExport?: (name: string, data: string) => Promise<string | null>
 }
 
 /** The way to the Rust side, for every slot. Two implementations: HTTP (tests, browser) and Tauri (desktop). */
@@ -40,6 +44,7 @@ export interface Transport {
   clipboardImage?: () => Promise<string | null>
   pickFolder?: () => Promise<string | null>
   pickFile?: () => Promise<string | null>
+  saveExport?: (name: string, data: string) => Promise<string | null>
 }
 
 /** The error every failed command rejects with. */

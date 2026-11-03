@@ -459,7 +459,7 @@ only when it carries that comment, so a user's own file called `x.enc` is left a
 
 Fixtures made by an earlier build live in `fixtures/crypt/` and must keep opening.
 
-## Drawings (DR-1 to DR-7)
+## Drawings (DR-1 to DR-7, DR-14, DR-23)
 
 A drawing made with `/draw` is one SVG file, `assets/drawings/draw-<8 lower-case hex>.svg`, linked from a block as an
 ordinary image, `![](../assets/drawings/draw-0f3a9c21.svg)` (relative to the page file, like any asset). Its **name** is
@@ -471,3 +471,9 @@ background with the class `js-draw-image-background` (a `<g>` that also holds th
 viewer opens; the editor reads it back as editable strokes. Only that exact name can be written or read through
 `save_drawing` and `read_drawing`; the text has to be an SVG without a `<script>` and at most 25 MB. Drawings sync like any
 other asset, and the Unused images list leaves a drawing alone as long as a page links it.
+
+The words in `<text>` elements of a drawing (what the text tool wrote) are added to the search text of the blocks that
+link it (DR-14); the index reads the drawing files of a page when it indexes the page, so the index schema is version 8.
+A sync that finds the drawing changed on two devices keeps the server's file and saves the other version beside it as
+`draw-<8 hex> (conflicted copy <date and time>).svg` (the usual conflict name); the editor offers it when the drawing is
+opened (DR-23).

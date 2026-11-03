@@ -10,6 +10,8 @@ import {
   StrokeComponent,
   Vec2,
   Viewport,
+  makeFreehandLineBuilder,
+  type AbstractComponent,
   type AbstractRenderer,
   type Point2,
   type RenderablePathSpec,
@@ -30,6 +32,8 @@ interface Group {
 
 export class RawInkBuilder {
   private pts: Point2[] = []
+  /** Every point as the pen gave it, for the shape fit (DR-18): a stroke is only straightened when asked. */
+  private raw: StrokeDataPoint[] = []
   private widths: number[] = []
   /** Where the part drawn so far ends: the middle of the last finished segment. */
   private anchor: Point2
@@ -47,6 +51,7 @@ export class RawInkBuilder {
     this.tolerance = viewport.getSizeOfPixelOnCanvas() / 10
     const p = Viewport.roundPoint(first.pos, this.tolerance)
     this.pts.push(p)
+    this.raw.push(first)
     this.widths.push(first.width)
     this.anchor = p
     this.box = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }
@@ -56,6 +61,15 @@ export class RawInkBuilder {
   getBBox(): Rect2 {
     const { x0, y0, x1, y1 } = this.box
     return new Rect2(x0, y0, x1 - x0, y1 - y0).grownBy(this.maxWidth / 2)
+  }
+
+  /** "Snap shapes" (DR-18, off unless the person turns it on): the pen was held still at the end of the stroke, so
+   * what was drawn is fitted to a line or another shape by js-draw's own fitter, which is fed the same points. It
+   * answers with a shape, or null when the stroke is none. */
+  async autocorrectShape(): Promise<AbstractComponent | null> {
+    const stock = makeFreehandLineBuilder(this.first, this.viewport)
+    for (const p of this.raw.slice(1)) stock.addPoint(p)
+    return (await stock.autocorrectShape?.()) ?? null
   }
 
   inkTrailStyle() {
@@ -68,6 +82,7 @@ export class RawInkBuilder {
     const last = this.pts[this.pts.length - 1]
     if (p.x === last.x && p.y === last.y) return
     this.pts.push(p)
+    this.raw.push(point)
     this.widths.push(point.width)
     const b = this.box
     b.x0 = Math.min(b.x0, p.x)

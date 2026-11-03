@@ -154,6 +154,18 @@ A **graph** is a folder of notes.
 | DR-10 | A drawing is written either as a picture (`![name](…)`) or as a link (`[name](…)`) that shows only the name; both open the editor when clicked, and the form can be changed later without touching the file. | V1 |
 | DR-11 | A drawing can be deleted from its editor, after asking: the reference leaves the block and the file goes to the trash, unless another page links it. | V1 |
 | DR-12 | In the drawing editor a "Make space" tool moves everything below a horizontal line up or down, or everything to the right of a vertical line left or right (the direction is taken from the drag), in one undo step, to make room for more drawing or to close a gap (like "Insert Space" in OneNote). | V1 |
+| DR-13 | A drawing that was not saved is kept as a draft on this device (IndexedDB, not in the graph) a few seconds after it changes, and offered again with Restore / Discard it when the same drawing, or a new one on the same page, is opened after the app stopped; saving or discarding the drawing removes the draft. | V1 |
+| DR-14 | The words written with the text tool in a drawing are part of the search text of the blocks that show it: a search for them finds the block; a drawing that is saved again indexes the pages that show it again. Handwriting is not searched. | V1 |
+| DR-15 | Pen presets: five round buttons (fine and thick black, red, blue, a yellow highlighter) set colour, width and opacity of the pen in one tap; a long press or the right button stores the pen in use in that slot; the slots are kept on this device. | V1 |
+| DR-16 | The selection tool is the lasso (a loop around strokes selects them) instead of the rectangle, made the default once per device; the rectangle stays in the tool's menu. | V1 |
+| DR-17 | A "Pen only" switch: fingers move the canvas instead of drawing, the pen and the mouse draw. It is switched on by the first stylus on the device, can be switched off by hand (a stylus does not switch it on again) and is remembered. | V1 |
+| DR-18 | "Snap shapes when a pen is held still" (off to start with, per device): holding the pen still at the end of a stroke turns it into a straight line or a clean shape. Off, handwriting stays as written (DR-3). | V1 |
+| DR-19 | Zoom: step in and out, a label with the zoom in percent that goes back to 100 % when pressed, and Fit, which shows the whole drawing. | V1 |
+| DR-20 | The background of a drawing is a grid in three sizes or blank, changed in the menu as one undo step and saved in the file; an old drawing opens with the background it was saved with. | V1 |
+| DR-21 | Focus mode hides everything but the canvas (Done and Show controls stay in a corner); the toolbar can be placed below the canvas (per device). | V1 |
+| DR-22 | A drawing can be copied as a picture (PNG on the clipboard) and saved as PNG (about 2000 px on the longer side) or SVG, named after the drawing; the desktop app asks where with the system's save dialog, a browser downloads the file. | V1 |
+| DR-23 | A copy that a sync leaves of a drawing changed on two devices (`draw-<8 hex> (conflicted copy …).svg`) is offered when the drawing is opened: add its strokes (strokes both versions have stay single), use that version, or keep this one; a copy that was used goes to the trash when the drawing is saved. | V1 |
+| DR-24 | A picture pasted into the drawing (Ctrl+V, or the paste of a tablet) becomes part of the drawing. | V1 |
 
 ## 5. Pages, links and namespaces
 
