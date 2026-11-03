@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { belowLine, clampShift } from './makeSpaceMath'
+import { belowLine, clampShift, pickAxis } from './makeSpaceMath'
 
 describe('belowLine (DR-12)', () => {
   const tops = { a: 10, b: 100, c: 100.5, d: 300 }
@@ -25,5 +25,23 @@ describe('clampShift (DR-12)', () => {
   it('moves nothing when nothing is below the line', () => {
     expect(clampShift(-80, [], 100)).toBe(0)
     expect(clampShift(80, [], 100)).toBe(0)
+  })
+})
+
+describe('pickAxis (DR-12)', () => {
+  it('waits until the drag is long enough to tell', () => {
+    expect(pickAxis(2, 3, 6)).toBeNull()
+    expect(pickAxis(0, 0, 6)).toBeNull()
+  })
+  it('a mostly vertical drag makes a horizontal line (y), up or down', () => {
+    expect(pickAxis(1, 10, 6)).toBe('y')
+    expect(pickAxis(-3, -10, 6)).toBe('y')
+  })
+  it('a mostly sideways drag makes a vertical line (x), left or right', () => {
+    expect(pickAxis(10, 1, 6)).toBe('x')
+    expect(pickAxis(-10, 4, 6)).toBe('x')
+  })
+  it('a diagonal goes to y, so the old way of dragging stays what it was', () => {
+    expect(pickAxis(8, 8, 6)).toBe('y')
   })
 })

@@ -153,7 +153,7 @@ A **graph** is a folder of notes.
 | DR-9 | A drawing can be given a name: the label of its reference in the note, `![name](…)`. | V1 |
 | DR-10 | A drawing is written either as a picture (`![name](…)`) or as a link (`[name](…)`) that shows only the name; both open the editor when clicked, and the form can be changed later without touching the file. | V1 |
 | DR-11 | A drawing can be deleted from its editor, after asking: the reference leaves the block and the file goes to the trash, unless another page links it. | V1 |
-| DR-12 | In the drawing editor a "Make space" tool moves everything below a horizontal line up or down by dragging it, in one undo step, to make room for more drawing or to close a gap (like "Insert Space" in OneNote). | V1 |
+| DR-12 | In the drawing editor a "Make space" tool moves everything below a horizontal line up or down, or everything to the right of a vertical line left or right (the direction is taken from the drag), in one undo step, to make room for more drawing or to close a gap (like "Insert Space" in OneNote). | V1 |
 
 ## 5. Pages, links and namespaces
 

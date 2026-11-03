@@ -1,13 +1,25 @@
-// The arithmetic of "Make space" (DR-12), apart from js-draw so it can be tested alone. Canvas y grows downwards.
+// The arithmetic of "Make space" (DR-12), apart from js-draw so it can be tested alone. Canvas y grows downwards, x to
+// the right. The same functions serve both directions: a horizontal line (space made up or down, `y`) and a vertical
+// line (space made left or right, `x`); `edgeOf` is the item's top edge for the first and its left edge for the second.
 
-/** The items whose top edge is at or below the line: these move with it. A stroke that crosses the line stays. */
-export function belowLine<T>(items: readonly T[], topOf: (item: T) => number, line: number): T[] {
-  return items.filter((it) => topOf(it) >= line)
+export type Axis = 'x' | 'y'
+
+/** The items whose edge is at or past the line (below it, or to the right of it): these move with it. A stroke that
+ * crosses the line stays. */
+export function belowLine<T>(items: readonly T[], edgeOf: (item: T) => number, line: number): T[] {
+  return items.filter((it) => edgeOf(it) >= line)
 }
 
-/** How far the lower part may move: down as far as wanted, up only until its highest item reaches the line, so
- * nothing is ever pushed above the line (and over the strokes there). */
-export function clampShift(dy: number, tops: readonly number[], line: number): number {
-  if (tops.length === 0) return 0
-  return Math.max(dy, line - Math.min(...tops))
+/** How far the far part may move: away from the line as far as wanted, towards it only until its nearest item reaches
+ * the line, so nothing is ever pushed past the line (and over the strokes there). */
+export function clampShift(delta: number, edges: readonly number[], line: number): number {
+  if (edges.length === 0) return 0
+  return Math.max(delta, line - Math.min(...edges))
+}
+
+/** Which way a drag goes, once it has moved `threshold` screen pixels: mostly sideways makes a vertical line (`x`),
+ * otherwise a horizontal one (`y`). null while it is still too short to tell. */
+export function pickAxis(dx: number, dy: number, threshold: number): Axis | null {
+  if (Math.hypot(dx, dy) < threshold) return null
+  return Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
 }

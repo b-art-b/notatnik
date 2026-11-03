@@ -38,7 +38,7 @@
   // "Make space" (DR-12): whether the tool is on, and where its line is while dragging (client pixels, null: none).
   // Both are `$state` because the template shows them; the tool itself is a plain js-draw object.
   let spaceOn = $state(false)
-  let spaceLine = $state<number | null>(null)
+  let spaceLine = $state<{ axis: 'x' | 'y'; at: number } | null>(null)
   // the undo depth right after the drawing was loaded: the drawing is changed when it differs
   let baseline = 0
   let loading = $state(true)
@@ -137,7 +137,7 @@
     editor = ed
     ed.getRootElement().style.height = '100%'
     // a primary tool: choosing a pen in the toolbar switches it off. It must be added before the toolbar is made.
-    const space = new MakeSpaceTool(ed, (y) => (spaceLine = y))
+    const space = new MakeSpaceTool(ed, (line) => (spaceLine = line))
     ed.toolController.addPrimaryTool(space)
     toolbar = ed.addToolbar()
     const spaceButton = toolbar.addActionButton({ label: 'Make space', icon: makeSpaceIcon() }, () =>
@@ -369,13 +369,19 @@
     <div class="host" bind:this={host} class:loading></div>
     <!-- the help sits under the canvas, out of the way of the controls above -->
     <p class="hint" data-testid="drawing-hint">
-      {#if spaceOn}Make space: press where the space should start and drag; everything below follows. Pick a pen
-        to stop{:else}The pen draws; once a stylus has been used a finger moves the canvas and two fingers
+      {#if spaceOn}Make space: press where the space should start and drag down or up, or sideways; everything below or
+        beside it follows. Pick a pen to stop{:else}The pen draws; once a stylus has been used a finger moves the canvas and two fingers
         zoom{/if}
     </p>
     {#if spaceLine !== null}
-      <!-- the line of "Make space": fixed on the page at the height the tool reports -->
-      <div class="space-line" style:top="{spaceLine}px" data-testid="space-line" aria-hidden="true"></div>
+      <!-- the line of "Make space": fixed on the page where the tool reports it, across the page either way -->
+      <div
+        class="space-line {spaceLine.axis}"
+        style:top={spaceLine.axis === 'y' ? `${spaceLine.at}px` : null}
+        style:left={spaceLine.axis === 'x' ? `${spaceLine.at}px` : null}
+        data-testid="space-line"
+        aria-hidden="true"
+      ></div>
     {/if}
   </div>
 </div>
@@ -411,12 +417,20 @@
   }
   .space-line {
     position: fixed;
+    pointer-events: none;
+    z-index: 70;
+  }
+  .space-line.y {
     left: 0;
     right: 0;
     height: 0;
     border-top: 2px dashed var(--accent, #2563eb);
-    pointer-events: none;
-    z-index: 70;
+  }
+  .space-line.x {
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 2px dashed var(--accent, #2563eb);
   }
   /* the help line under the canvas */
   .hint {

@@ -88,7 +88,8 @@ infinite canvas, edited in a full-screen overlay, as in Joplin.
 
 ### D6 Make space (done)
 
-Like OneNote's "Insert Space": a tool with a horizontal line that is dragged up or down; everything that lies below the
+Like OneNote's "Insert Space": a tool with a line that is dragged, a horizontal one up or down or a vertical one sideways
+(the direction is taken from the first 6 pixels of the drag); everything that lies below (or right of) the
 line moves with it, so there is room to draw (or to take a gap away again) without selecting by hand. (DR-12)
 
 - A toolbar button "Make space". Pressing the pen, a finger or the mouse on the canvas sets the line at that height

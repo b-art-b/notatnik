@@ -475,6 +475,51 @@ test('Make space: dragging up never takes the lower part above the line', async 
   expect(b - a).toBeLessThan(70)
 })
 
+test('Make space sideways moves what is to the right of a vertical line, and nothing to the left', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/d18.md', '- start\n')
+  await slashDraw(page, backend, 'd18', 'start')
+  // three vertical strokes: C and A left of the line, B right of it
+  const bar = (x: number): [number, number][] => [
+    [x, -40],
+    [x, 80],
+  ]
+  await stroke(page, bar(-120)) // C
+  await stroke(page, bar(-60)) // A
+  await stroke(page, bar(60)) // B
+  const editor = page.getByTestId('drawing-editor')
+  await editor.getByRole('button', { name: 'Make space' }).click()
+  const box = (await editor.locator('canvas').first().boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2 + 40
+  const shown = page.getByTestId('space-line')
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + 50, y, { steps: 4 })
+  // a vertical dashed line, as tall as the page
+  await expect(shown).toBeVisible()
+  expect(await shown.evaluate((e) => getComputedStyle(e).borderLeftStyle)).toBe('dashed')
+  await page.mouse.move(x + 100, y, { steps: 4 })
+  await page.mouse.up()
+  await expect(shown).toHaveCount(0)
+  await page.getByTestId('drawing-done').click()
+  await expect(page.getByTestId('drawing-editor')).toHaveCount(0)
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => backend.read('pages/d18.md')).toMatch(SVG_LINK)
+  const xs = [
+    ...withoutSheet(drawingOf(backend, 'pages/d18.md').svg).matchAll(
+      /<path(?![^>]*js-draw-image-background)[^>]*\sd="[Mm]\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/g,
+    ),
+  ].map((m) => Number(m[1]))
+  const [c, a, b] = xs
+  // C and A are still 60 apart; B was 120 right of A and is now 100 further right
+  expect(a - c).toBeCloseTo(60, 0)
+  expect(b - a).toBeCloseTo(220, 0)
+})
+
 test('Make space works with a pen pointer', async ({ backend, page }) => {
   backend.write('pages/d16.md', '- start\n')
   await slashDraw(page, backend, 'd16', 'start')
