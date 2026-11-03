@@ -598,3 +598,50 @@ fn search_understands_boolean_syntax() {
             .contains("takes results away")
     );
 }
+
+/// DR-14: the words written with the text tool in a drawing are found with the block that shows it.
+#[test]
+fn search_finds_the_text_of_a_drawing() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("pages")).unwrap();
+    std::fs::create_dir_all(root.join("assets/drawings")).unwrap();
+    std::fs::write(
+        root.join("pages/net.md"),
+        "- the rack ![](../assets/drawings/draw-0123abcd.svg)\n- plain block\n",
+    )
+    .unwrap();
+    let svg =
+        |words: &str| format!(r#"<svg><path d="M0 0 L1 1"/><text x="1">{words}</text></svg>"#);
+    std::fs::write(
+        root.join("assets/drawings/draw-0123abcd.svg"),
+        svg("Patchpanel seven"),
+    )
+    .unwrap();
+    let mut idx = Index::open_in_memory(IndexOptions::default()).unwrap();
+    idx.index_all(root).unwrap();
+    let hits = idx.search("patchpanel", 10).unwrap();
+    assert_eq!(hits.len(), 1, "{hits:?}");
+    assert_eq!(hits[0].kind, SearchKind::Block);
+    assert!(
+        hits[0].text.contains("the rack"),
+        "the hit is the block that shows the drawing"
+    );
+    assert!(idx.search("seven", 10).unwrap().len() == 1);
+    // the drawing changes: the pages that show it are indexed again and find the new words, not the old ones
+    std::fs::write(
+        root.join("assets/drawings/draw-0123abcd.svg"),
+        svg("Switchboard"),
+    )
+    .unwrap();
+    for f in idx.files_mentioning("draw-0123abcd.svg").unwrap() {
+        idx.reindex_file(root, &f).unwrap();
+    }
+    assert!(idx.search("patchpanel", 10).unwrap().is_empty());
+    assert_eq!(idx.search("switchboard", 10).unwrap().len(), 1);
+    assert!(
+        idx.files_mentioning("draw-ffffffff.svg")
+            .unwrap()
+            .is_empty()
+    );
+}

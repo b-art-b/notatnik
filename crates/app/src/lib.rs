@@ -199,6 +199,8 @@ commands! {
     save_asset(SaveAssetArgs) -> SavedAsset => save_asset,
     save_drawing(SaveDrawingArgs) -> SavedAsset => save_drawing,
     read_drawing(ReadDrawingArgs) -> StringValue => read_drawing,
+    drawing_copies(ReadDrawingArgs) -> StringList => drawing_copies,
+    discard_drawing_copy(ReadDrawingArgs) -> StringValue => discard_drawing_copy,
     attach_file(AttachFileArgs) -> SavedAsset => attach_file,
     list_orphan_assets(NoArgs) -> OrphanAssets => orphan_assets,
     delete_orphan_assets(DeleteAssetsArgs) -> OrphanAssets => delete_orphan_assets,

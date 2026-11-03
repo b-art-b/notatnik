@@ -2401,6 +2401,21 @@ impl AppState {
             let page_rel = name.as_ref().map(|n| Self::page_file(o, n)).transpose()?;
             let existing = a.path.as_deref().map(Self::drawing_rel);
             let path = o.graph.save_drawing(existing.as_deref(), &a.svg)?;
+            // the words in the drawing are part of the search text of the blocks that show it (DR-14): index those
+            // pages again; a new drawing is not in a page yet, the page is indexed when the link is written
+            if existing.is_some() {
+                let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                let files = o
+                    .graph
+                    .with_index(|i| i.files_mentioning(&name))
+                    .unwrap_or_default();
+                for f in files {
+                    let root = o.graph.root().to_path_buf();
+                    if let Err(e) = o.graph.with_index_mut(|i| i.reindex_file(&root, &f)) {
+                        log::warn!("{f}: not indexed again after its drawing changed: {e}");
+                    }
+                }
+            }
             let link = match &page_rel {
                 Some(p) => notatnik_graph::relative_asset_path(p, &path),
                 None => path.clone(),
@@ -2417,6 +2432,25 @@ impl AppState {
         self.with_open(|o| {
             Ok(StringValue {
                 value: o.graph.read_drawing(&Self::drawing_rel(&a.path))?,
+            })
+        })
+    }
+
+    /// `drawing_copies`: the conflict copies a sync left of a drawing (DR-23), graph-relative.
+    pub fn drawing_copies(&self, a: ReadDrawingArgs) -> ApiResult<StringList> {
+        self.with_open(|o| {
+            Ok(StringList {
+                items: o.graph.drawing_copies(&Self::drawing_rel(&a.path))?,
+            })
+        })
+    }
+
+    /// `discard_drawing_copy`: a conflict copy of a drawing goes to the trash (DR-23).
+    pub fn discard_drawing_copy(&self, a: ReadDrawingArgs) -> ApiResult<StringValue> {
+        self.with_open(|o| {
+            o.graph.trash_drawing_copy(&Self::drawing_rel(&a.path))?;
+            Ok(StringValue {
+                value: a.path.clone(),
             })
         })
     }

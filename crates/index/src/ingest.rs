@@ -1,6 +1,6 @@
 //! Writing files into the index: full index, incremental reindex, removal, startup reconcile.
 
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
@@ -70,6 +70,8 @@ pub(crate) struct Parsed {
     page: Page,
     hash: String,
     stat: FileStat,
+    /// The words of the drawings the page links (DR-14), by graph-relative path.
+    drawings: HashMap<String, String>,
 }
 
 pub(crate) fn stat_of(path: &Path) -> std::io::Result<FileStat> {
@@ -126,6 +128,7 @@ fn read_parse(root: &Path, rel: &str, opts: &ParseOptions) -> ReadResult {
         };
     };
     let page = notatnik_core::parse_page_with(&text, opts);
+    let drawings = crate::svgtext::drawings_of(root, &text);
     ReadResult::Ok(Box::new(Parsed {
         rel: rel.into(),
         name,
@@ -133,6 +136,7 @@ fn read_parse(root: &Path, rel: &str, opts: &ParseOptions) -> ReadResult {
         page,
         hash,
         stat,
+        drawings,
     }))
 }
 
@@ -426,7 +430,17 @@ fn insert_block(
         tx.prepare_cached("INSERT INTO refs(src_page_id, src_block_id, kind, target_key, target_uid, raw) VALUES (?1,?2,?3,?4,?5,?6)")?
             .execute(params![ctx.page_id, id, kind, target_key, target_uid, r.span.slice(src)])?;
     }
-    let content = search_fold(&b.search_text(src));
+    let mut content = search_fold(&b.search_text(src));
+    // the words written in the drawings this block shows are found with it (DR-14)
+    if !ctx.p.drawings.is_empty() {
+        let own = src.get(b.first_line.start..b.own_span.end).unwrap_or("");
+        for path in crate::svgtext::drawing_paths(own) {
+            if let Some(words) = ctx.p.drawings.get(&path) {
+                content.push('\n');
+                content.push_str(&search_fold(words));
+            }
+        }
+    }
     if !content.trim().is_empty() {
         tx.prepare_cached("INSERT INTO fts(rowid, title, content) VALUES (?1, '', ?2)")?
             .execute(params![id, content])?;

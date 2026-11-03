@@ -10,6 +10,7 @@ mod qsql;
 mod read;
 mod schema;
 mod searchq;
+mod svgtext;
 pub mod walk;
 
 pub use error::{Error, Result};

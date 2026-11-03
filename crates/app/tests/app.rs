@@ -7018,3 +7018,88 @@ fn drawings_are_saved_overwritten_in_place_and_read_back() {
     .unwrap();
     assert!(!listed(&t));
 }
+
+/// DR-14: the words written in a drawing are found by the search, and again after the drawing is saved anew.
+#[test]
+fn search_finds_the_words_in_a_drawing_also_after_it_is_edited() {
+    let t = start("basic");
+    let g = t.graph();
+    std::fs::create_dir_all(g.join("assets/drawings")).unwrap();
+    let svg = |w: &str| {
+        format!("<svg xmlns=\"http://www.w3.org/2000/svg\"><text x=\"1\">{w}</text></svg>")
+    };
+    std::fs::write(
+        g.join("assets/drawings/draw-0a1b2c3d.svg"),
+        svg("Zebrafish tank"),
+    )
+    .unwrap();
+    std::fs::write(
+        g.join("pages/aquarium.md"),
+        "- the tank ![](../assets/drawings/draw-0a1b2c3d.svg)\n",
+    )
+    .unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": g.to_str().unwrap(), "create": false}),
+    );
+    let find = |q: &str| t.ok("search", json!({"text": q, "limit": 10}));
+    assert_eq!(
+        find("zebrafish").as_array().unwrap().len(),
+        1,
+        "{}",
+        find("zebrafish")
+    );
+    t.ok(
+        "save_drawing",
+        json!({"page": null, "path": "assets/drawings/draw-0a1b2c3d.svg", "svg": svg("Guppy tank")}),
+    );
+    assert!(find("zebrafish").as_array().unwrap().is_empty());
+    assert_eq!(find("guppy").as_array().unwrap().len(), 1);
+}
+
+/// DR-23: the copy a sync leaves of a drawing changed on two devices can be listed, read and put in the trash; no
+/// other file can.
+#[test]
+fn a_conflict_copy_of_a_drawing_is_listed_read_and_trashed() {
+    let t = start("basic");
+    let dir = t.graph().join("assets/drawings");
+    std::fs::create_dir_all(&dir).unwrap();
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0L1 1\"/></svg>";
+    let main = "assets/drawings/draw-0a1b2c3d.svg";
+    let copy = "assets/drawings/draw-0a1b2c3d (conflicted copy 2026-10-03 120000).svg";
+    std::fs::write(t.graph().join(main), svg).unwrap();
+    std::fs::write(t.graph().join(copy), svg.replace("L1 1", "L2 2")).unwrap();
+    // another drawing's copy is not listed
+    std::fs::write(
+        dir.join("draw-ffffffff (conflicted copy 2026-10-03 120000).svg"),
+        svg,
+    )
+    .unwrap();
+    let list = t.ok("drawing_copies", json!({"path": format!("../{main}")}));
+    assert_eq!(list["items"], json!([copy]));
+    assert!(
+        t.ok("read_drawing", json!({"path": copy}))["value"]
+            .as_str()
+            .unwrap()
+            .contains("L2 2")
+    );
+    assert!(
+        t.call("discard_drawing_copy", json!({"path": main}))
+            .is_err()
+    );
+    assert!(
+        t.call(
+            "discard_drawing_copy",
+            json!({"path": "assets/drawings/../x (conflicted copy 1).svg"})
+        )
+        .is_err()
+    );
+    t.ok("discard_drawing_copy", json!({"path": copy}));
+    assert!(!t.graph().join(copy).exists());
+    assert!(t.graph().join(".notatnik/trash").join(copy).exists());
+    assert_eq!(
+        t.ok("drawing_copies", json!({"path": main}))["items"],
+        json!([])
+    );
+    assert!(t.graph().join(main).exists(), "the drawing itself stays");
+}

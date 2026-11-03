@@ -25,6 +25,19 @@ pub fn is_drawing_path(path: &str) -> bool {
     hex.len() == 8 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+/// The copy of a drawing that a sync leaves when the drawing was changed on two devices (DR-23): `assets/drawings/
+/// draw-<8 hex> (conflicted copy <date and time>).svg`. Returns the drawing it is a copy of.
+pub fn drawing_of_copy(path: &str) -> Option<String> {
+    let (head, tail) = path.split_once(" (conflicted copy ")?;
+    let stamp = tail.strip_suffix(").svg")?;
+    // the date and time the sync wrote, nothing that could climb out of the folder
+    if stamp.is_empty() || stamp.contains(['/', '\\', '(', ')']) {
+        return None;
+    }
+    let original = format!("{head}.svg");
+    is_drawing_path(&original).then_some(original)
+}
+
 /// The SVG text is an SVG document and nothing that runs: the editor writes plain paths, so a `<script>` can only
 /// come from somewhere else.
 fn check_svg(svg: &str) -> Result<()> {
@@ -74,9 +87,47 @@ impl Graph {
         Ok(rel)
     }
 
-    /// The SVG text of a drawing.
-    pub fn read_drawing(&self, path: &str) -> Result<String> {
+    /// The conflict copies of a drawing, graph-relative, oldest name first (DR-23).
+    pub fn drawing_copies(&self, path: &str) -> Result<Vec<String>> {
         if !is_drawing_path(path) {
+            return Err(Error::Asset("not a drawing of this graph".into()));
+        }
+        let mut out = Vec::new();
+        if let Ok(dir) = std::fs::read_dir(self.root().join(DRAWING_DIR)) {
+            for e in dir.flatten() {
+                let name = e.file_name().to_string_lossy().into_owned();
+                let rel = format!("{DRAWING_DIR}/{name}");
+                if drawing_of_copy(&rel).as_deref() == Some(path) {
+                    out.push(rel);
+                }
+            }
+        }
+        out.sort();
+        Ok(out)
+    }
+
+    /// Moves a conflict copy of a drawing to `.notatnik/trash/` (recoverable, never synced) once it is dealt with.
+    pub fn trash_drawing_copy(&self, path: &str) -> Result<()> {
+        if drawing_of_copy(path).is_none() {
+            return Err(Error::Asset("not a copy of a drawing".into()));
+        }
+        let base = self.root().join(".notatnik").join("trash").join(path);
+        let mut target = base.clone();
+        let mut n = 1;
+        while target.exists() {
+            target = std::path::PathBuf::from(format!("{}.{n}", base.display()));
+            n += 1;
+        }
+        if let Some(dir) = target.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::rename(self.root().join(path), target)
+            .map_err(|_| Error::Asset("the copy was not found".into()))
+    }
+
+    /// The SVG text of a drawing, or of a conflict copy of one.
+    pub fn read_drawing(&self, path: &str) -> Result<String> {
+        if !is_drawing_path(path) && drawing_of_copy(path).is_none() {
             return Err(Error::Asset("not a drawing of this graph".into()));
         }
         std::fs::read_to_string(self.root().join(path))
@@ -103,6 +154,25 @@ mod tests {
             "assets/drawings/sub/draw-0123abcd.svg",
         ] {
             assert!(!is_drawing_path(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_conflict_copy_is_named_after_its_drawing() {
+        let c = "assets/drawings/draw-0123abcd (conflicted copy 2026-10-03 120000).svg";
+        assert_eq!(
+            drawing_of_copy(c).as_deref(),
+            Some("assets/drawings/draw-0123abcd.svg")
+        );
+        for bad in [
+            "assets/drawings/draw-0123abcd.svg",
+            "assets/drawings/x (conflicted copy 2026-10-03).svg",
+            "assets/drawings/draw-0123abcd (conflicted copy ../x).svg",
+            "assets/drawings/draw-0123abcd (conflicted copy ).svg",
+            "assets/pages/draw-0123abcd (conflicted copy 2026-10-03).svg",
+            "assets/drawings/draw-0123abcd (conflicted copy 2026-10-03).png",
+        ] {
+            assert!(drawing_of_copy(bad).is_none(), "{bad}");
         }
     }
 

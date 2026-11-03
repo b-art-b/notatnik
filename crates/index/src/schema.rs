@@ -1,7 +1,7 @@
 //! Database schema. Bump [`SCHEMA_VERSION`] on any change: old databases are deleted and rebuilt.
 
 /// Current schema version (`PRAGMA user_version`).
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 pub(crate) const SCHEMA: &str = r#"
 CREATE TABLE files(

@@ -538,6 +538,24 @@ impl Index {
         Ok(hits)
     }
 
+    /// The files of the pages that have a block with `needle` in its text, e.g. the name of a drawing (DR-14): these
+    /// are indexed again when the drawing they show changes.
+    pub fn files_mentioning(&self, needle: &str) -> Result<Vec<String>> {
+        let like = format!(
+            "%{}%",
+            needle
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_")
+        );
+        let mut st = self.conn.prepare(
+            "SELECT DISTINCT p.file_path FROM blocks b JOIN pages p ON p.id = b.page_id \
+             WHERE b.text LIKE ?1 ESCAPE '\\' AND p.file_path IS NOT NULL",
+        )?;
+        let rows = st.query_map([like], |r| r.get::<_, String>(0))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     /// All recorded issues, ordered by path and offset.
     pub fn issues(&self) -> Result<Vec<IssueRow>> {
         let mut st = self.conn.prepare(
