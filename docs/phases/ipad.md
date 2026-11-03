@@ -98,6 +98,7 @@ ios` works on macOS only), so it cannot build the Tauri shell as it is. A possib
 
 - Pasting and dropping pictures; the file chooser for `/file` (the dialog plugin on iOS); opening links and files
   (`open_external`, `open_asset` use the opener plugin, which behaves differently on iOS).
-- Background sync: iOS suspends the app, so the built-in sync runs while the app is open, on start and resume.
+- Background sync: iOS suspends the app, so the built-in sync runs while the app is open, on start and on resume
+  (the resume sync, AS4, listens for the page becoming visible and is the same code as on Android; untested on iOS).
 - A layout for portrait and split-view widths; an iPhone layout (the sidebar as a drawer).
 - App icon sizes and a launch screen (`cargo tauri icon` makes the set from one image).
