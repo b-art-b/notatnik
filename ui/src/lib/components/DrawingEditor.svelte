@@ -300,18 +300,14 @@
       </label>
       <fieldset class="mode" disabled={!canDescribe}>
         <legend class="sr">Show in the note as</legend>
-        <label title="The drawing is shown in the note"
+        <label title="The drawing is shown in the note" class:on={mode === 'picture'}
           ><input type="radio" name="drawing-mode" value="picture" bind:group={mode} /> Picture</label
         >
-        <label title="Only a link is written; a click opens the drawing"
+        <label title="Only a link is written; a click opens the drawing" class:on={mode === 'link'}
           ><input type="radio" name="drawing-mode" value="link" bind:group={mode} /> Link</label
         >
       </fieldset>
-      <span class="hint" data-testid="drawing-hint"
-        >{#if spaceOn}Make space: press where the space should start and drag; everything below follows. Pick
-          a pen to stop{:else}The pen draws; once a stylus has been used a finger moves the canvas and two
-          fingers zoom{/if}</span
-      >
+      <span class="spacer"></span>
       <div class="actions">
         {#if !isNew && target.host}
           <button
@@ -371,6 +367,12 @@
       </div>
     {/if}
     <div class="host" bind:this={host} class:loading></div>
+    <!-- the help sits under the canvas, out of the way of the controls above -->
+    <p class="hint" data-testid="drawing-hint">
+      {#if spaceOn}Make space: press where the space should start and drag; everything below follows. Pick a pen
+        to stop{:else}The pen draws; once a stylus has been used a finger moves the canvas and two fingers
+        zoom{/if}
+    </p>
     {#if spaceLine !== null}
       <!-- the line of "Make space": fixed on the page at the height the tool reports -->
       <div class="space-line" style:top="{spaceLine}px" data-testid="space-line" aria-hidden="true"></div>
@@ -416,14 +418,16 @@
     pointer-events: none;
     z-index: 70;
   }
+  /* the help line under the canvas */
   .hint {
+    margin: 0;
+    padding: 0.4em 0.9em;
     color: var(--muted);
-    font-size: 0.85em;
-    flex: 1;
-    min-width: 12em;
+    font-size: 0.8em;
+    border-top: 1px solid var(--border);
   }
-  header {
-    flex-wrap: wrap;
+  .spacer {
+    flex: 1;
   }
   .sr {
     position: absolute;
@@ -443,18 +447,37 @@
     border: 1px solid var(--border);
     border-radius: 8px;
   }
+  /* Picture | Link as one segmented control; the radio itself is hidden, the label is the target */
   .mode {
     display: flex;
-    gap: 0.9em;
-    border: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
     margin: 0;
-    padding: 0;
+    padding: 2px;
+    gap: 2px;
   }
   .mode label {
-    display: flex;
-    align-items: center;
-    gap: 0.3em;
+    position: relative;
+    padding: 0.25em 0.9em;
+    border-radius: 6px;
     cursor: pointer;
+  }
+  .mode label.on {
+    background: var(--chip);
+    font-weight: 600;
+  }
+  .mode label:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+  }
+  .mode input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .mode:disabled {
+    opacity: 0.6;
   }
   .actions .danger {
     color: var(--danger);
@@ -504,5 +527,44 @@
   }
   .host.loading {
     opacity: 0.5;
+  }
+  /* js-draw's toolbar is built by the library, so its rules are reached through :global. Its defaults (60 px buttons
+     with icons up to 50 px) are made for a phone; a pointer that can aim gets a compact bar, a finger keeps 48 px,
+     the least a touch target should be. */
+  .host :global(.toolbar-root) {
+    --toolbar-button-height: 40px;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .host :global(.toolbar-root .toolbar-button > .toolbar-icon) {
+    width: 24px;
+    height: 24px;
+    max-width: 24px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .host :global(.toolbar-root .toolbar-toolContainer > .toolbar-button),
+  .host :global(.toolbar-root > button) {
+    min-width: 40px;
+    width: auto;
+    border-radius: 8px;
+  }
+  .host :global(.toolbar-root .toolbar-showHideDropdownIcon) {
+    height: 8px;
+  }
+  @media (pointer: coarse) {
+    .host :global(.toolbar-root) {
+      --toolbar-button-height: 48px;
+    }
+    .host :global(.toolbar-root .toolbar-button > .toolbar-icon) {
+      width: 28px;
+      height: 28px;
+      max-width: 28px;
+    }
+    .actions button {
+      min-height: 44px;
+    }
   }
 </style>
