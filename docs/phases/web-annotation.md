@@ -1,0 +1,190 @@
+# Annotating web pages (W1 to W6)
+
+**Goal:** keep a web page in the graph and annotate it. The app fetches the page, cuts out the article (Readability),
+cleans it, and stores it as a **one-chapter EPUB** in `assets/web/` with the address and date in its metadata. From
+then on it is a book: the EPUB reader, the highlights (CFI ranges in the hidden sidecar `hls/<name>`), the panel, the
+comments and the `((id))` references of [epub-annotation.md](epub-annotation.md) work on it without a change. A saved
+copy does not break when the site changes or disappears, syncs like any asset, and is read with the reader's themes and
+text size.
+
+**Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
+**Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
+ED-27) for the HTTP client.
+**Status:** not started. Written down for review; nothing is built.
+
+## Design
+
+- **A clip is an EPUB.** `assets/web/<slug>-<hash8>.epub`: `<slug>` from the page's title, `<hash8>` the first 8 hex of
+  the blake3 of the address (not of the content), so **clipping the same address again overwrites the same file** and
+  the link in the notes, the sidecar and the highlights stay where they are. Highlights are found again in the new
+  text by their quote (the machinery of E4: CFI first, then the quote and context in the chapter).
+- **The EPUB is plain EPUB 3** that any reader opens: `mimetype` stored first, `META-INF/container.xml`, `content.opf`,
+  `nav.xhtml`, one `chapter.xhtml`, the pictures below `images/`. Metadata: `dc:title`, `dc:creator` (the byline, if
+  found), `dc:language`, `dc:source` (the final address after redirects), `dc:date` (the page's own date if found),
+  `dcterms:modified` and a `meta` with the time of the clip. The chapter starts with the title, the byline and a line
+  _Clipped from <address> on <date>_. The zip has no timestamps (a fixed date in every entry), so the same input gives the
+  same bytes.
+- **Where the work is done: in Rust**, in a new crate `notatnik-clip` (no UI, no database), so it is tested with plain
+  `cargo test` against fixture pages, runs on the iPad (the webview's network rules do not apply to a Rust request),
+  and can be used by the CLI later. Its parts:
+  - **fetch:** the existing HTTP client (`ureq`), `http` and `https` only, no login in the address, no cookies, no
+    referrer, a fixed user agent, redirects limited to 5, 15 s for the page and 10 s for a picture, the page at most
+    5 MB, the character set from the header or the `<meta charset>` (`encoding_rs`).
+  - **extract:** Readability. The first choice is a Rust port ([`dom_smoothie`](https://crates.io/crates/dom_smoothie),
+    MIT, checked in W1 on the fixture pages); the fallback is Mozilla's `Readability.js` (Apache-2.0) run on the HTML in
+    the webview, which would make the fetch-and-clean a round trip between Rust and the UI. If no article is found, the
+    cleaned `<body>` is used and the clip says so.
+  - **clean:** an allow-list (`ammonia`, MIT/Apache): headings, paragraphs, lists, quotes, code, tables, `a`, `img`,
+    `figure`, `em`, `strong` and the like. No `script`, `style`, `iframe`, `form`, `object`, no `on…` attribute, no
+    `javascript:` or `data:` address; links become absolute, `rel="noopener noreferrer"`.
+  - **pictures:** the `img` addresses of the article are fetched (at most 40 pictures, 5 MB each, 25 MB together),
+    sniffed by their bytes (png, jpeg, gif, webp; **no svg**), stored in the book, and the `src` rewritten. A picture
+    that fails is dropped, its `alt` text stays.
+  - **epub:** written with the `zip` crate the graph already uses.
+- **A clip must not become a way to reach into the person's network.** The address comes from the person, but the
+  picture addresses and the redirects come from a stranger's page. So **every address is resolved first and refused if
+  it is loopback, private, link-local, unspecified, multicast or a cloud metadata address** (`127.0.0.0/8`, `10/8`,
+  `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7`, `fe80::/10`, IPv4-mapped forms), also after every
+  redirect, and the connection is made to the address that was checked. Tests, and only tests, can switch this off
+  (`ClipPolicy { allow_private: true }`, reached through the dev server's `--allow-local-fetch`).
+- **Nothing the page contains runs.** The book is shown by the EPUB reader under the app's content policy (scripts
+  blocked, remote resources blocked); the cleaning above is a second layer, not the only one.
+- **Privacy in the log.** The address of a clipped page is the person's reading and is not logged above `debug`
+  (`docs/logging.md` gets a line); errors name the host only.
+- **Where the original address shows.** The reader shows an _Original page_ button when the book has an `http(s)`
+  `dc:source` (it opens in the system's browser through `backend.openExternal`). The block that holds the link gets a
+  property `source:: <address>`, so the address can be queried (`{{query (property source …)}}`) and shown.
+- **How a person clips:** `/clip` in a block (and _Clip a web page…_ in the palette) asks for the address (pre-filled
+  from the clipboard if it holds one), shows progress with a Cancel button, and writes
+  `[Title](../assets/web/…epub)` with `source:: <address>` below it, where the command was typed.
+- **Not in this phase:** pages that build their content with scripts (a plain fetch gets an empty shell: the clip says
+  so), pages behind a login or paywall, a browser extension, a share target, clipping a selection or the clipboard's
+  HTML, keeping the page's own look (a saved single-file HTML and its own viewer), clipping a PDF (it is simply
+  copied as a file with `/file`), automatic re-clipping.
+
+## Tasks
+
+### W1 The clipping crate (`notatnik-clip`)
+
+- `crates/clip`: `fetch` (policy, limits, redirects, charset), `extract`, `clean`, `images`, `epub`, and
+  `clip(url, &ClipPolicy) -> Result<Clip>` with `Clip { title, byline, source, date, language, epub: Vec<u8>, notes }`
+  (`notes`: what the person should know, e.g. _no article found, the whole page was used_, _3 pictures were left out_).
+  Fixture pages in `fixtures/web/` (an article with pictures and a byline, a blog with navigation and comments, a page in
+  ISO-8859-2, one with a `<base>` and relative links, one without an article, a shell that needs scripts, a hostile one),
+  served by a tiny `std::net` HTTP server in the tests.
+- **Verify:**
+  - [ ] the article fixture gives its title, byline, date, the article text without the navigation, footer and comments,
+        and its pictures inside the book; the book is a valid EPUB 3 (container, package, navigation, chapter; the
+        `mimetype` entry first and stored) that foliate-js opens (checked in W5) and a unit test re-reads with the `zip`
+        crate
+  - [ ] the same input twice gives byte-identical output; a different time of the clip changes only the `meta` for it
+  - [ ] relative links and pictures are made absolute against the page and its `<base>`; links get `rel="noopener noreferrer"`
+  - [ ] the cleaned chapter has no `script`, `style`, `iframe`, `form`, `object`, no `on…` attribute, no `javascript:` or
+        `data:` address (a hostile fixture with each of them; the output is parsed again and searched)
+  - [ ] a page in ISO-8859-2 comes out in correct UTF-8
+  - [ ] a page without an article gives its cleaned body and a note; a shell that needs scripts is reported as such
+  - [ ] pictures: the caps (40, 5 MB, 25 MB) are enforced; a picture of the wrong type, a 404 and an svg are dropped and
+        keep their `alt`; the type comes from the bytes, not from the header
+  - [ ] **refused addresses:** loopback, private, link-local, `169.254.169.254`, `::1`, an IPv4-mapped IPv6, a name that
+        resolves to one of them, and a redirect to one: the page and the pictures are refused (a test for each, with
+        `allow_private: false`); `file:`, `ftp:` and an address with a login are refused; a page of more than 5 MB and a
+        response that is not HTML are refused with a message that names the reason
+  - [ ] the timeouts and the redirect limit hold (a server that never answers, a redirect loop)
+  - [ ] clippy `-D warnings` and fmt clean; the crate does not depend on `notatnik-app` or the UI
+
+### W2 The command (`clip_page`) and the sidecar
+
+- `clip_page(url, page) -> { path, title, markdown, source, notes }` in `notatnik-app`: runs the clip on a blocking
+  thread, emits `clip-progress` events (fetching, cleaning, pictures n of m, writing), can be cancelled
+  (`clip_cancel`), writes `assets/web/<slug>-<hash8>.epub` atomically through the graph (an existing file is replaced),
+  and returns the Markdown that links it from `page` (relative path, written in `<…>` if the name needs it).
+- `annotation_page` on a file it already knows (found by `file`) refreshes the `sha` property when the bytes changed
+  (a clip clipped again), with a guarded write.
+- The dev server takes `--allow-local-fetch` and passes the policy.
+- **Verify:**
+  - [ ] a fixture page is clipped into `assets/web/…epub` and the reply has the link relative to the page; the same address
+        again overwrites the same file and returns the same path
+  - [ ] two addresses with the same title get two files
+  - [ ] `clip-progress` events arrive in order; `clip_cancel` stops a slow clip and leaves no file and no temp file
+  - [ ] only a path below `assets/web/` is ever written; a title with `/`, `..`, `:` or emoji gives a safe file name
+  - [ ] after a re-clip the sidecar of the book (found by `file`) has the new `sha`, its highlights are untouched on
+        disk
+  - [ ] the address of the page is not in the log at `info`
+
+### W3 The UI: `/clip`
+
+- A slash command and a palette command; `ClipDialog.svelte` (address field filled from the clipboard when it holds a web
+  address, _Clip_, progress, _Cancel_, the notes of the result, errors in words); the result is written as the link
+  line with `source:: <address>` below it, in one undo step; an address that was clipped before asks _Clip it again
+  (replaces the saved copy; your highlights stay)_.
+- **Verify:**
+  - [ ] `/clip`, an address, _Clip_ writes `[Title](../assets/web/…epub)` and `source:: …` where the command was typed;
+        the link opens the reader on the clip
+  - [ ] the dialog shows progress and Cancel works; an unreachable site, a 404, a non-HTML address and a refused
+        address show their reasons and write nothing
+  - [ ] clipping the same address again asks first, replaces the file and keeps the highlights (they are drawn again)
+  - [ ] the address field takes a web address from the clipboard on open
+  - [ ] Escape closes the dialog without clipping; the dialog is usable with a keyboard only and by touch (44 px targets)
+
+### W4 The reader shows where a clip came from
+
+- `EpubViewer.svelte`: an _Original page_ button when the book has an `http(s)` source (through `openExternal`); the
+  title bar shows the host. Styling for clips (pictures no wider than the page, long code and tables scroll).
+- **Verify:**
+  - [ ] a clip shows _Original page_; it calls `openExternal` with the source address; a book without a source, or with a
+        source that is not `http(s)`, shows no button
+  - [ ] a clipped picture is shown, not wider than the page, in paginated and scrolled layout
+
+### W5 Tests with a real page server
+
+- Playwright starts a small Node HTTP server for the fixtures (pages, pictures, redirects, a slow page) and the dev
+  server runs with `--allow-local-fetch`. A second spec runs **without** it and checks that a clip of the same local
+  address is refused.
+- **Verify:**
+  - [ ] the whole path: `/clip` an article, open it, select a sentence, highlight it, comment on it, reference it with
+        `((id))`, click the chip: the clip opens at the highlight
+  - [ ] clip again after the page changed (a paragraph added above, the highlighted sentence kept): the highlight is
+        drawn on the same words; if the sentence was changed, it is listed as not found
+  - [ ] the hostile page: nothing runs when the clip is read, no request leaves for its remote pictures and styles
+  - [ ] without `--allow-local-fetch`, `http://127.0.0.1:<port>/…` is refused with a message
+  - [ ] Chromium and WebKit
+
+### W6 Documents, iPad and checks
+
+- Documents: `requirements.md` (WA rows, IN-1), `file-format.md` (the clip EPUB and `source::`), `keymap.md` (`/clip`, the
+  dialog, _Original page_), `logging.md`, `testing.md`, `TODO.md`, `CLAUDE.md` (the doc list).
+- **Verify:**
+  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new crate and specs
+  - [ ] ten real pages (a news article, a long blog post, a Wikipedia article, a page with code, a page with a table,
+        a page in a non-Latin script, one with many pictures, one that needs scripts, a paywalled one, a PDF address) are
+        clipped; the result is judged by reading it; what fails is written down here
+  - [ ] on a real iPad: the clip works from the app (the Rust request, not the webview's), and the clip reads and
+        highlights like any book (stays open until done)
+  - [ ] the desktop app: a clip works and the book opens under the app's policy
+
+## Later (not in this phase, but not made impossible)
+
+- **A browser extension** (IN-1): clips the page _as the browser sees it_ (logged in, scripts run) and sends the HTML to
+  the app, which runs the same clean and EPUB steps; it also solves pages that need scripts and paywalls the person
+  can read.
+- **Clip from the clipboard or a selection** (HTML on the clipboard): the same steps without a fetch, so it works for
+  anything the person can see and select, with no extension.
+- **A share target** on Android and iOS (IN-1, AN-2).
+- **Keeping the page's look**: a single-file HTML copy and its own viewer, annotated with quote selectors.
+- **Re-clipping on a schedule**, a diff of what changed, and a list of clips whose source answers 404.
+- **Highlights for a page that is still live**, shown on the page in the browser.
+
+## Open questions
+
+- **Which Readability.** `dom_smoothie` or Mozilla's `Readability.js` in the webview: W1 runs both on the fixture pages
+  and the ten real pages and takes the one that cuts better; the Rust one is preferred because it can be tested without
+  a browser and used by the CLI.
+- **DNS rebinding.** The check resolves the name and connects to the address it checked, so a name that changes its
+  answer between two lookups does not matter; whether `ureq` lets us pin the address (a custom resolver) or W1 has to
+  use a small `connect` of its own is decided in W1.
+- **File size of a clip.** Pictures dominate. The caps above are a start; the ten real pages show whether they are
+  right.
+- **Where `source::` goes** if the link is not at the start of the block (it is a property of the block, so it applies to
+  the whole block); `/clip` always starts a block of its own.
+- **Copyright and terms of use.** The saved copy is for the person's own notes and is not published; the app makes no
+  claim about what a site allows, and the doc for users says so in one line.

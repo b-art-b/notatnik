@@ -494,3 +494,12 @@ EPUB CFI range, `epubcfi(/6/14!/4/2/1,:20,:97)`: a start and an end, with the sp
 in the reading order and the title, only for display), `hl-color` and `hl-context`, and no `hl-page`, `hl-from`, `hl-to`
 or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
 ([phases/epub-annotation.md](phases/epub-annotation.md)).
+
+## Clipped web pages (WA-1, WA-2, planned)
+
+A page clipped with `/clip` is a one-chapter EPUB 3 at `assets/web/<slug>-<hash8>.epub` (`hash8`: the first 8 hex of the
+blake3 of the address, so the same address always gives the same path). Its package metadata has `dc:title`,
+`dc:creator` (the byline), `dc:language`, `dc:source` (the address after redirects), `dc:date` (the page's date, if
+found) and `dcterms:modified` (the time of the clip). The zip has no timestamps. The block that links it carries
+`source:: <address>`. It is annotated like any EPUB (see "PDF annotations" and "EPUB highlights" above); clipping the
+address again replaces the file ([phases/web-annotation.md](phases/web-annotation.md)).
