@@ -55,6 +55,7 @@ impl AppState {
         s.calendar_client = self.calendar_client.clone();
         s.backup_keys = self.backup_keys.clone();
         s.open_roots = self.open_roots.clone();
+        s.clip_policy = self.clip_policy.clone();
         s.slot = slot.to_string();
         let s = Arc::new(s);
         slots.insert(slot.to_string(), s.clone());

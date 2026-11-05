@@ -13,7 +13,10 @@ use notatnik_app::{ApiError, AppOptions, AppState, dispatch, dispatch_slot};
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
 
-#[tauri::command]
+/// `async` so that the command runs on a worker thread and not on the one that draws the window: a command that waits
+/// for a web site (a page being clipped, a sync) must not freeze the app, and `clip_cancel` has to get through while
+/// `clip_page` is still waiting. The state has its own locks, as the dev server (one thread per request) already needs.
+#[tauri::command(async)]
 fn invoke_api(
     state: State<'_, Arc<AppState>>,
     name: String,

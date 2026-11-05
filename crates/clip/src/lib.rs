@@ -47,6 +47,15 @@ pub enum Progress {
     Writing,
 }
 
+/// The 8 hex digits that tell a clip's file from the files of other addresses: the blake3 of the address without its
+/// fragment. `None` for something that is not an address.
+pub fn address_key(url: &str) -> Option<String> {
+    let mut u = Url::parse(url.trim()).ok()?;
+    net::check_address(&u).ok()?;
+    u.set_fragment(None);
+    Some(blake3::hash(u.as_str().as_bytes()).to_hex()[..8].to_string())
+}
+
 /// Clips `url` as of `now`. `progress` is told how far it is and returns `false` to cancel.
 pub fn clip(
     url: &str,

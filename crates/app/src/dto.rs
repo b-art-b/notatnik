@@ -1732,6 +1732,52 @@ pub struct AnnotationPage {
     pub created: bool,
 }
 
+/// `clip_page`: a web page saved as a book (WA-1).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ClipPageArgs {
+    /// The address of the page (`http` or `https`).
+    pub url: String,
+    /// The page the link will be written on; the link is relative to its file.
+    pub page: String,
+}
+
+/// What `clip_page` made.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ClippedPage {
+    /// Graph-relative path of the book, `assets/web/<slug>-<hash8>.epub`.
+    pub path: String,
+    /// The page's title.
+    pub title: String,
+    /// `[Title](relative path)` for the page named in the arguments.
+    pub markdown: String,
+    /// The address after the redirects.
+    pub source: String,
+    /// Things the person should know (no article found, pictures left out, ...).
+    pub notes: Vec<String>,
+    /// The address had been clipped before: its book was replaced.
+    pub replaced: bool,
+}
+
+/// `clip_progress`: where a running clip is.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ClipProgressView {
+    /// A clip is running.
+    pub running: bool,
+    /// `fetching`, `cleaning`, `pictures` or `writing`.
+    pub step: String,
+    /// Pictures done so far (step `pictures`).
+    pub done: u32,
+    /// Pictures there are (step `pictures`).
+    pub total: u32,
+}
+
+/// `clip_existing`
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct ClipExistingArgs {
+    /// The address of a page.
+    pub url: String,
+}
+
 /// `save_asset` result.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SavedAsset {

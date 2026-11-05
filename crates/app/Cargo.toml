@@ -11,6 +11,7 @@ publish = false
 notatnik-core = { workspace = true, features = ["ts"] }
 notatnik-index = { workspace = true }
 notatnik-crypt = { workspace = true }
+notatnik-clip = { path = "../clip" }
 notatnik-graph = { workspace = true }
 notatnik-sync = { workspace = true }
 notatnik-caldav = { path = "../caldav" }

@@ -3111,6 +3111,7 @@ dependencies = [
  "chrono",
  "log",
  "notatnik-caldav",
+ "notatnik-clip",
  "notatnik-core",
  "notatnik-crypt",
  "notatnik-graph",

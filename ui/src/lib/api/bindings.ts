@@ -2154,6 +2154,62 @@ path: string,
  * The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
  */
 create?: boolean, };
+export type ClipPageArgs = { 
+/**
+ * The address of the page (`http` or `https`).
+ */
+url: string, 
+/**
+ * The page the link will be written on; the link is relative to its file.
+ */
+page: string, };
+export type ClippedPage = { 
+/**
+ * Graph-relative path of the book, `assets/web/<slug>-<hash8>.epub`.
+ */
+path: string, 
+/**
+ * The page's title.
+ */
+title: string, 
+/**
+ * `[Title](relative path)` for the page named in the arguments.
+ */
+markdown: string, 
+/**
+ * The address after the redirects.
+ */
+source: string, 
+/**
+ * Things the person should know (no article found, pictures left out, ...).
+ */
+notes: Array<string>, 
+/**
+ * The address had been clipped before: its book was replaced.
+ */
+replaced: boolean, };
+export type ClipProgressView = { 
+/**
+ * A clip is running.
+ */
+running: boolean, 
+/**
+ * `fetching`, `cleaning`, `pictures` or `writing`.
+ */
+step: string, 
+/**
+ * Pictures done so far (step `pictures`).
+ */
+done: number, 
+/**
+ * Pictures there are (step `pictures`).
+ */
+total: number, };
+export type ClipExistingArgs = { 
+/**
+ * The address of a page.
+ */
+url: string, };
 export type AnnotationPage = { 
 /**
  * The page name, `hls/<name>`; empty when there is none and `create` was `false`.
@@ -2898,6 +2954,10 @@ export type Commands = {
   drawing_copies: { args: ReadDrawingArgs; result: StringList };
   discard_drawing_copy: { args: ReadDrawingArgs; result: StringValue };
   annotation_page: { args: AnnotationPageArgs; result: AnnotationPage };
+  clip_page: { args: ClipPageArgs; result: ClippedPage };
+  clip_progress: { args: NoArgs; result: ClipProgressView };
+  clip_cancel: { args: NoArgs; result: NoArgs };
+  clip_existing: { args: ClipExistingArgs; result: StringValue | null };
   attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };

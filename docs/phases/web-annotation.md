@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** W1 done (the crate, tested). W2 to W6 not started.
+**Status:** W1 and W2 done (the crate and the command, tested). W3 to W6 not started.
 
 ## Design
 
@@ -113,24 +113,45 @@ ED-27) for the HTTP client.
 - **Found on the way:** the EPUB reader's content policy lacked `connect-src blob:`, which made it lose the style
   sheets of real books (fixed, with a test; see `epub-annotation.md`).
 
-### W2 The command (`clip_page`) and the sidecar
+### W2 The command (`clip_page`) and the sidecar (done)
 
 - `clip_page(url, page) -> { path, title, markdown, source, notes }` in `notatnik-app`: runs the clip on a blocking
-  thread, emits `clip-progress` events (fetching, cleaning, pictures n of m, writing), can be cancelled
-  (`clip_cancel`), writes `assets/web/<slug>-<hash8>.epub` atomically through the graph (an existing file is replaced),
+  thread, reports where it is (`clip_progress`, which the dialog polls: fetching, cleaning, pictures n of m, writing), can be
+  cancelled (`clip_cancel`), writes `assets/web/<slug>-<hash8>.epub` atomically through the graph (an existing file is replaced),
   and returns the Markdown that links it from `page` (relative path, written in `<…>` if the name needs it).
 - `annotation_page` on a file it already knows (found by `file`) refreshes the `sha` property when the bytes changed
   (a clip clipped again), with a guarded write.
 - The dev server takes `--allow-local-fetch` and passes the policy.
 - **Verify:**
-  - [ ] a fixture page is clipped into `assets/web/…epub` and the reply has the link relative to the page; the same address
+  - [x] a fixture page is clipped into `assets/web/…epub` and the reply has the link relative to the page; the same address
         again overwrites the same file and returns the same path
-  - [ ] two addresses with the same title get two files
-  - [ ] `clip-progress` events arrive in order; `clip_cancel` stops a slow clip and leaves no file and no temp file
-  - [ ] only a path below `assets/web/` is ever written; a title with `/`, `..`, `:` or emoji gives a safe file name
-  - [ ] after a re-clip the sidecar of the book (found by `file`) has the new `sha`, its highlights are untouched on
+  - [x] two addresses with the same title get two files
+  - [x] `clip_progress` answers in order (fetching, cleaning, pictures, writing); `clip_cancel` stops a slow clip and leaves no file and no temp file
+  - [x] only a path below `assets/web/` is ever written; a title with `/`, `..`, `:` or emoji gives a safe file name
+  - [x] after a re-clip the sidecar of the book (found by `file`) has the new `sha`, its highlights are untouched on
         disk
-  - [ ] the address of the page is not in the log at `info`
+  - [x] the address of the page is not in the log at `info`
+
+### How W2 was built, where it differs from the plan
+
+- **Progress is asked for, not pushed:** `clip_progress` returns `{ running, step, done, total }` and the dialog polls it.
+  Events would have needed a new channel in both transports for one use; a poll works unchanged in the browser, the
+  desktop app and the iPad. `clip_cancel` is checked between the steps (a page that is slow to answer is waited for until
+  its 15 s are up), and once more before the book is stored, so a cancel never leaves a file.
+- **A clip does not hold the graph.** The fetch runs outside the graph lock, so every other command keeps working during
+  a slow site; only the write takes the lock. One clip at a time per graph (a second `clip_page` answers `conflict`).
+- **The Tauri command is `async` now.** A plain Tauri command runs on the thread that draws the window, so a slow clip
+  (and a slow sync before it) would have frozen the app and `clip_cancel` could not have got through.
+  `#[tauri::command(async)]` runs `invoke_api` on a worker thread; the state has its own locks, which the dev server
+  (one thread per request) already relies on.
+- **The name stays when the title changes:** the file is found by the `-<hash8>` of the address, so a new headline does not
+  make a second file; `clip_existing(url)` returns the book of an address (the dialog uses it to ask _clip again?_).
+- **The sidecar follows a clip clipped again:** `annotation_page` on a file it knows finds the sidecar by `file` and
+  rewrites its `sha` line when the bytes changed (a guarded write, one line, the highlights untouched).
+- **The log:** a test captures every log line of a clip. The app's lines and everything at `info` and above are free of
+  the address; the HTTP library's own `debug` line names it (off unless `RUST_LOG=debug`), as `docs/logging.md` now says.
+- **Errors:** `invalid` for an address that is refused or not fetchable, `cancelled`, `conflict`, `no_graph`, and
+  `clip_failed` for the rest; every message names the host at most.
 
 ### W3 The UI: `/clip`
 

@@ -17,6 +17,7 @@ mod rename;
 pub mod synth;
 mod versions;
 mod watch;
+mod web;
 
 pub use assets::{MAX_ASSET_BYTES, is_risky_file, relative_asset_path, sniff_image};
 pub use backup::{
@@ -38,6 +39,7 @@ pub use pdfs::{
 pub use rename::{FileEdit, RenamePlan, RenameReport};
 pub use versions::PageVersion;
 pub use watch::{GraphChanged, Watcher};
+pub use web::{WEB_DIR, is_clip_name};
 
 use std::collections::HashSet;
 use std::io::Write;

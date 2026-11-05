@@ -276,6 +276,7 @@ impl Drop for BackupTask {
 
 mod backupcfg;
 mod calendar;
+mod clip;
 mod conflicts;
 mod encryption;
 mod favorites;
@@ -333,6 +334,10 @@ pub struct AppState {
     slots: Mutex<HashMap<String, Arc<AppState>>>,
     /// The folder of the graph open in each slot (all states share this list), so the same graph is not opened twice.
     open_roots: Arc<Mutex<HashMap<String, PathBuf>>>,
+    /// The clip that is running (WA-6): at most one at a time.
+    clip_run: Mutex<Option<clip::ClipRun>>,
+    /// What a clip may fetch (WA-4). Only tests allow this computer.
+    clip_policy: notatnik_clip::ClipPolicy,
 }
 
 /// Options for [`AppState::new`].
@@ -395,6 +400,8 @@ impl AppState {
             last_transfer: Mutex::new(None),
             slots: Mutex::new(HashMap::new()),
             open_roots: Arc::default(),
+            clip_run: Mutex::new(None),
+            clip_policy: notatnik_clip::ClipPolicy::default(),
         }
     }
 
@@ -2471,11 +2478,12 @@ impl AppState {
         }
         self.with_open(|o| {
             let sha = o.graph.pdf_sha(&file)?;
-            let (by_file, by_sha, kinds) = o.graph.with_index(|i| {
+            let (by_file, by_sha, kinds, shas) = o.graph.with_index(|i| {
                 Ok::<_, notatnik_index::Error>((
                     i.page_property_values("file")?,
                     i.pages_with_property("sha", &sha)?,
                     i.pages_with_property("kind", ANNOTATIONS_KIND)?,
+                    i.page_property_values("sha")?,
                 ))
             })?;
             let is_sidecar = |p: &str| kinds.iter().any(|k| k == p);
@@ -2494,6 +2502,26 @@ impl AppState {
             };
             let mut created = false;
             let page = if let Some(p) = found {
+                // the same file with other bytes (a web page clipped again, a book replaced by a new edition): the
+                // sidecar says so, nothing else of it changes
+                let stale = shas
+                    .iter()
+                    .find(|(q, _)| *q == p)
+                    .is_none_or(|(_, v)| *v != sha);
+                if stale {
+                    let name = Self::parse_name(&p)?;
+                    let rel = Self::page_file(o, &name)?;
+                    let hash = o.graph.read_page(&rel)?.hash;
+                    o.graph.edit_page(
+                        &rel,
+                        Some(&hash),
+                        &[BlockOp::SetPageProperty {
+                            key: "sha".into(),
+                            value: sha.clone(),
+                        }],
+                    )?;
+                    self.emit_page_changed(&p);
+                }
                 p
             } else if let Some(p) = moved() {
                 let name = Self::parse_name(p)?;

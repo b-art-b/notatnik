@@ -36,6 +36,9 @@ struct Args {
     /// Don't watch the graph folder for external changes
     #[arg(long)]
     no_watch: bool,
+    /// Let a web page clip fetch addresses on this computer (the tests serve their pages from here); the app never does
+    #[arg(long)]
+    allow_local_fetch: bool,
     /// Use an in-memory calendar server (calendars Tasks, Birthdays, Personal) instead of connecting to one
     #[arg(long)]
     fake_calendar: bool,
@@ -181,6 +184,9 @@ fn main() {
             &notatnik_caldav::Cond::Create,
         );
         state = state.with_calendar_client(Arc::new(cal));
+    }
+    if args.allow_local_fetch {
+        state = state.with_local_fetch();
     }
     let app = Arc::new(state);
     let graph = args.graph.to_string_lossy().into_owned();
