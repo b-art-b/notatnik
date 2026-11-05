@@ -24,6 +24,7 @@
   import { encryption, padlockOf, refreshEncryption } from '../stores/encryption.svelte'
   import Padlock from './Padlock.svelte'
   import { isFavorite, setFavorite } from '../stores/favorites.svelte'
+  import { openHighlight, sidecarKind } from '../annotate/highlightDoc'
   import ValueInput from './ValueInput.svelte'
   import { displayValue, linkedPages, yamlValue } from '../props'
   import { archived, isArchived, isArchivedItself } from '../stores/archived.svelte'
@@ -173,6 +174,13 @@
   let history = $state(false)
   let encrypting = $state(false)
   // a favorite page (NS-26): the star in the action row and beside the title
+  // the sidecar page of a PDF or an EPUB: _Open the document_ shows it (the highlights open it at themselves)
+  const sidecarDocument = $derived.by(() => {
+    if (!view?.name.startsWith('hls/')) return null
+    const file = view.frontmatter?.props.find((p) => p.key === 'file')?.raw
+    const kind = sidecarKind(file, view.blocks)
+    return file && kind ? { file, kind } : null
+  })
   const favorite = $derived(view ? isFavorite(view.name) : false)
   // the padlock beside the title: only where the page differs from the graph's default
   const padlock = $derived(padlockOf(encryption.status, view?.path ?? ''))
@@ -351,6 +359,13 @@
         {/if}
         {#if !hideProps}
           <span class="page-actions">
+            {#if sidecarDocument}<button
+                class="act"
+                data-testid="open-document"
+                title="Open the PDF or EPUB these highlights belong to"
+                onclick={() => sidecarDocument && openHighlight({ ...sidecarDocument, page: 0 })}
+                >Open the document</button
+              >{/if}
             <button
               class="act"
               data-testid="history-toggle"

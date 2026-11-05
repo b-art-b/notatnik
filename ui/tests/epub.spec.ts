@@ -728,3 +728,31 @@ t(
     }
   },
 )
+
+// From the sidecar page back to the book (EA-7).
+t(
+  'the sidecar page opens the book: a button for the document, a chip at each highlight',
+  async ({ backend, page }) => {
+    await twoHighlights(page, backend)
+    await page.getByTestId('epub-close').click()
+    await backend.open('/page/hls/novel')
+    await expect(page.getByTestId('open-document')).toBeVisible()
+    // the document, at its start
+    await page.getByTestId('open-document').click()
+    await expect(page.getByTestId('epub-reader')).toBeVisible()
+    await reads(page, NOVEL.s1)
+    await page.getByTestId('epub-close').click()
+    await expect(page.getByTestId('epub-reader')).toBeHidden()
+    // a highlight of chapter 3: its chip opens the book there and marks it
+    const chips = page.getByRole('tree', { name: 'Blocks' }).getByTestId('pdf-ref-chip')
+    await expect(chips).toHaveCount(2)
+    await expect(chips.nth(1)).toHaveText('Open in the document')
+    await chips.nth(1).click()
+    await expect(page.getByTestId('epub-reader')).toBeVisible()
+    await reads(page, NOVEL.s3)
+    await expect(page.getByTestId('epub-mark').filter({ hasText: 'Morning came' })).toHaveAttribute(
+      'data-flash',
+      'true',
+    )
+  },
+)

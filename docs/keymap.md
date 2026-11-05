@@ -342,7 +342,7 @@ A link to a **PDF in the graph** (`[Report](../assets/report.pdf)`, also `…#pa
 - **Area highlight:** switch **Area** on, pick a colour, drag a rectangle on the page (it is cut to the page); the area is stored as a picture. Switch Area off to select text again.
 - **Panel (Highlights):** every highlight in reading order (page, then place) with its quote or picture and its comments; click the quote to go there (it flashes); filter by colour and by text; _＋ Comment_ adds a child block and starts editing it (the comment is an ordinary block: `[[links]]`, `#tags`, `TODO` work; a task there is on the agenda with the quote above it). A highlight that is no longer in the PDF's text says _Not found on page N_ and is not drawn. _Open the notes page_ opens the sidecar page. On a narrow window the panel lies over the pages.
 - **In your notes:** a `((id))` of a highlight shows its quote and a chip _report.pdf p. 12_; the chip opens the PDF at the highlight.
-- **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`). Edit them in a text editor if you like.
+- **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`). Edit them in a text editor if you like. **From that page back to the document:** the page has **Open the document** beside its other buttons, and every highlight has an **Open in the document** button that opens the PDF or book at that highlight. (Clicking the dotted text of a `((id))` reference leads to this page; its chip opens the document directly.)
 
 ## EPUBs: reading, highlighting, notes (EA-1..EA-10)
 

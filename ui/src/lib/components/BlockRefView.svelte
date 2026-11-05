@@ -6,9 +6,8 @@
   import { untrack } from 'svelte'
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
-  import { openPdf } from '../commands/pdf'
-  import { openBook } from '../commands/epub'
-  import { isExternalDoc } from '../annotate/remote'
+  import { highlightDoc } from '../annotate/highlightDoc'
+  import HighlightChip from './HighlightChip.svelte'
 
   let { uid, chain }: { uid: string; chain: string[] } = $props()
 
@@ -42,32 +41,7 @@
   const doc = $derived.by(() => {
     const b = result?.block
     const file = sidecar?.view?.frontmatter?.props.find((p) => p.key === 'file')?.raw
-    if (!b || !file) return null
-    // a document of the graph's Nextcloud: `file` is its address, with no name; the sidecar's name has it, and the kind
-    // is told by the highlight (a page or a CFI)
-    if (isExternalDoc(file)) {
-      const nm = result!.page.split('/').pop() ?? result!.page
-      const pg = b.props.find((p) => p.key === 'hl-page')?.raw
-      if (pg && Number.isInteger(Number(pg)))
-        return { kind: 'pdf' as const, file, page: Number(pg), label: `${nm} p. ${pg}`, name: nm }
-      if (b.props.some((p) => p.key === 'hl-cfi')) {
-        const chapter = b.props.find((p) => p.key === 'hl-chapter')?.raw
-        return { kind: 'epub' as const, file, page: 0, label: chapter ? `${nm} · ${chapter}` : nm, name: nm }
-      }
-      return null
-    }
-    const name = file.split('/').pop() ?? file
-    if (file.toLowerCase().endsWith('.pdf')) {
-      const pg = b.props.find((p) => p.key === 'hl-page')?.raw
-      if (!pg || !Number.isInteger(Number(pg))) return null
-      return { kind: 'pdf' as const, file, page: Number(pg), label: `${name} p. ${pg}`, name }
-    }
-    if (file.toLowerCase().endsWith('.epub')) {
-      if (!b.props.some((p) => p.key === 'hl-cfi')) return null
-      const chapter = b.props.find((p) => p.key === 'hl-chapter')?.raw
-      return { kind: 'epub' as const, file, page: 0, label: chapter ? `${name} · ${chapter}` : name, name }
-    }
-    return null
+    return b && result ? highlightDoc(file, b.props, result.page) : null
   })
 
   const inlines = $derived.by(() => {
@@ -89,36 +63,10 @@
     data-uid={uid}
     title={`^${uid} on ${result.page}`}
     onclick={(e) => e.stopPropagation()}><Inlines items={inlines} chain={[...chain, uid]} /></a
-  >{#if doc}<button
-      type="button"
-      class="pdf-chip"
-      data-testid="pdf-ref-chip"
-      title="Open {doc.name} at this highlight"
-      onclick={(e) => {
-        e.stopPropagation()
-        if (doc.kind === 'pdf') void openPdf({ path: doc.file, page: doc.page, highlight: uid })
-        else void openBook({ path: doc.file, highlight: uid })
-      }}>{doc.label}</button
-    >{/if}
+  >{#if doc}<HighlightChip {doc} {uid} />{/if}
 {/if}
 
 <style>
-  .pdf-chip {
-    font: inherit;
-    font-size: 0.75em;
-    margin-left: 0.4em;
-    padding: 0 0.5em;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--chip);
-    color: var(--muted);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .pdf-chip:hover {
-    color: inherit;
-    border-color: var(--accent);
-  }
   .block-ref {
     border-bottom: 1px dotted var(--muted);
     color: inherit;

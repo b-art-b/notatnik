@@ -41,6 +41,8 @@
   import DatePicker from './DatePicker.svelte'
   import PropertyCard from './PropertyCard.svelte'
   import { shownProps } from '../props'
+  import { highlightDoc } from '../annotate/highlightDoc'
+  import HighlightChip from './HighlightChip.svelte'
   import Self from './Block.svelte'
   import { isLogOpen, logKey, toggleLog } from '../stores/logbook.svelte'
   import { calendarOf, calendarTargets } from '../stores/calendarTargets.svelte'
@@ -175,6 +177,12 @@
 
   // The calendar this task is synced to (Settings → Calendar). `cal:: <name>` picks one, `cal:: no` keeps the
   // task out; with neither, it goes to the default calendar. Shown only for tasks the sync would send.
+  // a highlight on the sidecar page of a PDF or an EPUB: a button opens the document at it (PA-6, EA-7)
+  const highlightOf = $derived(
+    doc && docName.startsWith('hls/') && block.uid && block.path.length === 1
+      ? highlightDoc(doc.view?.frontmatter?.props.find((p) => p.key === 'file')?.raw, block.props, docName)
+      : null,
+  )
   const calValue = $derived(block.props.find((p) => p.key.toLowerCase() === 'cal')?.raw.trim())
   const calendarChip = $derived.by(() => {
     if (!block.task || !calendarTargets.on) return ''
@@ -592,6 +600,11 @@
               >{prog.done}/{prog.total}</span
             >{/if}
           <div class="nodes"><Nodes nodes={block.content} {chain} /></div>
+          {#if highlightOf && block.uid}<HighlightChip
+              doc={highlightOf}
+              uid={block.uid}
+              label="Open in the document"
+            />{/if}
           {#if isCompact}
             <!-- compact task details: small indicators; the full chips and logbook open in a popover -->
             <!-- hover and focus open the popover; the controls inside it are real buttons and inputs -->

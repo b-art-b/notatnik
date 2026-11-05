@@ -682,3 +682,23 @@ t(
     expect(JSON.stringify(await backend.call('backlinks', { page: 'tag' }))).not.toContain('hls/report')
   },
 )
+
+t(
+  'the sidecar page opens the PDF: a button for the document, a chip at each highlight (PA-6)',
+  async ({ backend, page }) => {
+    await openWithSidecar(page, backend, THREE)
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('pdf-viewer')).toBeHidden()
+    await backend.open('/page/hls/report')
+    await expect(page.getByTestId('open-document')).toBeVisible()
+    await page.getByTestId('open-document').click()
+    await expect(page.getByTestId('pdf-viewer')).toBeVisible()
+    await expect(page.getByTestId('pdf-page-box')).toHaveValue('1')
+    await page.keyboard.press('Escape')
+    const chips = page.getByRole('tree', { name: 'Blocks' }).getByTestId('pdf-ref-chip')
+    await expect(chips).toHaveCount(3)
+    await chips.nth(1).click() // the highlight of page 2
+    await expect(page.getByTestId('pdf-viewer')).toBeVisible()
+    await expect(page.getByTestId('pdf-page-box')).toHaveValue('2')
+  },
+)
