@@ -20,9 +20,9 @@ function toTerminal(message: string) {
 window.addEventListener('error', (e) => {
   // the browser's own note that a resize was handled in the next frame; layout code (the EPUB reader) triggers it, harmless
   if (e.message.startsWith('ResizeObserver loop')) return
-  // foliate-js (the EPUB reader) resizes a chapter's frame once more while the frame is being removed, WebKit then has no
-  // document for it; nothing is lost, the reader is closing
-  if (e.filename.includes('/paginator') && e.message.includes('documentElement')) return
+  // foliate-js (the EPUB reader) works on a chapter's frame once more while the frame is being removed and finds nothing
+  // there; nothing is lost, the reader is closing. Only that kind of error, only from its paginator.
+  if (e.filename.includes('/paginator') && /\bnull\b/.test(e.message)) return
   toTerminal(`${e.message} (${e.filename}:${e.lineno})`)
 })
 window.addEventListener('unhandledrejection', (e) => {

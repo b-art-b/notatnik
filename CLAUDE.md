@@ -26,6 +26,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `crates/core` (`notatnik-core`): parser, model, edits, names, query language, and small pure helpers (`logbook`, `mentions`, `repeat`). **No I/O**; must build for `wasm32-unknown-unknown`.
 - `crates/index`: SQLite schema, indexing, search, query → SQL.
 - `crates/graph`: file I/O, atomic writes, watcher, conflicts.
+- `crates/clip` (`notatnik-clip`): clips a web page into a one-chapter EPUB (fetch with the limits and the public-address check, Readability, clean, pictures, zip). No app, graph or UI dependency (`docs/phases/web-annotation.md`).
 - `crates/cli`: `notatnik` binary.
 - `crates/log` (`notatnik-log`): starts the terminal logger for the three binaries; libraries only use the `log` macros (`docs/logging.md`).
 - `crates/app` (`notatnik-app`): the typed API (`dispatch`), page views, markdown renderer, undo, agenda/query commands. TypeScript bindings are generated from it (`scripts/gen-bindings.sh`).

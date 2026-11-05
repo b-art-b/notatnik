@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** not started. Written down for review; nothing is built.
+**Status:** W1 done (the crate, tested). W2 to W6 not started.
 
 ## Design
 
@@ -64,7 +64,7 @@ ED-27) for the HTTP client.
 
 ## Tasks
 
-### W1 The clipping crate (`notatnik-clip`)
+### W1 The clipping crate (`notatnik-clip`) (done)
 
 - `crates/clip`: `fetch` (policy, limits, redirects, charset), `extract`, `clean`, `images`, `epub`, and
   `clip(url, &ClipPolicy) -> Result<Clip>` with `Clip { title, byline, source, date, language, epub: Vec<u8>, notes }`
@@ -73,24 +73,45 @@ ED-27) for the HTTP client.
   ISO-8859-2, one with a `<base>` and relative links, one without an article, a shell that needs scripts, a hostile one),
   served by a tiny `std::net` HTTP server in the tests.
 - **Verify:**
-  - [ ] the article fixture gives its title, byline, date, the article text without the navigation, footer and comments,
+  - [x] the article fixture gives its title, byline, date, the article text without the navigation, footer and comments,
         and its pictures inside the book; the book is a valid EPUB 3 (container, package, navigation, chapter; the
-        `mimetype` entry first and stored) that foliate-js opens (checked in W5) and a unit test re-reads with the `zip`
+        `mimetype` entry first and stored) that foliate-js opens (a clip was opened in the reader by hand, text, title and picture shown; the automated check is W5) and a unit test re-reads with the `zip`
         crate
-  - [ ] the same input twice gives byte-identical output; a different time of the clip changes only the `meta` for it
-  - [ ] relative links and pictures are made absolute against the page and its `<base>`; links get `rel="noopener noreferrer"`
-  - [ ] the cleaned chapter has no `script`, `style`, `iframe`, `form`, `object`, no `on…` attribute, no `javascript:` or
+  - [x] the same input twice gives byte-identical output; a different time of the clip changes only the `meta` for it
+  - [x] relative links and pictures are made absolute against the page and its `<base>`; links get `rel="noopener noreferrer"`
+  - [x] the cleaned chapter has no `script`, `style`, `iframe`, `form`, `object`, no `on…` attribute, no `javascript:` or
         `data:` address (a hostile fixture with each of them; the output is parsed again and searched)
-  - [ ] a page in ISO-8859-2 comes out in correct UTF-8
-  - [ ] a page without an article gives its cleaned body and a note; a shell that needs scripts is reported as such
-  - [ ] pictures: the caps (40, 5 MB, 25 MB) are enforced; a picture of the wrong type, a 404 and an svg are dropped and
+  - [x] a page in ISO-8859-2 comes out in correct UTF-8
+  - [x] a page without an article gives its cleaned body and a note; a shell that needs scripts is reported as such
+  - [x] pictures: the caps (40, 5 MB, 25 MB) are enforced; a picture of the wrong type, a 404 and an svg are dropped and
         keep their `alt`; the type comes from the bytes, not from the header
-  - [ ] **refused addresses:** loopback, private, link-local, `169.254.169.254`, `::1`, an IPv4-mapped IPv6, a name that
+  - [x] **refused addresses:** loopback, private, link-local, `169.254.169.254`, `::1`, an IPv4-mapped IPv6, a name that
         resolves to one of them, and a redirect to one: the page and the pictures are refused (a test for each, with
         `allow_private: false`); `file:`, `ftp:` and an address with a login are refused; a page of more than 5 MB and a
         response that is not HTML are refused with a message that names the reason
-  - [ ] the timeouts and the redirect limit hold (a server that never answers, a redirect loop)
-  - [ ] clippy `-D warnings` and fmt clean; the crate does not depend on `notatnik-app` or the UI
+  - [x] the timeouts and the redirect limit hold (a server that never answers, a redirect loop)
+  - [x] clippy `-D warnings` and fmt clean; the crate does not depend on `notatnik-app` or the UI
+
+### How W1 was built, where it differs from the plan
+
+- **Readability:** `dom_smoothie` (MIT) did the job on every fixture, so Mozilla's `Readability.js` was not needed. Like
+  Readability.js it keeps the site name in a title of four words or fewer (`Notatki o herbacie | Blog`) and cuts it off a
+  longer one. It only gives up on a page of more than 30 000 elements; that is the only way into the whole-page
+  fallback (a test builds such a page).
+- **DNS rebinding is closed by construction:** the crate gives `ureq` its own `Resolver` (`net::Guard`) that resolves the
+  name, refuses it when any answer is not public, and returns only the addresses it checked, so the connection goes
+  where the check looked. An address written as a number (also `2130706433`, `0x7f.0.0.1`, `[::ffff:127.0.0.1]`) is
+  checked before any request is made. Redirects are followed by hand, each one checked the same way.
+- **Test hooks in `ClipPolicy`** (never set by the app): `allow_private`, `pretend_public` (a name that stands for a
+  public one and resolves to this computer, to test a redirect from a "public" site to a private address) and
+  shorter `page_timeout`/`picture_timeout`.
+- **XHTML:** the cleaned article is written by a small serializer (`xhtml.rs`), because an EPUB chapter is XML and the
+  HTML serializer writes `<br>`; the tests parse every XML file of the book with `quick-xml`.
+- **Fixtures** are in `fixtures/web/` (article, blog in Polish, a page in ISO-8859-2, a page with `<base>`, a list of
+  links, a script-only shell, a hostile page); `CLIP_DUMP=<dir> cargo test -p notatnik-clip` keeps the book of the article
+  test, to open in a reader.
+- **Found on the way:** the EPUB reader's content policy lacked `connect-src blob:`, which made it lose the style
+  sheets of real books (fixed, with a test; see `epub-annotation.md`).
 
 ### W2 The command (`clip_page`) and the sidecar
 
@@ -176,12 +197,8 @@ ED-27) for the HTTP client.
 
 ## Open questions
 
-- **Which Readability.** `dom_smoothie` or Mozilla's `Readability.js` in the webview: W1 runs both on the fixture pages
-  and the ten real pages and takes the one that cuts better; the Rust one is preferred because it can be tested without
-  a browser and used by the CLI.
-- **DNS rebinding.** The check resolves the name and connects to the address it checked, so a name that changes its
-  answer between two lookups does not matter; whether `ureq` lets us pin the address (a custom resolver) or W1 has to
-  use a small `connect` of its own is decided in W1.
+- **Which Readability.** Decided in W1: `dom_smoothie`.
+
 - **File size of a clip.** Pictures dominate. The caps above are a start; the ten real pages show whether they are
   right.
 - **Where `source::` goes** if the link is not at the start of the block (it is a property of the block, so it applies to

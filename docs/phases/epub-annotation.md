@@ -216,7 +216,7 @@ spot in the book. The EPUB file is never changed.
   bundled by Vite through `import.meta.glob` in `ui/src/lib/epub/foliate.ts`, so TypeScript does not follow the
   imports into code written for other compiler settings. ESLint and Prettier skip `vendor/`.
 - The CSP gets `frame-src blob:`, `font-src 'self' data: blob:`, and `blob:` in `img-src` and `style-src`; `script-src`
-  is untouched. No `connect-src` change was needed. The first reader spec fails if the policy refuses anything a plain
+  is untouched. `connect-src` gets `blob:` as well, because foliate-js reads a book's style sheets (and what they `@import`) with a `fetch` of a `blob:` address; without it a book with CSS loses its styles (found while checking a web clip, W1; the style-sheet spec covers it). The first reader spec fails if the policy refuses anything a plain
   book needs; the hostile-book spec fails if a script runs or a remote request leaves.
 - The shared parts are `ui/src/lib/annotate/` (`Sidecar`, colours) and `SelectionBar`, `HighlightPopup`,
   `AnnotationPanel`. Their test ids keep the `pdf-` prefix of the first viewer, so the PDF specs were not touched.

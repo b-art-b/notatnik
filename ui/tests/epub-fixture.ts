@@ -17,6 +17,8 @@ export interface BookSpec {
   /** Extra files below `OEBPS/` (name -> bytes), declared in the manifest with `type`. */
   files?: { name: string; type: string; bytes: Buffer }[]
   fixedLayout?: boolean
+  /** A style sheet `style.css` linked from every chapter. */
+  css?: string
 }
 
 function zip(entries: { name: string; data: Buffer }[]): Buffer {
@@ -67,7 +69,7 @@ export function makeEpub(spec: BookSpec): Buffer {
   const files = spec.files ?? []
   const xhtml = (c: Chapter, i: number) =>
     `<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" ${c.attrs ?? ''}>` +
-    `<head><title>${esc(c.title)}</title><meta charset="utf-8"/>${spec.fixedLayout ? '<meta name="viewport" content="width=600,height=800"/>' : ''}</head>` +
+    `<head><title>${esc(c.title)}</title><meta charset="utf-8"/>${spec.fixedLayout ? '<meta name="viewport" content="width=600,height=800"/>' : ''}${spec.css ? '<link rel="stylesheet" type="text/css" href="style.css"/>' : ''}</head>` +
     `<body><h1 id="top${i}">${esc(c.title)}</h1>${c.html}</body></html>`
   const nav =
     `<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body>` +
@@ -82,6 +84,7 @@ export function makeEpub(spec: BookSpec): Buffer {
       .map((_, i) => `<item id="ch${i + 1}" href="ch${i + 1}.xhtml" media-type="application/xhtml+xml"/>`)
       .join('') +
     files.map((f, i) => `<item id="f${i}" href="${f.name}" media-type="${f.type}"/>`).join('') +
+    (spec.css ? `<item id="css" href="style.css" media-type="text/css"/>` : '') +
     `</manifest><spine>${chapters.map((_, i) => `<itemref idref="ch${i + 1}"/>`).join('')}</spine></package>`
   return zip([
     { name: 'mimetype', data: Buffer.from('application/epub+zip') },
@@ -95,6 +98,7 @@ export function makeEpub(spec: BookSpec): Buffer {
     { name: 'OEBPS/nav.xhtml', data: Buffer.from(nav) },
     ...chapters.map((c, i) => ({ name: `OEBPS/ch${i + 1}.xhtml`, data: Buffer.from(xhtml(c, i + 1)) })),
     ...files.map((f) => ({ name: `OEBPS/${f.name}`, data: f.bytes })),
+    ...(spec.css ? [{ name: 'OEBPS/style.css', data: Buffer.from(spec.css) }] : []),
   ])
 }
 
@@ -190,5 +194,18 @@ export const longChapter = (n: number) =>
           ),
         ).join(''),
       },
+    ],
+  })
+
+/** A book whose style sheet makes `p.fancy` italic and the page background an image from the book (a `url()` in a style). */
+export const styledBook = () =>
+  makeEpub({
+    title: 'Styled',
+    css: '@import url("more.css");\np.fancy { font-style: italic; }\n',
+    files: [
+      { name: 'more.css', type: 'text/css', bytes: Buffer.from('p.fancy { text-decoration: underline; }\n') },
+    ],
+    chapters: [
+      { title: 'Styled', html: '<p class="fancy">A styled paragraph of the book.</p><p>A plain one.</p>' },
     ],
   })

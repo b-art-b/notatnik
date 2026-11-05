@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test as t, type Frame, type Page } from './fixtures'
-import { fixedLayoutBook, hostile, longBook, NOVEL, novel } from './epub-fixture'
+import { fixedLayoutBook, hostile, longBook, NOVEL, novel, styledBook } from './epub-fixture'
 
 // EA-1..EA-10: the EPUB reader, highlights kept as blocks of a sidecar page, the panel, references.
 
@@ -532,5 +532,26 @@ t(
     backend.write('pages/hls/novel.md', sidecar(backend).split('- Morning')[0])
     await expect(page.getByTestId('pdf-ref-chip')).toHaveCount(0, { timeout: 10_000 })
     await expect(tree.getByText('broken ref')).toBeVisible()
+  },
+)
+
+t(
+  'the style sheet of a book is applied and the policy refuses nothing it needs (EA-2)',
+  async ({ backend, page }) => {
+    const refused: string[] = []
+    page.on('console', (m) => {
+      if (/Content Security Policy|Refused to/i.test(m.text())) refused.push(m.text())
+    })
+    await openBook(page, backend, styledBook(), 'styled.epub')
+    await reads(page, 'A styled paragraph of the book.')
+    const frame = chapterFrames(page)[0]
+    // the book's own rules reach the paragraph, also the one that came in through an @import
+    await expect
+      .poll(() => frame.locator('p.fancy').evaluate((p) => getComputedStyle(p).fontStyle))
+      .toBe('italic')
+    await expect
+      .poll(() => frame.locator('p.fancy').evaluate((p) => getComputedStyle(p).textDecorationLine))
+      .toBe('underline')
+    expect(refused).toEqual([])
   },
 )
