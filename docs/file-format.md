@@ -477,3 +477,14 @@ link it (DR-14); the index reads the drawing files of a page when it indexes the
 A sync that finds the drawing changed on two devices keeps the server's file and saves the other version beside it as
 `draw-<8 hex> (conflicted copy <date and time>).svg` (the usual conflict name); the editor offers it when the drawing is
 opened (DR-23).
+
+## PDF annotations (PA-2, PA-3, PA-5, planned)
+
+The highlights of a PDF in `assets/` are blocks of an ordinary page, the _sidecar_ `pages/hls/<pdf name>.md`
+([phases/pdf-annotation.md](phases/pdf-annotation.md)); the PDF is never written. The frontmatter binds the page to the
+file: `file` (the PDF's path relative to the sidecar), `sha` (first 16 hex of the blake3 of the PDF) and
+`type: annotations`. A highlight is one top-level block: the quoted text (or `![area](…png)` for an area), a block ID
+(`^abc123`), and the properties `hl-page` (from 1), `hl-color` (`yellow`, `green`, `blue`, `red`, `purple`), `hl-rects`
+(`x,y,w,h` fractions of the page from the top left, boxes separated by `;`), `hl-context` (text before and after, for
+finding it again later) and, for an area, `hl-type:: area`. The comment is the block's children. Pictures of areas are
+`assets/hls/<name>-p<page>-<8 hex>.png`.

@@ -22,7 +22,7 @@ with Logseq's file format. Goals:
 3. Integrate with daily life: calendar, tasks, Android access.
 4. Extensible: plugins, scripting, custom views, AI.
 
-Non-goals (for now): real-time multi-user collaboration, whiteboards, PDF annotation,
+Non-goals (for now): real-time multi-user collaboration, whiteboards,
 flashcards, Logseq/Obsidian compatibility, a hosted/web version.
 
 ## 2. Platforms
@@ -166,6 +166,12 @@ A **graph** is a folder of notes.
 | DR-22 | A drawing can be copied as a picture (PNG on the clipboard) and saved as PNG (about 2000 px on the longer side) or SVG, named after the drawing; the desktop app asks where with the system's save dialog, a browser downloads the file. | V1 |
 | DR-23 | A copy that a sync leaves of a drawing changed on two devices (`draw-<8 hex> (conflicted copy …).svg`) is offered when the drawing is opened: add its strokes (strokes both versions have stay single), use that version, or keep this one; a copy that was used goes to the trash when the drawing is saved. | V1 |
 | DR-24 | A picture pasted into the drawing (Ctrl+V, or the paste of a tablet) becomes part of the drawing. | V1 |
+
+### PDF annotation (A1..A7, [phases/pdf-annotation.md](phases/pdf-annotation.md))
+
+| ID | Requirement | Priority |
+| --- | --- | --- |
+| PA-10 | The viewer keeps only a few pages rendered at a time, so a PDF of hundreds of pages opens at once, and its code is not part of the first page load. | V1 |
 
 ## 5. Pages, links and namespaces
 
