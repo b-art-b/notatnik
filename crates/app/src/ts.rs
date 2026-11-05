@@ -177,6 +177,8 @@ pub fn typescript_bindings() -> String {
         SaveAssetArgs,
         SaveDrawingArgs,
         ReadDrawingArgs,
+        AnnotationPageArgs,
+        AnnotationPage,
         AttachFileArgs,
         SavedAsset,
         RemoteInfo,

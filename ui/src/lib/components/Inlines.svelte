@@ -16,6 +16,8 @@
     type DrawingHost,
     type DrawingMode,
   } from '../commands/drawing'
+  import { openPdf } from '../commands/pdf'
+  import { parsePdfHref } from '../pdf/highlights'
 
   // the block this text is in, if any: it can rewrite or remove the reference to a drawing (`Block.svelte`)
   const drawingHost = getContext<DrawingHost | undefined>(DRAWING_HOST) ?? null
@@ -81,8 +83,10 @@
         onclick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          // a link without a scheme is a file copied into the graph (`../assets/…`)
-          if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
+          // a link without a scheme is a file copied into the graph (`../assets/…`); a PDF opens in the viewer (PA-1)
+          const pdf = parsePdfHref(it.href)
+          if (pdf) void openPdf({ path: pdf.path, page: pdf.page ?? undefined })
+          else if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
           else backend.openAsset(it.href)
         }}><Self items={it.children} {chain} /></a
       >{/if}{:else if it.type === 'image'}{@const drawing = drawingPath(

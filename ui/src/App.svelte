@@ -50,6 +50,7 @@
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import DrawingEditor from './lib/components/DrawingEditor.svelte'
+  import PdfViewer from './lib/components/PdfViewer.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
   import TransferDialog from './lib/components/TransferDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
@@ -547,6 +548,7 @@
 {#if app.transfer}<TransferDialog />{/if}
 {#if app.templateAsks}<TemplateAskDialog />{/if}
 {#if app.drawing}<DrawingEditor />{/if}
+{#if app.pdf}<PdfViewer />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
       {t.message}

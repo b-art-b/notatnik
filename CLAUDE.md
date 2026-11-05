@@ -12,6 +12,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/placeholders.md`: `{{page}}`, `{{title}}`, `{{date}}` ... in templates and queries, and where the app offers them
 - `docs/date-formats.md`: display date formats and the custom pattern tokens (device setting)
 - `docs/logging.md`: what the app writes to the terminal log, at which level, and what is never logged (`RUST_LOG`)
+- `docs/phases/pdf-annotation.md`: a viewer for PDFs in the graph, highlights and comments kept as blocks of a hidden sidecar page `hls/<name>` (PA-1..PA-10)
 - `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)

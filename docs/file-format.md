@@ -478,7 +478,7 @@ A sync that finds the drawing changed on two devices keeps the server's file and
 `draw-<8 hex> (conflicted copy <date and time>).svg` (the usual conflict name); the editor offers it when the drawing is
 opened (DR-23).
 
-## PDF annotations (PA-2, PA-3, PA-5, planned)
+## PDF annotations (PA-2, PA-3, PA-5)
 
 The highlights of a PDF in `assets/` are blocks of an ordinary page, the _sidecar_ `pages/hls/<pdf name>.md`
 ([phases/pdf-annotation.md](phases/pdf-annotation.md)); the PDF is never written. The frontmatter binds the page to the
@@ -487,5 +487,4 @@ file: `file` (the PDF's path in the graph), `sha` (first 16 hex of the blake3 of
 (`^abc123`), and the properties `hl-page` (from 1), `hl-color` (`yellow`, `green`, `blue`, `red`, `purple`), `hl-from` and `hl-to`
 (character offsets of the start and the end of the quote in the text of that page; no boxes are stored), `hl-context` (text
 before and after, to find the quote again if the offsets no longer fit) and, for an area, `hl-type:: area` and `hl-rect`
-(`x,y,w,h` as fractions of the page from the top left). The comment is the block's children. Pictures of areas are
-`assets/hls/<name>-p<page>-<8 hex>.png`.
+(`x,y,w,h` as fractions of the page from the top left). The comment is the block's children. Pictures of areas are stored like any pasted picture, `assets/YYYY/MM/<name>-p<page>-<hash8>.png`.

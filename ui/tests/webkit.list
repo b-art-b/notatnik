@@ -10,3 +10,5 @@ tests/shortcuts.spec.ts
 tests/drawing.spec.ts
 tests/drawing-extras.spec.ts
 tests/touch.spec.ts
+tests/pdf.spec.ts
+tests/pdf-touch.spec.ts

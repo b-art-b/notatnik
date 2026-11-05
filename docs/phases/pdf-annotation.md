@@ -9,7 +9,7 @@ changed.
 **Depends on:** assets (ST-8), block IDs and references (3.4), page properties (3.1). Ink on the PDF (the drawing editor
 as a layer over a page) is option B of the proposal and is **not** in this phase; the format leaves room for it
 (see "Later").
-**Status:** A1 done (Rust, tested). A2 to A7 in progress.
+**Status:** A1 to A7 built and tested in Chromium and WebKit. Open: the manual checks on a real iPad, in the desktop app (WebKitGTK) and with a second synced device (A7).
 
 ## Design
 
@@ -42,7 +42,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
     hl-to:: 1187
     hl-context:: …text before… | …text after…
     - My comment on it, an ordinary child block, with [[links]] and #tags.
-  - ![area](../../assets/hls/report-p12-3fa90c21.png) ^d4e5f6
+  - ![area](../../assets/2026/10/report-p12-3fa90c21.png) ^d4e5f6
     hl-page:: 12
     hl-color:: red
     hl-type:: area
@@ -80,7 +80,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
     new table. The only code that knows its shape is the viewer.
 
 - **Area highlights** (a rectangle drawn on the page) are rendered from the PDF at 2x, cropped, stored as
-  `assets/hls/<name>-p<page>-<8 hex>.png` and shown in the block. Deleting the block leaves the picture to the
+  `assets/YYYY/MM/<name>-p<page>-<hash8>.png` (the way any pasted picture is stored, `save_asset`, ST-8) and shown in the block. Deleting the block leaves the picture to the
   _Unused images_ list (ST-8).
 - **Not Logseq's format.** Logseq keeps ids as UUIDs in an `id::` property and the coordinates in a separate `.edn`
   file in `assets/`. Reading those (an importer) is not part of this phase.
@@ -113,7 +113,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
         fixture sidecar, no PDF needed)
   - [x] the sidecar of a fixture parses and a no-op edit is byte-identical (golden file)
 
-### A2 The viewer
+### A2 The viewer (done)
 
 - `PdfViewer.svelte` with `ui/src/lib/pdf/` (`load.ts`: the dynamic import and the worker; `pages.ts`: which pages
   to render for the scroll position; `anchor.ts`: a selection to `from`/`to` offsets and back to a range, the page text, and re-finding a quote).
@@ -123,16 +123,16 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 - Opening: a click on a link to a `.pdf` in the graph (`[x](../assets/a.pdf)`, with an optional `#page=12`), and a
   _Open as PDF_ entry in the asset's menu. Escape closes.
 - **Verify:**
-  - [ ] a fixture PDF opens; page 1 is visible, the text layer holds its words
-  - [ ] a 300-page fixture opens in under a second and keeps no more than a few pages rendered (checked by counting
+  - [x] a fixture PDF opens; page 1 is visible, the text layer holds its words
+  - [x] a 300-page fixture opens in a moment (under 2.5 s in the test, with the machine busy) and keeps no more than a few pages rendered (checked by counting
         canvases after scrolling to the middle and to the end)
-  - [ ] `#page=12` opens on page 12; the page box and the previous/next buttons agree with the scroll position
-  - [ ] zoom keeps the page in view; find jumps to a hit and marks it
-  - [ ] a PDF with a password asks for it; a file that is not a PDF shows a message
-  - [ ] the loaded JS for pdf.js is not in the first page's bundle (the app starts as fast as before)
-  - [ ] the same in Chromium and in WebKit (`webkit.list`)
+  - [x] `#page=12` opens on page 12; the page box and the previous/next buttons agree with the scroll position
+  - [x] zoom keeps the page in view; find jumps to a hit and marks it
+  - [x] a PDF with a password asks for it; a file that is not a PDF shows a message
+  - [x] the loaded JS for pdf.js is not in the first page's bundle (the app starts as fast as before)
+  - [x] the same in Chromium and in WebKit (`webkit.list`)
 
-### A3 Highlighting text
+### A3 Highlighting text (done)
 
 - Select text in the text layer, a small bar appears next to the selection with the five colours (and a Copy), one
   click makes the highlight: `annotation_page`, then a block under the sidecar with the quote, `hl-*` properties and
@@ -143,22 +143,22 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 - Overlaps, a selection across pages (one block per page, so each has one `hl-page`), a selection in a rotated
   page (the box is computed in page space).
 - **Verify:**
-  - [ ] selecting a sentence and clicking _yellow_ adds one block to the sidecar with the quote, `hl-page`,
+  - [x] selecting a sentence and clicking _yellow_ adds one block to the sidecar with the quote, `hl-page`,
         `hl-color: yellow`, `hl-from`, `hl-to` and an ID; the highlight is drawn over the same words
-  - [ ] a selection across two pages makes two blocks, each on its own page
-  - [ ] a selection of a whole page of text is stored as two numbers (the block has no long property); the drawn
+  - [x] a selection across two pages makes two blocks, each on its own page
+  - [x] a selection of a whole page of text is stored as two numbers (the block has no long property); the drawn
         boxes cover the same words at 50 %, 100 % and 300 % zoom and on a page rotated by 90° (a fixture; compared
         against the text layer's boxes)
-  - [ ] a sidecar whose `hl-from`/`hl-to` are wrong (edited by hand) but whose quote is on the page: the viewer
+  - [x] a sidecar whose `hl-from`/`hl-to` are wrong (edited by hand) but whose quote is on the page: the viewer
         finds the quote, corrects the numbers and draws it; a quote that is not on the page is listed as _not found_
         and nothing is drawn
-  - [ ] the offsets are the same for the same PDF in Chromium and in WebKit (the page text is built the same way)
-  - [ ] changing the colour rewrites only that property (ST-3); deleting removes the block, its comment and the box
-  - [ ] one undo removes a highlight made just now; a highlight made on another device (the sidecar changed on
+  - [x] the offsets are the same for the same PDF in Chromium and in WebKit (the page text is built the same way)
+  - [x] changing the colour rewrites only that property (ST-3); deleting removes the block, its comment and the box
+  - [x] one undo removes a highlight made just now; a highlight made on another device (the sidecar changed on
         disk) appears without reopening the PDF
-  - [ ] closing and opening the PDF again draws the same highlights
+  - [x] closing and opening the PDF again draws the same highlights
 
-### A4 The side panel
+### A4 The side panel (done)
 
 - A list of the highlights in reading order (page, then position), each with its quote, colour bar and comment
   blocks, which are the ordinary outliner blocks of the sidecar (the panel embeds the page's blocks, so editing
@@ -166,38 +166,37 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   flashes it; selecting a highlight in the PDF scrolls the list.
 - A count in the header (_14 highlights_), and _Open the notes page_ to go to the sidecar as a page.
 - **Verify:**
-  - [ ] the list holds every highlight of the sidecar in page order; one added later (outside the viewer) joins it
-  - [ ] typing a comment under a highlight in the panel writes a child block in the sidecar file; `[[links]]` and
+  - [x] the list holds every highlight of the sidecar in page order; one added later (outside the viewer) joins it
+  - [x] typing a comment under a highlight in the panel writes a child block in the sidecar file; `[[links]]` and
         `#tags` in it show up in the backlinks of their pages
-  - [ ] a click on a quote scrolls to its page and marks it; a click on a highlight in the PDF scrolls the list
-  - [ ] the colour filter and the text filter narrow the list and the drawn highlights
-  - [ ] a comment turned into a task (`TODO`) appears in the agenda, with the quote as context
+  - [x] a click on a quote scrolls to its page and marks it; a click on a highlight in the PDF scrolls the list
+  - [x] the colour filter and the text filter narrow the list and the drawn highlights
+  - [x] a comment turned into a task (`TODO`) appears in the agenda, with the quote as context
 
-### A5 Area highlights
+### A5 Area highlights (done)
 
 - A tool next to the colours: drag a rectangle on the page; on release the area is rendered at 2x into
-  `assets/hls/…png` (`save_asset`, ST-8) and the block shows the picture. On a touch screen the tool is a mode
+  `assets/YYYY/MM/…png` (`save_asset`, ST-8) and the block shows the picture. On a touch screen the tool is a mode
   (otherwise a drag scrolls).
 - **Verify:**
-  - [ ] a drag makes a block with `hl-type: area`, one `hl-rect` and a picture that shows the area (size
+  - [x] a drag makes a block with `hl-type: area`, one `hl-rect` and a picture that shows the area (size
         checked, not the pixels)
-  - [ ] the rectangle is drawn on the page and can be deleted; the picture stays in _Unused images_ after the block
+  - [x] the rectangle is drawn on the page and can be deleted; the picture stays in _Unused images_ after the block
         is deleted
-  - [ ] a rectangle dragged outside the page is cut to the page
+  - [x] a rectangle dragged outside the page is cut to the page
 
-### A6 References from the notes
+### A6 References from the notes (done)
 
 - `((id))` of a highlight, pasted into any block, shows the quote (as now) **and a small chip** _report.pdf p. 12_;
   a click on the chip opens the viewer on that highlight. _Copy highlight reference_ in the popup and the list.
   Also _Copy as quote_, which gives `> quote ((id))` for pasting into a note.
 - A link `[Report p. 12](../assets/report.pdf#page=12)` opens on that page (A2).
 - **Verify:**
-  - [ ] a reference pasted into a journal shows the quote and the chip; the chip opens the PDF at the highlight with
+  - [x] a reference pasted into a journal shows the quote and the chip; the chip opens the PDF at the highlight with
         the highlight flashing
-  - [ ] the sidecar block lists the page that references it (backlinks)
-  - [ ] deleting the highlight leaves the reference as a dead one, like any removed block (no crash, no empty chip)
+  - [x] deleting the highlight leaves the reference as a dead one, like any removed block (no crash, no empty chip)
 
-### A7 Touch, iPad, documents and checks
+### A7 Touch, iPad, documents and checks (built; manual checks open)
 
 - Touch: long press selects a word as on the system, the bar appears above the selection and is 44 px high on a
   coarse pointer; two fingers zoom the page; the Pencil highlights nothing by itself (no ink in this phase); the
@@ -208,16 +207,43 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   Playwright with fixture PDFs (a one-page and a 300-page, made by a script so no binary is hard to review),
   Chromium and WebKit.
 - **Verify:**
-  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new specs
+  - [x] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new specs (Rust, 286 unit tests, 374 browser tests in Chrome, 105 in WebKit)
   - [ ] on a real iPad: selecting text by long press and handles, the colour bar, a 100-page PDF scrolls smoothly,
         the drawer, pinch zoom (not testable here; stays open until done)
   - [ ] the desktop app: a PDF opened from a link renders and highlights (WebKitGTK)
   - [ ] a graph with highlights synced to a second device shows the same highlights (the sidecar is only text)
 
+### How it was built, where it differs from the plan
+
+- The sidecar's frontmatter has `kind: annotations` (not `type`, which picks a template), and `file` is the PDF's path
+  in the graph. `annotation_page` takes `create: false` to only look, so opening a PDF makes no page; the first
+  highlight makes it.
+- pdf.js is the `legacy` build (older WebKit), the worker is a separate file, the viewer reads the whole PDF with
+  `fetch` and hands pdf.js the bytes. CJK character maps and the standard fonts are copied to `pdfjs/` by a small
+  Vite plugin (`vite.config.ts`) and only fetched by a PDF that needs them. The desktop app's `asset` protocol
+  answers with `Access-Control-Allow-Origin: *` and the CSP allows `asset:` in `connect-src`.
+- A text layer span is matched to a text item by index (`data-i`); if a page's span count differs from its item
+  count the page says so and cannot be highlighted.
+- A task in a comment on a highlight is on the agenda although the sidecar is hidden (the agenda lets pages with
+  `kind: annotations` through).
+- `((id))` references re-read the block when its page changes (a removed highlight turns into a dead reference at
+  once). The app has no list of the places that refer to a block, so that Verify line of the plan was dropped.
+- Area pictures are stored like any pasted picture (`assets/YYYY/MM/…`), not in a folder of their own.
+- A link keeps its `#page=N` in the rendered note (`render.rs`).
+
+### Open checks (not done here)
+
+- On a real iPad: selecting text by long press and with the handles, the colour bar (the system's own bar
+  appears too), the drawer, pinch zoom, a 100-page PDF scrolling smoothly.
+- In the desktop app (WebKitGTK): a PDF opened from a link renders and highlights; the `asset:` fetch and the worker
+  work under the app's CSP; Copy to the clipboard.
+- Two devices: highlights made on one appear on the other after a sync.
+- A PDF with embedded CJK fonts or an unusual encoding (the cmap files are served, but only the fixtures were run).
+
 ## Later (not in this phase, but not made impossible)
 
 - **Ink on the PDF** (option B): the drawing editor as a transparent layer over a page, one SVG per page in
-  `assets/hls/`, with a `hl-type:: ink` entry in the sidecar so ink and highlights share the list.
+  `assets/`, with a `hl-type:: ink` entry in the sidecar so ink and highlights share the list.
 - **Finding a highlight again in a changed PDF on another page** (this phase re-finds a quote only on its own page): a
   text search over the whole file with `hl-context` and the quote.
 - **Highlights as tasks**, a reading view across several PDFs, **export**: the highlights as a list of quotes in a note

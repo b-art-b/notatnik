@@ -1,5 +1,6 @@
 import { backend, CommandError, type GraphInfo } from '../api'
 import type { DrawingOpen } from '../commands/drawing'
+import type { PdfOpen } from '../commands/pdf'
 import { parseHash, routeHash, type Route } from '../route'
 import { setDateFormat, setDateLocale } from '../dates'
 
@@ -117,6 +118,8 @@ export const app = $state({
   drawing: null as DrawingOpen | null,
   /** When each drawing was last saved (ms), so a picture of it that was cached is fetched again. */
   drawingStamp: {} as Record<string, number>,
+  /** The PDF viewer while it is open (PA-1): the PDF, and the page or highlight to show first. */
+  pdf: null as PdfOpen | null,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
   templateAsks: null as { name: string; asks: { label: string; default: string; page: boolean }[] } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */

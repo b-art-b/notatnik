@@ -580,8 +580,17 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
                     href: dest_url.to_string(),
                     children,
                 });
-            } else if let Some(href) = local_target(&dest_url, false) {
-                // a file in the graph (a copied attachment, Nextcloud's `.attachments.N/…`): opened by the shell
+            } else if let Some(mut href) = local_target(&dest_url, false) {
+                // a file in the graph (a copied attachment, Nextcloud's `.attachments.N/…`): opened by the shell.
+                // A PDF keeps the page of `#page=12`, which the viewer opens on (PA-1).
+                if href.to_ascii_lowercase().ends_with(".pdf")
+                    && let Some(page) = dest_url.split_once('#').and_then(|(_, frag)| {
+                        frag.split('&')
+                            .find_map(|kv| kv.strip_prefix("page=")?.parse::<u32>().ok())
+                    })
+                {
+                    href = format!("{href}#page={page}");
+                }
                 out.push(Inline::Link { href, children });
             } else {
                 out.extend(children);
@@ -917,6 +926,33 @@ mod tests {
                 "file:///home/me/My%20Docs/a.pdf",
                 "../../assets/2026/10/b-1234abcd.pdf",
                 "assets/c.txt"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_link_to_a_pdf_keeps_its_page() {
+        let _g = with_base_dir("pages");
+        let n = render_with_core(
+            "[a](../assets/r.pdf#page=12) [b](../assets/r.pdf#zoom=2&page=3) [c](../assets/r.pdf#evil) [d](../assets/r.txt#page=4)",
+        );
+        let Node::Paragraph { children } = &n[0] else {
+            panic!()
+        };
+        let links: Vec<&str> = children
+            .iter()
+            .filter_map(|c| match c {
+                Inline::Link { href, .. } => Some(href.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            links,
+            [
+                "assets/r.pdf#page=12",
+                "assets/r.pdf#page=3",
+                "assets/r.pdf",
+                "assets/r.txt"
             ]
         );
     }

@@ -1712,12 +1712,17 @@ pub struct ReadDrawingArgs {
 pub struct AnnotationPageArgs {
     /// The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`).
     pub path: String,
+    /// `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
+    /// The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
+    #[serde(default)]
+    #[ts(optional)]
+    pub create: Option<bool>,
 }
 
 /// The sidecar page of a PDF.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AnnotationPage {
-    /// The page name, `hls/<name>`.
+    /// The page name, `hls/<name>`; empty when there is none and `create` was `false`.
     pub page: String,
     /// Graph-relative path of the PDF.
     pub file: String,

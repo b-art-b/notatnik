@@ -7117,6 +7117,13 @@ fn a_pdf_gets_a_hidden_sidecar_page_found_again_by_its_file() {
     let t = start("basic");
     put_pdf(&t, "assets/report.pdf", "one");
     put_pdf(&t, "assets/old/report.pdf", "two");
+    // looking is not making
+    let looked = t.ok(
+        "annotation_page",
+        json!({"path": "assets/report.pdf", "create": false}),
+    );
+    assert_eq!(looked["page"], "");
+    assert!(!t.graph().join("pages/hls").exists());
     let first = t.ok(
         "annotation_page",
         json!({"path": "../../assets/report.pdf"}),
@@ -7234,4 +7241,30 @@ fn the_text_of_a_highlight_is_found_by_the_search() {
     // the comment is found as well
     let comment = t.ok("search", json!({"text": "exam", "limit": 10}));
     assert_eq!(comment.as_array().unwrap().len(), 1, "{comment}");
+}
+
+/// PA-4: the sidecar is hidden, but a task in a comment on a highlight is on the agenda, with the quote above it.
+#[test]
+fn a_task_in_a_comment_on_a_highlight_is_on_the_agenda() {
+    let t = start("basic");
+    put_pdf(&t, "assets/report.pdf", "four");
+    t.ok("annotation_page", json!({"path": "assets/report.pdf"}));
+    let page = t.read("pages/hls/report.md");
+    std::fs::write(
+        t.graph().join("pages/hls/report.md"),
+        format!(
+            "{page}\n- Check the numbers in table 3 ^a1b2c3\n  hl-page:: 3\n  hl-from:: 10\n  hl-to:: 30\n  - TODO recompute table 3\n"
+        ),
+    )
+    .unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": t.graph().to_str().unwrap(), "create": false}),
+    );
+    let a = t.ok("agenda", json!({"ns": null, "tag": null, "priority": null}));
+    let text = a.to_string();
+    assert!(
+        text.contains("recompute table 3") && text.contains("Check the numbers in table 3"),
+        "{text}"
+    );
 }

@@ -2144,6 +2144,33 @@ export type ReadDrawingArgs = {
  * `assets/drawings/draw-<8 hex>.svg`, also as a page link writes it (`../../assets/...`).
  */
 path: string, };
+export type AnnotationPageArgs = { 
+/**
+ * The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`).
+ */
+path: string, 
+/**
+ * `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
+ * The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
+ */
+create?: boolean, };
+export type AnnotationPage = { 
+/**
+ * The page name, `hls/<name>`; empty when there is none and `create` was `false`.
+ */
+page: string, 
+/**
+ * Graph-relative path of the PDF.
+ */
+file: string, 
+/**
+ * First 16 hex digits of the blake3 of the PDF.
+ */
+sha: string, 
+/**
+ * The page was made by this call.
+ */
+created: boolean, };
 export type AttachFileArgs = { 
 /**
  * The page the link is written in; the link is relative to this page's file.

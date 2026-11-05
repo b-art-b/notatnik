@@ -2509,6 +2509,8 @@ impl AppState {
                 )?;
                 self.emit_page_changed(p);
                 p.clone()
+            } else if a.create == Some(false) {
+                String::new()
             } else {
                 created = true;
                 let stem = notatnik_graph::pdf_stem(&file).replace('/', "-");
@@ -2996,11 +2998,19 @@ impl AppState {
                 .into_iter()
                 .map(|n| n.to_lowercase())
                 .collect();
+            // the notes on a PDF are hidden like any page, but a task among them is real work (PA-4)
+            let sidecars: HashSet<String> = o
+                .graph
+                .with_index(|i| i.pages_with_property("kind", ANNOTATIONS_KIND))?
+                .into_iter()
+                .map(|n| n.to_lowercase())
+                .collect();
             for r in res.rows {
                 let lower = r.page.to_lowercase();
-                if archived
-                    .iter()
-                    .any(|a| lower == *a || lower.starts_with(&format!("{a}/")))
+                if !sidecars.contains(&lower)
+                    && archived
+                        .iter()
+                        .any(|a| lower == *a || lower.starts_with(&format!("{a}/")))
                 {
                     continue;
                 }

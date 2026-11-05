@@ -332,6 +332,18 @@ misread (`a: b`) is quoted automatically.
 
 Drag a block's **bullet**. The block moves together with all its sub-bullets. The drop line shows where it lands: upper half of a block = before it; lower half = after it, or as its first child when that block shows children, or as a child when you drop clearly to the right of its bullet. A block can't be dropped into itself. Undo (Ctrl+Z) brings it back. Dragging works within a page.
 
+## PDFs: reading, highlighting, notes (PA-1..PA-10)
+
+A link to a **PDF in the graph** (`[Report](../assets/report.pdf)`, also `…#page=12`) opens the PDF in a full-screen viewer instead of the system's program; a PDF elsewhere (a `file:///` or web address) still opens outside. The PDF is never changed. _Open as PDF_ is simply a click on the link. Copy a PDF into the graph with `/file` → This computer → Copy.
+
+- **Header:** the file name; `‹` `›` and a page box (type a number, Enter); zoom `−` `+` and the percent (click it for the width of the window; Ctrl+wheel, Ctrl+`+`/`−` and a two-finger pinch zoom as well); **Find** (Ctrl+F; Enter next, Shift+Enter previous; the hits are marked and counted); **Area**; **Highlights** (the panel); **Close** (Esc).
+- **Highlight text:** select text; a bar with five colours (yellow, green, blue, red, purple) and _Copy_ appears next to it; one click makes the highlight. A selection that runs over several pages makes one highlight for each page. Esc clears the selection.
+- **A highlight:** click it for a small menu: the colour, _Add comment_, _Copy reference_ (`((id))`), _Copy as quote_ (`> quote ((id))`) and _Delete_.
+- **Area highlight:** switch **Area** on, pick a colour, drag a rectangle on the page (it is cut to the page); the area is stored as a picture. Switch Area off to select text again.
+- **Panel (Highlights):** every highlight in reading order (page, then place) with its quote or picture and its comments; click the quote to go there (it flashes); filter by colour and by text; _＋ Comment_ adds a child block and starts editing it (the comment is an ordinary block: `[[links]]`, `#tags`, `TODO` work; a task there is on the agenda with the quote above it). A highlight that is no longer in the PDF's text says _Not found on page N_ and is not drawn. _Open the notes page_ opens the sidecar page. On a narrow window the panel lies over the pages.
+- **In your notes:** a `((id))` of a highlight shows its quote and a chip _report.pdf p. 12_; the chip opens the PDF at the highlight.
+- **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`). Edit them in a text editor if you like.
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.

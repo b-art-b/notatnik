@@ -309,6 +309,9 @@ pub fn run() {
             match bytes {
                 Some(b) => tauri::http::Response::builder()
                     .header("Content-Type", notatnik_app::asset_content_type(&path))
+                    // the PDF viewer reads a PDF with `fetch` (PA-1), which a page of another origin may do only
+                    // with this header; an `<img>` never needed it
+                    .header("Access-Control-Allow-Origin", "*")
                     .body(b)
                     .unwrap(),
                 None => tauri::http::Response::builder()
