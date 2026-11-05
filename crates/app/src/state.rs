@@ -2458,15 +2458,15 @@ impl AppState {
         })
     }
 
-    /// `annotation_page`: the sidecar page of a PDF in the graph, made on the first call (PA-2). It is found by its
+    /// `annotation_page`: the sidecar page of a PDF or an EPUB in the graph, made on the first call (PA-2). It is found by its
     /// `file` property; when the PDF was moved by hand it is found by `sha` and `file` is corrected. The page is
     /// hidden (`archived`). It is made without an undo step: it holds nothing until the first highlight.
     pub fn annotation_page(&self, a: AnnotationPageArgs) -> ApiResult<AnnotationPage> {
         let file = notatnik_graph::graph_relative(&a.path);
-        if !notatnik_graph::is_pdf_path(&file) {
+        if !notatnik_graph::is_annotatable_path(&file) {
             return Err(ApiError::new(
                 "invalid",
-                "annotations work on a PDF in the assets of this graph",
+                "annotations work on a PDF or an EPUB in the assets of this graph",
             ));
         }
         self.with_open(|o| {

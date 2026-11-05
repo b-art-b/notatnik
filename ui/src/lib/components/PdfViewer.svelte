@@ -7,10 +7,8 @@
   // `bind:this` gives the element or child component; `untrack` reads without making an effect depend on it.
   import { onMount, tick, untrack } from 'svelte'
   import type { PDFDocumentProxy } from 'pdfjs-dist'
-  import { backend, type AnnotationPage, type BlockOp, type PageView } from '../api'
+  import { backend } from '../api'
   import { app, errorMessage, toast } from '../stores/app.svelte'
-  import { getDoc } from '../stores/pages.svelte'
-  import { startEditing } from '../stores/editing.svelte'
   import { finishPdf } from '../commands/pdf'
   import { pageHash } from '../route'
   import { openDocument, PdfError } from '../pdf/load'
@@ -19,26 +17,22 @@
   import {
     areaHighlightBlock,
     COLORS,
-    highlightsOf,
     textHighlightBlock,
     type Color,
     type Highlight,
     type Rect,
   } from '../pdf/highlights'
   import PdfPage, { type Mark } from './PdfPage.svelte'
-  import BlockList from './BlockList.svelte'
+  import AnnotationPanel from './AnnotationPanel.svelte'
+  import HighlightPopup from './HighlightPopup.svelte'
+  import SelectionBar from './SelectionBar.svelte'
+  import { COLOR_HEX } from '../annotate/colors'
+  import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
 
   // `app.pdf` is set when the viewer opens and stays the same until it closes: a snapshot is enough
   const target = untrack(() => app.pdf)!
   const fileName = target.path.split('/').pop() ?? target.path
 
-  const COLOR_HEX: Record<Color, string> = {
-    yellow: '#ffd400',
-    green: '#4ccf4c',
-    blue: '#4aa3ff',
-    red: '#ff5c5c',
-    purple: '#b178ff',
-  }
   const GAP = 12
   const PAD = 16
 
@@ -47,7 +41,6 @@
   let status = $state<'loading' | 'ready' | 'error'>('loading')
   let message = $state('')
   let numPages = $state(0)
-  let sideLoaded = $state(false) // the sidecar was asked for, so the first position can be chosen
   let password = $state<{ wrong: boolean; answer: (pw: string | null) => void } | null>(null)
   let passwordText = $state('')
 
@@ -82,8 +75,7 @@
         doc = d
         numPages = d.numPages
         status = 'ready'
-        await loadSidecar()
-        sideLoaded = true
+        await sc.load()
       } catch (e) {
         if (dead) return
         status = 'error'
@@ -162,7 +154,7 @@
   // before that the page sizes are not final and the position would move
   let placed = false
   $effect(() => {
-    if (status === 'ready' && sideLoaded && viewW > 0 && scroller && !placed) {
+    if (status === 'ready' && sc.loaded && viewW > 0 && scroller && !placed) {
       placed = true
       untrack(() => void openAt())
     }
@@ -252,56 +244,13 @@
   }
 
   // ---------------------------------------------------------------- the sidecar and its highlights
-  let side = $state<AnnotationPage | null>(null)
-  const sideDoc = $derived(side && side.page ? getDoc(side.page) : null)
-  const highlights = $derived(highlightsOf(sideDoc?.view))
-  // highlights that were looked for in the text of their page and are not there (by the key of the block)
-  let missing = $state<Record<string, boolean>>({})
-  const fixed = new Set<string>()
-
-  async function loadSidecar() {
-    try {
-      side = await backend.call('annotation_page', { path: target.path, create: false })
-    } catch (e) {
-      toast(errorMessage(e), 'error')
-    }
-  }
-
-  /** The sidecar page, made on the first highlight. */
-  async function ensureSidecar(): Promise<PageView | null> {
-    if (!side?.page) {
-      side = await backend.call('annotation_page', { path: target.path })
-      await getDoc(side.page).load()
-    }
-    const d = getDoc(side.page)
-    await d.loaded
-    return d.view
-  }
-
-  const pathOfUid = (view: PageView | null, uid: string): number[] | null => {
-    const i = view?.blocks.findIndex((b) => b.uid === uid) ?? -1
-    return i < 0 ? null : [i]
-  }
+  const sc = new Sidecar(target.path)
 
   /** A text highlight was looked for in the text of its page: the numbers are corrected when the quote moved. */
   function onPlaced(h: Highlight, at: { from: number; to: number } | null) {
-    const k = h.uid ?? String(h.blockId)
-    if ((missing[k] ?? false) !== (at === null)) missing[k] = at === null
-    if (at && h.uid && (at.from !== h.from || at.to !== h.to)) {
-      const key = `${h.uid}:${at.from}:${at.to}`
-      if (fixed.has(key)) return
-      fixed.add(key)
-      const uid = h.uid
-      void sideDoc?.applyWith((view) => {
-        const path = pathOfUid(view, uid)
-        if (!path) return null
-        const block = { path, hash: null }
-        return [
-          { op: 'set_property', block, key: 'hl-from', value: String(at.from) },
-          { op: 'set_property', block, key: 'hl-to', value: String(at.to) },
-        ]
-      })
-    }
+    sc.mark(h, at !== null)
+    if (at && (at.from !== h.from || at.to !== h.to))
+      sc.correct(h, { 'hl-from': String(at.from), 'hl-to': String(at.to) })
   }
 
   // ---------------------------------------------------------------- find
@@ -364,7 +313,7 @@
       if (l) l.push(mark)
       else m.set(n, [mark])
     }
-    for (const h of highlights)
+    for (const h of sc.highlights)
       add(h.page, { key: `hl:${h.uid ?? h.blockId}`, kind: 'highlight', h, from: 0, to: 0 })
     if (findOpen)
       hits.forEach((hit, i) => {
@@ -399,7 +348,7 @@
 
   let flashing = $state('')
   async function revealHighlight(h: Highlight) {
-    selected = h.uid ?? ''
+    sc.selected = h.uid ?? ''
     flashing = h.uid ?? ''
     setTimeout(() => (flashing = ''), 1500)
     await reveal(h.page, `hl:${h.uid ?? h.blockId}`)
@@ -407,7 +356,7 @@
 
   async function openAt() {
     if (target.highlight) {
-      const h = highlights.find((x) => x.uid === target.highlight)
+      const h = sc.highlights.find((x) => x.uid === target.highlight)
       if (h) return void revealHighlight(h)
     }
     goToPage(target.page ?? 1)
@@ -481,14 +430,9 @@
     const segs = selectedSegments()
     if (segs.length === 0) return
     try {
-      const view = await ensureSidecar()
-      void view
-      const blocks: string[] = []
-      let last = ''
-      for (const s of segs) {
-        const uid = (await backend.call('new_block_id', {})).value
-        last = uid
-        blocks.push(
+      const ids = await sc.newIds(segs.length)
+      await sc.insert(
+        segs.map((s, i) =>
           textHighlightBlock({
             page: s.n,
             color,
@@ -496,21 +440,13 @@
             to: s.to,
             quote: quoteOf(s.pt.text, s.from, s.to),
             context: contextOf(s.pt.text, s.from, s.to),
-            uid,
+            uid: ids[i],
           }),
-        )
-      }
-      await sideDoc?.applyWith((v) =>
-        blocks.map<BlockOp>((text, k) => ({
-          op: 'insert',
-          parent: [],
-          index: (v?.blocks.length ?? 0) + k,
-          text,
-        })),
+        ),
       )
       window.getSelection()?.removeAllRanges()
       bar = null
-      selected = last
+      sc.selected = ids[ids.length - 1]
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -523,14 +459,6 @@
     bar = null
   }
 
-  async function copyText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      toast('The text could not be copied.', 'error')
-    }
-  }
-
   // ---------------------------------------------------------------- area highlights
   let areaMode = $state(false)
 
@@ -538,18 +466,17 @@
     if (!doc) return
     try {
       const image = await cropPage(n, rect)
-      await ensureSidecar()
+      await sc.ensure()
       const saved = await backend.call('save_asset', {
-        page: side!.page,
+        page: sc.side!.page,
         data: image,
         name: `${fileName.replace(/\.pdf$/i, '')}-p${n}.png`,
       })
       const href = /\]\(([^)]*)\)/.exec(saved.markdown)?.[1]
       if (!href) throw new Error('the picture could not be stored')
-      const uid = (await backend.call('new_block_id', {})).value
-      const text = areaHighlightBlock({ page: n, color: pen, rect, image: href, uid })
-      await sideDoc?.applyWith((v) => [{ op: 'insert', parent: [], index: v?.blocks.length ?? 0, text }])
-      selected = uid
+      const [uid] = await sc.newIds(1)
+      await sc.insert([areaHighlightBlock({ page: n, color: pen, rect, image: href, uid })])
+      sc.selected = uid
     } catch (e) {
       toast(errorMessage(e), 'error')
     }
@@ -589,75 +516,21 @@
       x: Math.min(at.x, window.innerWidth - 260),
       y: Math.min(at.y + 10, window.innerHeight - 160),
     }
-    selected = h.uid ?? ''
+    sc.selected = h.uid ?? ''
   }
 
-  function editHighlight(h: Highlight, build: (path: number[]) => BlockOp[]) {
-    const uid = h.uid
-    if (!uid) return Promise.resolve(null)
-    return sideDoc?.applyWith((v) => {
-      const path = pathOfUid(v, uid)
-      return path ? build(path) : null
-    })
-  }
-
-  function setColor(h: Highlight, color: Color) {
-    void editHighlight(h, (path) => [
-      { op: 'set_property', block: { path, hash: null }, key: 'hl-color', value: color },
-    ])
-    popup = null
-  }
-
-  function removeHighlight(h: Highlight) {
-    void editHighlight(h, (path) => [{ op: 'delete', block: { path, hash: null } }])
-    popup = null
-  }
-
-  async function addComment(h: Highlight) {
+  function comment(h: Highlight) {
     panelOpen = true
     popup = null
-    const uid = h.uid
-    if (!uid || !sideDoc) return
-    const view = await editHighlight(h, (path) => {
-      const block = sideDoc!.view?.blocks[path[0]]
-      return [{ op: 'insert', parent: path, index: block?.children.length ?? 0, text: '' }]
-    })
-    const block = view?.blocks.find((b) => b.uid === uid)
-    const child = block?.children[block.children.length - 1]
-    if (child && side) {
-      selected = uid
-      await tick()
-      startEditing('pdf-panel', side.page, child.id, 'end')
-    }
+    void sc.addComment(h)
   }
-
-  const ref = (h: Highlight) => `((${h.uid}))`
-  const asQuote = (h: Highlight) => `> ${h.quote} ${ref(h)}`
 
   // ---------------------------------------------------------------- the panel
   let panelOpen = $state(typeof window === 'undefined' || window.innerWidth > 900)
-  let selected = $state('')
-  let colorFilter = $state<Color | ''>('')
-  let textFilter = $state('')
-  const shown = $derived(
-    highlights.filter(
-      (h) =>
-        (!colorFilter || h.color === colorFilter) &&
-        (!textFilter.trim() ||
-          `${h.quote} ${h.block.children.map((c) => c.text).join(' ')}`
-            .toLowerCase()
-            .includes(textFilter.trim().toLowerCase())),
-    ),
-  )
-
-  const imageOf = (h: Highlight): string => {
-    const m = /^!\[[^\]]*\]\(([^)]*)\)/.exec(h.block.text)
-    return m ? backend.assetUrl(m[1]) : ''
-  }
 
   function openNotesPage() {
-    if (!side?.page) return
-    const name = side.page
+    if (!sc.side?.page) return
+    const name = sc.side.page
     finishPdf()
     location.hash = pageHash(name).replace(/^#/, '')
   }
@@ -791,7 +664,7 @@
         class:on={panelOpen}
         onclick={() => (panelOpen = !panelOpen)}
         data-testid="pdf-panel-toggle"
-        aria-pressed={panelOpen}>Highlights{highlights.length ? ` (${highlights.length})` : ''}</button
+        aria-pressed={panelOpen}>Highlights{sc.highlights.length ? ` (${sc.highlights.length})` : ''}</button
       >
       <button type="button" class="primary" onclick={finishPdf} data-testid="pdf-close">Close</button>
     </header>
@@ -871,163 +744,46 @@
       </div>
 
       {#if panelOpen}
-        <aside class="panel" aria-label="Highlights" data-testid="pdf-panel">
-          <div class="filters">
-            <span class="colors" role="group" aria-label="Filter by colour">
-              <button
-                type="button"
-                class="dot all"
-                class:on={colorFilter === ''}
-                onclick={() => (colorFilter = '')}
-                aria-label="All colours"
-                data-testid="pdf-filter-all">all</button
-              >
-              {#each COLORS as c (c)}
-                <button
-                  type="button"
-                  class="dot"
-                  class:on={colorFilter === c}
-                  style:background={COLOR_HEX[c]}
-                  onclick={() => (colorFilter = colorFilter === c ? '' : c)}
-                  aria-label={`Only ${c}`}
-                  data-testid="pdf-filter-{c}"
-                ></button>
-              {/each}
-            </span>
-            <input
-              bind:value={textFilter}
-              placeholder="Filter"
-              aria-label="Filter the highlights"
-              data-testid="pdf-filter-text"
-            />
-          </div>
-          <p class="count" data-testid="pdf-count">
-            {highlights.length} highlight{highlights.length === 1 ? '' : 's'}
-          </p>
-          {#if side?.page}
-            <button type="button" class="link" onclick={openNotesPage} data-testid="pdf-notes-link"
-              >Open the notes page</button
-            >
-          {/if}
-          <ul class="list">
-            {#each shown as h (h.blockId)}
-              <li
-                class="item"
-                class:sel={selected !== '' && selected === h.uid}
-                data-testid="pdf-item"
-                data-color={h.color}
-                data-uid={h.uid ?? ''}
-              >
-                <button
-                  type="button"
-                  class="quote"
-                  style:--c={COLOR_HEX[h.color]}
-                  onclick={() => revealHighlight(h)}
-                  data-testid="pdf-item-quote"
-                >
-                  <span class="pg">p. {h.page}</span>
-                  {#if h.kind === 'area'}
-                    <img src={imageOf(h)} alt="Highlighted area on page {h.page}" />
-                  {:else}
-                    <span class="q">{h.quote}</span>
-                  {/if}
-                </button>
-                {#if missing[h.uid ?? String(h.blockId)]}
-                  <p class="warn" data-testid="pdf-item-missing">Not found on page {h.page}.</p>
-                {/if}
-                {#if side && h.block.children.length}
-                  <div class="comments">
-                    <BlockList blocks={h.block.children} docName={side.page} viewKey="pdf-panel" />
-                  </div>
-                {/if}
-                <button type="button" class="add" onclick={() => addComment(h)} data-testid="pdf-add-comment"
-                  >＋ Comment</button
-                >
-              </li>
-            {:else}
-              <li class="empty">
-                {highlights.length ? 'No highlight matches.' : 'Select text in the PDF and choose a colour.'}
-              </li>
-            {/each}
-          </ul>
-        </aside>
+        <AnnotationPanel
+          {sc}
+          place={(h) => `p. ${h.page}`}
+          notFound={(h) => `Not found on page ${h.page}.`}
+          hint="Select text in the PDF and choose a colour."
+          onReveal={revealHighlight}
+          onComment={comment}
+          onNotes={openNotesPage}
+        />
       {/if}
     </div>
 
     {#if bar}
-      <div
-        class="selbar"
-        style:left="{bar.x}px"
-        style:top="{bar.y}px"
-        role="group"
-        aria-label="Highlight the selection"
-        data-testid="pdf-selbar"
-        onpointerdown={(e) => e.preventDefault()}
-      >
-        {#each COLORS as c (c)}
-          <button
-            type="button"
-            class="dot"
-            style:background={COLOR_HEX[c]}
-            onclick={() => highlightSelection(c)}
-            aria-label={`Highlight ${c}`}
-            data-testid="pdf-color-{c}"
-          ></button>
-        {/each}
-        <button type="button" class="copy" onclick={copySelection} data-testid="pdf-copy">Copy</button>
-      </div>
+      <SelectionBar x={bar.x} y={bar.y} onColor={highlightSelection} onCopy={copySelection} />
     {/if}
 
     {#if popup}
       {@const h = popup.h}
-      <div
-        class="popup"
-        style:left="{popup.x}px"
-        style:top="{popup.y}px"
-        role="dialog"
-        aria-label="Highlight"
-        data-testid="pdf-popup"
-      >
-        <span class="colors" role="group" aria-label="Colour">
-          {#each COLORS as c (c)}
-            <button
-              type="button"
-              class="dot"
-              class:on={h.color === c}
-              style:background={COLOR_HEX[c]}
-              onclick={() => setColor(h, c)}
-              aria-label={c}
-              data-testid="pdf-popup-{c}"
-            ></button>
-          {/each}
-        </span>
-        <button type="button" onclick={() => addComment(h)} data-testid="pdf-popup-comment"
-          >Add comment</button
-        >
-        {#if h.uid}
-          <button
-            type="button"
-            onclick={() => {
-              void copyText(ref(h))
-              popup = null
-            }}
-            data-testid="pdf-popup-ref">Copy reference</button
-          >
-          {#if h.kind === 'text'}
-            <button
-              type="button"
-              onclick={() => {
-                void copyText(asQuote(h))
-                popup = null
-              }}
-              data-testid="pdf-popup-quote">Copy as quote</button
-            >
-          {/if}
-        {/if}
-        <button type="button" class="danger" onclick={() => removeHighlight(h)} data-testid="pdf-popup-delete"
-          >Delete</button
-        >
-      </div>
+      <HighlightPopup
+        {h}
+        x={popup.x}
+        y={popup.y}
+        onColor={(c) => {
+          sc.setColor(h, c)
+          popup = null
+        }}
+        onComment={() => comment(h)}
+        onRef={() => {
+          void copyText(refOf(h))
+          popup = null
+        }}
+        onQuote={() => {
+          void copyText(quoteBlock(h))
+          popup = null
+        }}
+        onDelete={() => {
+          sc.remove(h)
+          popup = null
+        }}
+      />
     {/if}
 
     {#if password}
@@ -1116,8 +872,7 @@
   }
   button,
   .pagebox input,
-  .findbar input,
-  .filters input {
+  .findbar input {
     font: inherit;
     font-size: 0.9em;
     color: inherit;
@@ -1158,9 +913,6 @@
   }
   .plain {
     border-color: transparent;
-  }
-  .danger {
-    color: #c0392b;
   }
   .findbar {
     display: flex;
@@ -1215,28 +967,6 @@
   .state.error {
     color: #ffb4a8;
   }
-  .panel {
-    width: 22em;
-    max-width: 45%;
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    padding: 0.6em;
-    gap: 0.4em;
-    overflow: hidden;
-  }
-  .filters {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .filters input {
-    flex: 1;
-    min-width: 6em;
-    cursor: text;
-  }
   .colors {
     display: inline-flex;
     gap: 6px;
@@ -1253,99 +983,6 @@
   .dot.on {
     border-color: var(--text, #111);
     box-shadow: 0 0 0 2px var(--panel);
-  }
-  .dot.all {
-    width: auto;
-    border-radius: 8px;
-    padding: 0 0.5em;
-    font-size: 0.75em;
-    border-color: var(--border);
-  }
-  .link {
-    align-self: flex-start;
-    border: none;
-    padding: 0;
-    color: var(--accent);
-    text-decoration: underline;
-  }
-  .list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    overflow: auto;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6em;
-  }
-  .item {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.4em 0.5em;
-  }
-  .item.sel {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
-  }
-  .quote {
-    display: block;
-    width: 100%;
-    text-align: left;
-    border: none;
-    border-left: 4px solid var(--c);
-    border-radius: 0;
-    padding: 0.1em 0 0.1em 0.5em;
-  }
-  .pg {
-    display: block;
-    color: var(--muted);
-    font-size: 0.75em;
-  }
-  .q {
-    font-size: 0.9em;
-  }
-  .quote img {
-    max-width: 100%;
-    display: block;
-  }
-  .warn {
-    margin: 0.2em 0;
-    color: #b45309;
-    font-size: 0.8em;
-  }
-  .comments {
-    margin: 0.3em 0 0 0.3em;
-  }
-  .add {
-    margin-top: 0.3em;
-    border-color: transparent;
-    color: var(--muted);
-    font-size: 0.8em;
-  }
-  .empty {
-    color: var(--muted);
-    font-size: 0.9em;
-  }
-  .selbar,
-  .popup {
-    position: fixed;
-    z-index: 90;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 8px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgb(0 0 0 / 0.3);
-  }
-  .selbar {
-    transform: translate(-50%, calc(-100% - 8px));
-  }
-  .popup {
-    flex-direction: column;
-    align-items: stretch;
-    min-width: 12em;
   }
   .ask {
     position: absolute;
@@ -1368,7 +1005,7 @@
     font: inherit;
     padding: 0.3em 0.6em;
   }
-  /* a finger needs bigger targets, and the panel covers the pages on a narrow window */
+  /* a finger needs bigger targets */
   @media (pointer: coarse) {
     button,
     .pagebox input {
@@ -1381,17 +1018,6 @@
     }
   }
   @media (max-width: 900px) {
-    .panel {
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: min(22em, 90%);
-      max-width: none;
-      background: var(--panel);
-      box-shadow: -4px 0 14px rgb(0 0 0 / 0.3);
-      z-index: 20;
-    }
     h2 {
       max-width: 9em;
     }

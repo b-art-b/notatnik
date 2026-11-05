@@ -15,6 +15,20 @@ pub const SIDECAR_NAMESPACE: &str = "hls";
 /// `assets/.../name.pdf` (graph-relative, the extension in any case), without `.`/`..` segments, backslashes or
 /// empty segments. This is the only kind of file `annotation_page` works on.
 pub fn is_pdf_path(path: &str) -> bool {
+    has_extension(path, ".pdf")
+}
+
+/// `assets/.../name.epub`, under the same rules as [`is_pdf_path`] (EA-3).
+pub fn is_epub_path(path: &str) -> bool {
+    has_extension(path, ".epub")
+}
+
+/// A file the app can keep annotations of: a PDF or an EPUB (PA-2, EA-3).
+pub fn is_annotatable_path(path: &str) -> bool {
+    is_pdf_path(path) || is_epub_path(path)
+}
+
+fn has_extension(path: &str, ext: &str) -> bool {
     let Some(rest) = path.strip_prefix("assets/") else {
         return false;
     };
@@ -27,7 +41,7 @@ pub fn is_pdf_path(path: &str) -> bool {
     {
         return false;
     }
-    path.len() > "assets/.pdf".len() && path.to_ascii_lowercase().ends_with(".pdf")
+    path.len() > "assets/".len() + ext.len() && path.to_ascii_lowercase().ends_with(ext)
 }
 
 /// A path as a page link writes it (`../../assets/report.pdf`, `./assets/…`) made graph-relative.
@@ -45,10 +59,10 @@ pub fn graph_relative(path: &str) -> String {
     p.to_string()
 }
 
-/// The part of a PDF's file name that names its sidecar: `report.pdf` gives `report`.
+/// The part of a file's name that names its sidecar: `report.pdf` gives `report`, `book.epub` gives `book`.
 pub fn pdf_stem(path: &str) -> String {
     let name = path.rsplit('/').next().unwrap_or(path);
-    let stem = name.get(..name.len().saturating_sub(4)).unwrap_or(name);
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
     let stem = stem.trim();
     if stem.is_empty() {
         "document".to_string()
@@ -68,12 +82,14 @@ impl Graph {
     /// The first 16 hex digits of the blake3 of a PDF's bytes (the `sha` of its sidecar). The file is read once for
     /// each size and modification time; a PDF is never read into memory as a whole.
     pub fn pdf_sha(&self, path: &str) -> Result<String> {
-        if !is_pdf_path(path) {
-            return Err(Error::Asset("not a PDF in the assets of this graph".into()));
+        if !is_annotatable_path(path) {
+            return Err(Error::Asset(
+                "not a PDF or an EPUB in the assets of this graph".into(),
+            ));
         }
         let full = self.root().join(path);
         let meta = std::fs::metadata(&full)
-            .map_err(|_| Error::NotFound(format!("the PDF {path} is not in the graph")))?;
+            .map_err(|_| Error::NotFound(format!("{path} is not in the graph")))?;
         if !meta.is_file() {
             return Err(Error::Asset("that is not a file".into()));
         }
@@ -119,6 +135,14 @@ mod tests {
     }
 
     #[test]
+    fn epub_paths() {
+        assert!(is_epub_path("assets/books/Novel.EPUB"));
+        assert!(is_annotatable_path("assets/a.pdf") && is_annotatable_path("assets/a.epub"));
+        assert!(!is_epub_path("assets/a.pdf") && !is_epub_path("assets/../a.epub"));
+        assert!(!is_annotatable_path("assets/a.mobi") && !is_epub_path("assets/.epub"));
+    }
+
+    #[test]
     fn link_paths_become_graph_relative() {
         assert_eq!(
             graph_relative("../../assets/a.pdf"),
@@ -131,5 +155,6 @@ mod tests {
     fn stems() {
         assert_eq!(pdf_stem("assets/2026/Annual Report.pdf"), "Annual Report");
         assert_eq!(pdf_stem("assets/x.PDF"), "x");
+        assert_eq!(pdf_stem("assets/books/War and Peace.epub"), "War and Peace");
     }
 }

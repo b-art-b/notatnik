@@ -13,8 +13,9 @@ export interface Highlight {
   uid: string | null
   blockId: number
   path: number[]
-  kind: 'text' | 'area'
-  /** From 1. */
+  /** `text` and `area` are highlights of a PDF page, `epub` one of a book (EA-4). */
+  kind: 'text' | 'area' | 'epub'
+  /** From 1 (a PDF page); 0 for a book. */
   page: number
   color: Color
   /** Offsets of the quote in the text of the page (text highlights; 0 for an area). */
@@ -24,6 +25,10 @@ export interface Highlight {
   quote: string
   context: string
   rect: Rect | null
+  /** An EPUB CFI range, `epubcfi(/6/14!/4/2/1,:20,:97)` (books); empty for a PDF. */
+  cfi: string
+  /** The chapter as it is shown, `3 · The Storm` (books). */
+  chapter: string
   /** The block, whose children are the comment. */
   block: BlockView
 }
@@ -61,11 +66,36 @@ function firstLine(b: BlockView): string {
   return unescapeQuote(b.text.split('\n')[0] ?? '').trim()
 }
 
-/** The highlights of a sidecar page: its top-level blocks that have `hl-page`, in reading order (page, then place). */
+/** The highlights of a sidecar page: its top-level blocks that have the locator of the file the page is about
+ * (`hl-page` for a PDF, `hl-cfi` for an EPUB; the `file` in the frontmatter decides, a block with the other kind of
+ * locator is ignored), in reading order. */
 export function highlightsOf(view: PageView | null | undefined): Highlight[] {
   if (!view) return []
+  const file = view.frontmatter?.props.find((p) => p.key === 'file')?.raw ?? ''
+  const book = /\.epub$/i.test(file)
   const out: Highlight[] = []
   for (const [i, b] of view.blocks.entries()) {
+    if (book) {
+      const cfi = prop(b, 'hl-cfi')?.trim() ?? ''
+      if (!/^epubcfi\(.+\)$/.test(cfi)) continue
+      out.push({
+        uid: b.uid,
+        blockId: b.id,
+        path: [i],
+        kind: 'epub',
+        page: 0,
+        color: colorOf(prop(b, 'hl-color')),
+        from: 0,
+        to: 0,
+        quote: firstLine(b),
+        context: prop(b, 'hl-context') ?? ' | ',
+        rect: null,
+        cfi,
+        chapter: prop(b, 'hl-chapter')?.trim() ?? '',
+        block: b,
+      })
+      continue
+    }
     const page = Number(prop(b, 'hl-page'))
     if (!Number.isInteger(page) || page < 1) continue
     const area = (prop(b, 'hl-type') ?? '').trim().toLowerCase() === 'area'
@@ -87,10 +117,60 @@ export function highlightsOf(view: PageView | null | undefined): Highlight[] {
       quote: area ? (alt?.[1] ?? 'area') : firstLine(b),
       context: prop(b, 'hl-context') ?? ' | ',
       rect: area ? rect : null,
+      cfi: '',
+      chapter: '',
       block: b,
     })
   }
+  if (book) return out.sort((a, b) => compareCfi(a.cfi, b.cfi))
   return out.sort((a, b) => a.page - b.page || (a.rect?.[1] ?? 0) - (b.rect?.[1] ?? 0) || a.from - b.from)
+}
+
+/** The numbers of the path to the start of a CFI (`/6/14!/4/2/1:20` is 6, 14, 4, 2, 1, 20), for putting highlights of a
+ * book in reading order. For a range CFI (`parent,start,end`) it is the parent followed by the start. */
+export function cfiPath(cfi: string): number[] {
+  const inner = cfi
+    .trim()
+    .replace(/^epubcfi\(/, '')
+    .replace(/\)$/, '')
+  const [parent = '', start = ''] = inner.split(',')
+  return (parent + start)
+    .replace(/\[[^\]]*\]/g, '') // assertions such as [chapter3] or [;s=b]
+    .split(/[/:!]/)
+    .filter((x) => /^\d+$/.test(x))
+    .map(Number)
+}
+
+/** -1, 0 or 1: which of two CFIs comes first in the book. */
+export function compareCfi(a: string, b: string): number {
+  const x = cfiPath(a)
+  const y = cfiPath(b)
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if (x[i] === undefined) return -1
+    if (y[i] === undefined) return 1
+    if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1
+  }
+  return 0
+}
+
+export interface NewEpubHighlight {
+  cfi: string
+  chapter: string
+  color: Color
+  quote: string
+  context: string
+  uid: string
+}
+
+/** The text of the block for a new EPUB highlight. */
+export function epubHighlightBlock(h: NewEpubHighlight): string {
+  return [
+    `${escapeQuote(h.quote)} ^${h.uid}`,
+    `hl-cfi:: ${h.cfi}`,
+    ...(h.chapter ? [`hl-chapter:: ${h.chapter}`] : []),
+    `hl-color:: ${h.color}`,
+    `hl-context:: ${h.context}`,
+  ].join('\n')
 }
 
 export interface NewTextHighlight {
@@ -138,6 +218,27 @@ export function areaHighlightBlock(h: NewAreaHighlight): string {
 /** The op that appends a highlight block to the sidecar page. */
 export function appendBlock(view: PageView | null, text: string): BlockOp {
   return { op: 'insert', parent: [], index: view?.blocks.length ?? 0, text }
+}
+
+/** A link to an EPUB of the graph: `../assets/x/book.epub`, with an optional `#epubcfi(…)`. */
+export function parseEpubHref(href: string): { path: string; cfi: string | null } | null {
+  const m = /^((?:\.\.?\/)*)(assets\/[^#?]*\.epub)(?:#(.*))?$/i.exec(href.trim())
+  if (!m) return null
+  let path = m[2]
+  try {
+    path = decodeURIComponent(path)
+  } catch {
+    // an address that is not percent-encoded: use it as it is
+  }
+  if (path.split('/').some((s) => s === '..' || s === '.')) return null
+  let frag = m[3] ?? ''
+  try {
+    frag = decodeURIComponent(frag)
+  } catch {
+    // as written
+  }
+  const cfi = /^epubcfi\(.+\)$/.test(frag) ? frag : null
+  return { path, cfi }
 }
 
 /** A link to a PDF of the graph: `../assets/x/report.pdf`, `assets/report.pdf#page=12`. */

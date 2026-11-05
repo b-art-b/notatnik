@@ -13,6 +13,7 @@
   import { buildPageText, locate, type PageText } from '../pdf/pageText'
   import { resolveAnchor } from '../pdf/anchor'
   import type { Highlight, Rect } from '../pdf/highlights'
+  import { COLOR_HEX } from '../annotate/colors'
 
   /** What is drawn over the page: a highlight of the sidecar, or a hit of the find box. */
   export interface Mark {
@@ -150,14 +151,6 @@
     }
   })
 
-  const COLORS: Record<string, string> = {
-    yellow: '#ffd400',
-    green: '#4ccf4c',
-    blue: '#4aa3ff',
-    red: '#ff5c5c',
-    purple: '#b178ff',
-  }
-
   /** The boxes of the text between two offsets, from the line boxes the browser gives the text layer's spans. */
   function boxesOfRange(from: number, to: number): { x: number; y: number; w: number; h: number }[] {
     if (!layer || to <= from) return []
@@ -198,7 +191,7 @@
           out.push({
             key: m.key,
             kind: m.kind,
-            color: COLORS[h.color],
+            color: COLOR_HEX[h.color],
             x: x * width,
             y: y * height,
             w: w * width,
@@ -217,7 +210,7 @@
         untrack(() => onPlaced(h, at))
         if (!at) continue
         for (const b of boxesOfRange(at.from, at.to))
-          out.push({ key: m.key, kind: m.kind, color: COLORS[h.color], ...b, highlight: h })
+          out.push({ key: m.key, kind: m.kind, color: COLOR_HEX[h.color], ...b, highlight: h })
       } else if (layer) {
         for (const b of boxesOfRange(m.from, m.to))
           out.push({

@@ -67,3 +67,36 @@ fn a_no_op_edit_changes_nothing() {
     };
     assert_eq!(apply(&text, &page, &same).unwrap().new_source, text);
 }
+
+#[test]
+fn an_epub_highlight_keeps_its_cfi_as_written() {
+    let text =
+        std::fs::read_to_string(common::fixtures_dir().join("annotations/hls-book.md")).unwrap();
+    let page = parse_page(&text);
+    assert!(page.diagnostics.is_empty(), "{:?}", page.diagnostics);
+    assert!(page.uncovered_non_blank(&text).is_empty());
+    let prop = |b: &notatnik_core::Block, k: &str| {
+        b.properties
+            .iter()
+            .find(|p| p.key == k)
+            .unwrap_or_else(|| panic!("no {k}"))
+            .raw
+            .clone()
+    };
+    assert_eq!(
+        prop(&page.blocks[0], "hl-cfi"),
+        "epubcfi(/6/14!/4/2/1,:20,:97)"
+    );
+    assert_eq!(
+        prop(&page.blocks[1], "hl-cfi"),
+        "epubcfi(/6/14!/4/2,/1:5,/3:10)"
+    );
+    assert_eq!(prop(&page.blocks[0], "hl-chapter"), "3 · The Storm");
+    for (i, b) in page.blocks.iter().enumerate() {
+        let op = BlockOp::UpdateText {
+            block: BlockRef::at(&[i]),
+            text: b.edit_text(&text),
+        };
+        assert_eq!(apply(&text, &page, &op).unwrap().new_source, text);
+    }
+}

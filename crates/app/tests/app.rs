@@ -7268,3 +7268,109 @@ fn a_task_in_a_comment_on_a_highlight_is_on_the_agenda() {
         "{text}"
     );
 }
+
+fn put_epub(t: &T, rel: &str, body: &str) {
+    let p = t.graph().join(rel);
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    std::fs::write(p, format!("PK\u{3}\u{4} fake epub {body}")).unwrap();
+}
+
+/// EA-3: an EPUB gets a hidden sidecar like a PDF; a PDF and an EPUB of the same name get two; other files are refused.
+#[test]
+fn an_epub_gets_its_own_hidden_sidecar() {
+    let t = start("basic");
+    put_epub(&t, "assets/books/novel.epub", "one");
+    put_pdf(&t, "assets/novel.pdf", "two");
+    let looked = t.ok(
+        "annotation_page",
+        json!({"path": "assets/books/novel.epub", "create": false}),
+    );
+    assert_eq!(looked["page"], "");
+    let e = t.ok(
+        "annotation_page",
+        json!({"path": "../assets/books/novel.epub"}),
+    );
+    assert_eq!(e["page"], "hls/novel");
+    assert_eq!(e["created"], true);
+    let text = t.read("pages/hls/novel.md");
+    assert!(
+        text.contains("file: assets/books/novel.epub")
+            && text.contains("kind: annotations")
+            && text.contains("archived: true"),
+        "{text}"
+    );
+    let again = t.ok(
+        "annotation_page",
+        json!({"path": "assets/books/novel.epub"}),
+    );
+    assert_eq!(
+        (again["page"].as_str(), again["created"].as_bool()),
+        (Some("hls/novel"), Some(false))
+    );
+    let p = t.ok("annotation_page", json!({"path": "assets/novel.pdf"}));
+    let name = p["page"].as_str().unwrap();
+    assert!(
+        name.starts_with("hls/novel-") && name != "hls/novel",
+        "{name}"
+    );
+    std::fs::write(t.graph().join("assets/books/novel.mobi"), "x").unwrap();
+    for bad in [
+        "assets/books/novel.mobi",
+        "pages/x.epub",
+        "assets/../x.epub",
+    ] {
+        assert!(
+            t.call("annotation_page", json!({"path": bad})).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+/// EA-3: an EPUB moved by hand finds its sidecar by `sha`.
+#[test]
+fn a_moved_epub_finds_its_sidecar_by_its_hash() {
+    let t = start("basic");
+    put_epub(&t, "assets/novel.epub", "same bytes");
+    let first = t.ok("annotation_page", json!({"path": "assets/novel.epub"}));
+    std::fs::create_dir_all(t.graph().join("assets/books")).unwrap();
+    std::fs::rename(
+        t.graph().join("assets/novel.epub"),
+        t.graph().join("assets/books/Novel (2nd ed).epub"),
+    )
+    .unwrap();
+    let moved = t.ok(
+        "annotation_page",
+        json!({"path": "assets/books/Novel (2nd ed).epub"}),
+    );
+    assert_eq!(moved["page"], first["page"]);
+    assert!(t.read("pages/hls/novel.md").contains("Novel (2nd ed).epub"));
+}
+
+/// EA-3, EA-8: the words of an EPUB highlight are found by the search; its CFI is kept as written.
+#[test]
+fn the_text_of_an_epub_highlight_is_found_by_the_search() {
+    let t = start("basic");
+    put_epub(&t, "assets/novel.epub", "three");
+    t.ok("annotation_page", json!({"path": "assets/novel.epub"}));
+    let page = t.read("pages/hls/novel.md");
+    std::fs::write(
+        t.graph().join("pages/hls/novel.md"),
+        format!(
+            "{page}\n- Call me Ishmael. ^a1b2c3\n  hl-cfi:: epubcfi(/6/14!/4/2/1,:20,:97)\n  hl-chapter:: 1 · Loomings\n  hl-color:: yellow\n  - remember this\n"
+        ),
+    )
+    .unwrap();
+    t.ok(
+        "open_graph",
+        json!({"path": t.graph().to_str().unwrap(), "create": false}),
+    );
+    assert_eq!(
+        t.ok("search", json!({"text": "ishmael", "limit": 10}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let block = t.ok("get_block", json!({"uid": "a1b2c3"})).to_string();
+    assert!(block.contains("epubcfi(/6/14!/4/2/1,:20,:97)"), "{block}");
+}
