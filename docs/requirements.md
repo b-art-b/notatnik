@@ -171,6 +171,15 @@ A **graph** is a folder of notes.
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
+| PA-1 | A PDF in the graph's `assets/` opens in a viewer (pdf.js, loaded only then) when its link is clicked: pages rendered lazily, zoom, page box, find, text selection; a PDF elsewhere still opens with the system's program. The PDF file is never changed. | V1 |
+| PA-2 | The annotations of a PDF are one ordinary page, the sidecar `hls/<name>`, found by the `file` (and `sha`) property of its frontmatter and created on the first highlight; it follows the PDF when the app moves or renames it, and is found again by `sha` when the PDF was moved by hand. | V1 |
+| PA-3 | Selecting text and choosing one of five colours makes a highlight: one block of the sidecar with the quote, `hl-page`, `hl-color`, `hl-rects` (fractions of the page, independent of zoom and rotation), `hl-context` and a block ID, in one undo step; it is drawn over the page, can change colour and can be deleted. | V1 |
+| PA-4 | A comment on a highlight is the highlight block's children, written in a side panel that shows the sidecar's blocks (links, tags, tasks and the rest work as everywhere); the panel lists the highlights in reading order, filters by colour and text, and scrolls the PDF to a highlight and back. | V1 |
+| PA-5 | Area highlight: a rectangle dragged on a page is stored as a picture in `assets/hls/` and shown in a block with `hl-type: area`. | V1 |
+| PA-6 | A `((id))` reference to a highlight shows the quote and a chip with the file and page; the chip opens the viewer on that highlight. A link with `#page=N` opens on that page. Highlights can be copied as a reference or as a quote. | V1 |
+| PA-7 | Highlights are searched, tagged, queried, synced and backlinked as blocks, with no new index table; a highlight made on another device appears in an open viewer. | V1 |
+| PA-8 | Touch and iPad: long-press selection with the colour bar at 44 px, pinch zoom, the panel as a drawer on a narrow window. | V1 |
+| PA-9 | `annotation_page` refuses anything but a `.pdf` inside the graph's `assets/`; the sidecar parses and a no-op edit is byte-identical (golden file). | V1 |
 | PA-10 | The viewer keeps only a few pages rendered at a time, so a PDF of hundreds of pages opens at once, and its code is not part of the first page load. | V1 |
 
 ## 5. Pages, links and namespaces
