@@ -12,23 +12,39 @@ use std::time::Duration;
 use tiny_http::{Header, Response, Server};
 
 enum Node {
-    Dir { etag: String },
-    File { data: Vec<u8>, etag: String },
+    Dir {
+        etag: String,
+        id: u64,
+    },
+    File {
+        data: Vec<u8>,
+        etag: String,
+        /// Nextcloud's `oc:fileid`: it stays with the file when it is moved.
+        id: u64,
+    },
 }
 
 struct Inner {
     nodes: BTreeMap<String, Node>,
     counter: u64,
+    next_id: u64,
     /// A change below a folder changes the folder's ETag (Nextcloud does).
     propagate: bool,
     /// Honour `If-Match` and `If-None-Match` (a bad server does not).
     conditions: bool,
     /// Answer every request with 503.
     down: bool,
+    /// Answer `SEARCH` (a server that does not, answers 501).
+    search: bool,
     log: Vec<String>,
 }
 
 impl Inner {
+    fn new_id(&mut self) -> u64 {
+        self.next_id += 1;
+        self.next_id
+    }
+
     fn next_etag(&mut self) -> String {
         self.counter += 1;
         format!("{:x}", self.counter * 7919 + 100_000)
@@ -49,7 +65,7 @@ impl Inner {
 
     fn retag(&mut self, dir: &str) {
         let e = self.next_etag();
-        if let Some(Node::Dir { etag }) = self.nodes.get_mut(dir) {
+        if let Some(Node::Dir { etag, .. }) = self.nodes.get_mut(dir) {
             *etag = e;
         }
     }
@@ -168,19 +184,19 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
                         }
                     );
                     // like Nextcloud (and unlike plain WebDAV), the `remote.php` mount numbers its items
+                    let id = match n {
+                        Node::Dir { id, .. } | Node::File { id, .. } => *id,
+                    };
                     let fileid = if mount.starts_with("/remote.php") {
-                        let h = p
-                            .bytes()
-                            .fold(7u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
-                        format!("<oc:fileid>{}</oc:fileid>", 100 + h % 100_000)
+                        format!("<oc:fileid>{id}</oc:fileid>")
                     } else {
                         String::new()
                     };
                     match n {
-                        Node::Dir { etag } => format!(
+                        Node::Dir { etag, .. } => format!(
                             "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag>{fileid}<d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
                         ),
-                        Node::File { data, etag } => format!(
+                        Node::File { data, etag, .. } => format!(
                             "<d:response><d:href>{href}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag>{fileid}<d:getcontentlength>{}</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
                             data.len()
                         ),
@@ -209,7 +225,7 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
             }
         },
         "GET" => match g.nodes.get(&path) {
-            Some(Node::File { data, etag }) => Response::from_data(data.clone())
+            Some(Node::File { data, etag, .. }) => Response::from_data(data.clone())
                 .with_header(Header::from_bytes("ETag", format!("\"{etag}\"")).unwrap()),
             Some(Node::Dir { .. }) => status(405),
             None => status(404),
@@ -232,11 +248,16 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
                 } else {
                     let etag = g.next_etag();
                     let created = existing.is_none();
+                    let id = match g.nodes.get(&path) {
+                        Some(Node::File { id, .. }) => *id,
+                        _ => g.new_id(),
+                    };
                     g.nodes.insert(
                         path.clone(),
                         Node::File {
                             data: body,
                             etag: etag.clone(),
+                            id,
                         },
                     );
                     g.touch_parents(&path);
@@ -252,7 +273,8 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
                 status(409)
             } else {
                 let etag = g.next_etag();
-                g.nodes.insert(path.clone(), Node::Dir { etag });
+                let id = g.new_id();
+                g.nodes.insert(path.clone(), Node::Dir { etag, id });
                 g.touch_parents(&path);
                 status(201)
             }
@@ -261,7 +283,7 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
             None => status(404),
             Some(node) => {
                 let etag = match node {
-                    Node::File { etag, .. } | Node::Dir { etag } => etag.clone(),
+                    Node::File { etag, .. } | Node::Dir { etag, .. } => etag.clone(),
                 };
                 if conditions && if_match.is_some() && if_match.as_deref() != Some(etag.as_str()) {
                     status(412)
@@ -273,6 +295,77 @@ fn handle(inner: &Mutex<Inner>, user: &str, password: &str, mut req: tiny_http::
                 }
             }
         },
+        "MOVE" => {
+            let dest = header(&req, "destination").map(|d| {
+                let p = d
+                    .split_once("://")
+                    .and_then(|(_, r)| r.find('/').map(|i| r[i..].to_string()))
+                    .unwrap_or(d);
+                let p = decode(&p);
+                match p.strip_prefix("/remote.php/dav/files/") {
+                    Some(r) => r.split_once('/').map_or("", |(_, rest)| rest).to_string(),
+                    None => p.strip_prefix("/dav").unwrap_or(&p).to_string(),
+                }
+                .trim_matches('/')
+                .to_string()
+            });
+            match dest {
+                Some(to)
+                    if g.nodes.contains_key(&path)
+                        && !g.nodes.contains_key(&to)
+                        && matches!(
+                            g.nodes.get(to.rsplit_once('/').map_or("", |(p, _)| p)),
+                            Some(Node::Dir { .. })
+                        ) =>
+                {
+                    let prefix = format!("{path}/");
+                    let moving: Vec<String> = g
+                        .nodes
+                        .keys()
+                        .filter(|p| **p == path || p.starts_with(&prefix))
+                        .cloned()
+                        .collect();
+                    for old in moving {
+                        let node = g.nodes.remove(&old).unwrap();
+                        g.nodes.insert(format!("{to}{}", &old[path.len()..]), node);
+                    }
+                    g.touch_parents(&path);
+                    g.touch_parents(&to);
+                    status(201)
+                }
+                Some(_) => status(409),
+                None => status(400),
+            }
+        }
+        "SEARCH" => {
+            if !g.search {
+                status(501)
+            } else {
+                let text = String::from_utf8_lossy(&body).to_string();
+                let wanted: Option<u64> = text
+                    .split_once("<d:literal>")
+                    .and_then(|(_, r)| r.split_once("</d:literal>"))
+                    .and_then(|(n, _)| n.trim().parse().ok());
+                let mut xml = String::from(
+                    "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:oc=\"http://owncloud.org/ns\">",
+                );
+                for (p, n) in &g.nodes {
+                    if let Node::File { data, etag, id } = n
+                        && Some(*id) == wanted
+                    {
+                        xml.push_str(&format!(
+                            "<d:response><d:href>/remote.php/dav/files/{user}/{}</d:href><d:propstat><d:prop><d:getetag>\"{etag}\"</d:getetag><oc:fileid>{id}</oc:fileid><d:getcontentlength>{}</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>",
+                            encode(p),
+                            data.len()
+                        ));
+                    }
+                }
+                xml.push_str("</d:multistatus>");
+                Response::from_data(xml.into_bytes())
+                    .with_status_code(207)
+                    .with_header(Header::from_bytes("Content-Type", "application/xml").unwrap())
+            }
+        }
         _ => status(405),
     };
     let _ = req.respond(resp);
@@ -307,14 +400,28 @@ impl FakeDav {
         let server = Server::http("127.0.0.1:0").expect("a free port");
         let port = server.server_addr().to_ip().map_or(0, |a| a.port());
         let mut nodes = BTreeMap::new();
-        nodes.insert(String::new(), Node::Dir { etag: "1".into() });
-        nodes.insert("Notes".into(), Node::Dir { etag: "2".into() });
+        nodes.insert(
+            String::new(),
+            Node::Dir {
+                etag: "1".into(),
+                id: 1,
+            },
+        );
+        nodes.insert(
+            "Notes".into(),
+            Node::Dir {
+                etag: "2".into(),
+                id: 2,
+            },
+        );
         let inner = Arc::new(Mutex::new(Inner {
             nodes,
             counter: 10,
+            next_id: 100,
             propagate: true,
             conditions: true,
             down: false,
+            search: true,
             log: Vec::new(),
         }));
         let (user, password) = ("tester".to_string(), "p@ss:wörd!".to_string());
@@ -362,15 +469,21 @@ impl FakeDav {
             dir.push_str(part);
             if !g.nodes.contains_key(&dir) {
                 let etag = g.next_etag();
-                g.nodes.insert(dir.clone(), Node::Dir { etag });
+                let id = g.new_id();
+                g.nodes.insert(dir.clone(), Node::Dir { etag, id });
             }
         }
         let etag = g.next_etag();
+        let id = match g.nodes.get(path) {
+            Some(Node::File { id, .. }) => *id,
+            _ => g.new_id(),
+        };
         g.nodes.insert(
             path.to_string(),
             Node::File {
                 data: data.to_vec(),
                 etag,
+                id,
             },
         );
         g.touch_parents(path);
@@ -411,6 +524,37 @@ impl FakeDav {
     /// `If-Match` and `If-None-Match` are honoured (or ignored, like a bad server does).
     pub fn set_conditions(&self, on: bool) {
         self.lock().conditions = on;
+    }
+
+    /// `SEARCH` is answered (or not: 501, like a server that does not search).
+    pub fn set_search(&self, on: bool) {
+        self.lock().search = on;
+    }
+
+    /// Moves a file or folder as another device would have; its Nextcloud number goes with it.
+    pub fn move_path(&self, from: &str, to: &str) {
+        let mut g = self.lock();
+        let prefix = format!("{from}/");
+        let moving: Vec<String> = g
+            .nodes
+            .keys()
+            .filter(|p| *p == from || p.starts_with(&prefix))
+            .cloned()
+            .collect();
+        for old in moving {
+            let node = g.nodes.remove(&old).unwrap();
+            g.nodes.insert(format!("{to}{}", &old[from.len()..]), node);
+        }
+        g.touch_parents(from);
+        g.touch_parents(to);
+    }
+
+    /// The Nextcloud number of a file.
+    pub fn file_id(&self, path: &str) -> Option<u64> {
+        match self.lock().nodes.get(path) {
+            Some(Node::File { id, .. }) => Some(*id),
+            _ => None,
+        }
     }
 
     /// Every request is answered with 503.

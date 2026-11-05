@@ -16,7 +16,7 @@ fn password_key(id: &str) -> String {
 
 /// The account's files folder of a Nextcloud sync address (`…/remote.php/dav/files/me`), so the picker starts at
 /// the top of the account and not in the graph's folder; any other address is used as it is.
-fn account_root(url: &str) -> String {
+pub(super) fn account_root(url: &str) -> String {
     match url.split_once("/remote.php/dav/files/") {
         Some((base, rest)) => {
             let user = rest.split('/').next().unwrap_or("");
@@ -27,15 +27,15 @@ fn account_root(url: &str) -> String {
 }
 
 /// What it takes to talk to a source.
-struct Login {
-    server: String,
-    user: String,
-    password: String,
+pub(super) struct Login {
+    pub(super) server: String,
+    pub(super) user: String,
+    pub(super) password: String,
 }
 
 impl AppState {
     /// The server of the open graph's sync as a source, if it has one.
-    fn graph_source(&self) -> Option<FileSourceView> {
+    pub(super) fn graph_source(&self) -> Option<FileSourceView> {
         let id = self.with_open(|o| Ok(o.graph.id())).ok()?;
         let cfg = self.remote_of(&id)?;
         Some(FileSourceView {
@@ -47,7 +47,7 @@ impl AppState {
         })
     }
 
-    fn login(&self, source: &str) -> ApiResult<Login> {
+    pub(super) fn login(&self, source: &str) -> ApiResult<Login> {
         let missing_password = || {
             ApiError::new(
                 "auth",

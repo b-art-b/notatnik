@@ -18,6 +18,7 @@
   } from '../commands/drawing'
   import { openPdf } from '../commands/pdf'
   import { openBook } from '../commands/epub'
+  import { looksLikeServerDocument, openServerLink } from '../annotate/remote'
   import { parseEpubHref, parsePdfHref } from '../pdf/highlights'
 
   // the block this text is in, if any: it can rewrite or remove the reference to a drawing (`Block.svelte`)
@@ -89,6 +90,7 @@
           const book = parseEpubHref(it.href)
           if (pdf) void openPdf({ path: pdf.path, page: pdf.page ?? undefined })
           else if (book) void openBook({ path: book.path, cfi: book.cfi ?? undefined })
+          else if (looksLikeServerDocument(it.href)) void openServerLink(it.href)
           else if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
           else backend.openAsset(it.href)
         }}><Self items={it.children} {chain} /></a

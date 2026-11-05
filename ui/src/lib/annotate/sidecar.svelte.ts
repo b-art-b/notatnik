@@ -37,12 +37,25 @@ export class Sidecar {
   highlights = $derived(highlightsOf(this.doc?.view))
   private fixed = new Set<string>()
 
-  constructor(readonly path: string) {}
+  /** The Nextcloud document this sidecar belongs to: its address (NA-4); `path` is then the copy in the device cache. */
+  remote: string | undefined
+
+  constructor(public path: string) {}
+
+  /** The document turned out to be a copy of a Nextcloud file: ask for its sidecar by the file's address. */
+  use(path: string, remote: string) {
+    this.path = path
+    this.remote = remote
+  }
 
   /** Looks for the sidecar; makes none. */
   async load() {
     try {
-      this.side = await backend.call('annotation_page', { path: this.path, create: false })
+      this.side = await backend.call('annotation_page', {
+        path: this.path,
+        remote: this.remote,
+        create: false,
+      })
       if (this.side.page) {
         // `annotation_page` may have rewritten the file (the `sha` of a book that was clipped again): a document kept from
         // an earlier reading has the old hash, and the first repair of a highlight would be refused as a conflict
@@ -59,7 +72,7 @@ export class Sidecar {
   /** The sidecar page, made on the first highlight. */
   async ensure(): Promise<PageDoc> {
     if (!this.side?.page) {
-      this.side = await backend.call('annotation_page', { path: this.path })
+      this.side = await backend.call('annotation_page', { path: this.path, remote: this.remote })
       this.doc = getDoc(this.side.page)
       await this.doc.load()
     }

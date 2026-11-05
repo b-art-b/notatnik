@@ -21,6 +21,8 @@ pub enum Error {
     Url(String),
     /// A file could not be encrypted or decrypted (EN-12): the key is wrong, the file is cut short or was moved.
     Crypt(String),
+    /// A file is larger than the limit of a download (the size in bytes, as far as it is known).
+    TooLarge(u64),
 }
 
 /// Result alias.
@@ -40,6 +42,7 @@ impl Error {
             Error::MassDelete(_) => "mass_delete",
             Error::Url(_) => "url",
             Error::Crypt(_) => "crypt",
+            Error::TooLarge(_) => "too_large",
         }
     }
 }
@@ -59,6 +62,11 @@ impl fmt::Display for Error {
             ),
             Error::Url(m) => write!(f, "{m}"),
             Error::Crypt(m) => write!(f, "encryption: {m}"),
+            Error::TooLarge(n) => write!(
+                f,
+                "the file is too large to open here ({} MB)",
+                n / 1_000_000
+            ),
         }
     }
 }

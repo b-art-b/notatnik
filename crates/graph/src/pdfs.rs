@@ -78,6 +78,22 @@ fn cache() -> &'static Mutex<Cache> {
     CACHE.get_or_init(Default::default)
 }
 
+/// The first 16 hex digits of the blake3 of a file's bytes, read in pieces (the `sha` of the sidecar of a document that
+/// is not in the graph, NA-4).
+pub fn sha_of_file(path: &std::path::Path) -> Result<String> {
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = blake3::Hasher::new();
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hasher.finalize().to_hex()[..16].to_string())
+}
+
 impl Graph {
     /// The first 16 hex digits of the blake3 of a PDF's bytes (the `sha` of its sidecar). The file is read once for
     /// each size and modification time; a PDF is never read into memory as a whole.

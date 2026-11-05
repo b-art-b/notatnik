@@ -39,7 +39,7 @@ logs a warning the first time, then at `debug`, and `info` when it works again.
 ## Never logged
 
 Text of notes, blocks or titles, arguments and results of commands, passwords, the `Authorization` header, request
-and response bodies, query strings, web addresses pasted into notes (`link_title` logs nothing) and the addresses of clipped pages (`clip_page` logs sizes and counts only; an error names the host and not the path; the HTTP library's own `debug` line, which is off unless `RUST_LOG` asks for it, does show the address it asks for). Page names, file paths and calendar names are logged (they are what you need to find a problem).
+and response bodies, query strings, web addresses pasted into notes (`link_title` logs nothing) the address, the path and the name of a document of the graph's Nextcloud (`remote_open` logs its file number, its size and whether the cache was used, and an error says what went wrong without the path) and the addresses of clipped pages (`clip_page` logs sizes and counts only; an error names the host and not the path; the HTTP library's own `debug` line, which is off unless `RUST_LOG` asks for it, does show the address it asks for). Page names, file paths and calendar names are logged (they are what you need to find a problem).
 
 ## Adding a log line
 

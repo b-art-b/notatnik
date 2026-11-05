@@ -365,6 +365,18 @@ A link to an **EPUB in the graph** (`[Book](../assets/books/novel.epub)`, also `
 - **Errors** are told in words and write nothing: an address that is not a web address, an unreachable site, a missing page, something that is not a web page, an address on this computer or a private network (refused, WA-7), a page that is too large.
 - **The same address again** asks first (_This page was clipped before. Clipping it again replaces the saved copy; your highlights stay._ and _Clip it again_). The file keeps its name, so links and highlights stay where they are.
 
+## Documents in Nextcloud (NA-1..NA-8)
+
+A link to a **PDF or EPUB on the server this graph is synced with** (`[Report](https://cloud.example.org/f/12345)`, the kind `/file` writes, or a WebDAV address of your account) opens in the same viewer and reader as a file of the graph, and you highlight and comment as there. Nothing is put in the graph: the app downloads the file with the sync login into a cache on this device and shows it from there.
+
+- **What opens in the viewer:** only a PDF or EPUB of the graph's own server. A file of another type, a link to another server, a plain web address, or any link in a graph that is not synced opens in the browser as before. While the file is fetched a message says so; a failure (the server cannot be reached and the file was never opened here, the login is wrong, the file is gone, it is over 100 MB) is told in words, with _Open in the browser_.
+- **Every open asks the server** whether the file changed (its ETag); only a changed file is downloaded again. With the server out of reach the copy of the last open is shown, with a note _The server cannot be reached: this is the copy of …_.
+- **The bar under the header** says _From your Nextcloud_ and has **Keep a copy in the graph**: the file is copied into `assets/YYYY/MM/` (up to 100 MB, synced like any asset) and the highlights follow it. Links in notes keep working either way, and always lead to the same highlights.
+- **`/file` → the graph's server → a PDF or EPUB** has an **Annotate** button beside the name: the link is written and the viewer opens at once.
+- **A file renamed or moved on the server** is found by its number (`/f/12345`); a file that changed has its highlights found again by their text, and one whose sentence changed is listed as _Not found_ and kept.
+- **A `((id))` reference** to a highlight of such a document shows the quote and a chip with the document's name that opens it at the highlight.
+- **Settings → Linked files → Delete downloaded documents** empties the cache (it is also kept under 500 MB, oldest first). Deleting the cache loses nothing: the highlights are in the graph.
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.

@@ -53,6 +53,7 @@ pub(super) fn api_err(e: &SyncError) -> ApiError {
         SyncError::Url(_) => "invalid",
         SyncError::NotFound(_) => "not_found",
         SyncError::MassDelete(_) => "mass_delete",
+        SyncError::TooLarge(_) => "too_large",
         _ => "server",
     };
     ApiError::new(code, e.to_string())

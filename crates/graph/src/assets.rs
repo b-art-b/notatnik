@@ -146,13 +146,24 @@ impl Graph {
     /// Stores any file below `assets/YYYY/MM/<name>-<hash8>[.<ext>]` and returns its graph-relative path, like
     /// [`Graph::save_asset`] does for an image. Programs and scripts are refused.
     pub fn save_attachment(&self, bytes: &[u8], name: &str, today: NaiveDate) -> Result<String> {
+        self.save_attachment_up_to(bytes, name, today, MAX_ASSET_BYTES)
+    }
+
+    /// [`Self::save_attachment`] with another size limit (a document kept from Nextcloud may be 100 MB, NA-6).
+    pub fn save_attachment_up_to(
+        &self,
+        bytes: &[u8],
+        name: &str,
+        today: NaiveDate,
+        limit: usize,
+    ) -> Result<String> {
         if bytes.is_empty() {
             return Err(Error::Asset("the file is empty".into()));
         }
-        if bytes.len() > MAX_ASSET_BYTES {
+        if bytes.len() > limit {
             return Err(Error::Asset(format!(
                 "the file is larger than {} MB; link to it instead of copying it",
-                MAX_ASSET_BYTES / (1024 * 1024)
+                limit / (1024 * 1024)
             )));
         }
         if is_risky_file(name) {

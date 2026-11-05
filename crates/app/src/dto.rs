@@ -1710,8 +1710,15 @@ pub struct ReadDrawingArgs {
 /// `annotation_page`: the page that holds the highlights of a PDF (PA-2).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct AnnotationPageArgs {
-    /// The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`).
+    /// The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`). For a document of the
+    /// graph's Nextcloud (`remote` is set) the file in the device cache that `remote_open` named,
+    /// `cache/remote/<key>/<etag>.pdf`.
     pub path: String,
+    /// The Nextcloud document the cached file is a copy of: its address as `remote_open` gave it
+    /// (`<server>/f/<id>`). The sidecar's `file` is this address (NA-4).
+    #[serde(default)]
+    #[ts(optional)]
+    pub remote: Option<String>,
     /// `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
     /// The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
     #[serde(default)]
@@ -2421,4 +2428,66 @@ pub struct EncryptionPreview {
     /// Open tasks with a date on those pages: they stay out of the calendar (or leave it) while the calendar
     /// setting is `exclude`.
     pub calendar_tasks: u32,
+}
+
+/// `remote_open`: a link to a document on the graph's sync server (NA-1).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RemoteOpenArgs {
+    /// `<server>/f/<id>` or `<server>/remote.php/dav/files/<user>/<path>`.
+    pub url: String,
+}
+
+/// What `remote_open` found.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RemoteOpened {
+    /// `false`: this is not a document the app opens itself (another server, a graph without sync, a file that is
+    /// no PDF or EPUB); `reason` says why and the caller opens the address in the browser.
+    pub opened: bool,
+    /// `other_server`, `not_synced` or `other_type` when `opened` is `false`.
+    pub reason: String,
+    /// `pdf` or `epub`; empty when not opened.
+    pub kind: String,
+    /// The file's name on the server.
+    pub name: String,
+    /// The address that identifies the file: `<server>/f/<id>`, else its WebDAV address. This is the sidecar's `file`.
+    pub address: String,
+    /// The copy on this device, for `backend.assetUrl` and for `annotation_page`: `cache/remote/<key>/<etag>.<ext>`.
+    pub path: String,
+    pub size: u64,
+    pub etag: String,
+    /// The server could not be reached; `path` is the copy from an earlier open.
+    pub offline: bool,
+    /// When the copy was fetched, `YYYY-MM-DD`.
+    pub fetched: String,
+    /// This call fetched the file (it was not in the cache or had changed).
+    pub downloaded: bool,
+}
+
+/// `remote_keep`: copies a cached document into the graph (NA-6).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RemoteKeepArgs {
+    /// The `path` of `remote_open`.
+    pub path: String,
+    /// The `address` of `remote_open`.
+    pub address: String,
+    /// The page the copy is linked from, for the link in the answer.
+    pub page: String,
+}
+
+/// The copy kept in the graph.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct RemoteKept {
+    /// Graph-relative path, `assets/YYYY/MM/<name>-<hash8>.<ext>`.
+    pub path: String,
+    /// `[name](relative link)` for the page named in the arguments.
+    pub markdown: String,
+    /// The sidecar of the document now points at the copy.
+    pub sidecar_moved: bool,
+}
+
+/// `remote_cache_clear`: what was freed.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct CacheCleared {
+    /// Bytes of downloaded documents that were deleted (all graphs of this device).
+    pub freed: u64,
 }

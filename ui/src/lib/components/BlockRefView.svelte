@@ -8,6 +8,7 @@
   import { bus } from '../stores/events.svelte'
   import { openPdf } from '../commands/pdf'
   import { openBook } from '../commands/epub'
+  import { isRemote } from '../annotate/remote'
 
   let { uid, chain }: { uid: string; chain: string[] } = $props()
 
@@ -42,6 +43,19 @@
     const b = result?.block
     const file = sidecar?.view?.frontmatter?.props.find((p) => p.key === 'file')?.raw
     if (!b || !file) return null
+    // a document of the graph's Nextcloud: `file` is its address, with no name; the sidecar's name has it, and the kind
+    // is told by the highlight (a page or a CFI)
+    if (isRemote(file)) {
+      const nm = result!.page.split('/').pop() ?? result!.page
+      const pg = b.props.find((p) => p.key === 'hl-page')?.raw
+      if (pg && Number.isInteger(Number(pg)))
+        return { kind: 'pdf' as const, file, page: Number(pg), label: `${nm} p. ${pg}`, name: nm }
+      if (b.props.some((p) => p.key === 'hl-cfi')) {
+        const chapter = b.props.find((p) => p.key === 'hl-chapter')?.raw
+        return { kind: 'epub' as const, file, page: 0, label: chapter ? `${nm} · ${chapter}` : nm, name: nm }
+      }
+      return null
+    }
     const name = file.split('/').pop() ?? file
     if (file.toLowerCase().endsWith('.pdf')) {
       const pg = b.props.find((p) => p.key === 'hl-page')?.raw

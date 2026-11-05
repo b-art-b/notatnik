@@ -282,6 +282,7 @@ mod encryption;
 mod favorites;
 mod filesources;
 mod hidden;
+mod remote_docs;
 pub mod slots;
 mod syncing;
 mod transfer;
@@ -338,6 +339,8 @@ pub struct AppState {
     clip_run: Mutex<Option<clip::ClipRun>>,
     /// What a clip may fetch (WA-4). Only tests allow this computer.
     clip_policy: notatnik_clip::ClipPolicy,
+    /// The size above which downloaded documents are cleaned away (NA-5); tests lower it.
+    remote_cache_limit: u64,
 }
 
 /// Options for [`AppState::new`].
@@ -402,6 +405,7 @@ impl AppState {
             open_roots: Arc::default(),
             clip_run: Mutex::new(None),
             clip_policy: notatnik_clip::ClipPolicy::default(),
+            remote_cache_limit: remote_docs::CACHE_LIMIT,
         }
     }
 
@@ -2469,15 +2473,40 @@ impl AppState {
     /// `file` property; when the PDF was moved by hand it is found by `sha` and `file` is corrected. The page is
     /// hidden (`archived`). It is made without an undo step: it holds nothing until the first highlight.
     pub fn annotation_page(&self, a: AnnotationPageArgs) -> ApiResult<AnnotationPage> {
-        let file = notatnik_graph::graph_relative(&a.path);
-        if !notatnik_graph::is_annotatable_path(&file) {
-            return Err(ApiError::new(
-                "invalid",
-                "annotations work on a PDF or an EPUB in the assets of this graph",
-            ));
-        }
+        // a document of the graph's Nextcloud: `path` is its copy in the cache of this device, `file` of the sidecar is
+        // the document's address, and the sidecar is found by the content hash as well (NA-4)
+        let remote = a.remote.clone();
+        let (file, cached_sha, stem_from) = if let Some(address) = &remote {
+            let cached = self.cache_file(&a.path)?;
+            let name = cached
+                .parent()
+                .and_then(|d| std::fs::read(d.join("meta.json")).ok())
+                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                .and_then(|m| m["name"].as_str().map(String::from))
+                .unwrap_or_else(|| a.path.clone());
+            if !address.starts_with("http://") && !address.starts_with("https://") {
+                return Err(ApiError::new(
+                    "invalid",
+                    "that is not the address of a document",
+                ));
+            }
+            let sha = notatnik_graph::sha_of_file(&cached)?;
+            (address.clone(), Some(sha), name)
+        } else {
+            let file = notatnik_graph::graph_relative(&a.path);
+            if !notatnik_graph::is_annotatable_path(&file) {
+                return Err(ApiError::new(
+                    "invalid",
+                    "annotations work on a PDF or an EPUB in the assets of this graph",
+                ));
+            }
+            (file.clone(), None, file)
+        };
         self.with_open(|o| {
-            let sha = o.graph.pdf_sha(&file)?;
+            let sha = match &cached_sha {
+                Some(s) => s.clone(),
+                None => o.graph.pdf_sha(&file)?,
+            };
             let (by_file, by_sha, kinds, shas) = o.graph.with_index(|i| {
                 Ok::<_, notatnik_index::Error>((
                     i.page_property_values("file")?,
@@ -2492,6 +2521,11 @@ impl AppState {
                 .find(|(p, v)| v == &file && is_sidecar(p))
                 .map(|(p, _)| p.clone());
             let moved = || {
+                if remote.is_some() {
+                    // the same bytes: the sidecar of a copy that was kept in the graph, or of the file as it was
+                    // called before; the content hash is the identity, `file` only a hint
+                    return by_sha.iter().find(|p| is_sidecar(p));
+                }
                 // the same bytes under another name: a sidecar whose own file is gone
                 by_sha.iter().filter(|p| is_sidecar(p)).find(|p| {
                     by_file
@@ -2524,24 +2558,33 @@ impl AppState {
                 }
                 p
             } else if let Some(p) = moved() {
-                let name = Self::parse_name(p)?;
-                let rel = Self::page_file(o, &name)?;
-                let hash = o.graph.read_page(&rel)?.hash;
-                o.graph.edit_page(
-                    &rel,
-                    Some(&hash),
-                    &[BlockOp::SetPageProperty {
-                        key: "file".into(),
-                        value: yaml_item(&file),
-                    }],
-                )?;
-                self.emit_page_changed(p);
+                // a sidecar of a copy that is in the graph keeps pointing at it
+                let own = by_file
+                    .iter()
+                    .find(|(q, _)| q == p)
+                    .map(|(_, v)| v.as_str());
+                let keep_own = remote.is_some()
+                    && own.is_some_and(|v| v == file || o.graph.root().join(v).is_file());
+                if !keep_own {
+                    let name = Self::parse_name(p)?;
+                    let rel = Self::page_file(o, &name)?;
+                    let hash = o.graph.read_page(&rel)?.hash;
+                    o.graph.edit_page(
+                        &rel,
+                        Some(&hash),
+                        &[BlockOp::SetPageProperty {
+                            key: "file".into(),
+                            value: yaml_item(&file),
+                        }],
+                    )?;
+                    self.emit_page_changed(p);
+                }
                 p.clone()
             } else if a.create == Some(false) {
                 String::new()
             } else {
                 created = true;
-                let stem = notatnik_graph::pdf_stem(&file).replace('/', "-");
+                let stem = notatnik_graph::pdf_stem(&stem_from).replace('/', "-");
                 let mut name = format!("{}/{stem}", notatnik_graph::SIDECAR_NAMESPACE);
                 if o.graph.with_index(|i| i.page_info(&name))?.is_some() {
                     name = format!("{name}-{}", &sha[..4]);
@@ -2668,6 +2711,15 @@ impl AppState {
     /// Reads a picture of the graph for the webview: anything below `assets/`, or an image file elsewhere in the
     /// graph (Nextcloud keeps a page's attachments in `.attachments.N/` beside it).
     pub fn read_asset(&self, rel: &str) -> ApiResult<Vec<u8>> {
+        // a document of the graph's Nextcloud in the cache of this device (NA-8)
+        if rel
+            .trim_start_matches("../")
+            .trim_start_matches("./")
+            .starts_with(remote_docs::CACHE_PREFIX)
+        {
+            let full = self.cache_file(rel)?;
+            return std::fs::read(full).map_err(|_| ApiError::new("not_found", "asset not found"));
+        }
         let image = {
             let ext = rel
                 .rsplit_once('.')
@@ -2685,6 +2737,13 @@ impl AppState {
     /// The file for a link as the page view gives it (graph-relative; a leading `../` is ignored), checked to be
     /// inside the graph and outside `.notatnik`.
     pub fn asset_file(&self, rel: &str) -> ApiResult<PathBuf> {
+        if rel
+            .trim_start_matches("../")
+            .trim_start_matches("./")
+            .starts_with(remote_docs::CACHE_PREFIX)
+        {
+            return self.cache_file(rel);
+        }
         self.graph_file(rel, |_| true)
     }
 

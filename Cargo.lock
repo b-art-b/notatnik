@@ -3108,6 +3108,7 @@ name = "notatnik-app"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "blake3",
  "chrono",
  "log",
  "notatnik-caldav",

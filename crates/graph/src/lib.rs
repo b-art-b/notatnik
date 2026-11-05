@@ -35,6 +35,7 @@ pub use error::{Error, Result};
 pub use lock::{GraphLock, LockError};
 pub use pdfs::{
     SIDECAR_NAMESPACE, graph_relative, is_annotatable_path, is_epub_path, is_pdf_path, pdf_stem,
+    sha_of_file,
 };
 pub use rename::{FileEdit, RenamePlan, RenameReport};
 pub use versions::PageVersion;

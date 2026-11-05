@@ -72,7 +72,11 @@ function firstLine(b: BlockView): string {
 export function highlightsOf(view: PageView | null | undefined): Highlight[] {
   if (!view) return []
   const file = view.frontmatter?.props.find((p) => p.key === 'file')?.raw ?? ''
-  const book = /\.epub$/i.test(file)
+  // a document of the graph's Nextcloud has an address for `file`, with no extension to tell by: its highlights do
+  const book =
+    /\.epub$/i.test(file) ||
+    (!/\.pdf$/i.test(file) &&
+      view.blocks.some((b) => /^epubcfi\(.+\)$/.test(prop(b, 'hl-cfi')?.trim() ?? '')))
   const out: Highlight[] = []
   for (const [i, b] of view.blocks.entries()) {
     if (book) {

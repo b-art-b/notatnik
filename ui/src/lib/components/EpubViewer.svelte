@@ -27,13 +27,18 @@
   import { epubHighlightBlock, type Color, type Highlight } from '../pdf/highlights'
   import { COLOR_HEX } from '../annotate/colors'
   import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
+  import { isRemote } from '../annotate/remote'
+  import RemoteBar from './RemoteBar.svelte'
+  import type { RemoteOpened } from '../api'
   import AnnotationPanel from './AnnotationPanel.svelte'
   import HighlightPopup from './HighlightPopup.svelte'
   import SelectionBar from './SelectionBar.svelte'
 
   // `app.book` is set when the reader opens and stays the same until it closes: a snapshot is enough
   const target = untrack(() => app.book)!
-  const fileName = target.path.split('/').pop() ?? target.path
+  // a document of the graph's Nextcloud: `target.path` is its address, `info` what the backend made of it (NA-1)
+  let info = $state<RemoteOpened | null>(null)
+  const fileName = $derived(info?.name ?? target.path.split('/').pop() ?? target.path)
   const sc = new Sidecar(target.path)
 
   // ---------------------------------------------------------------- reading settings (per device, EA-1)
@@ -123,7 +128,15 @@
     let dead = false
     void (async () => {
       try {
-        const [res] = await Promise.all([fetch(backend.assetUrl(target.path)).catch(() => null), sc.load()])
+        let assetPath = target.path
+        if (isRemote(target.path)) {
+          const r = target.remote ?? (await backend.call('remote_open', { url: target.path }))
+          if (!r.opened) throw new BookError('unreadable', 'This is not a document the app can open.')
+          info = r
+          assetPath = r.path
+          sc.use(r.path, r.address)
+        }
+        const [res] = await Promise.all([fetch(backend.assetUrl(assetPath)).catch(() => null), sc.load()])
         if (!res || !res.ok) throw new BookError('unreadable', 'The file could not be read.')
         const v = await openInto(host!, fileName, await res.blob())
         if (dead) {
@@ -718,6 +731,7 @@
       >
       <button type="button" class="primary" onclick={finishBook} data-testid="epub-close">Close</button>
     </header>
+    {#if info}<RemoteBar {info} />{/if}
 
     {#if findOpen}
       <div class="findbar" data-testid="epub-find">

@@ -155,6 +155,28 @@ must never regress:
   clips the addresses of the file over the network, writes the books to `NOTATNIK_REAL_OUT` and prints a summary to judge
   by reading. It is `#[ignore]`d: it needs the network and the pages change.
 
+## Documents in Nextcloud (NA-1 to NA-8)
+
+- **`crates/sync/tests/documents.rs`** (8 tests): the document client against `FakeDav`, which now numbers its files for
+  good (the number moves with a file), answers `SEARCH` by number (and can stop doing so), and supports `MOVE`: stat, search
+  by number also after a rename or move, a number that is not a number is never sent, whole and bounded downloads (by
+  `Content-Length` and by a body that grows), no partial file, a redirect that is not followed (a second local server
+  proves the login is not sent there), a wrong login, a stopped server.
+- **`crates/app/tests/remote_docs.rs`** (16 tests): `remote_open` by number and by path, the second open that asks only for
+  the ETag, a changed file fetched again (one file per document), a renamed file found by its number, links that are not
+  documents of this server (a table of look-alike addresses), a graph without a server, the server gone (the copy of
+  the earlier open, and an error for one never opened), 100 MB refused before any `GET`, errors without the path, the
+  cache route (`..`, absolute, a symbolic link out of the cache), cleaning above the limit (`with_remote_cache_limit`)
+  and clearing, the sidecar of a remote document (address, hash, again, changed file), _Keep a copy_ and the same sidecar
+  found by the old address, and a log capture that finds no address, path or name above `debug`.
+- **`ui/tests/nextcloud.spec.ts`, `nextcloud-touch.spec.ts`** (`nextcloud-fixture.ts` starts `notatnik-fakedav` and
+  connects the graph of the test to it with `create_remote_graph`): a PDF opens with its text and puts nothing in the
+  graph; a path link; other types and servers go to the browser; an EPUB with highlight, comment, reference and chip, then
+  the book changes on the server and the highlight follows; the server stopped (the copy opens with a note; a never
+  opened file says why); _Keep a copy_; `/file` → _Annotate_; a file over 100 MB; 44 px. Chromium and WebKit.
+- **By hand, not done in this phase:** `SEARCH` by number against a real Nextcloud, a 60 MB PDF, a renamed file, the iPad
+  and the installed desktop app (see the phase document).
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details

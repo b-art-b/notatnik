@@ -13,12 +13,15 @@
   let {
     pageName,
     oninsert,
+    onannotate,
     oncancel,
   }: {
     /** The page the link goes into (copied files are linked relative to it). */
     pageName: string
     /** The finished Markdown link. */
     oninsert: (markdown: string) => void
+    /** A PDF or EPUB of the graph's own server was picked for annotation: the link is written and the viewer opens. */
+    onannotate?: (markdown: string, address: string) => void
     oncancel: () => void
   } = $props()
 
@@ -316,7 +319,7 @@
           </li>
         {/each}
         {#each shown.files as f (f.name)}
-          <li>
+          <li class="file-row">
             <button
               type="button"
               class="file"
@@ -328,6 +331,16 @@
               ><span aria-hidden="true">📄</span> <span class="n">{f.name}</span>
               <small>{humanSize(f.size)}</small></button
             >
+            {#if source?.graph && onannotate && /\.(pdf|epub)$/i.test(f.name)}
+              <button
+                type="button"
+                class="annotate"
+                data-testid="file-annotate"
+                aria-label={`Link ${f.name} and open it for annotation`}
+                title="Link this file and open it here to read, highlight and comment"
+                onclick={() => onannotate(fileLink(f.name, f.link), f.link)}>Annotate</button
+              >
+            {/if}
           </li>
         {/each}
       </ul>
@@ -499,9 +512,23 @@
   .folder-row .dir {
     flex: 1;
   }
-  .folder-row .link-folder {
+  .folder-row .link-folder,
+  .file-row .annotate {
     flex: none;
     width: auto;
+  }
+  .file-row {
+    display: flex;
+    gap: 0.3em;
+  }
+  @media (pointer: coarse) {
+    .file-row .annotate {
+      min-height: 44px;
+    }
+  }
+  .file-row .file {
+    flex: 1;
+    min-width: 0;
   }
   .this-folder {
     margin: 0.3em 0;

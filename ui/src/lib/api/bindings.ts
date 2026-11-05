@@ -2146,9 +2146,16 @@ export type ReadDrawingArgs = {
 path: string, };
 export type AnnotationPageArgs = { 
 /**
- * The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`).
+ * The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`). For a document of the
+ * graph's Nextcloud (`remote` is set) the file in the device cache that `remote_open` named,
+ * `cache/remote/<key>/<etag>.pdf`.
  */
 path: string, 
+/**
+ * The Nextcloud document the cached file is a copy of: its address as `remote_open` gave it
+ * (`<server>/f/<id>`). The sidecar's `file` is this address (NA-4).
+ */
+remote?: string, 
 /**
  * `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
  * The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
@@ -2210,6 +2217,80 @@ export type ClipExistingArgs = {
  * The address of a page.
  */
 url: string, };
+export type RemoteOpenArgs = { 
+/**
+ * `<server>/f/<id>` or `<server>/remote.php/dav/files/<user>/<path>`.
+ */
+url: string, };
+export type RemoteOpened = { 
+/**
+ * `false`: this is not a document the app opens itself (another server, a graph without sync, a file that is
+ * no PDF or EPUB); `reason` says why and the caller opens the address in the browser.
+ */
+opened: boolean, 
+/**
+ * `other_server`, `not_synced` or `other_type` when `opened` is `false`.
+ */
+reason: string, 
+/**
+ * `pdf` or `epub`; empty when not opened.
+ */
+kind: string, 
+/**
+ * The file's name on the server.
+ */
+name: string, 
+/**
+ * The address that identifies the file: `<server>/f/<id>`, else its WebDAV address. This is the sidecar's `file`.
+ */
+address: string, 
+/**
+ * The copy on this device, for `backend.assetUrl` and for `annotation_page`: `cache/remote/<key>/<etag>.<ext>`.
+ */
+path: string, size: bigint, etag: string, 
+/**
+ * The server could not be reached; `path` is the copy from an earlier open.
+ */
+offline: boolean, 
+/**
+ * When the copy was fetched, `YYYY-MM-DD`.
+ */
+fetched: string, 
+/**
+ * This call fetched the file (it was not in the cache or had changed).
+ */
+downloaded: boolean, };
+export type RemoteKeepArgs = { 
+/**
+ * The `path` of `remote_open`.
+ */
+path: string, 
+/**
+ * The `address` of `remote_open`.
+ */
+address: string, 
+/**
+ * The page the copy is linked from, for the link in the answer.
+ */
+page: string, };
+export type RemoteKept = { 
+/**
+ * Graph-relative path, `assets/YYYY/MM/<name>-<hash8>.<ext>`.
+ */
+path: string, 
+/**
+ * `[name](relative link)` for the page named in the arguments.
+ */
+markdown: string, 
+/**
+ * The sidecar of the document now points at the copy.
+ */
+sidecar_moved: boolean, };
+export type CacheCleared = { 
+/**
+ * Bytes of downloaded documents that were deleted (all graphs of this device).
+ */
+freed: bigint, };
 export type AnnotationPage = { 
 /**
  * The page name, `hls/<name>`; empty when there is none and `create` was `false`.
@@ -2958,6 +3039,9 @@ export type Commands = {
   clip_progress: { args: NoArgs; result: ClipProgressView };
   clip_cancel: { args: NoArgs; result: NoArgs };
   clip_existing: { args: ClipExistingArgs; result: StringValue | null };
+  remote_open: { args: RemoteOpenArgs; result: RemoteOpened };
+  remote_keep: { args: RemoteKeepArgs; result: RemoteKept };
+  remote_cache_clear: { args: NoArgs; result: CacheCleared };
   attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };

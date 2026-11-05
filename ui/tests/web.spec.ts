@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { expect, test, type Frame, type Page } from './fixtures'
+import { expect, test, type Page } from './fixtures'
 import { article, FIRST, pageServer, SECOND, type PageServer } from './web-fixture'
+import { chapterFrames, highlight, reads } from './epub-reader-helpers'
 
 // WA-1..WA-10, the whole path: clip a page from the app, read and highlight it with the EPUB reader, come back through a
 // reference, clip again after the page changed. The dev server runs with --allow-local-fetch (`clip-refused.spec.ts`
@@ -17,51 +18,6 @@ test.afterEach(async () => {
 })
 
 type Backend = Parameters<Parameters<typeof test>[2]>[0]['backend']
-
-const chapterFrames = (page: Page): Frame[] => page.frames().filter((f) => f !== page.mainFrame())
-
-async function bookText(page: Page): Promise<string> {
-  const texts = await Promise.all(
-    chapterFrames(page).map((f) =>
-      f
-        .locator('body')
-        .innerText()
-        .catch(() => ''),
-    ),
-  )
-  return texts.join('\n')
-}
-const reads = (page: Page, text: string) =>
-  expect.poll(() => bookText(page), { timeout: 15_000 }).toContain(text)
-
-/** Selects the text `text` in the chapter that holds it (as a drag would). */
-async function select(page: Page, text: string) {
-  for (const f of chapterFrames(page)) {
-    const done = await f.evaluate((text) => {
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-        const i = (n as Text).data.indexOf(text)
-        if (i < 0) continue
-        const r = document.createRange()
-        r.setStart(n, i)
-        r.setEnd(n, i + text.length)
-        const sel = window.getSelection()!
-        sel.removeAllRanges()
-        sel.addRange(r)
-        return true
-      }
-      return false
-    }, text)
-    if (done) return
-  }
-  throw new Error(`text not found in any chapter: ${text}`)
-}
-
-async function highlight(page: Page, text: string) {
-  await select(page, text)
-  await expect(page.getByTestId('pdf-selbar')).toBeVisible()
-  await page.getByTestId('pdf-color-yellow').click()
-}
 
 /** Clips `address` with `/clip` at the end of the block `start` of the page `notes`, then leaves the editor. */
 async function clipFromNotes(page: Page, address: string, firstTime = true) {

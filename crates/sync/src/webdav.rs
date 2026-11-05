@@ -267,6 +267,191 @@ impl WebDavRemote {
     }
 }
 
+/// What the document client learned about one file (NA-2, NA-3).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileInfo {
+    /// The path below the client's folder, `/` between the segments, decoded.
+    pub path: String,
+    /// The file's name.
+    pub name: String,
+    pub etag: String,
+    pub size: u64,
+    /// Nextcloud's `oc:fileid`; empty on a server that has none.
+    pub file_id: String,
+}
+
+/// The result of [`WebDavRemote::download`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Downloaded {
+    pub etag: String,
+    pub size: u64,
+}
+
+impl WebDavRemote {
+    /// A client for reading single documents: like [`WebDavRemote::new`], but a redirect is an error and is never
+    /// followed, so the login cannot be sent to another host (NA-5).
+    pub fn for_documents(url: &str, user: &str, password: &str) -> Result<WebDavRemote> {
+        check_url(url)?;
+        let agent = ureq::AgentBuilder::new()
+            .redirects(0)
+            .timeout_connect(Duration::from_secs(10))
+            .timeout(Duration::from_secs(300))
+            .build();
+        Ok(WebDavRemote {
+            agent,
+            base: url.trim().trim_end_matches('/').to_string(),
+            auth: format!("Basic {}", b64(format!("{user}:{password}").as_bytes())),
+        })
+    }
+
+    /// The file at `path` (below the client's folder), or `None` when there is none or it is a folder.
+    pub fn stat(&self, path: &str) -> Result<Option<FileInfo>> {
+        let url = self.url(path, false);
+        let resp = self.request(
+            "PROPFIND",
+            &url,
+            &[
+                ("Depth", "0".into()),
+                ("Content-Type", "application/xml".into()),
+            ],
+            PROPFIND_BODY.as_bytes(),
+        )?;
+        match resp.status() {
+            404 => return Ok(None),
+            207 => {}
+            s => return Err(self.redirect_or_fail(s, path)),
+        }
+        let xml = resp
+            .into_string()
+            .map_err(|e| Error::Offline(e.to_string()))?;
+        let Some(item) = read_items(&xml)?.into_iter().next() else {
+            return Ok(None);
+        };
+        if item.dir {
+            return Ok(None);
+        }
+        Ok(Some(FileInfo {
+            path: path.trim_matches('/').to_string(),
+            name: path.rsplit('/').next().unwrap_or(path).to_string(),
+            etag: item.etag,
+            size: item.size,
+            file_id: item.file_id,
+        }))
+    }
+
+    /// The file with Nextcloud's number `id` somewhere below the client's folder, which must be the account's files
+    /// (`…/remote.php/dav/files/<user>`): a WebDAV `SEARCH` on `oc:fileid`. `None` when there is no such file
+    /// (or the server does not search).
+    pub fn find_by_id(&self, id: &str) -> Result<Option<FileInfo>> {
+        let Some((server, rest)) = self.base.split_once("/remote.php/dav/files/") else {
+            return Ok(None);
+        };
+        let user = rest.split('/').next().unwrap_or("");
+        if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+            return Ok(None);
+        }
+        let body = format!(
+            r#"<?xml version="1.0"?><d:searchrequest xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:basicsearch><d:select><d:prop><d:getetag/><d:getcontentlength/><d:resourcetype/><oc:fileid/></d:prop></d:select><d:from><d:scope><d:href>/files/{user}</d:href><d:depth>infinity</d:depth></d:scope></d:from><d:where><d:eq><d:prop><oc:fileid/></d:prop><d:literal>{id}</d:literal></d:eq></d:where></d:basicsearch></d:searchrequest>"#
+        );
+        let url = format!("{server}/remote.php/dav/");
+        let resp = self.request(
+            "SEARCH",
+            &url,
+            &[("Content-Type", "text/xml".into())],
+            body.as_bytes(),
+        )?;
+        match resp.status() {
+            207 => {}
+            // a server that does not search: the caller falls back to the path of the link
+            404 | 405 | 501 => return Ok(None),
+            s => return Err(self.redirect_or_fail(s, "search")),
+        }
+        let xml = resp
+            .into_string()
+            .map_err(|e| Error::Offline(e.to_string()))?;
+        let own = format!("/remote.php/dav/files/{user}/");
+        for item in read_items(&xml)? {
+            if item.dir || item.file_id != id {
+                continue;
+            }
+            let href = decode(&item.href);
+            let path = href
+                .split_once("://")
+                .and_then(|(_, r)| r.find('/').map(|i| &r[i..]))
+                .unwrap_or(&href);
+            let Some(rel) = path.strip_prefix(&own) else {
+                continue;
+            };
+            // the client may be a folder below the account's root: the path is relative to the root here
+            let rel = rel.trim_matches('/');
+            if rel.is_empty() {
+                continue;
+            }
+            return Ok(Some(FileInfo {
+                path: rel.to_string(),
+                name: rel.rsplit('/').next().unwrap_or(rel).to_string(),
+                etag: item.etag,
+                size: item.size,
+                file_id: item.file_id,
+            }));
+        }
+        Ok(None)
+    }
+
+    /// Downloads the file at `path` to `dest` (through `dest` + `.part`, renamed at the end, so a stopped download
+    /// leaves nothing). At most `limit` bytes: a `Content-Length` over it is refused before the body is read, and a
+    /// body that grows past it stops the download (NA-5).
+    pub fn download(&self, path: &str, limit: u64, dest: &std::path::Path) -> Result<Downloaded> {
+        let resp = self.request("GET", &self.url(path, false), &[], &[])?;
+        let status = resp.status();
+        if status != 200 {
+            return Err(self.redirect_or_fail(status, path));
+        }
+        let announced = resp
+            .header("content-length")
+            .and_then(|v| v.parse::<u64>().ok());
+        if announced.is_some_and(|n| n > limit) {
+            return Err(Error::TooLarge(announced.unwrap_or(0)));
+        }
+        let etag = resp.header("etag").map(norm_etag).unwrap_or_default();
+        let part = dest.with_extension(format!(
+            "{}.part",
+            dest.extension().and_then(|e| e.to_str()).unwrap_or("")
+        ));
+        let result = (|| -> Result<u64> {
+            let mut out = std::fs::File::create(&part)?;
+            let mut reader = resp.into_reader().take(limit + 1);
+            let n =
+                std::io::copy(&mut reader, &mut out).map_err(|e| Error::Offline(e.to_string()))?;
+            if n > limit {
+                return Err(Error::TooLarge(n));
+            }
+            out.sync_all()?;
+            Ok(n)
+        })();
+        match result {
+            Ok(size) => {
+                std::fs::rename(&part, dest)?;
+                Ok(Downloaded { etag, size })
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&part);
+                Err(e)
+            }
+        }
+    }
+
+    /// Like [`Self::fail`], and a redirect says that it was not followed.
+    fn redirect_or_fail(&self, status: u16, what: &str) -> Error {
+        match status {
+            301 | 302 | 303 | 307 | 308 => Error::Server(format!(
+                "the server redirects this request (HTTP {status}); redirects are not followed so that the login stays with this server"
+            )),
+            s => self.fail(s, what),
+        }
+    }
+}
+
 impl Remote for WebDavRemote {
     fn list(&self, dir: &str) -> Result<Option<Listing>> {
         let url = self.url(dir, true);
@@ -413,17 +598,17 @@ fn b64(data: &[u8]) -> String {
     out
 }
 
-/// Reads a `207 Multi-Status` answer of a `Depth: 1` PROPFIND. `prefix` is the decoded path of the folder that was
-/// asked about; the response for that path gives the folder's own ETag, the others are its entries.
-fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
-    #[derive(Default)]
-    struct Item {
-        href: String,
-        etag: String,
-        size: u64,
-        dir: bool,
-        file_id: String,
-    }
+#[derive(Default)]
+struct Item {
+    href: String,
+    etag: String,
+    size: u64,
+    dir: bool,
+    file_id: String,
+}
+
+/// The `response` elements of a multistatus answer.
+fn read_items(xml: &str) -> Result<Vec<Item>> {
     let mut reader = Reader::from_str(xml);
     let mut items: Vec<Item> = Vec::new();
     let mut cur: Option<Item> = None;
@@ -469,6 +654,13 @@ fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
             _ => {}
         }
     }
+    Ok(items)
+}
+
+/// Reads a `207 Multi-Status` answer of a `Depth: 1` PROPFIND. `prefix` is the decoded path of the folder that was
+/// asked about; the response for that path gives the folder's own ETag, the others are its entries.
+fn parse_multistatus(xml: &str, prefix: &str) -> Result<Listing> {
+    let items = read_items(xml)?;
     let own = prefix.trim_matches('/');
     let mut found_self = false;
     let mut listing = Listing {

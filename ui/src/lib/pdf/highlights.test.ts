@@ -90,6 +90,27 @@ describe('the block text', () => {
   })
 })
 
+describe('a document of the graph Nextcloud (an address for `file`)', () => {
+  const frontmatter = (file: string) => ({ props: [{ key: 'file', raw: file }] })
+  const pdfBlock = block(1, 'quote\nhl-page:: 3\nhl-from:: 1\nhl-to:: 6', 'a1b2c3')
+  const epubBlock = block(2, 'quote\nhl-cfi:: epubcfi(/6/2!/4/4,/1:0,/1:5)', 'd4e5f6')
+
+  it('tells a book from a PDF by the highlights, not by an extension the address does not have', () => {
+    const address = 'https://cloud.example.org/f/123'
+    const book = highlightsOf({ frontmatter: frontmatter(address), blocks: [epubBlock] } as PageView)
+    expect(book.map((h) => h.kind)).toEqual(['epub'])
+    const pdf = highlightsOf({ frontmatter: frontmatter(address), blocks: [pdfBlock] } as PageView)
+    expect(pdf.map((h) => h.kind)).toEqual(['text'])
+  })
+
+  it('still goes by the extension of a file in the graph', () => {
+    const view = (file: string) =>
+      ({ frontmatter: frontmatter(file), blocks: [pdfBlock, epubBlock] }) as PageView
+    expect(highlightsOf(view('assets/a.pdf')).map((h) => h.kind)).toEqual(['text'])
+    expect(highlightsOf(view('assets/a.epub')).map((h) => h.kind)).toEqual(['epub'])
+  })
+})
+
 describe('parsePdfHref', () => {
   it('knows a link to a PDF in the graph and its page', () => {
     expect(parsePdfHref('../assets/report.pdf')).toEqual({ path: 'assets/report.pdf', page: null })

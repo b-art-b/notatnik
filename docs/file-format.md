@@ -495,6 +495,15 @@ in the reading order and the title, only for display), `hl-color` and `hl-contex
 or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
 ([phases/epub-annotation.md](phases/epub-annotation.md)).
 
+**Sidecar of a document in Nextcloud (NA-4).** When the PDF or EPUB is a file of the graph's Nextcloud, the sidecar's `file`
+is the document's address, `<server>/f/<number>` (else its WebDAV address when the server gives no numbers), and `sha` is
+the hash of the bytes as downloaded. The highlight blocks are the same as for a file in the graph (`hl-page`... or
+`hl-cfi`...); which kind it is, is told by them and not by an extension. The content hash is the identity and `file` a
+hint: after _Keep a copy in the graph_ `file` is the path of the copy (`assets/YYYY/MM/<name>-<hash8>.<ext>`), and the
+address still finds the same sidecar. The downloaded file itself is not in the graph: it is below
+`<data dir>/graphs/<graph id>/remote/<number>/<etag>.<ext>` on the device, with a `meta.json` (name, address, ETag, size,
+date) beside it, and may be deleted at any time ([phases/nextcloud-annotation.md](phases/nextcloud-annotation.md)).
+
 ## Clipped web pages (WA-1, WA-2)
 
 A page clipped with `/clip` is a one-chapter EPUB 3 at `assets/web/<slug>-<hash8>.epub` (`hash8`: the first 8 hex of the

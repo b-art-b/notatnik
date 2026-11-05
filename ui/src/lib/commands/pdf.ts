@@ -1,9 +1,13 @@
 // The PDF viewer (PA-1): `openPdf` shows the full-screen view and waits until it is closed.
+import type { RemoteOpened } from '../api'
 import { app } from '../stores/app.svelte'
 
 export interface PdfOpen {
   /** Graph-relative path of the PDF, `assets/…/name.pdf`. */
   path: string
+  /** The document is on the graph's Nextcloud: `path` is its address, and this is what `remote_open` said about it (the
+   * viewer asks again when it is absent). */
+  remote?: RemoteOpened
   /** The page to show first (from 1). */
   page?: number
   /** A highlight to scroll to and flash: its block `^id`. */

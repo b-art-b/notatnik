@@ -28,10 +28,15 @@
   import SelectionBar from './SelectionBar.svelte'
   import { COLOR_HEX } from '../annotate/colors'
   import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
+  import { isRemote } from '../annotate/remote'
+  import RemoteBar from './RemoteBar.svelte'
+  import type { RemoteOpened } from '../api'
 
   // `app.pdf` is set when the viewer opens and stays the same until it closes: a snapshot is enough
   const target = untrack(() => app.pdf)!
-  const fileName = target.path.split('/').pop() ?? target.path
+  // a document of the graph's Nextcloud: `target.path` is its address, `info` what the backend made of it (NA-1)
+  let info = $state<RemoteOpened | null>(null)
+  const fileName = $derived(info?.name ?? target.path.split('/').pop() ?? target.path)
 
   const GAP = 12
   const PAD = 16
@@ -53,7 +58,15 @@
     let dead = false
     void (async () => {
       try {
-        const d = await openDocument(backend.assetUrl(target.path), (wrong) => {
+        let assetPath = target.path
+        if (isRemote(target.path)) {
+          const r = target.remote ?? (await backend.call('remote_open', { url: target.path }))
+          if (!r.opened) throw new Error('This is not a document the app can open.')
+          info = r
+          assetPath = r.path
+          sc.use(r.path, r.address)
+        }
+        const d = await openDocument(backend.assetUrl(assetPath), (wrong) => {
           return new Promise((resolve) => {
             password = {
               wrong,
@@ -668,6 +681,7 @@
       >
       <button type="button" class="primary" onclick={finishPdf} data-testid="pdf-close">Close</button>
     </header>
+    {#if info}<RemoteBar {info} />{/if}
     {#if findOpen}
       <div class="findbar" data-testid="pdf-find">
         <input

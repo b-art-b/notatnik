@@ -18,3 +18,5 @@ tests/clip.spec.ts
 tests/clip-refused.spec.ts
 tests/clip-touch.spec.ts
 tests/web.spec.ts
+tests/nextcloud.spec.ts
+tests/nextcloud-touch.spec.ts

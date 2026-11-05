@@ -28,13 +28,22 @@
       toast(errorMessage(e), 'error')
     }
   }
+  async function clearDownloads() {
+    try {
+      const r = await backend.call('remote_cache_clear', {})
+      toast(`Deleted the downloaded documents (${Math.round(Number(r.freed) / 1024 / 1024)} MB).`)
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+  }
   import PaneHeader from './PaneHeader.svelte'
 </script>
 
 <PaneHeader title="Linked files" scope="device">
   Servers whose files you can link from a note: type <kbd>/file</kbd> in a block and choose one. A link to a
   Nextcloud file is its <code>…/f/&lt;number&gt;</code> address, which keeps working when the file is renamed or
-  moved.
+  moved. A link to a PDF or an EPUB on the server this graph is synced with opens in the app's viewer; the file
+  is downloaded to this device (not into the graph) and kept up to 500 MB.
 </PaneHeader>
 
 <ul class="sources" aria-label="Servers" data-testid="file-sources">
@@ -92,7 +101,16 @@
   >
 {/if}
 
+<p class="downloads">
+  <button type="button" class="plain" data-testid="clear-downloads" onclick={clearDownloads}
+    >Delete downloaded documents</button
+  >
+</p>
+
 <style>
+  .downloads {
+    margin-top: 1em;
+  }
   .sources {
     list-style: none;
     margin: 0.6em 0;

@@ -54,6 +54,7 @@
   import { addressLine, cleanUrl, pastedAddressList, smartPaste, titleWanted } from '../pastelink'
   import { openDrawing } from '../commands/drawing'
   import { clipText, openClip } from '../commands/clip'
+  import { openServerLink } from '../annotate/remote'
   import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
@@ -273,6 +274,12 @@
     if (view !== v) return
     if (clip) insertLinks(v, [clipText(clip)], at)
     v.focus()
+  }
+
+  /** A PDF or EPUB of the graph's server picked with _Annotate_: the link is written, then the viewer opens on it. */
+  function pickAnnotate(markdown: string, address: string) {
+    pickFile(markdown)
+    void openServerLink(address)
   }
 
   /** A file link from the picker, written where `/file` was typed. */
@@ -740,7 +747,7 @@
       {:else if picker.kind === 'example'}
         <QueryExamplePicker onpick={pickExample} oncancel={closePicker} />
       {:else if picker.kind === 'file'}
-        <FilePicker {pageName} oninsert={pickFile} oncancel={closePicker} />
+        <FilePicker {pageName} oninsert={pickFile} onannotate={pickAnnotate} oncancel={closePicker} />
       {:else}
         <DatePicker
           title={DATE_TITLES[picker.kind]}
