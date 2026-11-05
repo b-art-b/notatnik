@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** W1 to W3 done (the crate, the commands, the dialog; tested). W4 to W6 not started.
+**Status:** W1 to W4 done (the crate, the commands, the dialog, the reader; tested). W5 and W6 not started.
 
 ## Design
 
@@ -192,9 +192,19 @@ ED-27) for the HTTP client.
 - `EpubViewer.svelte`: an _Original page_ button when the book has an `http(s)` source (through `openExternal`); the
   title bar shows the host. Styling for clips (pictures no wider than the page, long code and tables scroll).
 - **Verify:**
-  - [ ] a clip shows _Original page_; it calls `openExternal` with the source address; a book without a source, or with a
+  - [x] a clip shows _Original page_; it calls `openExternal` with the source address; a book without a source, or with a
         source that is not `http(s)`, shows no button
-  - [ ] a clipped picture is shown, not wider than the page, in paginated and scrolled layout
+  - [x] a clipped picture is shown, not wider than the page, in paginated and scrolled layout
+
+### How W4 was built, where it differs from the plan
+
+- **`webSourceOf(book)`** (`ui/src/lib/epub/foliate.ts`) reads `dc:source` and takes the first `http(s)` address; `urn:`,
+  `file:` and `javascript:` sources give no button, so a book cannot make the reader offer anything else.
+- **Header:** the host (`example.org`, without `www.`; the full address as tooltip) and _Original page_ sit after the title;
+  on a phone-width window the host is hidden. The button calls `backend.openExternal`.
+- **Styling is not only for clips:** the reader's own style rules (`!important`, so a book cannot undo them) now keep
+  pictures, SVG and video within the page width and make `pre` and tables scroll sideways. A test with a 3000 px picture
+  fails without the rule.
 
 ### W5 Tests with a real page server
 

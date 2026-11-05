@@ -354,6 +354,7 @@ A link to an **EPUB in the graph** (`[Book](../assets/books/novel.epub)`, also `
 - **Panel:** the same as for PDFs (reading order, filters, comments as editable blocks, a `TODO` there is on the agenda); the place of a highlight is its chapter; a click on a quote opens the book there and flashes it. A highlight that is not in the book any more says _Not found in …_ and is not drawn.
 - **In your notes:** a `((id))` of a highlight shows its quote and a chip _novel.epub · 3 · Calm_ that opens the book at the highlight.
 - **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`).
+- **A clipped web page** shows its host next to the title and **Original page**, which opens the page in the browser (only for a book whose source is an `http(s)` address). Pictures are never wider than the page; long code and tables scroll sideways.
 
 ## Web pages: clipping (WA-1, WA-2)
 

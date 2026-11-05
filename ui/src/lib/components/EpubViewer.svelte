@@ -17,6 +17,8 @@
     foliate,
     openInto,
     titleOf,
+    webSourceOf,
+    hostOf,
     type FoliateView,
     type Location,
     type TocItem,
@@ -77,6 +79,10 @@
       body, body * { color: ${c.fg} !important; background-color: transparent !important; }
       a:link, a:link *, a:visited, a:visited * { color: ${c.link} !important; }
       ::selection { background: rgb(0 90 255 / 0.3) !important; }
+      /* a clipped page has wide pictures, tables and code: none is wider than the page, long ones scroll (WA-5) */
+      img, svg, video { max-width: 100% !important; height: auto !important; }
+      pre, table { max-width: 100% !important; overflow-x: auto !important; }
+      table { display: block !important; }
     `
   }
 
@@ -89,6 +95,8 @@
   let loc = $state<Location | null>(null)
   let tocOpen = $state(false)
   let sliderValue = $state(0)
+  // the address of the web page a clip was made from (`dc:source`); books without one have no button
+  const source = $derived(view ? webSourceOf(view.book) : null)
   const percent = $derived(Math.round((loc?.fraction ?? 0) * 100))
 
   const positionKey = () => `notatnik.epub.position.${sc.side?.sha ?? target.path}`
@@ -618,6 +626,16 @@
         data-testid="epub-toc-toggle">Contents</button
       >
       <h2 title={target.path}>{view ? titleOf(view.book) || fileName : fileName}</h2>
+      {#if source}
+        <span class="host" data-testid="epub-host" title={source}>{hostOf(source)}</span>
+        <button
+          type="button"
+          class="tool"
+          onclick={() => backend.openExternal(source)}
+          title="Open the page this was clipped from, in the browser"
+          data-testid="epub-original">Original page</button
+        >
+      {/if}
       <div class="group" role="group" aria-label="Page">
         <button
           type="button"
@@ -858,6 +876,14 @@
     padding: 0.5em 0.9em;
     border-bottom: 1px solid var(--border);
   }
+  .host {
+    color: var(--muted);
+    font-size: 0.85em;
+    max-width: 10em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   h2 {
     margin: 0;
     font-size: 1.05em;
@@ -1047,6 +1073,9 @@
   @media (max-width: 900px) {
     h2 {
       max-width: 9em;
+    }
+    .host {
+      display: none;
     }
     .chapter {
       display: none;

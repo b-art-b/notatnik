@@ -19,6 +19,8 @@ export interface BookSpec {
   fixedLayout?: boolean
   /** A style sheet `style.css` linked from every chapter. */
   css?: string
+  /** `dc:source`: where the book was taken from. */
+  source?: string
 }
 
 function zip(entries: { name: string; data: Buffer }[]): Buffer {
@@ -77,7 +79,7 @@ export function makeEpub(spec: BookSpec): Buffer {
   const opf =
     `<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">` +
     `<metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">urn:uuid:12345678-1234-1234-1234-123456789abc</dc:identifier>` +
-    `<dc:title>${esc(title)}</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>` +
+    `<dc:title>${esc(title)}</dc:title><dc:language>en</dc:language>${spec.source ? `<dc:source>${esc(spec.source)}</dc:source>` : ''}<meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>` +
     `${spec.fixedLayout ? '<meta property="rendition:layout">pre-paginated</meta>' : ''}</metadata><manifest>` +
     `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>` +
     chapters

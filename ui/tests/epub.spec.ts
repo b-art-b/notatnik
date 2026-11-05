@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test as t, type Frame, type Page } from './fixtures'
-import { fixedLayoutBook, hostile, longBook, NOVEL, novel, styledBook } from './epub-fixture'
+import { fixedLayoutBook, hostile, longBook, makeEpub, NOVEL, novel, styledBook } from './epub-fixture'
 
 // EA-1..EA-10: the EPUB reader, highlights kept as blocks of a sidecar page, the panel, references.
 
@@ -553,5 +553,97 @@ t(
       .poll(() => frame.locator('p.fancy').evaluate((p) => getComputedStyle(p).textDecorationLine))
       .toBe('underline')
     expect(refused).toEqual([])
+  },
+)
+
+// WA-5: a book that was clipped from a web page says where it came from.
+const openedWindows = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)
+const stubWindowOpen = (page: Page) =>
+  page.addInitScript(() => {
+    ;(window as unknown as { __opened: string[] }).__opened = []
+    window.open = ((u: string) => {
+      ;(window as unknown as { __opened: string[] }).__opened.push(String(u))
+      return null
+    }) as typeof window.open
+  })
+const ONE_PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+)
+const clipLike = (source?: string) =>
+  makeEpub({
+    title: 'A clipped page',
+    source,
+    files: [{ name: 'images/pic.png', type: 'image/png', bytes: ONE_PIXEL }],
+    chapters: [
+      {
+        title: 'A clipped page',
+        html:
+          '<p>The text of the clipped page.</p><p><img src="images/pic.png" width="3000" height="2000" alt="wide"/></p>' +
+          '<pre>' +
+          'a very long line of code '.repeat(40) +
+          '</pre>',
+      },
+    ],
+  })
+
+t(
+  'a clip shows its host and Original page, which opens the source address (WA-5)',
+  async ({ backend, page }) => {
+    await stubWindowOpen(page)
+    await openBook(page, backend, clipLike('https://www.example.org/news/a?b=1'), 'clip.epub')
+    await expect(page.getByTestId('epub-host')).toHaveText('example.org')
+    await page.getByTestId('epub-original').click()
+    expect(await openedWindows(page)).toEqual(['https://www.example.org/news/a?b=1'])
+  },
+)
+
+for (const [what, source] of [
+  ['no source', undefined],
+  ['a source that is not a web address', 'urn:isbn:9780000000002'],
+  ['a javascript source', 'javascript:alert(1)'],
+  ['a file source', 'file:///etc/passwd'],
+] as const) {
+  t(`a book with ${what} has no Original page button (WA-5)`, async ({ backend, page }) => {
+    await openBook(page, backend, clipLike(source), 'clip.epub')
+    await reads(page, 'The text of the clipped page.')
+    await expect(page.getByTestId('epub-original')).toHaveCount(0)
+    await expect(page.getByTestId('epub-host')).toHaveCount(0)
+  })
+}
+
+t(
+  'a clipped picture is shown, not wider than the page, in paginated and scrolled layout (WA-5)',
+  async ({ backend, page }) => {
+    await openBook(page, backend, clipLike('https://example.org/a'), 'clip.epub')
+    await reads(page, 'The text of the clipped page.')
+    const measure = async () => {
+      const frame = chapterFrames(page).find((f) => f.url().startsWith('blob:'))!
+      return frame.evaluate(() => {
+        const img = document.querySelector('img')!
+        return {
+          loaded: img.complete,
+          image: img.getBoundingClientRect().width,
+          page: document.documentElement.clientWidth,
+          pre: getComputedStyle(document.querySelector('pre')!).overflowX,
+          preWidth: document.querySelector('pre')!.getBoundingClientRect().width,
+        }
+      })
+    }
+    for (const flow of ['paginated', 'scrolled']) {
+      await page.getByTestId('epub-settings-toggle').click()
+      await page.getByTestId(`epub-flow-${flow}`).click()
+      await page.getByTestId('epub-settings-toggle').click()
+      await expect
+        .poll(async () => {
+          const m = await measure().catch(() => null)
+          return !!m && m.loaded && m.image > 0 && m.image <= m.page
+        })
+        .toBe(true)
+      const m = await measure()
+      expect(m.pre).toBe('auto')
+      expect(m.preWidth).toBeLessThanOrEqual(m.page)
+    }
   },
 )

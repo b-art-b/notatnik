@@ -33,7 +33,7 @@ export interface SearchHit {
 export type SearchEvent = 'done' | { progress: number } | { label: string; subitems: SearchHit[] }
 
 export interface Book {
-  metadata?: { title?: string | Record<string, string> }
+  metadata?: { title?: string | Record<string, string>; source?: unknown }
   toc?: TocItem[]
   sections: { linear?: string }[]
   rendition?: { layout?: string }
@@ -134,4 +134,30 @@ export function titleOf(book: Book): string {
   if (!t) return ''
   if (typeof t === 'string') return t
   return Object.values(t)[0] ?? ''
+}
+
+/** Where a book was taken from (`dc:source`) when that is a web address: only `http` and `https` count, so a book
+ * cannot make the reader offer a `javascript:` or `file:` link. A clipped page has it (WA-1); most books do not. */
+export function webSourceOf(book: Book): string | null {
+  const raw = book.metadata?.source
+  const list = Array.isArray(raw) ? raw : [raw]
+  for (const item of list) {
+    const text = typeof item === 'string' ? item : ''
+    if (!/^https?:\/\//i.test(text)) continue
+    try {
+      return new URL(text).href
+    } catch {
+      // not an address after all
+    }
+  }
+  return null
+}
+
+/** The host of a web address, for the title bar (without `www.`). */
+export function hostOf(address: string): string {
+  try {
+    return new URL(address).host.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
 }
