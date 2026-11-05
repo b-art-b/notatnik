@@ -411,6 +411,34 @@ fn a_slow_clip_does_not_block_the_other_commands() {
 }
 
 #[test]
+fn a_cancel_does_not_wait_for_a_site_that_holds_the_connection() {
+    let s = Server::start(HashMap::from([(
+        "/hang".to_string(),
+        Route {
+            delay: Duration::from_secs(5),
+            ..article("Hang", &[], "")
+        },
+    )]));
+    let t = start(true);
+    std::thread::scope(|scope| {
+        let job = scope.spawn(|| t.clip(&s.url("/hang")));
+        std::thread::sleep(Duration::from_millis(200));
+        let started = std::time::Instant::now();
+        t.ok("clip_cancel", json!({}));
+        let e = job.join().unwrap().unwrap_err();
+        assert_eq!(e.code, "cancelled", "{e}");
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "the cancel waited for the site: {:?}",
+            started.elapsed()
+        );
+    });
+    // the run is over: the next clip is not refused as "running", and nothing was written
+    assert_eq!(t.ok("clip_progress", json!({}))["running"], false);
+    assert!(!t.graph().join("assets/web").exists());
+}
+
+#[test]
 fn addresses_on_this_computer_are_refused_by_default_and_nothing_is_written() {
     let s = Server::start(HashMap::from([(
         "/a".to_string(),

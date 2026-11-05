@@ -49,6 +49,7 @@
   import { refreshWorkspace } from './lib/stores/workspace.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
+  import ClipDialog from './lib/components/ClipDialog.svelte'
   import DrawingEditor from './lib/components/DrawingEditor.svelte'
   import PdfViewer from './lib/components/PdfViewer.svelte'
   import EpubViewer from './lib/components/EpubViewer.svelte'
@@ -549,6 +550,7 @@
 {#if app.transfer}<TransferDialog />{/if}
 {#if app.templateAsks}<TemplateAskDialog />{/if}
 {#if app.drawing}<DrawingEditor />{/if}
+{#if app.clip}<ClipDialog />{/if}
 {#if app.pdf}<PdfViewer />{/if}
 {#if app.book}<EpubViewer />{/if}
 <div class="toasts" aria-live="polite">

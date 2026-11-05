@@ -115,13 +115,18 @@ async function startBackend(
   }
 }
 
-type Opts = { fixture: string; today: string; fakeCalendar: boolean }
+type Opts = { fixture: string; today: string; fakeCalendar: boolean; localFetch: boolean }
 export const test = base.extend<{ backend: Backend } & Opts>({
   fixture: ['basic', { option: true }],
   today: ['2026-10-03', { option: true }],
   fakeCalendar: [false, { option: true }],
-  backend: async ({ page, fixture, today, fakeCalendar }, use) => {
-    const { b, stop } = await startBackend(fixture, today, page, fakeCalendar ? ['--fake-calendar'] : [])
+  // clipping addresses on this computer (the page server of the web tests), which is refused otherwise (WA-7)
+  localFetch: [false, { option: true }],
+  backend: async ({ page, fixture, today, fakeCalendar, localFetch }, use) => {
+    const { b, stop } = await startBackend(fixture, today, page, [
+      ...(fakeCalendar ? ['--fake-calendar'] : []),
+      ...(localFetch ? ['--allow-local-fetch'] : []),
+    ])
     await use(b)
     stop()
   },

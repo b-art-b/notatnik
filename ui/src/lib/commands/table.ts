@@ -10,6 +10,7 @@ import {
 } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
 import { isFavorite, setFavorite } from '../stores/favorites.svelte'
+import { clipIntoPage } from './clip'
 import { globalUndo, saveAsTemplate, sendSelectionToGraph } from './exec'
 import { syncNow } from '../stores/sync.svelte'
 import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
@@ -58,6 +59,12 @@ export const commands: Command[] = [
     title: 'Save as template…',
     keys: '',
     run: saveAsTemplate,
+  },
+  {
+    id: 'clip-page',
+    title: 'Clip a web page…',
+    keys: '',
+    run: () => void clipIntoPage(),
   },
   {
     id: 'transfer-page',

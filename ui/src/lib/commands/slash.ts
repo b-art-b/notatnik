@@ -45,6 +45,8 @@ export interface SlashCommand {
   pickExample?: boolean
   /** `/draw` opens the drawing editor; the saved drawing is linked where the command was. */
   pickDraw?: boolean
+  /** `/clip` opens the dialog that clips a web page; the link goes where the command was (WA-1). */
+  pickClip?: boolean
 }
 
 /** One entry of the template list: a page-type template, or blocks saved from a page. */
@@ -532,6 +534,27 @@ function baseCommands(): SlashCommand[] {
       keywords: ['draw', 'sketch', 'handwriting', 'write', 'pen', 'canvas', 'stylus'],
       title: 'Draw or write by hand on a canvas; the drawing is an image in the note',
       pickDraw: true,
+      insert: () => ({ text: '' }),
+    },
+    {
+      name: 'clip',
+      label: 'Clip a web page…',
+      icon: '🌐',
+      group: 'Insert',
+      keywords: [
+        'web',
+        'page',
+        'article',
+        'website',
+        'url',
+        'address',
+        'epub',
+        'save',
+        'annotate',
+        'highlight',
+      ],
+      title: 'Save a web page as a book you can highlight and comment on; the link goes in the note',
+      pickClip: true,
       insert: () => ({ text: '' }),
     },
     {

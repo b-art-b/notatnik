@@ -77,25 +77,53 @@ impl AppState {
         }
         let _ended = Ended(&self.clip_run);
 
-        let seen = progress.clone();
-        let stop = cancel.clone();
-        let clip = notatnik_clip::clip(&a.url, &self.clip_policy, chrono::Utc::now(), &mut |p| {
-            let mut v = seen
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            match p {
-                Progress::Fetching => v.step = "fetching".into(),
-                Progress::Cleaning => v.step = "cleaning".into(),
-                Progress::Picture { done, total } => {
-                    v.step = "pictures".into();
-                    v.done = done as u32;
-                    v.total = total as u32;
+        // The fetch runs on a thread of its own and this one waits for it, looking at the cancel flag every 50 ms: a
+        // site that holds the connection open must not make Cancel wait for the network timeout. A clip that was
+        // cancelled leaves its thread to end by itself (the progress closure stops it at the next step, the
+        // timeouts bound the rest); it stores nothing.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (url, policy, seen, stop) = (
+            a.url.clone(),
+            self.clip_policy.clone(),
+            progress.clone(),
+            cancel.clone(),
+        );
+        std::thread::spawn(move || {
+            let clip = notatnik_clip::clip(&url, &policy, chrono::Utc::now(), &mut |p| {
+                let mut v = seen
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                match p {
+                    Progress::Fetching => v.step = "fetching".into(),
+                    Progress::Cleaning => v.step = "cleaning".into(),
+                    Progress::Picture { done, total } => {
+                        v.step = "pictures".into();
+                        v.done = done as u32;
+                        v.total = total as u32;
+                    }
+                    Progress::Writing => v.step = "writing".into(),
                 }
-                Progress::Writing => v.step = "writing".into(),
+                !stop.load(Ordering::SeqCst)
+            });
+            // nobody listens any more after a cancel
+            let _ = tx.send(clip);
+        });
+        let clip = loop {
+            match rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(done) => break done.map_err(failure)?,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if cancel.load(Ordering::SeqCst) {
+                        return Err(failure(ClipError::Cancelled));
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(ApiError::new(
+                        "clip_failed",
+                        "the clip stopped unexpectedly",
+                    ));
+                }
             }
-            !stop.load(Ordering::SeqCst)
-        })
-        .map_err(failure)?;
+        };
         // a cancel that came while the book was being written: nothing is stored
         if cancel.load(Ordering::SeqCst) {
             return Err(failure(ClipError::Cancelled));

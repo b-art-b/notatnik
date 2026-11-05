@@ -53,6 +53,7 @@
   import { fileLink } from '../filelinks'
   import { addressLine, cleanUrl, pastedAddressList, smartPaste, titleWanted } from '../pastelink'
   import { openDrawing } from '../commands/drawing'
+  import { clipText, openClip } from '../commands/clip'
   import { hasFiles, imageFiles, pngFromBase64, toBase64, usefulName } from '../images'
   import { dateChanges, DATE_TITLES, refreshTemplateNames, type DateKind } from '../commands/slash'
   import DatePicker from './DatePicker.svelte'
@@ -260,6 +261,17 @@
     })
     if (view !== v) return
     if (saved) insertLinks(v, [saved.markdown], at)
+    v.focus()
+  }
+
+  /** `/clip`: the dialog opens; the clipped page is linked where the command was typed, with its address as a
+   * `source::` property line (WA-1). Like the drawing editor, it keeps the block in edit mode meanwhile. */
+  async function clipHere(at: number) {
+    const v = view
+    if (!v) return
+    const clip = await openClip({ page: pageName })
+    if (view !== v) return
+    if (clip) insertLinks(v, [clipText(clip)], at)
     v.focus()
   }
 
@@ -570,6 +582,7 @@
             (at) => openPicker('template', at),
             (at) => openPicker('example', at),
             (at) => void drawHere(at),
+            (at) => void clipHere(at),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),
@@ -588,6 +601,7 @@
                   !view.hasFocus &&
                   !picker &&
                   !app.drawing &&
+                  !app.clip &&
                   !document.activeElement?.closest('.cm-tooltip')
                 ) {
                   clearTimeout(idle)

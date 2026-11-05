@@ -355,6 +355,15 @@ A link to an **EPUB in the graph** (`[Book](../assets/books/novel.epub)`, also `
 - **In your notes:** a `((id))` of a highlight shows its quote and a chip _novel.epub · 3 · Calm_ that opens the book at the highlight.
 - **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`).
 
+## Web pages: clipping (WA-1, WA-2)
+
+**/clip** ("Clip a web page…", also found by `/web`, `/article`, `/url`) or _Ctrl+K → Clip a web page…_ opens a small dialog. Type or paste an `http` or `https` address (a web address on the clipboard is put in the field when the browser lets the app look; Enter or _Clip_ starts). The page is fetched, the article is cut out, and it is saved as a book below `assets/web/`; `[Title](../assets/web/…epub)` and a `source:: <address>` line are written where `/clip` was typed (one undo step), or, from the palette, as a new last block of the open page. The link opens the book in the EPUB reader, where you highlight and comment as in any EPUB.
+
+- **While it works** the dialog names the step (fetching the page, cutting out the article, pictures _2 of 5_, saving). **Cancel** stops at once and writes nothing. Esc closes the dialog without clipping (while a clip runs it cancels it first).
+- **Notes:** if no article was found (the whole page was used) or pictures were left out, the dialog says so before the link is written (_Insert the link_).
+- **Errors** are told in words and write nothing: an address that is not a web address, an unreachable site, a missing page, something that is not a web page, an address on this computer or a private network (refused, WA-7), a page that is too large.
+- **The same address again** asks first (_This page was clipped before. Clipping it again replaces the saved copy; your highlights stay._ and _Clip it again_). The file keeps its name, so links and highlights stay where they are.
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.

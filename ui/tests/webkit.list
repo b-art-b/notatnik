@@ -14,3 +14,6 @@ tests/pdf.spec.ts
 tests/pdf-touch.spec.ts
 tests/epub.spec.ts
 tests/epub-touch.spec.ts
+tests/clip.spec.ts
+tests/clip-refused.spec.ts
+tests/clip-touch.spec.ts

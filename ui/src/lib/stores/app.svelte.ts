@@ -1,5 +1,6 @@
 import { backend, CommandError, type GraphInfo } from '../api'
 import type { DrawingOpen } from '../commands/drawing'
+import type { ClipOpen } from '../commands/clip'
 import type { PdfOpen } from '../commands/pdf'
 import type { BookOpen } from '../commands/epub'
 import { parseHash, routeHash, type Route } from '../route'
@@ -119,6 +120,8 @@ export const app = $state({
   drawing: null as DrawingOpen | null,
   /** When each drawing was last saved (ms), so a picture of it that was cached is fetched again. */
   drawingStamp: {} as Record<string, number>,
+  /** The dialog that clips a web page while it is open (WA-1). */
+  clip: null as ClipOpen | null,
   /** The PDF viewer while it is open (PA-1): the PDF, and the page or highlight to show first. */
   pdf: null as PdfOpen | null,
   /** The EPUB reader while it is open (EA-1): the book, and the place or highlight to show first. */

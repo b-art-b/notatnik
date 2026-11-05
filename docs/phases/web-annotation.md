@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** W1 and W2 done (the crate and the command, tested). W3 to W6 not started.
+**Status:** W1 to W3 done (the crate, the commands, the dialog; tested). W4 to W6 not started.
 
 ## Design
 
@@ -136,8 +136,10 @@ ED-27) for the HTTP client.
 
 - **Progress is asked for, not pushed:** `clip_progress` returns `{ running, step, done, total }` and the dialog polls it.
   Events would have needed a new channel in both transports for one use; a poll works unchanged in the browser, the
-  desktop app and the iPad. `clip_cancel` is checked between the steps (a page that is slow to answer is waited for until
-  its 15 s are up), and once more before the book is stored, so a cancel never leaves a file.
+  desktop app and the iPad. `clip_cancel` ends the call within 50 ms (found in W3: the fetch runs on a thread of its own and `clip_page`
+  waits for it looking at the flag, so a site that holds the connection open does not make Cancel wait for the 15 s
+  timeout; the thread ends by itself and stores nothing), and the flag is checked once more before the book is stored,
+  so a cancel never leaves a file.
 - **A clip does not hold the graph.** The fetch runs outside the graph lock, so every other command keeps working during
   a slow site; only the write takes the lock. One clip at a time per graph (a second `clip_page` answers `conflict`).
 - **The Tauri command is `async` now.** A plain Tauri command runs on the thread that draws the window, so a slow clip
@@ -160,13 +162,30 @@ ED-27) for the HTTP client.
   line with `source:: <address>` below it, in one undo step; an address that was clipped before asks _Clip it again
   (replaces the saved copy; your highlights stay)_.
 - **Verify:**
-  - [ ] `/clip`, an address, _Clip_ writes `[Title](../assets/web/…epub)` and `source:: …` where the command was typed;
+  - [x] `/clip`, an address, _Clip_ writes `[Title](../assets/web/…epub)` and `source:: …` where the command was typed;
         the link opens the reader on the clip
-  - [ ] the dialog shows progress and Cancel works; an unreachable site, a 404, a non-HTML address and a refused
+  - [x] the dialog shows progress and Cancel works; an unreachable site, a 404, a non-HTML address and a refused
         address show their reasons and write nothing
-  - [ ] clipping the same address again asks first, replaces the file and keeps the highlights (they are drawn again)
-  - [ ] the address field takes a web address from the clipboard on open
-  - [ ] Escape closes the dialog without clipping; the dialog is usable with a keyboard only and by touch (44 px targets)
+  - [x] clipping the same address again asks first and replaces the file under the same name (that the highlights are
+        drawn again on the new text is checked with the whole path in W5)
+  - [x] the address field takes a web address from the clipboard on open
+  - [x] Escape closes the dialog without clipping; the dialog is usable with a keyboard only and by touch (44 px targets)
+
+### How W3 was built, where it differs from the plan
+
+- **One dialog, two ways in.** `openClip` / `finishClip` (`ui/src/lib/commands/clip.ts`) work like the drawing editor's
+  `openDrawing`: `/clip` removes the command, opens the dialog and writes `[Title](…)` and `source:: <address>` with the
+  editor's `insertLinks` (one undo step); the block stays in edit mode meanwhile. The palette command _Clip a web page…_
+  adds a new last block to the open page with the same two lines.
+- **Notes before the link.** A clip without notes inserts at once; one with notes (no article found, pictures left out)
+  shows them and waits for _Insert the link_, so they are read.
+- **After Cancel or an error the focus goes back to the field**, otherwise the button that was pressed is gone and Esc
+  reaches nothing (found by the test).
+- **Tests:** `clip.spec.ts` (Chrome and WebKit; the two clipboard tests only in Chrome, the driver grants clipboard
+  rights there only), `clip-refused.spec.ts` (without `--allow-local-fetch`), `clip-touch.spec.ts` (44 px), a page server
+  in `web-fixture.ts`; `fixtures.ts` has the option `localFetch`.
+- **The clipboard** is read once when the dialog opens, and only a lone `http(s)` address without a login in it is taken.
+  A browser or webview that refuses the read leaves the field empty; the address is typed or pasted (Ctrl+V).
 
 ### W4 The reader shows where a clip came from
 

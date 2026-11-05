@@ -436,6 +436,7 @@ export function wikiCompletions(
   onpicktemplate: (at: number) => void = () => {},
   onpickexample: (at: number) => void = () => {},
   onpickdraw: (at: number) => void = () => {},
+  onpickclip: (at: number) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -725,6 +726,13 @@ export function wikiCompletions(
                     const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
                     view.dispatch({ changes: { from: cut, to: t, insert: '' } })
                     onpickdraw(cut)
+                    return
+                  }
+                  if (c.pickClip) {
+                    // the command goes away (with the space before it); the clip is linked where it was
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    onpickclip(cut)
                     return
                   }
                   if (c.pickExample) {
