@@ -2870,6 +2870,7 @@ export type Commands = {
   read_drawing: { args: ReadDrawingArgs; result: StringValue };
   drawing_copies: { args: ReadDrawingArgs; result: StringList };
   discard_drawing_copy: { args: ReadDrawingArgs; result: StringValue };
+  annotation_page: { args: AnnotationPageArgs; result: AnnotationPage };
   attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };
   delete_orphan_assets: { args: DeleteAssetsArgs; result: OrphanAssets };

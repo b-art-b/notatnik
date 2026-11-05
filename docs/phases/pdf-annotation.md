@@ -9,7 +9,7 @@ changed.
 **Depends on:** assets (ST-8), block IDs and references (3.4), page properties (3.1). Ink on the PDF (the drawing editor
 as a layer over a page) is option B of the proposal and is **not** in this phase; the format leaves room for it
 (see "Later").
-**Status:** not started. Written down for review; nothing is built.
+**Status:** A1 done (Rust, tested). A2 to A7 in progress.
 
 ## Design
 
@@ -29,9 +29,9 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 
   ```markdown
   ---
-  file: ../../assets/report.pdf
+  file: assets/report.pdf
   sha: 9f2c41d07ab3e815
-  type: annotations
+  kind: annotations
   archived: true
   ---
 
@@ -49,10 +49,11 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
     hl-rect:: 0.2000,0.4000,0.6000,0.2500
   ```
 
-  - `file` is the link target of the PDF, relative to the sidecar page like any asset; `sha` is the first 16 hex of the
+  - `file` is the PDF's path in the graph (`assets/report.pdf`, not relative to the sidecar, so a renamed sidecar
+    still finds it); `sha` is the first 16 hex of the
     blake3 of the PDF's bytes. Both are plain page properties (3.1), so they are searchable and queryable
-    (`file:: …`). The sidecar is found by `file`; if that finds nothing (the PDF was moved by hand) by `sha`, and the
-    `file` property is corrected. A move or rename done in the app updates it with the links (NS-rename).
+    (`file:: …`). The sidecar is found by `file`; if that finds nothing (the PDF was moved by hand, so its old file is gone)
+    by `sha`, and the `file` property is corrected.
   - A highlight is **one block**. Its first line is the quoted text (an area highlight: a picture of the area), its
     comment is its **children**, so notes, tasks, tags and links work as everywhere else. Deleting the block deletes
     the highlight.
@@ -95,23 +96,22 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 
 ## Tasks
 
-### A1 The sidecar (`annotation_page`)
+### A1 The sidecar (`annotation_page`) (done)
 
 - `Graph::annotation_page(pdf_path)` in `crates/graph` and the app command; the PDF's hash is computed once and
   cached per path and modification time.
 - The path must be a `.pdf` inside the graph's `assets/` (anything else is refused); the frontmatter and the page
   name are made as described above; a second call returns the same page.
-- Moving or renaming a PDF in the app updates `file` of its sidecar.
+- The app has no command that moves or renames an asset, so a moved PDF is only found again by `sha`.
 - **Verify:**
-  - [ ] a PDF in `assets/` gets `pages/hls/<name>.md` with `file`, `sha` and `type: annotations`; a second call
+  - [x] a PDF in `assets/` gets `pages/hls/<name>.md` with `file`, `sha` and `kind: annotations`; a second call
         returns it and changes nothing
-  - [ ] two PDFs with the same name in different folders get two sidecars (`-<4 hex>` on the second)
-  - [ ] a path that is not a `.pdf`, one outside the graph and one with `..` are refused
-  - [ ] the PDF moved by hand: the sidecar is found by `sha` and `file` is corrected (a guarded write)
-  - [ ] the PDF renamed in the app: the sidecar's `file` follows with the links
-  - [ ] the sidecar is indexed like a page; a search for a word in a highlight finds the block (a test with a
+  - [x] two PDFs with the same name in different folders get two sidecars (`-<4 hex>` on the second)
+  - [x] a path that is not a `.pdf`, one outside the graph and one with `..` are refused
+  - [x] the PDF moved by hand: the sidecar is found by `sha` and `file` is corrected (a guarded write)
+  - [x] the sidecar is indexed like a page; a search for a word in a highlight finds the block (a test with a
         fixture sidecar, no PDF needed)
-  - [ ] the sidecar of a fixture parses and a no-op edit is byte-identical (golden file)
+  - [x] the sidecar of a fixture parses and a no-op edit is byte-identical (golden file)
 
 ### A2 The viewer
 
@@ -223,7 +223,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 - **Highlights as tasks**, a reading view across several PDFs, **export**: the highlights as a list of quotes in a note
   and an annotated copy of the PDF (standard `/Highlight` objects written into a _copy_, never into the original).
 - **Import of a Logseq `hls__` page and its `.edn`.**
-- **EPUB and images** with the same sidecar (`type: annotations`, a different locator than `hl-page`).
+- **EPUB and images** with the same sidecar (`kind: annotations`, a different locator than `hl-page`).
 
 ## Decided in review
 

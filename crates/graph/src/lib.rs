@@ -12,6 +12,7 @@ mod drawings;
 mod error;
 mod journal;
 mod lock;
+mod pdfs;
 mod rename;
 pub mod synth;
 mod versions;
@@ -31,6 +32,7 @@ pub use config::{
 pub use drawings::{DRAWING_DIR, is_drawing_path};
 pub use error::{Error, Result};
 pub use lock::{GraphLock, LockError};
+pub use pdfs::{SIDECAR_NAMESPACE, graph_relative, is_pdf_path, pdf_stem};
 pub use rename::{FileEdit, RenamePlan, RenameReport};
 pub use versions::PageVersion;
 pub use watch::{GraphChanged, Watcher};

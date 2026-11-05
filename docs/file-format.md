@@ -482,8 +482,8 @@ opened (DR-23).
 
 The highlights of a PDF in `assets/` are blocks of an ordinary page, the _sidecar_ `pages/hls/<pdf name>.md`
 ([phases/pdf-annotation.md](phases/pdf-annotation.md)); the PDF is never written. The frontmatter binds the page to the
-file: `file` (the PDF's path relative to the sidecar), `sha` (first 16 hex of the blake3 of the PDF) and
-`type: annotations`; the page is hidden (`archived: true`). A highlight is one top-level block: the quoted text (or `![area](…png)` for an area), a block ID
+file: `file` (the PDF's path in the graph), `sha` (first 16 hex of the blake3 of the PDF) and
+`kind: annotations`; the page is hidden (`archived: true`). A highlight is one top-level block: the quoted text (or `![area](…png)` for an area), a block ID
 (`^abc123`), and the properties `hl-page` (from 1), `hl-color` (`yellow`, `green`, `blue`, `red`, `purple`), `hl-from` and `hl-to`
 (character offsets of the start and the end of the quote in the text of that page; no boxes are stored), `hl-context` (text
 before and after, to find the quote again if the offsets no longer fit) and, for an area, `hl-type:: area` and `hl-rect`

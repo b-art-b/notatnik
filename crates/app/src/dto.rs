@@ -1707,6 +1707,26 @@ pub struct ReadDrawingArgs {
     pub path: String,
 }
 
+/// `annotation_page`: the page that holds the highlights of a PDF (PA-2).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AnnotationPageArgs {
+    /// The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`).
+    pub path: String,
+}
+
+/// The sidecar page of a PDF.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct AnnotationPage {
+    /// The page name, `hls/<name>`.
+    pub page: String,
+    /// Graph-relative path of the PDF.
+    pub file: String,
+    /// First 16 hex digits of the blake3 of the PDF.
+    pub sha: String,
+    /// The page was made by this call.
+    pub created: bool,
+}
+
 /// `save_asset` result.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct SavedAsset {

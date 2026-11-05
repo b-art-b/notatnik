@@ -143,6 +143,9 @@ fn put<T>(m: &Mutex<T>, v: T) {
 }
 
 /// Backup keys stay in memory this long after their last use.
+/// The `kind` of the page that holds the highlights of a PDF (PA-2).
+const ANNOTATIONS_KIND: &str = "annotations";
+
 const BACKUP_LOCK_AFTER: Duration = Duration::from_secs(15 * 60);
 
 /// The unlocked backup vault (EN-2): in memory only, wiped when dropped.
@@ -2453,6 +2456,96 @@ impl AppState {
                 value: a.path.clone(),
             })
         })
+    }
+
+    /// `annotation_page`: the sidecar page of a PDF in the graph, made on the first call (PA-2). It is found by its
+    /// `file` property; when the PDF was moved by hand it is found by `sha` and `file` is corrected. The page is
+    /// hidden (`archived`). It is made without an undo step: it holds nothing until the first highlight.
+    pub fn annotation_page(&self, a: AnnotationPageArgs) -> ApiResult<AnnotationPage> {
+        let file = notatnik_graph::graph_relative(&a.path);
+        if !notatnik_graph::is_pdf_path(&file) {
+            return Err(ApiError::new(
+                "invalid",
+                "annotations work on a PDF in the assets of this graph",
+            ));
+        }
+        self.with_open(|o| {
+            let sha = o.graph.pdf_sha(&file)?;
+            let (by_file, by_sha, kinds) = o.graph.with_index(|i| {
+                Ok::<_, notatnik_index::Error>((
+                    i.page_property_values("file")?,
+                    i.pages_with_property("sha", &sha)?,
+                    i.pages_with_property("kind", ANNOTATIONS_KIND)?,
+                ))
+            })?;
+            let is_sidecar = |p: &str| kinds.iter().any(|k| k == p);
+            let found = by_file
+                .iter()
+                .find(|(p, v)| v == &file && is_sidecar(p))
+                .map(|(p, _)| p.clone());
+            let moved = || {
+                // the same bytes under another name: a sidecar whose own file is gone
+                by_sha.iter().filter(|p| is_sidecar(p)).find(|p| {
+                    by_file
+                        .iter()
+                        .find(|(q, _)| q == *p)
+                        .is_none_or(|(_, v)| !o.graph.root().join(v).is_file())
+                })
+            };
+            let mut created = false;
+            let page = if let Some(p) = found {
+                p
+            } else if let Some(p) = moved() {
+                let name = Self::parse_name(p)?;
+                let rel = Self::page_file(o, &name)?;
+                let hash = o.graph.read_page(&rel)?.hash;
+                o.graph.edit_page(
+                    &rel,
+                    Some(&hash),
+                    &[BlockOp::SetPageProperty {
+                        key: "file".into(),
+                        value: yaml_item(&file),
+                    }],
+                )?;
+                self.emit_page_changed(p);
+                p.clone()
+            } else {
+                created = true;
+                let stem = notatnik_graph::pdf_stem(&file).replace('/', "-");
+                let mut name = format!("{}/{stem}", notatnik_graph::SIDECAR_NAMESPACE);
+                if o.graph.with_index(|i| i.page_info(&name))?.is_some() {
+                    name = format!("{name}-{}", &sha[..4]);
+                }
+                let name = Self::parse_name(&name)?;
+                let rel = page_to_path(&name);
+                let ops = [
+                    ("file", yaml_item(&file)),
+                    ("sha", sha.clone()),
+                    ("kind", ANNOTATIONS_KIND.to_string()),
+                    ("archived", "true".to_string()),
+                ]
+                .map(|(key, value)| BlockOp::SetPageProperty {
+                    key: key.into(),
+                    value,
+                });
+                o.graph.edit_page(&rel, None, &ops)?;
+                self.emit_page_changed(name.as_str());
+                name.to_string()
+            };
+            Ok(AnnotationPage {
+                page,
+                file,
+                sha,
+                created,
+            })
+        })
+    }
+
+    fn emit_page_changed(&self, page: &str) {
+        (self.emit)(
+            "graph-changed",
+            json!({ "pages": [page], "paths": [], "own": true }),
+        );
     }
 
     /// `attach_file`: copies a file into the graph's `assets/` and returns the Markdown link to it from `page`.

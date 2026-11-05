@@ -7103,3 +7103,135 @@ fn a_conflict_copy_of_a_drawing_is_listed_read_and_trashed() {
     );
     assert!(t.graph().join(main).exists(), "the drawing itself stays");
 }
+
+fn put_pdf(t: &T, rel: &str, body: &str) {
+    let p = t.graph().join(rel);
+    std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+    std::fs::write(p, format!("%PDF-1.4\n{body}\n%%EOF\n")).unwrap();
+}
+
+/// PA-2, PA-9: a PDF gets a hidden sidecar page `hls/<name>` that says which file it belongs to; a second call finds
+/// it, two PDFs of the same name get two sidecars, and anything but a PDF in `assets/` is refused.
+#[test]
+fn a_pdf_gets_a_hidden_sidecar_page_found_again_by_its_file() {
+    let t = start("basic");
+    put_pdf(&t, "assets/report.pdf", "one");
+    put_pdf(&t, "assets/old/report.pdf", "two");
+    let first = t.ok(
+        "annotation_page",
+        json!({"path": "../../assets/report.pdf"}),
+    );
+    assert_eq!(first["page"], "hls/report");
+    assert_eq!(first["created"], true);
+    assert_eq!(first["file"], "assets/report.pdf");
+    let sha = first["sha"].as_str().unwrap().to_string();
+    assert_eq!(sha.len(), 16);
+    let text = t.read("pages/hls/report.md");
+    assert!(
+        text.starts_with("---\n")
+            && text.contains("file: assets/report.pdf")
+            && text.contains(&format!("sha: {sha}"))
+            && text.contains("kind: annotations")
+            && text.contains("archived: true"),
+        "{text}"
+    );
+    // again: the same page, nothing written
+    let again = t.ok("annotation_page", json!({"path": "assets/report.pdf"}));
+    assert_eq!(again["page"], "hls/report");
+    assert_eq!(again["created"], false);
+    assert_eq!(t.read("pages/hls/report.md"), text);
+    // hidden
+    let hidden = t.ok("archived_pages", json!({}));
+    assert!(
+        hidden["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p == "hls/report"),
+        "{hidden}"
+    );
+    // a PDF of the same name in another folder gets its own page
+    let other = t.ok("annotation_page", json!({"path": "assets/old/report.pdf"}));
+    let name = other["page"].as_str().unwrap();
+    assert!(
+        name.starts_with("hls/report-") && name != "hls/report",
+        "{name}"
+    );
+    assert_eq!(
+        t.ok("annotation_page", json!({"path": "assets/old/report.pdf"}))["page"],
+        name
+    );
+    // refused
+    std::fs::write(t.graph().join("assets/x.png"), "x").unwrap();
+    std::fs::write(t.graph().join("pages/secret.pdf"), "%PDF-").unwrap();
+    for bad in [
+        "assets/x.png",
+        "pages/secret.pdf",
+        "assets/../pages/secret.pdf",
+        "assets/missing.pdf",
+        "/etc/passwd",
+        "",
+    ] {
+        assert!(
+            t.call("annotation_page", json!({"path": bad})).is_err(),
+            "{bad} should be refused"
+        );
+    }
+}
+
+/// PA-2: a PDF moved by hand (same bytes, new place) finds its sidecar by `sha`; the `file` property is corrected.
+#[test]
+fn a_moved_pdf_finds_its_sidecar_by_its_hash() {
+    let t = start("basic");
+    put_pdf(&t, "assets/report.pdf", "same bytes");
+    let first = t.ok("annotation_page", json!({"path": "assets/report.pdf"}));
+    std::fs::create_dir_all(t.graph().join("assets/2026")).unwrap();
+    std::fs::rename(
+        t.graph().join("assets/report.pdf"),
+        t.graph().join("assets/2026/Report final.pdf"),
+    )
+    .unwrap();
+    let moved = t.ok(
+        "annotation_page",
+        json!({"path": "assets/2026/Report final.pdf"}),
+    );
+    assert_eq!(moved["page"], first["page"]);
+    assert_eq!(moved["created"], false);
+    let text = t.read("pages/hls/report.md");
+    assert!(
+        text.contains("file: assets/2026/Report final.pdf"),
+        "{text}"
+    );
+    assert!(!text.contains("file: assets/report.pdf"), "{text}");
+}
+
+/// PA-7, PA-9: a highlight is a block like any other: a search for its words finds it, its comment is a child.
+#[test]
+fn the_text_of_a_highlight_is_found_by_the_search() {
+    let t = start("basic");
+    put_pdf(&t, "assets/report.pdf", "three");
+    t.ok("annotation_page", json!({"path": "assets/report.pdf"}));
+    let page = t.read("pages/hls/report.md");
+    std::fs::write(
+        t.graph().join("pages/hls/report.md"),
+        format!(
+            "{page}\n- The mitochondrion is the powerhouse. ^a1b2c3\n  hl-page:: 3\n  hl-color:: yellow\n  hl-from:: 10\n  hl-to:: 48\n  - remember for the exam\n"
+        ),
+    )
+    .unwrap();
+    // the file was written by hand: the app reads the graph again
+    t.ok(
+        "open_graph",
+        json!({"path": t.graph().to_str().unwrap(), "create": false}),
+    );
+    let hits = t.ok("search", json!({"text": "powerhouse", "limit": 10}));
+    assert_eq!(hits.as_array().unwrap().len(), 1, "{hits}");
+    let block = t.ok("get_block", json!({"uid": "a1b2c3"}));
+    assert!(
+        block.to_string().contains("powerhouse") && block.to_string().contains("hls/report"),
+        "{block}"
+    );
+    // the comment is found as well
+    let comment = t.ok("search", json!({"text": "exam", "limit": 10}));
+    assert_eq!(comment.as_array().unwrap().len(), 1, "{comment}");
+}

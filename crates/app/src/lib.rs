@@ -201,6 +201,7 @@ commands! {
     read_drawing(ReadDrawingArgs) -> StringValue => read_drawing,
     drawing_copies(ReadDrawingArgs) -> StringList => drawing_copies,
     discard_drawing_copy(ReadDrawingArgs) -> StringValue => discard_drawing_copy,
+    annotation_page(AnnotationPageArgs) -> AnnotationPage => annotation_page,
     attach_file(AttachFileArgs) -> SavedAsset => attach_file,
     list_orphan_assets(NoArgs) -> OrphanAssets => orphan_assets,
     delete_orphan_assets(DeleteAssetsArgs) -> OrphanAssets => delete_orphan_assets,
