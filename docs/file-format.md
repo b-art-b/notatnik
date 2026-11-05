@@ -495,6 +495,8 @@ in the reading order and the title, only for display), `hl-color` and `hl-contex
 or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
 ([phases/epub-annotation.md](phases/epub-annotation.md)).
 
+A selection of several paragraphs is one block: its first paragraph is the first line (with `^id`), the properties follow, and the other paragraphs follow the properties, one to a line and escaped like the first (a line that would read as `key:: value` has its `::` escaped). A viewer reads the quote as the first line and then those lines; a highlight made before this stayed one line and is read as before.
+
 **Sidecar of a file of this computer (LV-4).** The sidecar's `file` is the file's address as `local_open` writes it, `file:///` and the path with every segment percent-encoded (`file:///home/me/My%20Report.pdf`; `file:///C:/Users/me/a.pdf` on Windows), so one file has one address however a link spelled it. It is a hint: the file is found by `sha`, and when it was moved or renamed `file` is updated to the new address only if the old one no longer leads to a file. After _Keep a copy in the graph_ `file` is the path of the copy. The file itself is never in the graph unless it is kept.
 
 **Sidecar of a document in Nextcloud (NA-4).** When the PDF or EPUB is a file of the graph's Nextcloud, the sidecar's `file`

@@ -38,7 +38,8 @@ const prop = (b: BlockView, key: string): string | null =>
 
 /** Escapes what Markdown or the note's syntax would take for something else, so a quote shows as it was in the PDF. */
 export function escapeQuote(s: string): string {
-  let out = s.replace(/[\\`*_[\]()#^~<>|!&]/g, '\\$&')
+  // `::` would make a line of a quote a property of the block
+  let out = s.replace(/[\\`*_[\]()#^~<>|!&]/g, '\\$&').replace(/::/g, ':\\:')
   // at the start of a line: a list, a heading, a quote, a numbered list
   out = out.replace(/^([-+=])/, '\\$1').replace(/^(\d+)([.)])/, '$1\\$2')
   return out
@@ -66,6 +67,19 @@ function firstLine(b: BlockView): string {
   return unescapeQuote(b.text.split('\n')[0] ?? '').trim()
 }
 
+/** The quote of an EPUB highlight: its first line, then the lines that follow the properties (the other paragraphs of a
+ * selection of several), each without its escapes; one paragraph for each line. */
+function bookQuote(b: BlockView): string {
+  const [first = '', ...rest] = b.text.split('\n')
+  const more = rest.filter(
+    (l) => l.trim() !== '' && !/^[A-Za-z][\w-]*::(\s|$)/.test(l) && !/^:[A-Z]+:/.test(l),
+  )
+  return [first, ...more]
+    .map((l) => unescapeQuote(l).trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
 /** The highlights of a sidecar page: its top-level blocks that have the locator of the file the page is about
  * (`hl-page` for a PDF, `hl-cfi` for an EPUB; the `file` in the frontmatter decides, a block with the other kind of
  * locator is ignored), in reading order. */
@@ -91,7 +105,7 @@ export function highlightsOf(view: PageView | null | undefined): Highlight[] {
         color: colorOf(prop(b, 'hl-color')),
         from: 0,
         to: 0,
-        quote: firstLine(b),
+        quote: bookQuote(b),
         context: prop(b, 'hl-context') ?? ' | ',
         rect: null,
         cfi,
@@ -168,12 +182,15 @@ export interface NewEpubHighlight {
 
 /** The text of the block for a new EPUB highlight. */
 export function epubHighlightBlock(h: NewEpubHighlight): string {
+  // a selection of several paragraphs: the first is the first line, the others follow the properties, one to a line
+  const [first = '', ...more] = h.quote.split('\n')
   return [
-    `${escapeQuote(h.quote)} ^${h.uid}`,
+    `${escapeQuote(first)} ^${h.uid}`,
     `hl-cfi:: ${h.cfi}`,
     ...(h.chapter ? [`hl-chapter:: ${h.chapter}`] : []),
     `hl-color:: ${h.color}`,
     `hl-context:: ${h.context}`,
+    ...more.map(escapeQuote),
   ].join('\n')
 }
 

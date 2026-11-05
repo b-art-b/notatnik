@@ -681,3 +681,50 @@ for (const [what, size] of [
     },
   )
 }
+
+// A selection of several paragraphs keeps them as paragraphs, not as one run of text.
+t(
+  'a highlight of several paragraphs keeps its paragraphs in the file, the panel and the copied quote (EA-4, EA-6)',
+  async ({ backend, page, context, browserName }) => {
+    if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await openBook(page, backend)
+    await reads(page, NOVEL.s1)
+    const second = 'The wind howled through the rigging while the crew held on.'
+    await highlight(page, NOVEL.s1, second)
+    await expect.poll(() => (backend.exists('pages/hls/novel.md') ? sidecar(backend) : '')).toMatch(CFI)
+    // the first paragraph is the first line, the second follows the properties, one paragraph to a line
+    const lines = sidecar(backend).split('\n')
+    const at = lines.findIndex((l) => l.startsWith(`- ${NOVEL.s1}`))
+    expect(at).toBeGreaterThan(0)
+    expect(lines.slice(at, at + 6)).toEqual([
+      expect.stringContaining(NOVEL.s1),
+      expect.stringMatching(/^ {2}hl-cfi:: epubcfi\(/),
+      expect.stringMatching(/^ {2}hl-chapter:: /),
+      expect.stringMatching(/^ {2}hl-color:: yellow$/),
+      expect.stringMatching(/^ {2}hl-context:: /),
+      `  ${second}`,
+    ])
+    // the panel shows two lines, and the highlight is still drawn (the quote is found in the book)
+    await expect(page.getByTestId('pdf-item')).toHaveCount(1)
+    const quote = await page.getByTestId('pdf-item-quote').locator('.q').innerText()
+    expect(
+      quote
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean),
+    ).toEqual([NOVEL.s1, second])
+    await expect(page.getByTestId('epub-mark')).toHaveCount(1)
+    // a colour change leaves the second paragraph where it is
+    await clickWords(page, 'dark and stormy')
+    await page.getByTestId('pdf-popup-green').click()
+    await expect.poll(() => sidecar(backend)).toContain('hl-color:: green')
+    expect(sidecar(backend)).toContain(`\n  ${second}\n`)
+    // copied as a quote: one quote line for each paragraph, the reference at the end of the last
+    if (browserName === 'chromium') {
+      await clickWords(page, 'dark and stormy')
+      await page.getByTestId('pdf-popup-quote').click()
+      const copied = await page.evaluate(() => navigator.clipboard.readText())
+      expect(copied).toMatch(new RegExp(`^> ${NOVEL.s1}\\n> ${second} \\(\\([a-z0-9]{6}\\)\\)$`))
+    }
+  },
+)

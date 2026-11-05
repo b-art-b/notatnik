@@ -38,3 +38,35 @@ describe('docText', () => {
     expect(refind(dt, { quote: 'not in this chapter', context: ' | ' })).toBeNull()
   })
 })
+
+describe('paragraphs', () => {
+  const doc = chapter(
+    '<h1>Storm</h1><p>It was a <em>dark</em> and\n  stormy night.</p><p>The rain<br/>fell hard.</p><ul><li>one</li><li>two</li></ul><table><tr><td>cellA</td><td>cellB</td></tr></table>',
+  )
+  const dt = docText(doc)
+  const between = (a: string, b: string) => dt.paragraphs(dt.text.indexOf(a), dt.text.indexOf(b) + b.length)
+
+  it('is one line for a selection inside a paragraph, markup and white space folded', () => {
+    expect(between('dark', 'night.')).toBe('dark and stormy night.')
+  })
+
+  it('keeps a paragraph break, a line break, list items and cells as lines', () => {
+    expect(between('It was', 'fell hard.')).toBe('It was a dark and stormy night.\nThe rain\nfell hard.')
+    expect(between('one', 'two')).toBe('one\ntwo')
+    expect(between('cellA', 'cellB')).toBe('cellA\ncellB')
+    expect(between('Storm', 'night.')).toBe('Storm\nIt was a dark and stormy night.')
+  })
+
+  it('cuts at the ends of the range, not at the ends of the paragraphs', () => {
+    expect(dt.paragraphs(dt.text.indexOf('stormy'), dt.text.indexOf('rain') + 4)).toBe(
+      'stormy night.\nThe rain',
+    )
+  })
+
+  it('goes into the quote of a highlight, and the context stays one line', () => {
+    const r = dt.range(dt.text.indexOf('night.'), dt.text.indexOf('fell') + 4)!
+    const d = describeRange(dt, r)!
+    expect(d.quote).toBe('night.\nThe rain\nfell')
+    expect(d.context).not.toContain('\n')
+  })
+})

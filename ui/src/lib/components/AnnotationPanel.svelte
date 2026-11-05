@@ -217,6 +217,10 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
+  /* the paragraphs of a quote are lines of it */
+  .quote .q {
+    white-space: pre-line;
+  }
   .quote {
     display: block;
     width: 100%;

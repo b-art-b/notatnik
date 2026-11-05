@@ -12,7 +12,12 @@ import { highlightsOf, type Color, type Highlight } from '../pdf/highlights'
 export const PANEL_VIEW = 'annotation-panel'
 
 export const refOf = (h: Highlight) => `((${h.uid}))`
-export const quoteBlock = (h: Highlight) => `> ${h.quote} ${refOf(h)}`
+/** The quote as Markdown quote lines, one for each paragraph, with the reference at the end of the last. */
+export const quoteBlock = (h: Highlight) =>
+  h.quote
+    .split('\n')
+    .map((l, i, all) => `> ${l}${i === all.length - 1 ? ` ${refOf(h)}` : ''}`)
+    .join('\n')
 
 export async function copyText(text: string) {
   try {

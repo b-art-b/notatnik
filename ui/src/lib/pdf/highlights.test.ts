@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BlockView, PageView } from '../api'
+import { quoteBlock } from '../annotate/sidecar.svelte'
 import {
   areaHighlightBlock,
   cfiPath,
@@ -9,6 +10,7 @@ import {
   escapeQuote,
   highlightsOf,
   parsePdfHref,
+  type Highlight,
   textHighlightBlock,
   unescapeQuote,
 } from './highlights'
@@ -108,6 +110,56 @@ describe('a document of the graph Nextcloud (an address for `file`)', () => {
       ({ frontmatter: frontmatter(file), blocks: [pdfBlock, epubBlock] }) as PageView
     expect(highlightsOf(view('assets/a.pdf')).map((h) => h.kind)).toEqual(['text'])
     expect(highlightsOf(view('assets/a.epub')).map((h) => h.kind)).toEqual(['epub'])
+  })
+})
+
+describe('an EPUB highlight of several paragraphs', () => {
+  const quote = 'First paragraph, with [[brackets]].\nSecond: a note:: here.\n- third looks like a list'
+
+  it('keeps the first paragraph in the first line and the others after the properties', () => {
+    const text = epubHighlightBlock({
+      cfi: 'epubcfi(/6/2!/4/2,/1:0,/3:5)',
+      chapter: '1 · One',
+      color: 'yellow',
+      quote,
+      context: 'a | b',
+      uid: 'a1b2c3',
+    })
+    const lines = text.split('\n')
+    expect(lines[0]).toBe('First paragraph, with \\[\\[brackets\\]\\]. ^a1b2c3')
+    expect(lines[1]).toMatch(/^hl-cfi:: /)
+    // a line of the quote is never read as a property or a list
+    expect(lines.slice(5).every((l) => !/^[a-z-]+:: /.test(l))).toBe(true)
+    expect(lines[6]).toContain('\\-')
+    const view = {
+      frontmatter: { props: [{ key: 'file', raw: 'assets/b.epub' }] },
+      blocks: [block(1, text.replace(' ^a1b2c3', ''), 'a1b2c3')],
+    } as unknown as PageView
+    const [h] = highlightsOf(view)
+    expect(h.quote).toBe(quote)
+    expect(h.cfi).toBe('epubcfi(/6/2!/4/2,/1:0,/3:5)')
+    expect(h.color).toBe('yellow')
+  })
+
+  it('is copied as one quote line for each paragraph', () => {
+    expect(quoteBlock({ quote, uid: 'a1b2c3' } as unknown as Highlight)).toBe(
+      '> First paragraph, with [[brackets]].\n> Second: a note:: here.\n> - third looks like a list ((a1b2c3))',
+    )
+    expect(quoteBlock({ quote: 'One line', uid: 'x1y2z3' } as unknown as Highlight)).toBe(
+      '> One line ((x1y2z3))',
+    )
+  })
+
+  it('a highlight of one paragraph is as it was', () => {
+    const text = epubHighlightBlock({
+      cfi: 'epubcfi(/6/2!/4,/1:0,/1:4)',
+      chapter: '',
+      color: 'blue',
+      quote: 'One line.',
+      context: ' | ',
+      uid: 'd4e5f6',
+    })
+    expect(text.split('\n')).toHaveLength(4)
   })
 })
 
