@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** W1 to W4 done (the crate, the commands, the dialog, the reader; tested). W5 and W6 not started.
+**Status:** W1 to W6 done and tested. Open: the checks on a real iPad and in the installed desktop app (they need those devices), and the findings of the real-page check below.
 
 ## Design
 
@@ -212,26 +212,72 @@ ED-27) for the HTTP client.
   server runs with `--allow-local-fetch`. A second spec runs **without** it and checks that a clip of the same local
   address is refused.
 - **Verify:**
-  - [ ] the whole path: `/clip` an article, open it, select a sentence, highlight it, comment on it, reference it with
+  - [x] the whole path: `/clip` an article, open it, select a sentence, highlight it, comment on it, reference it with
         `((id))`, click the chip: the clip opens at the highlight
-  - [ ] clip again after the page changed (a paragraph added above, the highlighted sentence kept): the highlight is
+  - [x] clip again after the page changed (a paragraph added above, the highlighted sentence kept): the highlight is
         drawn on the same words; if the sentence was changed, it is listed as not found
-  - [ ] the hostile page: nothing runs when the clip is read, no request leaves for its remote pictures and styles
-  - [ ] without `--allow-local-fetch`, `http://127.0.0.1:<port>/…` is refused with a message
-  - [ ] Chromium and WebKit
+  - [x] the hostile page: nothing runs when the clip is read, no request leaves for its remote pictures and styles
+  - [x] without `--allow-local-fetch`, `http://127.0.0.1:<port>/…` is refused with a message
+  - [x] Chromium and WebKit
+
+### How W5 was built, and what it found
+
+- `web.spec.ts` is the whole path (see `docs/testing.md`). The page server's article has no sentence twice, so a highlight
+  must find its own words.
+- **Two bugs found by it, both fixed:**
+  - A block that holds the same property key twice (a second `/clip` into the same block writes `source::` twice) made
+    `PropertyCard` throw `each_key_duplicate` (its list was keyed by the property key). Not clip-specific: any block with a
+    repeated key did it. The key now includes the position; `properties.spec.ts` has the regression test.
+  - Reading a clip again after it was clipped again: `Sidecar.load` took the sidecar document kept from the first reading,
+    whose hash was old because `annotation_page` had rewritten the file's `sha`. The reader's repair of the highlight's
+    CFI was refused as a conflict ("This page changed on disk…") and the highlight was not drawn. `load` now reloads the
+    document first.
+- The cleaner drops `id` attributes, so the hostile test finds its paragraph by text.
 
 ### W6 Documents, iPad and checks
 
 - Documents: `requirements.md` (WA rows, IN-1), `file-format.md` (the clip EPUB and `source::`), `keymap.md` (`/clip`, the
   dialog, _Original page_), `logging.md`, `testing.md`, `TODO.md`, `CLAUDE.md` (the doc list).
 - **Verify:**
-  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new crate and specs
-  - [ ] ten real pages (a news article, a long blog post, a Wikipedia article, a page with code, a page with a table,
+  - [x] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new crate and specs
+  - [x] ten real pages (a news article, a long blog post, a Wikipedia article, a page with code, a page with a table,
         a page in a non-Latin script, one with many pictures, one that needs scripts, a paywalled one, a PDF address) are
         clipped; the result is judged by reading it; what fails is written down here
   - [ ] on a real iPad: the clip works from the app (the Rust request, not the webview's), and the clip reads and
         highlights like any book (stays open until done)
   - [ ] the desktop app: a clip works and the book opens under the app's policy
+
+### The real-page check (done 2026-11-05, over the network, by `crates/clip/tests/real.rs`)
+
+| Page                                 | Result                                                                                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| News article (BBC)                   | good: title, byline, date, text, 8 pictures kept; 0.7 s                                                                                                                 |
+| Long blog post (danluu.com)          | good, 684 KB; 2 to 11 s depending on the site                                                                                                                           |
+| Older blog post (joelonsoftware.com) | good; the byline was the word "by" (a theme marks it up in two elements): **fixed**, no byline now                                                                      |
+| Wikipedia article (en, ja, pl)       | good, also the Japanese and Polish ones (language and byline come from the page); a Japanese title has no Latin letters, so the file is `ja-wikipedia-org-<hash8>.epub` |
+| Page with code (Rust book)           | good: 15 code blocks kept; 5 pictures left out (svg), with a note                                                                                                       |
+| Page with a table (Wikipedia list)   | **fails**: the six data tables are gone, only the text, headings and the list items remain                                                                              |
+| Many pictures (Wikipedia flags)      | text kept; 154 pictures left out (svg and the cap of 40), with a note                                                                                                   |
+| Needs scripts (twitter.com)          | refused in words: "This page builds its content with scripts…" (WA-9)                                                                                                   |
+| Paywalled (nytimes.com)              | refused in words: the site answered 403                                                                                                                                 |
+| A PDF address                        | refused in words: "not a web page (it is application/pdf)"                                                                                                              |
+
+Not judged: a second news site (the first guess of an address was a 404, which the app also reports in words).
+
+**What fails, written down for later:**
+
+- **Link-dense tables are lost.** Readability's clean-up removes tables whose cells are mostly links, which is what a
+  Wikipedia list is. Simple tables with text survive (they are in the cleaner's tests). A fix is to carry such tables over
+  from the page by hand, or to keep a `<table>` with `<th>` cells whatever its link density; not done in this phase.
+- **SVG pictures are left out by design** (WA-3). Wikipedia flags and many diagrams are SVG, so those pages lose their
+  pictures; a note says how many. Rasterizing is not planned.
+- **The first request to a slow site** can take 10 s or more; the dialog shows the step and Cancel works.
+
+### Checks that need a device
+
+- [ ] on a real iPad (the Rust request, not the webview's; read and highlight; the clip stays open until done)
+- [ ] the installed desktop app: a clip works and the book opens under the app's policy (WebKitGTK is covered by
+      Playwright's WebKit, not the real shell)
 
 ## Later (not in this phase, but not made impossible)
 

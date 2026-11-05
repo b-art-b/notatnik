@@ -142,3 +142,16 @@ test('a key opens the view of its blocks; a value filters; children can be inclu
   await page.getByTestId('include-children').check()
   await expect(page.getByText('child task')).toBeVisible()
 })
+
+test('a block with the same property key twice shows both lines and keeps the app running', async ({
+  backend,
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  // a second `/clip` into the same block writes `source::` twice
+  backend.write('pages/t.md', '- note\n  source:: https://a.example/\n  source:: https://b.example/\n')
+  await backend.open('/page/t')
+  await expect(page.getByTestId('props').locator('.prop[data-key="source"]')).toHaveCount(2)
+  expect(errors).toEqual([])
+})

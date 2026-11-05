@@ -3,17 +3,20 @@ import type { AddressInfo } from 'node:net'
 
 // A small web server for the clip tests (WA-1..WA-10): pages, a picture, a redirect, a slow page, an error page.
 
-const SENTENCES = [
-  'The harbour town woke slowly, as it always did in the grey weeks before the first ferry of the year.',
-  'Nobody on the quay could say who had left the lantern burning in the old customs house overnight.',
-  'By noon the fishermen had stopped guessing and started to argue about the weather instead.',
-  'A child counted the gulls on the roof of the net shed and got a different number every time.',
-]
+/** The sentence the tests highlight; it is in the page once. */
+export const FIRST =
+  'The harbour town woke slowly, as it always did in the grey weeks before the first ferry of the year.'
+/** The sentence after it. */
+export const SECOND =
+  'Nobody on the quay could say who had left the lantern burning in the old customs house overnight.'
 
+/** Eight paragraphs; the first holds the two sentences above, the others say something of their own, so that no
+ * sentence is in the page twice (a highlight must find its own words). */
 function paragraphs(n = 8): string {
-  return Array.from(
-    { length: n },
-    (_, i) => `<p>${SENTENCES[i % SENTENCES.length]} ${SENTENCES[(i + 1) % SENTENCES.length]}</p>`,
+  return Array.from({ length: n }, (_, i) =>
+    i === 0
+      ? `<p>${FIRST} ${SECOND}</p>`
+      : `<p>On day ${i} the keeper wrote line number ${i} of the log and found nothing in it worth a second sentence.</p>`,
   ).join('\n')
 }
 
@@ -68,6 +71,8 @@ export async function pageServer(): Promise<PageServer> {
     const url = (req.url ?? '/').split('?')[0]
     if (url === '/article') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(s.articleHtml)
+    } else if (url === '/hostile') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(hostilePage())
     } else if (url === '/pic.png') {
       res.writeHead(200, { 'content-type': 'image/png' }).end(PNG)
     } else if (url === '/moved') {
@@ -89,4 +94,25 @@ export async function pageServer(): Promise<PageServer> {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   s.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   return s
+}
+
+/** A page that tries everything: scripts, event handlers, a remote picture, a remote style sheet, a frame, a form. The
+ * article text is the only thing that should come out of a clip. */
+export function hostilePage(): string {
+  const filler = Array.from(
+    { length: 8 },
+    (_, i) =>
+      `<p>Paragraph ${i} of the hostile article, long enough to be taken for the article itself by the reader.</p>`,
+  ).join('\n')
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Hostile | Site</title>
+<link rel="stylesheet" href="https://leak.invalid/site.css"><style>@import url("https://leak.invalid/a.css");</style>
+<script>window.__pwned = 'head'</script></head>
+<body><article><h1>Hostile</h1>
+<script>fetch('https://leak.invalid/s'); window.parent.__pwned = 'script'</script>
+<img src="https://leak.invalid/x.png" alt="remote" onerror="window.parent.__pwned = 'onerror'">
+<iframe src="https://leak.invalid/frame"></iframe>
+<form action="https://leak.invalid/post"><input name="a"></form>
+<p id="p1" onclick="window.parent.__pwned = 'onclick'">Safe text before the traps. <a id="js" href="javascript:window.parent.__pwned = 'javascript'">a javascript link</a></p>
+${filler}
+</article></body></html>`
 }

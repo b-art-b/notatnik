@@ -43,7 +43,13 @@ export class Sidecar {
   async load() {
     try {
       this.side = await backend.call('annotation_page', { path: this.path, create: false })
-      if (this.side.page) this.doc = getDoc(this.side.page)
+      if (this.side.page) {
+        // `annotation_page` may have rewritten the file (the `sha` of a book that was clipped again): a document kept from
+        // an earlier reading has the old hash, and the first repair of a highlight would be refused as a conflict
+        const doc = getDoc(this.side.page)
+        await doc.load()
+        this.doc = doc
+      }
     } catch (e) {
       toast(errorMessage(e), 'error')
     }

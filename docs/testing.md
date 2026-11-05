@@ -137,6 +137,24 @@ must never regress:
 8. **Page history never loses a replaced text:** restoring a version, or a write from outside, leaves the text it replaced
    as a version (`a_restore_right_after_an_edit_keeps_the_text_it_replaces`, `ui/tests/history.spec.ts`).
 
+## Clipped web pages (WA-1 to WA-10)
+
+- **`crates/clip`** is tested with plain `cargo test` and no network: `tests/clip.rs` (14 tests) runs a tiny local server
+  against the pages in the repository's `fixtures/web/` (an article, a blog, a Latin-2 page, a page with `<base>`, one without an article,
+  a script shell, a hostile page) and checks the book (structure with `quick-xml`, identical bytes twice, limits, redirects,
+  refused addresses). `ClipPolicy { allow_private: true }` lets the tests reach the local server; the app never sets it.
+- **`crates/app/tests/clip.rs`** (10 tests): the commands through `dispatch` (a clip, the same address again, safe names,
+  progress, Cancel that does not wait for a hanging site, no blocking of other commands, refusal by default, no graph, the
+  sidecar `sha` after a re-clip, the log check).
+- **`ui/tests/clip.spec.ts`, `clip-refused.spec.ts`, `clip-touch.spec.ts`, `web.spec.ts`** start `ui/tests/web-fixture.ts`
+  (a Node server with an article, a hostile page, a redirect, a slow page and a picture) and the dev server with
+  `--allow-local-fetch` (the `localFetch` option of `fixtures.ts`); `clip-refused.spec.ts` runs without it. `web.spec.ts`
+  is the whole path: clip, highlight, comment, reference and chip, a re-clip after the page changed, a hostile page.
+  All four run in WebKit too (`webkit.list`); the clipboard tests are Chrome only.
+- **Real pages (by hand):** `NOTATNIK_REAL_PAGES=pages.txt cargo test -p notatnik-clip --test real -- --ignored --nocapture`
+  clips the addresses of the file over the network, writes the books to `NOTATNIK_REAL_OUT` and prints a summary to judge
+  by reading. It is `#[ignore]`d: it needs the network and the pages change.
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details

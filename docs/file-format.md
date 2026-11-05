@@ -495,7 +495,7 @@ in the reading order and the title, only for display), `hl-color` and `hl-contex
 or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
 ([phases/epub-annotation.md](phases/epub-annotation.md)).
 
-## Clipped web pages (WA-1, WA-2, planned)
+## Clipped web pages (WA-1, WA-2)
 
 A page clipped with `/clip` is a one-chapter EPUB 3 at `assets/web/<slug>-<hash8>.epub` (`hash8`: the first 8 hex of the
 blake3 of the address, so the same address always gives the same path). Its package metadata has `dc:title`,
@@ -503,3 +503,13 @@ blake3 of the address, so the same address always gives the same path). Its pack
 found) and `dcterms:modified` (the time of the clip). The zip has no timestamps. The block that links it carries
 `source:: <address>`. It is annotated like any EPUB (see "PDF annotations" and "EPUB highlights" above); clipping the
 address again replaces the file ([phases/web-annotation.md](phases/web-annotation.md)).
+
+- The book holds `META-INF/container.xml`, `OEBPS/content.opf`, `nav.xhtml`, one `chapter.xhtml` (the title, the byline,
+  _Clipped from <address> on <date>_, the article), `style.css` and the pictures below `images/` (png, jpeg, gif, webp;
+  never svg). Every entry has the same fixed date, so the same page at the same time gives the same bytes.
+- The block that links the book is an ordinary block: `- [Title](../assets/web/<name>.epub)` with the property line
+  `source:: <address>` (the address after redirects). A second clip of the same address into the same block writes a
+  second `source::` line; both are shown.
+- The sidecar `hls/<name>` of a clip is the one of any EPUB. When the address is clipped again the file name stays, the
+  sidecar's `sha` is rewritten to the new bytes, and each highlight is found again by its CFI or, if the text moved, by
+  its quote and context (a highlight whose sentence changed is listed as not found and kept).

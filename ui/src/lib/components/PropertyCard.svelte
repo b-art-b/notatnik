@@ -124,7 +124,7 @@
 
 {#if shown.length || adding}
   <div class="card" data-testid="props">
-    {#each shown as p, i (p.key)}
+    {#each shown as p, i (`${p.key}:${i}`)}
       <div class="prop" data-key={p.key}>
         {#if editKey === p.key}
           <form

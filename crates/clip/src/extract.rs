@@ -31,6 +31,14 @@ pub fn date_of(s: &str) -> Option<String> {
     ok.then(|| d.to_string())
 }
 
+/// A byline that names somebody. Some themes mark the byline up as `<span class="byline"> by </span>` followed by the
+/// author in another element, and Readability then takes the word "by" itself (found on a real page in W6).
+fn real_byline(b: &str) -> Option<String> {
+    let b = b.trim();
+    let letters = b.chars().filter(|c| c.is_alphanumeric()).count();
+    (letters >= 3 && !b.eq_ignore_ascii_case("by")).then(|| b.to_string())
+}
+
 pub fn extract(html: &str, url: &Url) -> Extracted {
     let cfg = Config {
         max_elements_to_parse: 30_000,
@@ -42,10 +50,7 @@ pub fn extract(html: &str, url: &Url) -> Extracted {
     {
         return Extracted {
             title: a.title.trim().to_string(),
-            byline: a
-                .byline
-                .map(|b| b.trim().to_string())
-                .filter(|b| !b.is_empty()),
+            byline: a.byline.and_then(|b| real_byline(&b)),
             html: a.content.to_string(),
             text_len: a.length,
             language: a.lang.filter(|l| !l.trim().is_empty()),
@@ -94,6 +99,15 @@ pub fn extract(html: &str, url: &Url) -> Extracted {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_byline_is_a_name_not_the_word_by() {
+        assert_eq!(real_byline(" by "), None);
+        assert_eq!(real_byline("By"), None);
+        assert_eq!(real_byline(""), None);
+        assert_eq!(real_byline(" Ada Quay ").as_deref(), Some("Ada Quay"));
+        assert_eq!(real_byline("By Ada Quay").as_deref(), Some("By Ada Quay"));
+    }
 
     #[test]
     fn dates() {
