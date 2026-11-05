@@ -9,11 +9,11 @@ The block being edited is marked with a light blue tint and a thin outline (they
 
 | Keys                                     | Action                                                                                                                                                                   |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Ctrl+A / Ctrl+E                          | Go to the start / end of the line (Emacs and readline keys, on every platform)                                                 |
-| Ctrl+B / Ctrl+F, Alt+B / Alt+F           | Move a character / a word left and right                                                                                       |
-| Ctrl+P / Ctrl+N                          | A line up / down; out of the first or last line into the previous or next block, like the arrows                               |
-| Ctrl+W, Alt+D, Ctrl+U                    | Delete a word back, a word forward, and everything back to the start of the line                                               |
-| Ctrl+Shift+A (Cmd+A on a Mac)            | Select the text of the block; again, every block of the page                                                                   |
+| Ctrl+A / Ctrl+E                          | Go to the start / end of the line (Emacs and readline keys, on every platform)                                                                                           |
+| Ctrl+B / Ctrl+F, Alt+B / Alt+F           | Move a character / a word left and right                                                                                                                                 |
+| Ctrl+P / Ctrl+N                          | A line up / down; out of the first or last line into the previous or next block, like the arrows                                                                         |
+| Ctrl+W, Alt+D, Ctrl+U                    | Delete a word back, a word forward, and everything back to the start of the line                                                                                         |
+| Ctrl+Shift+A (Cmd+A on a Mac)            | Select the text of the block; again, every block of the page                                                                                                             |
 | Enter                                    | Split the block at the cursor (new sibling; first child if the block has expanded children). Newline inside a code fence or below the first line                         |
 | Shift+Enter                              | Newline inside the block                                                                                                                                                 |
 | Tab / Shift+Tab, or Alt+→ / Alt+←        | Indent / outdent (demote / promote) the block with its children                                                                                                          |
@@ -34,23 +34,23 @@ Select blocks with **Esc** in a block (it selects that block), with the mouse (b
 block takes its children along: copy, cut, duplicate, delete and the other commands work on the _top_ selected blocks
 and everything below them. Every command is one undo step.
 
-| Keys                | Action                                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ↑ / ↓               | Move the selection                                                                                                                               |
-| Shift+↑ / Shift+↓   | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along) |
-| Ctrl+A              | Select all blocks of the page (while blocks are selected). In a block: **Ctrl+Shift+A** (Cmd+A on a Mac) first selects the text of the block, a second press all blocks                                            |
-| Enter               | Edit the selected block                                                                                                                          |
-| Tab, or Alt+→       | Indent the selection (blocks at one level)                                                                                                       |
-| Shift+Tab, or Alt+← | Outdent the selection, whatever the levels: each block moves up one level, top-level blocks stay                                                 |
-| Alt+↑ / Alt+↓       | Move the selected blocks together (blocks at one level)                                                                                          |
-| Delete / Backspace  | Delete                                                                                                                                           |
-| Ctrl+C              | Copy as Markdown (indented outline), without block IDs                                                                                           |
-| Ctrl+X              | Cut: copy with the block IDs, then delete. Pasted again the blocks keep their IDs, so references to them survive                                 |
-| Ctrl+V              | Paste the copied blocks right below the last selected block, at its level, with their structure; the pasted blocks are then selected             |
-| Ctrl+D              | Duplicate: a copy of the selected blocks (with children, without IDs) right below the last one; the copies are selected                          |
-| Ctrl+Shift+C        | Copy a `((id))` reference per block, one per line (blocks without an ID get one)                                                                 |
-| Ctrl+Enter          | Cycle the task state of every selected block: all get the state that follows the first one's                                                     |
-| Esc                 | Clear the selection                                                                                                                              |
+| Keys                | Action                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ↑ / ↓               | Move the selection                                                                                                                                                      |
+| Shift+↑ / Shift+↓   | Extend the selection from where it started, over every block between as they appear on screen (children included; collapsed children come along)                        |
+| Ctrl+A              | Select all blocks of the page (while blocks are selected). In a block: **Ctrl+Shift+A** (Cmd+A on a Mac) first selects the text of the block, a second press all blocks |
+| Enter               | Edit the selected block                                                                                                                                                 |
+| Tab, or Alt+→       | Indent the selection (blocks at one level)                                                                                                                              |
+| Shift+Tab, or Alt+← | Outdent the selection, whatever the levels: each block moves up one level, top-level blocks stay                                                                        |
+| Alt+↑ / Alt+↓       | Move the selected blocks together (blocks at one level)                                                                                                                 |
+| Delete / Backspace  | Delete                                                                                                                                                                  |
+| Ctrl+C              | Copy as Markdown (indented outline), without block IDs                                                                                                                  |
+| Ctrl+X              | Cut: copy with the block IDs, then delete. Pasted again the blocks keep their IDs, so references to them survive                                                        |
+| Ctrl+V              | Paste the copied blocks right below the last selected block, at its level, with their structure; the pasted blocks are then selected                                    |
+| Ctrl+D              | Duplicate: a copy of the selected blocks (with children, without IDs) right below the last one; the copies are selected                                                 |
+| Ctrl+Shift+C        | Copy a `((id))` reference per block, one per line (blocks without an ID get one)                                                                                        |
+| Ctrl+Enter          | Cycle the task state of every selected block: all get the state that follows the first one's                                                                            |
+| Esc                 | Clear the selection                                                                                                                                                     |
 
 **Mouse.** Marking text inside one block with the mouse (to copy it with Ctrl+C) keeps it marked: releasing the button does not open the editor; a plain click edits. **Shift+click** a block selects everything from the block being edited or selected to the one clicked, as on screen. **Ctrl+click** adds a block (with its children) to the selection or removes it again. **Dragging** from the text of one block over other blocks selects them all; a drag inside one block stays an ordinary text selection. **Right-click** a selected block (with several selected) for a menu: Copy, Cut, Duplicate, Copy block references, Save as template…, Delete.
 
@@ -58,14 +58,14 @@ Pasting several lines while editing a block (not selecting) still makes several 
 
 ## Anywhere
 
-| Keys                  | Action                                                                                                                             |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Ctrl+K                | Command palette: pages, commands, and **Create page** for a name that matches no page (Ctrl+Enter creates the page named as typed) |
-| Ctrl+Shift+F or `/`   | Search                                                                                                                             |
-| Ctrl+Z / Ctrl+Shift+Z | Global undo / redo (when not typing)                                                                                               |
-| Alt+1 … Alt+5         | Go to Journals, Agenda, All pages, Search, Settings (also while typing in a block) |
+| Keys                     | Action                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Ctrl+K                   | Command palette: pages, commands, and **Create page** for a name that matches no page (Ctrl+Enter creates the page named as typed)   |
+| Ctrl+Shift+F or `/`      | Search                                                                                                                               |
+| Ctrl+Z / Ctrl+Shift+Z    | Global undo / redo (when not typing)                                                                                                 |
+| Alt+1 … Alt+5            | Go to Journals, Agenda, All pages, Search, Settings (also while typing in a block)                                                   |
 | `g` then `j` `a` `p` `s` | The same for Journals, Agenda, All pages, Settings, as in Logseq; only when no text field has the focus, the second key within 1.5 s |
-| Shift+click a link    | Open the page in the right sidebar                                                                                                 |
+| Shift+click a link       | Open the page in the right sidebar                                                                                                   |
 
 **Keys on the sidebar.** Hover a sidebar entry (or move to it with Tab) and its key appears at its right edge; the tooltip also names the `g` chord. The keys act on the active graph, so only its section shows them. The table above is the same one the code uses (`ui/src/lib/shortcuts.ts`).
 
@@ -394,22 +394,22 @@ A ` ```query ` block shows its results live. To change the query, click anywhere
 
 The same list is offered by `/query` in the editor and in Settings → Templates → Example queries (`ui/src/lib/queryExamples.json`). Copy one into a block as a ` ```query ` block (clauses and their rules are in `file-format.md` §6; `{{page}}` and the other placeholders in `placeholders.md`).
 
-| I want to see ...                                                   | Query                                                                               |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| I want to see ...                                                    | Query                                                                                 |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | All pages of one series (the page's own properties `type`, `series`) | `type: page` · `prop.type: [[series]]` · `prop.series: [[series/Bart+Benoit - sync]]` |
-| The same on any series page, without typing its name                | `type: page` · `prop.type: [[series]]` · `prop.series: {{page}}`                    |
-| The same as a table with the series in a column                     | add `view: table` · `columns: page, prop.series`                                    |
-| Journal entries of a series with everything written under them      | `prop.type: [[series]]` · `prop.series: {{page}}` · `children: yes`                 |
-| Open tasks of a client                                              | `task: todo, doing` · `links: Client One`                                           |
-| Tasks due in the next week, soonest first                           | `task: todo, doing` · `deadline: < +7d` · `sort: deadline asc`                      |
-| Tasks without a date                                                | `task: todo` · `scheduled: none` · `deadline: none`                                 |
-| A board of the tasks of a namespace                                 | `task: todo, doing, done` · `ns: work/projects` · `view: kanban` · `group: task`    |
-| Everything under a name that occurs in several places               | `path: Renewal`                                                                     |
-| Blocks that mention a word, ordered by page, the first 20           | `text: invoice` · `sort: page asc` · `limit: 20`                                    |
-| Pages beside this one (same namespace)                              | `type: page` · `ns: {{namespace}}`                                                  |
-| Pages of the same type as this one                                  | `type: page` · `prop.type: {{type}}`                                                |
-| Fewer property lines under results                                  | add `properties: none` or `properties: status, owner`                               |
-| Leave hidden pages out of any query                                 | add `-prop.archived: true`                                                          |
+| The same on any series page, without typing its name                 | `type: page` · `prop.type: [[series]]` · `prop.series: {{page}}`                      |
+| The same as a table with the series in a column                      | add `view: table` · `columns: page, prop.series`                                      |
+| Journal entries of a series with everything written under them       | `prop.type: [[series]]` · `prop.series: {{page}}` · `children: yes`                   |
+| Open tasks of a client                                               | `task: todo, doing` · `links: Client One`                                             |
+| Tasks due in the next week, soonest first                            | `task: todo, doing` · `deadline: < +7d` · `sort: deadline asc`                        |
+| Tasks without a date                                                 | `task: todo` · `scheduled: none` · `deadline: none`                                   |
+| A board of the tasks of a namespace                                  | `task: todo, doing, done` · `ns: work/projects` · `view: kanban` · `group: task`      |
+| Everything under a name that occurs in several places                | `path: Renewal`                                                                       |
+| Blocks that mention a word, ordered by page, the first 20            | `text: invoice` · `sort: page asc` · `limit: 20`                                      |
+| Pages beside this one (same namespace)                               | `type: page` · `ns: {{namespace}}`                                                    |
+| Pages of the same type as this one                                   | `type: page` · `prop.type: {{type}}`                                                  |
+| Fewer property lines under results                                   | add `properties: none` or `properties: status, owner`                                 |
+| Leave hidden pages out of any query                                  | add `-prop.archived: true`                                                            |
 
 Each `·` is a new line in the block. For example the first one is
 

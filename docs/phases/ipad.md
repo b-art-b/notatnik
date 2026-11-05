@@ -67,6 +67,7 @@ repository's development machine has. [xtool](https://github.com/xtool-org/xtool
    iPad (Settings → General → VPN & Device Management).
 5. `scripts/ios.sh build` makes an `.ipa`; with a paid account, upload it to TestFlight from Xcode (Product → Archive →
    Distribute App) and install it from the TestFlight app.
+
 - **Verify:**
   - [ ] the app starts on the simulator and creates `notes` with today's journal; editing works
   - [ ] it runs on a real iPad

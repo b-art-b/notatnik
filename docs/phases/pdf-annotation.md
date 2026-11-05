@@ -32,19 +32,21 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   file: ../../assets/report.pdf
   sha: 9f2c41d07ab3e815
   type: annotations
+  archived: true
   ---
 
   - The sentence that was highlighted, as selected. ^a1b2c3
     hl-page:: 12
     hl-color:: yellow
-    hl-rects:: 0.1203,0.3012,0.5530,0.0210;0.1203,0.3240,0.2110,0.0210
+    hl-from:: 1042
+    hl-to:: 1187
     hl-context:: …text before… | …text after…
     - My comment on it, an ordinary child block, with [[links]] and #tags.
   - ![area](../../assets/hls/report-p12-3fa90c21.png) ^d4e5f6
     hl-page:: 12
     hl-color:: red
     hl-type:: area
-    hl-rects:: 0.2000,0.4000,0.6000,0.2500
+    hl-rect:: 0.2000,0.4000,0.6000,0.2500
   ```
 
   - `file` is the link target of the PDF, relative to the sidecar page like any asset; `sha` is the first 16 hex of the
@@ -54,13 +56,25 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   - A highlight is **one block**. Its first line is the quoted text (an area highlight: a picture of the area), its
     comment is its **children**, so notes, tasks, tags and links work as everywhere else. Deleting the block deletes
     the highlight.
-  - `hl-page` is the page of the PDF, counting from 1. `hl-rects` are the boxes of the selection, `x,y,w,h` as
-    fractions of the page's width and height (0 to 1, from the top left, rotation applied), so they do not depend on
-    the zoom or the screen. `hl-color` is one of `yellow`, `green`, `blue`, `red`, `purple`. `hl-context` keeps up to
-    40 characters before and after the quote: it is not used in this phase, but it is what lets a later version find
-    a highlight again in a changed PDF.
+  - `hl-page` is the page of the PDF, counting from 1. **A text highlight stores only where it starts and ends**:
+    `hl-from` and `hl-to` are character offsets (from 0, `to` exclusive) into the text of that page, which is the
+    `str` of pdf.js's text items joined in order, with a newline after an item that ends a line. However long the
+    selection is, it is two numbers. The boxes are not stored: the viewer finds the text-layer spans that hold the
+    two offsets, takes the range between them and asks the browser for its line boxes, so they fit the zoom, the
+    screen and the rotation by construction. If the text at `from..to` (spaces and line breaks ignored) is not the
+    quote, the text of the page has changed or the extraction differs (another pdf.js version): the viewer then
+    looks for the quote on that page, with `hl-context` to choose between several hits, and corrects the numbers
+    (a guarded write); if it is not found the highlight is listed in the panel as _not found on page N_ and is not
+    drawn. `hl-context` keeps up to 40 characters before and after the quote for that. An **area** highlight has no
+    text, so it stores `hl-rect`, one box `x,y,w,h` as fractions of the page's width and height (0 to 1, from the
+    top left, rotation applied). `hl-color` is one of `yellow`, `green`, `blue`, `red`, `purple`.
+  - A PDF without a text layer (a scan) has no text to select; the area highlight is what serves there.
   - The block **ID** (`^a1b2c3`) is added when the highlight is made, not when it is first referenced, because a
     highlight is meant to be referenced.
+  - **The sidecar is hidden** (`archived: true`, the _Hide_ feature, NS-20): it is not in the sidebar, Recent, the
+    property groups or the agenda, and shows in All pages only on request; it stays searchable and linkable, its
+    highlights are found by search and `((id))` references work. The viewer's own panel and a link on the PDF's
+    page reach it. The _Open the notes page_ button (A4) opens it as a page.
   - The sidecar is a **page like any other** (ST-1): the person can edit it in a text editor, and the index needs no
     new table. The only code that knows its shape is the viewer.
 
@@ -102,7 +116,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 ### A2 The viewer
 
 - `PdfViewer.svelte` with `ui/src/lib/pdf/` (`load.ts`: the dynamic import and the worker; `pages.ts`: which pages
-  to render for the scroll position; `geometry.ts`: boxes of a selection to fractions and back).
+  to render for the scroll position; `anchor.ts`: a selection to `from`/`to` offsets and back to a range, the page text, and re-finding a quote).
 - Pages in a vertical scroll, rendered lazily and dropped again when far away; fit to width, zoom in steps and by
   pinch, page number box and previous/next page, find in the document (pdf.js's find controller), the text layer
   for selection. A PDF with a password asks for it; a broken file shows a message, not a blank view.
@@ -123,17 +137,22 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 - Select text in the text layer, a small bar appears next to the selection with the five colours (and a Copy), one
   click makes the highlight: `annotation_page`, then a block under the sidecar with the quote, `hl-*` properties and
   an ID, in one undo step.
-- The highlights of the sidecar are drawn over the pages (translucent boxes from `hl-rects`); a click on one opens
+- The highlights of the sidecar are drawn over the pages (translucent boxes of the range from `hl-from` to `hl-to`, taken from the text layer; an area from `hl-rect`); a click on one opens
   its popup: change colour, delete, **Add comment** (focuses a child block in the side panel, A4), copy
   `((id))`.
 - Overlaps, a selection across pages (one block per page, so each has one `hl-page`), a selection in a rotated
   page (the box is computed in page space).
 - **Verify:**
   - [ ] selecting a sentence and clicking _yellow_ adds one block to the sidecar with the quote, `hl-page`,
-        `hl-color: yellow`, `hl-rects` and an ID; the highlight is drawn over the same words
+        `hl-color: yellow`, `hl-from`, `hl-to` and an ID; the highlight is drawn over the same words
   - [ ] a selection across two pages makes two blocks, each on its own page
-  - [ ] the boxes land on the words at 50 %, 100 % and 300 % zoom and on a page rotated by 90° (a fixture; compared
+  - [ ] a selection of a whole page of text is stored as two numbers (the block has no long property); the drawn
+        boxes cover the same words at 50 %, 100 % and 300 % zoom and on a page rotated by 90° (a fixture; compared
         against the text layer's boxes)
+  - [ ] a sidecar whose `hl-from`/`hl-to` are wrong (edited by hand) but whose quote is on the page: the viewer
+        finds the quote, corrects the numbers and draws it; a quote that is not on the page is listed as _not found_
+        and nothing is drawn
+  - [ ] the offsets are the same for the same PDF in Chromium and in WebKit (the page text is built the same way)
   - [ ] changing the colour rewrites only that property (ST-3); deleting removes the block, its comment and the box
   - [ ] one undo removes a highlight made just now; a highlight made on another device (the sidecar changed on
         disk) appears without reopening the PDF
@@ -160,7 +179,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   `assets/hls/…png` (`save_asset`, ST-8) and the block shows the picture. On a touch screen the tool is a mode
   (otherwise a drag scrolls).
 - **Verify:**
-  - [ ] a drag makes a block with `hl-type: area`, one `hl-rects` entry and a picture that shows the area (size
+  - [ ] a drag makes a block with `hl-type: area`, one `hl-rect` and a picture that shows the area (size
         checked, not the pixels)
   - [ ] the rectangle is drawn on the page and can be deleted; the picture stays in _Unused images_ after the block
         is deleted
@@ -185,7 +204,7 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
   panel is a drawer on a narrow window.
 - Documents: `requirements.md` (PA rows, and the non-goal removed), `file-format.md` (the sidecar), `keymap.md` (the
   viewer's keys and mouse), `testing.md`, `TODO.md`, and _Open checks_ in this file.
-- Tests: Rust (A1), Vitest (`geometry.ts`: boxes to fractions and back, rotated pages, cross-page selections),
+- Tests: Rust (A1), Vitest (`anchor.ts`: selection to offsets and back, line breaks, re-finding a quote with context, cross-page selections),
   Playwright with fixture PDFs (a one-page and a 300-page, made by a script so no binary is hard to review),
   Chromium and WebKit.
 - **Verify:**
@@ -199,19 +218,24 @@ as a layer over a page) is option B of the proposal and is **not** in this phase
 
 - **Ink on the PDF** (option B): the drawing editor as a transparent layer over a page, one SVG per page in
   `assets/hls/`, with a `hl-type:: ink` entry in the sidecar so ink and highlights share the list.
-- **Finding a highlight again in a changed PDF** with `hl-context` and the quote (a text search per page, then in
-  the whole file); the sidecar says which highlights could not be placed.
+- **Finding a highlight again in a changed PDF on another page** (this phase re-finds a quote only on its own page): a
+  text search over the whole file with `hl-context` and the quote.
 - **Highlights as tasks**, a reading view across several PDFs, **export**: the highlights as a list of quotes in a note
   and an annotated copy of the PDF (standard `/Highlight` objects written into a _copy_, never into the original).
 - **Import of a Logseq `hls__` page and its `.edn`.**
 - **EPUB and images** with the same sidecar (`type: annotations`, a different locator than `hl-page`).
 
+## Decided in review
+
+- Sidecars are hidden by default (`archived: true` in their frontmatter).
+- A text highlight stores only its start and end (`hl-from`, `hl-to`), not boxes.
+
 ## Open questions
 
-- Should the sidecars (`hls/…`) be hidden from the sidebar, Recent and the agenda by default (the _Hide_ feature,
-  NS-20), since they are written by the viewer? They stay searchable and linkable either way. Proposed: hidden by
-  default, shown in the PDF's own view.
-- `hl-rects` as a property value is one long line (about 40 characters per line of text). If it is too long for a
-  big selection, the alternative is one block per line of text, or a child block. Check with a real paragraph in A3.
-- The value of `hl-rects` has to survive the property parser as text (it has commas and semicolons); the golden
-  file in A1 covers it.
+- **The page text must be built identically everywhere.** The offsets depend on how `str` of the items is joined
+  (the newline after an end-of-line item, items with no text). A1/A3 fix one function, `pageText()`, used for
+  writing and reading, with a test on a fixture; a change to it needs a migration (the quote re-finding above covers
+  a mistake, at the cost of a guarded write per highlight).
+- **Selections across pages** are still one block per page (`hl-from`/`hl-to` are offsets in one page's text).
+- The values `hl-from`/`hl-to` are plain numbers; `hl-context` has `|` and `…` in it and has to survive the property
+  parser as text (the golden file in A1 covers it).

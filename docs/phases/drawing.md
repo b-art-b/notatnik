@@ -45,7 +45,7 @@ infinite canvas, edited in a full-screen overlay, as in Joplin.
   - [x] a new drawing is stored under `assets/drawings/draw-<8 hex>.svg` and the reply has `![](…)` relative to the page
   - [x] saving again with the path overwrites the file; the path and the link stay the same
   - [x] a path outside `assets/drawings/`, one that is not `draw-<8 hex>.svg`, text that is not an SVG, and more than 25 MB
-    are refused
+        are refused
   - [x] `read_drawing` gives back what was saved
   - [x] a drawing that a page links is not listed under Unused images
 
