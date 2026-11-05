@@ -139,8 +139,8 @@ must never regress:
 
 ## Clipped web pages (WA-1 to WA-10)
 
-- **`crates/clip`** is tested with plain `cargo test` and no network: `tests/clip.rs` (14 tests) runs a tiny local server
-  against the pages in the repository's `fixtures/web/` (an article, a blog, a Latin-2 page, a page with `<base>`, one without an article,
+- **`crates/clip`** is tested with plain `cargo test` and no network: `tests/clip.rs` (15 tests) runs a tiny local server
+  against the pages in the repository's `fixtures/web/` (an article, a blog, a page with data tables, a Latin-2 page, a page with `<base>`, one without an article,
   a script shell, a hostile page) and checks the book (structure with `quick-xml`, identical bytes twice, limits, redirects,
   refused addresses). `ClipPolicy { allow_private: true }` lets the tests reach the local server; the app never sets it.
 - **`crates/app/tests/clip.rs`** (10 tests): the commands through `dispatch` (a clip, the same address again, safe names,

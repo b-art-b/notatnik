@@ -39,12 +39,46 @@ fn real_byline(b: &str) -> Option<String> {
     (letters >= 3 && !b.eq_ignore_ascii_case("by")).then(|| b.to_string())
 }
 
+/// Class names that mark a table as page furniture (navigation boxes, notices); such a table is dropped.
+const FURNITURE_TABLES: [&str; 6] = ["navbox", "sidebar", "ambox", "mbox", "metadata", "toc"];
+
+/// Readability throws away elements whose class or id *sounds* like page furniture (`header`, `footer`, `menu`,
+/// `sidebar` ...). A Wikipedia list is `<table class="sticky-header-multi sortable wikitable">` with rows of class
+/// `static-row-header`, so the whole table went (found on a real page in W6). The classes of a data table (one with
+/// header cells and no table inside it) say nothing about the article, so they are removed before Readability looks;
+/// the output never keeps classes anyway.
+fn prepare_tables(html: &str) -> String {
+    if !html.contains("<table") {
+        return html.to_string();
+    }
+    let doc = Document::from(html);
+    for t in doc.select("table").iter() {
+        let class = t.attr("class").unwrap_or_default().to_lowercase();
+        if FURNITURE_TABLES.iter().any(|f| class.contains(f)) {
+            // navigation boxes and notices are page furniture: without their class nothing else would drop them
+            t.remove();
+            continue;
+        }
+        if t.select("table").exists() || !t.select("th").exists() {
+            continue;
+        }
+        t.remove_attr("class");
+        t.remove_attr("id");
+        for i in t.select("*").iter() {
+            i.remove_attr("class");
+            i.remove_attr("id");
+        }
+    }
+    doc.html().to_string()
+}
+
 pub fn extract(html: &str, url: &Url) -> Extracted {
     let cfg = Config {
         max_elements_to_parse: 30_000,
         ..Config::default()
     };
-    if let Ok(mut r) = Readability::new(html, Some(url.as_str()), Some(cfg))
+    let prepared = prepare_tables(html);
+    if let Ok(mut r) = Readability::new(prepared.as_str(), Some(url.as_str()), Some(cfg))
         && let Ok(a) = r.parse()
         && a.length > 0
     {

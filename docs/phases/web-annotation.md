@@ -10,7 +10,7 @@ text size.
 **Requirements covered:** WA-1 to WA-10 (see `requirements.md`); IN-1 (web clipper) gets its first half.
 **Depends on:** the EPUB annotation phase (reader, sidecar, panel), assets (ST-8), the link-title fetch (`linktitle.rs`,
 ED-27) for the HTTP client.
-**Status:** W1 to W6 done and tested. Open: the checks on a real iPad and in the installed desktop app (they need those devices), and the findings of the real-page check below.
+**Status:** W1 to W6 done and tested. Open: the checks on a real iPad and in the installed desktop app (they need those devices).
 
 ## Design
 
@@ -256,7 +256,7 @@ ED-27) for the HTTP client.
 | Older blog post (joelonsoftware.com) | good; the byline was the word "by" (a theme marks it up in two elements): **fixed**, no byline now                                                                      |
 | Wikipedia article (en, ja, pl)       | good, also the Japanese and Polish ones (language and byline come from the page); a Japanese title has no Latin letters, so the file is `ja-wikipedia-org-<hash8>.epub` |
 | Page with code (Rust book)           | good: 15 code blocks kept; 5 pictures left out (svg), with a note                                                                                                       |
-| Page with a table (Wikipedia list)   | **fails**: the six data tables are gone, only the text, headings and the list items remain                                                                              |
+| Page with a table (Wikipedia list)   | first run **failed** (the data tables were gone), **fixed**: the table with 87 rows of figures is kept, navigation boxes are dropped                                    |
 | Many pictures (Wikipedia flags)      | text kept; 154 pictures left out (svg and the cap of 40), with a note                                                                                                   |
 | Needs scripts (twitter.com)          | refused in words: "This page builds its content with scripts…" (WA-9)                                                                                                   |
 | Paywalled (nytimes.com)              | refused in words: the site answered 403                                                                                                                                 |
@@ -266,9 +266,14 @@ Not judged: a second news site (the first guess of an address was a 404, which t
 
 **What fails, written down for later:**
 
-- **Link-dense tables are lost.** Readability's clean-up removes tables whose cells are mostly links, which is what a
-  Wikipedia list is. Simple tables with text survive (they are in the cleaner's tests). A fix is to carry such tables over
-  from the page by hand, or to keep a `<table>` with `<th>` cells whatever its link density; not done in this phase.
+- **Tables were lost (fixed).** The cause was not link density: Readability drops elements whose class _sounds_ like page
+  furniture, and a Wikipedia table is `class="sticky-header-multi sortable wikitable"` with rows of class
+  `static-row-header` (`header`). `prepare_tables` in `crates/clip/src/extract.rs` removes class and id from data tables
+  (those with header cells and no table inside) before Readability looks, and drops navigation boxes and notices
+  (`navbox`, `sidebar`, `ambox`, `mbox`, `metadata`, `toc`) by hand, since nothing else would. Test:
+  `a_data_table_with_header_in_its_class_survives_and_a_navigation_box_does_not` with `fixtures/web/table.html`. Other
+  class-based removals (a `header` class on an ordinary `div` around real content) are the same kind of risk and are not
+  handled; the whole-page fallback covers a page where nothing is found.
 - **SVG pictures are left out by design** (WA-3). Wikipedia flags and many diagrams are SVG, so those pages lose their
   pictures; a note says how many. Rasterizing is not planned.
 - **The first request to a slow site** can take 10 s or more; the dialog shows the step and Cancel works.

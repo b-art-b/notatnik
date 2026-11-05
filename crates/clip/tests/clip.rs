@@ -455,6 +455,37 @@ fn a_blog_with_a_sidebar_and_comments_gives_the_post() {
 }
 
 #[test]
+fn a_data_table_with_header_in_its_class_survives_and_a_navigation_box_does_not() {
+    let s = Server::start(HashMap::from([("/table".to_string(), html("table.html"))]));
+    let c = run(&s.url("/table"), &local()).unwrap();
+    let chapter = entry(&c.epub, "OEBPS/chapter.xhtml");
+    assert_well_formed(&chapter, "chapter");
+    for cell in [
+        "Alderport",
+        "Brightwater",
+        "Cold Quay",
+        "Norland",
+        "412",
+        "Tonnes",
+    ] {
+        assert!(chapter.contains(cell), "{cell} is missing: {chapter}");
+    }
+    assert!(chapter.contains("<table"), "{chapter}");
+    assert!(chapter.contains("<th"), "{chapter}");
+    // the links inside the table stay links
+    assert!(chapter.contains("/h/a"), "{chapter}");
+    // furniture stays out, and no class or id comes along
+    assert!(
+        !chapter.contains("Navigation links of the site"),
+        "{chapter}"
+    );
+    assert!(
+        !chapter.contains("sticky-header") && !chapter.contains("static-row"),
+        "{chapter}"
+    );
+}
+
+#[test]
 fn a_page_without_an_article_keeps_its_body_with_a_note_and_a_shell_that_needs_scripts_is_refused()
 {
     let s = Server::start(HashMap::from([
