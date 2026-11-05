@@ -488,3 +488,9 @@ file: `file` (the PDF's path in the graph), `sha` (first 16 hex of the blake3 of
 (character offsets of the start and the end of the quote in the text of that page; no boxes are stored), `hl-context` (text
 before and after, to find the quote again if the offsets no longer fit) and, for an area, `hl-type:: area` and `hl-rect`
 (`x,y,w,h` as fractions of the page from the top left). The comment is the block's children. Pictures of areas are stored like any pasted picture, `assets/YYYY/MM/<name>-p<page>-<hash8>.png`.
+
+**EPUB highlights (EA-3, EA-4, planned).** The sidecar of an `.epub` is the same page. A highlight block has `hl-cfi` (an
+EPUB CFI range, `epubcfi(/6/14!/4/2/1,:20,:97)`: a start and an end, with the spine step in it), `hl-chapter` (the number
+in the reading order and the title, only for display), `hl-color` and `hl-context`, and no `hl-page`, `hl-from`, `hl-to`
+or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
+([phases/epub-annotation.md](phases/epub-annotation.md)).
