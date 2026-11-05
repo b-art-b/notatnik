@@ -647,3 +647,37 @@ t(
     }
   },
 )
+
+// A class name used twice in the reader once squeezed every book into a 10 em column (and hid it on a narrow window).
+for (const [what, size] of [
+  ['a wide window', { width: 1850, height: 965 }],
+  ['a narrow window', { width: 700, height: 800 }],
+] as const) {
+  t(
+    `the book fills the reader's page, in ${what}, with and without a source (EA-1, WA-5)`,
+    async ({ backend, page }) => {
+      await page.setViewportSize(size)
+      await openBook(
+        page,
+        backend,
+        makeEpub({
+          title: 'Wide',
+          source: 'https://example.org/a',
+          chapters: NOVEL.chapters,
+          files: NOVEL.files,
+        }),
+        'wide.epub',
+      )
+      await reads(page, NOVEL.s1)
+      const area = (await page.getByTestId('epub-page').boundingBox())!
+      const view = (await page.locator('foliate-view').boundingBox())!
+      expect(view.width).toBeGreaterThan(area.width - 2)
+      expect(view.height).toBeGreaterThan(area.height - 2)
+      // the text is laid out over a reasonable width, not in a sliver
+      const frame = chapterFrames(page).find((f) => f.url().startsWith('blob:'))!
+      expect(
+        await frame.evaluate(() => document.documentElement.getBoundingClientRect().width),
+      ).toBeGreaterThan(Math.min(300, area.width / 2))
+    },
+  )
+}

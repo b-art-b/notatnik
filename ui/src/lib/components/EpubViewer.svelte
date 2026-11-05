@@ -638,7 +638,7 @@
       >
       <h2 title={target.path}>{view ? titleOf(view.book) || fileName : fileName}</h2>
       {#if source}
-        <span class="host" data-testid="epub-host" title={source}>{hostOf(source)}</span>
+        <span class="origin" data-testid="epub-host" title={source}>{hostOf(source)}</span>
         <button
           type="button"
           class="tool"
@@ -895,7 +895,7 @@
     padding: 0.5em 0.9em;
     border-bottom: 1px solid var(--border);
   }
-  .host {
+  .origin {
     color: var(--muted);
     font-size: 0.85em;
     max-width: 10em;
@@ -1093,7 +1093,7 @@
     h2 {
       max-width: 9em;
     }
-    .host {
+    .origin {
       display: none;
     }
     .chapter {
