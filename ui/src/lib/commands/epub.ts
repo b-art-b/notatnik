@@ -1,13 +1,13 @@
 // The EPUB reader (EA-1): `openBook` shows the full-screen reader and waits until it is closed.
-import type { RemoteOpened } from '../api'
+import type { ResolvedDoc } from '../annotate/remote'
 import { app } from '../stores/app.svelte'
 
 export interface BookOpen {
   /** Graph-relative path of the EPUB, `assets/…/name.epub`. */
   path: string
-  /** The document is on the graph's Nextcloud: `path` is its address, and this is what `remote_open` said about it (the
-   * viewer asks again when it is absent). */
-  remote?: RemoteOpened
+  /** The document is not in the graph: `path` is its address (`https://…/f/12345`, `file:///…`) and this is what the
+   * backend said about it (the viewer asks again when it is absent). */
+  doc?: ResolvedDoc
   /** A place to open at: an EPUB CFI. */
   cfi?: string
   /** A highlight to open at and flash: its block `^id`. */

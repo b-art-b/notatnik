@@ -115,17 +115,26 @@ async function startBackend(
   }
 }
 
-type Opts = { fixture: string; today: string; fakeCalendar: boolean; localFetch: boolean }
+type Opts = {
+  fixture: string
+  today: string
+  fakeCalendar: boolean
+  localFetch: boolean
+  localFiles: boolean
+}
 export const test = base.extend<{ backend: Backend } & Opts>({
   fixture: ['basic', { option: true }],
   today: ['2026-10-03', { option: true }],
   fakeCalendar: [false, { option: true }],
   // clipping addresses on this computer (the page server of the web tests), which is refused otherwise (WA-7)
   localFetch: [false, { option: true }],
-  backend: async ({ page, fixture, today, fakeCalendar, localFetch }, use) => {
+  // `file:///` PDFs and EPUBs open in the viewers, as in the desktop app (a browser cannot read files of the computer; LV-1)
+  localFiles: [false, { option: true }],
+  backend: async ({ page, fixture, today, fakeCalendar, localFetch, localFiles }, use) => {
     const { b, stop } = await startBackend(fixture, today, page, [
       ...(fakeCalendar ? ['--fake-calendar'] : []),
       ...(localFetch ? ['--allow-local-fetch'] : []),
+      ...(localFiles ? ['--allow-local-files'] : []),
     ])
     await use(b)
     stop()

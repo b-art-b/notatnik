@@ -2152,10 +2152,11 @@ export type AnnotationPageArgs = {
  */
 path: string, 
 /**
- * The Nextcloud document the cached file is a copy of: its address as `remote_open` gave it
- * (`<server>/f/<id>`). The sidecar's `file` is this address (NA-4).
+ * Where the document came from, when it is not in the graph: the address of a Nextcloud document as `remote_open`
+ * gave it (`<server>/f/<id>`), or of a file of this computer as `local_open` gave it (`file:///…`). `path` is then
+ * the copy in the cache or the token path. The sidecar's `file` is this address (NA-4, LV-4).
  */
-remote?: string, 
+origin?: string, 
 /**
  * `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
  * The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
@@ -2260,20 +2261,20 @@ fetched: string,
  * This call fetched the file (it was not in the cache or had changed).
  */
 downloaded: boolean, };
-export type RemoteKeepArgs = { 
+export type KeepDocumentArgs = { 
 /**
- * The `path` of `remote_open`.
+ * The `path` of `remote_open` or `local_open`.
  */
 path: string, 
 /**
- * The `address` of `remote_open`.
+ * Their `address`.
  */
 address: string, 
 /**
  * The page the copy is linked from, for the link in the answer.
  */
 page: string, };
-export type RemoteKept = { 
+export type KeptDocument = { 
 /**
  * Graph-relative path, `assets/YYYY/MM/<name>-<hash8>.<ext>`.
  */
@@ -2291,6 +2292,28 @@ export type CacheCleared = {
  * Bytes of downloaded documents that were deleted (all graphs of this device).
  */
 freed: bigint, };
+export type LocalOpenArgs = { 
+/**
+ * `file:///home/me/Report.pdf`, also with `localhost`, percent-encoded names and a `#page=3`.
+ */
+url: string, };
+export type LocalOpened = { 
+/**
+ * `pdf` or `epub`.
+ */
+kind: string, 
+/**
+ * The file's name.
+ */
+name: string, size: bigint, 
+/**
+ * The file's address in its canonical form, `file:///…` with every segment encoded: the sidecar's `file`.
+ */
+address: string, 
+/**
+ * For `backend.assetUrl` and `annotation_page`: `local/<token>`.
+ */
+path: string, };
 export type AnnotationPage = { 
 /**
  * The page name, `hls/<name>`; empty when there is none and `create` was `false`.
@@ -3040,7 +3063,8 @@ export type Commands = {
   clip_cancel: { args: NoArgs; result: NoArgs };
   clip_existing: { args: ClipExistingArgs; result: StringValue | null };
   remote_open: { args: RemoteOpenArgs; result: RemoteOpened };
-  remote_keep: { args: RemoteKeepArgs; result: RemoteKept };
+  local_open: { args: LocalOpenArgs; result: LocalOpened };
+  keep_document: { args: KeepDocumentArgs; result: KeptDocument };
   remote_cache_clear: { args: NoArgs; result: CacheCleared };
   attach_file: { args: AttachFileArgs; result: SavedAsset };
   list_orphan_assets: { args: NoArgs; result: OrphanAssets };

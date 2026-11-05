@@ -20,3 +20,5 @@ tests/clip-touch.spec.ts
 tests/web.spec.ts
 tests/nextcloud.spec.ts
 tests/nextcloud-touch.spec.ts
+tests/local.spec.ts
+tests/local-touch.spec.ts

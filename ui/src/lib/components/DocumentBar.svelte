@@ -1,10 +1,9 @@
 <script lang="ts">
-  // A slim bar under the header of a viewer that shows a document of the graph's Nextcloud (NA-2, NA-6): it says when the
-  // copy on this device is old because the server cannot be reached, and offers to keep a copy in the graph.
-  import type { RemoteOpened } from '../api'
-  import { keepCopy } from '../annotate/remote'
+  // A slim bar under the header of a viewer that shows a document that is not in the graph (NA-2, NA-6, LV-6): where it is
+  // from, a note when the copy is old because the server cannot be reached, and a button to keep a copy in the graph.
+  import { keepCopy, type ResolvedDoc } from '../annotate/remote'
 
-  let { info }: { info: RemoteOpened } = $props()
+  let { doc }: { doc: ResolvedDoc } = $props()
 
   let kept = $state('')
   let busy = $state(false)
@@ -13,7 +12,7 @@
     if (busy || kept) return
     busy = true
     try {
-      kept = (await keepCopy(info)) ?? ''
+      kept = (await keepCopy(doc)) ?? ''
     } finally {
       busy = false
     }
@@ -21,10 +20,10 @@
 </script>
 
 <div class="bar" data-testid="remote-bar">
-  <span class="where">From your Nextcloud</span>
-  {#if info.offline}
+  <span class="where">{doc.where === 'nextcloud' ? 'From your Nextcloud' : 'On this computer'}</span>
+  {#if doc.offline}
     <span class="offline" role="status" data-testid="doc-offline"
-      >The server cannot be reached: this is the copy of {info.fetched}.</span
+      >The server cannot be reached: this is the copy of {doc.fetched}.</span
     >
   {/if}
   {#if kept}
@@ -34,7 +33,7 @@
       type="button"
       onclick={keep}
       disabled={busy}
-      title="Copy this document into the graph's assets, so it stays when the server does not"
+      title="Copy this document into the graph's assets, so it stays with the graph"
       data-testid="doc-keep">Keep a copy in the graph</button
     >
   {/if}
@@ -53,9 +52,6 @@
   }
   .offline {
     color: var(--warn);
-  }
-  .kept {
-    color: var(--muted);
   }
   button {
     margin-left: auto;

@@ -377,6 +377,17 @@ A link to a **PDF or EPUB on the server this graph is synced with** (`[Report](h
 - **A `((id))` reference** to a highlight of such a document shows the quote and a chip with the document's name that opens it at the highlight.
 - **Settings → Linked files → Delete downloaded documents** empties the cache (it is also kept under 500 MB, oldest first). Deleting the cache loses nothing: the highlights are in the graph.
 
+## PDFs and EPUBs where they are (LV-1..LV-8)
+
+A link to a **PDF or EPUB on this computer** (`[Report](file:///home/me/Documents/Report.pdf)`, what `/file` → This computer → _Link to the file where it is_ writes) opens in the same viewer and reader as a file of the graph, **in place**: nothing is copied into the graph and the file is never changed. This is the desktop app; a browser, a phone or a tablet cannot read files of the computer, so there the link opens in the system's program as before and a line says the viewer is in the desktop app.
+
+- **Click** the link: the app's viewer. **Ctrl+click** (Cmd+click on a Mac) or the **middle button**, or the small **↗** after the link: the system's program for that file. The ↗ shows while the link is hovered or either has the keyboard focus (Tab reaches it), and is always shown, 44 px, on a touch screen. It is on links to PDFs and EPUBs (in the graph, or a file of this computer) and on no other link.
+- **Settings → Linked files → Open PDF and EPUB links in** (this device): _This app's viewer_ (the default) or _The system's program_. With the second a click opens the system's program, and Ctrl+click, middle click and the ↗ open the viewer. A link to a PDF or EPUB in the graph follows the same choice. A link to a Nextcloud document, with no extension to tell by, opens in the viewer by a click and in the browser by Ctrl+click.
+- **In the viewer:** the bar says _On this computer_ and has **Keep a copy in the graph** (the file goes into `assets/YYYY/MM/`, up to 100 MB, and the highlights follow it); the header has **System viewer**, which opens this file in the system's program (for a Nextcloud document its copy on this device).
+- **The file is recognised by its content:** move or rename it, fix the link, and the highlights are there; two different files with the same name have two sets of highlights. A second copy of the same file shares them.
+- **A file that is not there any more**, that cannot be read, that is over 100 MB, or that is only named like a PDF (not a real PDF) says so, with _Open in the system's program_ where that helps. The highlights stay in the graph.
+- **`((id))` references** to such a highlight show the quote and a chip with the document's name that opens it at the highlight (if the file is still there).
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.

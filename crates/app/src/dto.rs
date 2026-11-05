@@ -1714,11 +1714,12 @@ pub struct AnnotationPageArgs {
     /// graph's Nextcloud (`remote` is set) the file in the device cache that `remote_open` named,
     /// `cache/remote/<key>/<etag>.pdf`.
     pub path: String,
-    /// The Nextcloud document the cached file is a copy of: its address as `remote_open` gave it
-    /// (`<server>/f/<id>`). The sidecar's `file` is this address (NA-4).
+    /// Where the document came from, when it is not in the graph: the address of a Nextcloud document as `remote_open`
+    /// gave it (`<server>/f/<id>`), or of a file of this computer as `local_open` gave it (`file:///…`). `path` is then
+    /// the copy in the cache or the token path. The sidecar's `file` is this address (NA-4, LV-4).
     #[serde(default)]
     #[ts(optional)]
-    pub remote: Option<String>,
+    pub origin: Option<String>,
     /// `false`: only look for the page (the viewer asks this when a PDF is opened, so looking at a PDF makes no page).
     /// The reply then has an empty `page` when there is none. Absent or `true`: make it if it is missing.
     #[serde(default)]
@@ -2463,12 +2464,13 @@ pub struct RemoteOpened {
     pub downloaded: bool,
 }
 
-/// `remote_keep`: copies a cached document into the graph (NA-6).
+/// `keep_document`: copies a document that is not in the graph (a cached Nextcloud document, a file of this computer)
+/// into the graph (NA-6, LV-6).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-pub struct RemoteKeepArgs {
-    /// The `path` of `remote_open`.
+pub struct KeepDocumentArgs {
+    /// The `path` of `remote_open` or `local_open`.
     pub path: String,
-    /// The `address` of `remote_open`.
+    /// Their `address`.
     pub address: String,
     /// The page the copy is linked from, for the link in the answer.
     pub page: String,
@@ -2476,7 +2478,7 @@ pub struct RemoteKeepArgs {
 
 /// The copy kept in the graph.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-pub struct RemoteKept {
+pub struct KeptDocument {
     /// Graph-relative path, `assets/YYYY/MM/<name>-<hash8>.<ext>`.
     pub path: String,
     /// `[name](relative link)` for the page named in the arguments.
@@ -2490,4 +2492,25 @@ pub struct RemoteKept {
 pub struct CacheCleared {
     /// Bytes of downloaded documents that were deleted (all graphs of this device).
     pub freed: u64,
+}
+
+/// `local_open`: a `file:///` link to a PDF or an EPUB of this computer (LV-1).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LocalOpenArgs {
+    /// `file:///home/me/Report.pdf`, also with `localhost`, percent-encoded names and a `#page=3`.
+    pub url: String,
+}
+
+/// A file of this computer registered for the viewers.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LocalOpened {
+    /// `pdf` or `epub`.
+    pub kind: String,
+    /// The file's name.
+    pub name: String,
+    pub size: u64,
+    /// The file's address in its canonical form, `file:///…` with every segment encoded: the sidecar's `file`.
+    pub address: String,
+    /// For `backend.assetUrl` and `annotation_page`: `local/<token>`.
+    pub path: String,
 }

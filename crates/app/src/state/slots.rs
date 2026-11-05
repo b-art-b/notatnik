@@ -57,6 +57,7 @@ impl AppState {
         s.open_roots = self.open_roots.clone();
         s.clip_policy = self.clip_policy.clone();
         s.remote_cache_limit = self.remote_cache_limit;
+        s.allow_local_files = self.allow_local_files;
         s.slot = slot.to_string();
         let s = Arc::new(s);
         slots.insert(slot.to_string(), s.clone());

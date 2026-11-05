@@ -5,8 +5,11 @@
   import { backend, type FileSourceView } from '../../api'
   import { errorMessage, toast } from '../../stores/app.svelte'
   import FileSourceForm from '../FileSourceForm.svelte'
+  import { documentLinkSetting, setDocumentLinkSetting } from '../../annotate/remote'
 
   let sources = $state<FileSourceView[]>([])
+  // what a click on a link to a PDF or an EPUB opens on this device (LV-2)
+  let opens = $state(documentLinkSetting())
   /** `new`, a source ID being edited, or nothing. */
   let editing = $state<string | null>(null)
   let removing = $state<string | null>(null)
@@ -101,6 +104,32 @@
   >
 {/if}
 
+<fieldset class="opens" data-testid="document-links">
+  <legend>Open PDF and EPUB links in</legend>
+  <label
+    ><input
+      type="radio"
+      name="document-links"
+      value="viewer"
+      checked={opens === 'viewer'}
+      onchange={() => setDocumentLinkSetting((opens = 'viewer'))}
+    /> This app's viewer (you can highlight and comment)</label
+  >
+  <label
+    ><input
+      type="radio"
+      name="document-links"
+      value="system"
+      checked={opens === 'system'}
+      onchange={() => setDocumentLinkSetting((opens = 'system'))}
+    /> The system's program</label
+  >
+  <small class="note"
+    >On this device. Ctrl+click (Cmd+click, middle click) or the ↗ after a link opens the other one. Files of
+    this computer open in the viewer in the desktop app only.</small
+  >
+</fieldset>
+
 <p class="downloads">
   <button type="button" class="plain" data-testid="clear-downloads" onclick={clearDownloads}
     >Delete downloaded documents</button
@@ -108,6 +137,16 @@
 </p>
 
 <style>
+  .opens {
+    margin: 1em 0 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5em 0.9em;
+  }
+  .opens label {
+    display: block;
+    padding: 0.15em 0;
+  }
   .downloads {
     margin-top: 1em;
   }

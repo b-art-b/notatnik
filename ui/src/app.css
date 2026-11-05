@@ -454,6 +454,36 @@ button.drawing-link {
   cursor: pointer;
   text-decoration: underline;
 }
+/* the small arrow after a link to a PDF or an EPUB: the other program (LV-2). Shown while the link is hovered or either has
+   the focus; a touch screen has no hover, so there it is always shown and 44 px */
+button.other-open {
+  font: inherit;
+  font-size: 0.8em;
+  margin-left: 0.25em;
+  padding: 0 0.3em;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+a.external:hover + button.other-open,
+a.external:focus-visible + button.other-open,
+button.other-open:hover,
+button.other-open:focus-visible {
+  opacity: 1;
+}
+button.other-open:focus-visible {
+  border-color: var(--accent);
+}
+@media (pointer: coarse) {
+  button.other-open {
+    opacity: 1;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 button.drawing:hover,
 button.drawing:focus-visible {
   border-color: var(--accent);

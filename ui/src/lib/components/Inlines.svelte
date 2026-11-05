@@ -16,10 +16,12 @@
     type DrawingHost,
     type DrawingMode,
   } from '../commands/drawing'
-  import { openPdf } from '../commands/pdf'
-  import { openBook } from '../commands/epub'
-  import { looksLikeServerDocument, openServerLink } from '../annotate/remote'
-  import { parseEpubHref, parsePdfHref } from '../pdf/highlights'
+  import {
+    documentLinkSetting,
+    isDocumentFileLink,
+    isDocumentLink,
+    openDocumentLink,
+  } from '../annotate/remote'
 
   // the block this text is in, if any: it can rewrite or remove the reference to a drawing (`Block.svelte`)
   const drawingHost = getContext<DrawingHost | undefined>(DRAWING_HOST) ?? null
@@ -85,16 +87,35 @@
         onclick={(e) => {
           e.preventDefault()
           e.stopPropagation()
-          // a link without a scheme is a file copied into the graph (`../assets/…`); a PDF opens in the viewer (PA-1)
-          const pdf = parsePdfHref(it.href)
-          const book = parseEpubHref(it.href)
-          if (pdf) void openPdf({ path: pdf.path, page: pdf.page ?? undefined })
-          else if (book) void openBook({ path: book.path, cfi: book.cfi ?? undefined })
-          else if (looksLikeServerDocument(it.href)) void openServerLink(it.href)
+          // a PDF or an EPUB (in the graph, a file of this computer, or a document of the server) opens in the viewer, or
+          // in the system's program with Ctrl/Cmd (LV-2); a link without a scheme is a file copied into the graph
+          if (isDocumentLink(it.href)) openDocumentLink(it.href, e)
           else if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
           else backend.openAsset(it.href)
+        }}
+        onauxclick={(e) => {
+          // the middle button: the other program, like Ctrl+click
+          if (e.button !== 1 || !isDocumentLink(it.href)) return
+          e.preventDefault()
+          e.stopPropagation()
+          openDocumentLink(it.href, e)
         }}><Self items={it.children} {chain} /></a
-      >{/if}{:else if it.type === 'image'}{@const drawing = drawingPath(
+      >{#if isDocumentFileLink(it.href)}<button
+          type="button"
+          class="other-open"
+          data-testid="doc-other"
+          aria-label={documentLinkSetting() === 'system'
+            ? `Open ${plainText(it.children)} in the app's viewer`
+            : `Open ${plainText(it.children)} in the system's program`}
+          title={documentLinkSetting() === 'system'
+            ? "Open in the app's viewer (Ctrl+click)"
+            : "Open in the system's program (Ctrl+click)"}
+          onclick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            openDocumentLink(it.href, { ctrlKey: true })
+          }}><span aria-hidden="true">↗</span></button
+        >{/if}{/if}{:else if it.type === 'image'}{@const drawing = drawingPath(
       it.src,
     )}{#if drawing}<!-- a drawing of this app: a click opens the editor on it (DR-6) --><button
         type="button"

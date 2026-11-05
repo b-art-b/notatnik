@@ -433,17 +433,11 @@ impl AppState {
         Ok(CacheCleared { freed })
     }
 
-    /// `remote_keep`: copies a downloaded document into the graph's `assets/` (up to 100 MB) and points the sidecar of the
+    /// `keep_document`: copies a downloaded document into the graph's `assets/` (up to 100 MB) and points the sidecar of the
     /// document, if it has one, at the copy. Links in notes are not rewritten; the content hash still finds the sidecar.
-    pub fn remote_keep(&self, a: RemoteKeepArgs) -> ApiResult<RemoteKept> {
-        let file = self.cache_file(&a.path)?;
+    pub fn keep_document(&self, a: KeepDocumentArgs) -> ApiResult<KeptDocument> {
+        let (file, name) = self.document_file(&a.path)?;
         let page = Self::parse_name(&a.page)?;
-        let name = file
-            .parent()
-            .and_then(read_meta)
-            .map(|m| m.name)
-            .or_else(|| file.file_name().map(|n| n.to_string_lossy().into_owned()))
-            .unwrap_or_default();
         let bytes = std::fs::read(&file).map_err(|e| ApiError::new("not_found", e.to_string()))?;
         let sha = notatnik_graph::sha_of_file(&file).map_err(ApiError::from)?;
         let today = self.today();
@@ -490,7 +484,7 @@ impl AppState {
                 self.emit_page_changed(&p);
                 moved = true;
             }
-            Ok(RemoteKept {
+            Ok(KeptDocument {
                 markdown: format!("[{label}]({link})"),
                 path,
                 sidecar_moved: moved,

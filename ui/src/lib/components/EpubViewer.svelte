@@ -27,9 +27,8 @@
   import { epubHighlightBlock, type Color, type Highlight } from '../pdf/highlights'
   import { COLOR_HEX } from '../annotate/colors'
   import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
-  import { isRemote } from '../annotate/remote'
-  import RemoteBar from './RemoteBar.svelte'
-  import type { RemoteOpened } from '../api'
+  import { isExternalDoc, openInSystem, resolveDocument, type ResolvedDoc } from '../annotate/remote'
+  import DocumentBar from './DocumentBar.svelte'
   import AnnotationPanel from './AnnotationPanel.svelte'
   import HighlightPopup from './HighlightPopup.svelte'
   import SelectionBar from './SelectionBar.svelte'
@@ -37,7 +36,7 @@
   // `app.book` is set when the reader opens and stays the same until it closes: a snapshot is enough
   const target = untrack(() => app.book)!
   // a document of the graph's Nextcloud: `target.path` is its address, `info` what the backend made of it (NA-1)
-  let info = $state<RemoteOpened | null>(null)
+  let info = $state<ResolvedDoc | null>(null)
   const fileName = $derived(info?.name ?? target.path.split('/').pop() ?? target.path)
   const sc = new Sidecar(target.path)
 
@@ -129,9 +128,8 @@
     void (async () => {
       try {
         let assetPath = target.path
-        if (isRemote(target.path)) {
-          const r = target.remote ?? (await backend.call('remote_open', { url: target.path }))
-          if (!r.opened) throw new BookError('unreadable', 'This is not a document the app can open.')
+        if (isExternalDoc(target.path)) {
+          const r = await resolveDocument(target.path, target.doc)
           info = r
           assetPath = r.path
           sc.use(r.path, r.address)
@@ -729,9 +727,16 @@
         data-testid="epub-panel-toggle"
         >Highlights{sc.highlights.length ? ` (${sc.highlights.length})` : ''}</button
       >
+      <button
+        type="button"
+        class="tool"
+        onclick={() => openInSystem(info?.path ?? target.path)}
+        title="Open this file in the system's viewer"
+        data-testid="doc-system">System viewer</button
+      >
       <button type="button" class="primary" onclick={finishBook} data-testid="epub-close">Close</button>
     </header>
-    {#if info}<RemoteBar {info} />{/if}
+    {#if info}<DocumentBar doc={info} />{/if}
 
     {#if findOpen}
       <div class="findbar" data-testid="epub-find">

@@ -282,6 +282,7 @@ mod encryption;
 mod favorites;
 mod filesources;
 mod hidden;
+mod local_docs;
 mod remote_docs;
 pub mod slots;
 mod syncing;
@@ -341,6 +342,10 @@ pub struct AppState {
     clip_policy: notatnik_clip::ClipPolicy,
     /// The size above which downloaded documents are cleaned away (NA-5); tests lower it.
     remote_cache_limit: u64,
+    /// Files of this computer may be opened in the viewers (the desktop shell, the tests); LV-1.
+    allow_local_files: bool,
+    /// The files registered by `local_open`: token and path, oldest first.
+    local_files: Mutex<Vec<(String, PathBuf)>>,
 }
 
 /// Options for [`AppState::new`].
@@ -406,6 +411,8 @@ impl AppState {
             clip_run: Mutex::new(None),
             clip_policy: notatnik_clip::ClipPolicy::default(),
             remote_cache_limit: remote_docs::CACHE_LIMIT,
+            allow_local_files: false,
+            local_files: Mutex::new(Vec::new()),
         }
     }
 
@@ -2473,18 +2480,17 @@ impl AppState {
     /// `file` property; when the PDF was moved by hand it is found by `sha` and `file` is corrected. The page is
     /// hidden (`archived`). It is made without an undo step: it holds nothing until the first highlight.
     pub fn annotation_page(&self, a: AnnotationPageArgs) -> ApiResult<AnnotationPage> {
-        // a document of the graph's Nextcloud: `path` is its copy in the cache of this device, `file` of the sidecar is
-        // the document's address, and the sidecar is found by the content hash as well (NA-4)
-        let remote = a.remote.clone();
+        // a document that is not in the graph (a Nextcloud document, a file of this computer): `path` is its copy in the
+        // cache or its token, `file` of the sidecar is its address, and the sidecar is found by the content hash as well
+        // (NA-4, LV-4)
+        let remote = a.origin.clone();
         let (file, cached_sha, stem_from) = if let Some(address) = &remote {
-            let cached = self.cache_file(&a.path)?;
-            let name = cached
-                .parent()
-                .and_then(|d| std::fs::read(d.join("meta.json")).ok())
-                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-                .and_then(|m| m["name"].as_str().map(String::from))
-                .unwrap_or_else(|| a.path.clone());
-            if !address.starts_with("http://") && !address.starts_with("https://") {
+            let (cached, name) = self.document_file(&a.path)?;
+            let lower = address.to_ascii_lowercase();
+            if !(lower.starts_with("http://")
+                || lower.starts_with("https://")
+                || lower.starts_with("file:///"))
+            {
                 return Err(ApiError::new(
                     "invalid",
                     "that is not the address of a document",
@@ -2563,8 +2569,15 @@ impl AppState {
                     .iter()
                     .find(|(q, _)| q == p)
                     .map(|(_, v)| v.as_str());
+                // the sidecar's own `file` is a good hint while it still leads to the file: a path of the graph, or an
+                // address of a file of this computer that is still there (a second copy of the same bytes)
                 let keep_own = remote.is_some()
-                    && own.is_some_and(|v| v == file || o.graph.root().join(v).is_file());
+                    && own.is_some_and(|v| {
+                        v == file
+                            || o.graph.root().join(v).is_file()
+                            || local_docs::file_uri_path(v)
+                                .is_some_and(|p| std::path::Path::new(&p).is_file())
+                    });
                 if !keep_own {
                     let name = Self::parse_name(p)?;
                     let rel = Self::page_file(o, &name)?;
@@ -2720,6 +2733,15 @@ impl AppState {
             let full = self.cache_file(rel)?;
             return std::fs::read(full).map_err(|_| ApiError::new("not_found", "asset not found"));
         }
+        // a file of this computer registered by `local_open` (LV-5)
+        if rel
+            .trim_start_matches("../")
+            .trim_start_matches("./")
+            .starts_with(local_docs::LOCAL_PREFIX)
+        {
+            let full = self.local_file(rel)?;
+            return std::fs::read(full).map_err(|_| ApiError::new("not_found", "asset not found"));
+        }
         let image = {
             let ext = rel
                 .rsplit_once('.')
@@ -2743,6 +2765,13 @@ impl AppState {
             .starts_with(remote_docs::CACHE_PREFIX)
         {
             return self.cache_file(rel);
+        }
+        if rel
+            .trim_start_matches("../")
+            .trim_start_matches("./")
+            .starts_with(local_docs::LOCAL_PREFIX)
+        {
+            return self.local_file(rel);
         }
         self.graph_file(rel, |_| true)
     }

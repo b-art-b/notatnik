@@ -177,6 +177,24 @@ must never regress:
 - **By hand, not done in this phase:** `SEARCH` by number against a real Nextcloud, a 60 MB PDF, a renamed file, the iPad
   and the installed desktop app (see the phase document).
 
+## PDFs and EPUBs in place (LV-1 to LV-8)
+
+- **`crates/app/src/state/local_docs.rs`** (unit): a table of `file:` addresses (spaces and Polish letters decoded, `localhost`,
+  a drive letter, a `#page=`; refused: a host, `..` also encoded, a NUL, a backslash, `//`, another extension) and one
+  address per file whatever the spelling.
+- **`crates/app/tests/local_docs.rs`** (10 tests): `local_open` registers a file in place and the route serves exactly it by
+  its token, nothing in the graph; a table of tokens and paths that must not work; a renamed file, a folder, a missing
+  file, 100 MB (a sparse file) and a deleted file; refusal without permission (`unsupported`); the sidecar (address,
+  found again, found by hash after a move with `file` following, a second copy sharing it, same name other bytes apart);
+  _Keep a copy_; strange origins; and a log capture with no path or name above `debug`.
+- **`ui/tests/local.spec.ts`, `local-touch.spec.ts`** (the dev server with `--allow-local-files`, the `localFiles` option of
+  `fixtures.ts`, files in a temp folder with a space and Polish letters in its name): click, Ctrl+click, middle button,
+  the arrow (computed opacity, hover, Tab and Enter), the setting and its persistence, PDFs in the graph and the System
+  viewer button, a table cell and a link of another type, an EPUB with highlight, comment, chip, move and fixed link,
+  _Keep a copy_, a missing file, a fake PDF, a server without permission, 44 px. Chromium and WebKit.
+- **By hand, in the real desktop app:** the file of the first question (`/other/nc/Rozrachunki do luty 2024_0001.pdf`), a
+  file on a removable drive, an unreadable file, Ctrl+click opening the system's viewer.
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details

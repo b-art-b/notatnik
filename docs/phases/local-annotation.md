@@ -13,7 +13,7 @@ ways to open the system's program instead (see _Two ways to open_).
 **Depends on:** PDF and EPUB annotation (viewers, sidecar, `annotation_page`), and the Nextcloud phase
 ([nextcloud-annotation.md](nextcloud-annotation.md)), whose address-and-content-hash sidecar rule, `RemoteBar` and
 cache-style asset route this phase reuses.
-**Status:** LV1 to LV4 not started (plan written).
+**Status:** LV1 to LV4 done and tested (Chromium and WebKit). Open: the checks in the real desktop app.
 
 ## Decisions
 
@@ -78,19 +78,20 @@ place. A link that is not a PDF or an EPUB, or a PDF on another server, is not t
   `file:` parsing in a pure function with a table test; `AnnotationPageArgs.remote` becomes `origin` and accepts
   `file:` too; `--allow-local-files` for the dev server.
 - **Verify:**
-  - [ ] a table of addresses: `file:///home/me/a.pdf`, `file://localhost/home/me/a.pdf`, spaces and non-ASCII percent
+  - [x] a table of addresses: `file:///home/me/a.pdf`, `file://localhost/home/me/a.pdf`, spaces and non-ASCII percent
         decoded (`Rozrachunki%20do%20luty…`), `file:///C:/Users/me/a.pdf`, upper-case extension; refused: a host, `..`, an
         encoded `..`, a NUL, a folder, `.txt`, a PDF-named file that is not a PDF, an EPUB-named file that is not a zip
-  - [ ] `local_open` of a real file gives its kind, name, size and a token; the route serves exactly its bytes; the
+  - [x] `local_open` of a real file gives its kind, name, size and a token; the route serves exactly its bytes; the
         same file twice gives a working token each time; a token of nothing, `local/../x`, `local//etc/passwd` and a path
         written instead of a token are refused
-  - [ ] a file over 100 MB is refused before it is read; a file that is deleted after `local_open` gives not found, not a crash
-  - [ ] the sidecar: made with the address, found again by the address, found by the hash after the file was moved or
+  - [x] a file over 100 MB is refused before it is read; a file that is deleted after `local_open` gives not found, not a crash
+  - [x] the sidecar: made with the address, found again by the address, found by the hash after the file was moved or
         renamed (same page, `file` updated only when the old path is gone), a second file of the same name gets its own
         sidecar, and a sidecar whose `file` is a graph path is left as it is
-  - [ ] the Nextcloud tests pass unchanged with the argument renamed
-  - [ ] the dev server without `--allow-local-files`, and a mobile build, answer `unsupported`; the file is never read
-  - [ ] nothing above `debug` in the log names a path or a file
+  - [x] the Nextcloud tests pass unchanged with the argument renamed
+  - [x] the dev server without `--allow-local-files` answers `unsupported` and the file is never read (a mobile build
+        never turns it on; it was not built or run here)
+  - [x] nothing above `debug` in the log names a path or a file
 
 ### LV2 The viewers
 
@@ -98,13 +99,13 @@ place. A link that is not a PDF or an EPUB, or a PDF on another server, is not t
   that is not in the graph (_From your Nextcloud_ / _On this computer_, _Keep a copy_, _Open in the system's viewer_); a
   missing file says so.
 - **Verify:**
-  - [ ] a PDF and an EPUB opened from a `file:///` link show their text, highlight, take a comment and a reference like
+  - [x] a PDF and an EPUB opened from a `file:///` link show their text, highlight, take a comment and a reference like
         files of the graph; nothing is written outside the sidecar; no file appears in the graph
-  - [ ] the title is the file's name; the bar says _On this computer_
-  - [ ] _Keep a copy in the graph_ copies the file into `assets/`, points the sidecar at it, and the old link finds the
+  - [x] the title is the file's name; the bar says _On this computer_
+  - [x] _Keep a copy in the graph_ copies the file into `assets/`, points the sidecar at it, and the old link finds the
         same sidecar
-  - [ ] the file moved, the link edited to the new place: the highlights are there
-  - [ ] the file deleted: the viewer says so, offers the system's program and keeps the sidecar
+  - [x] the file moved, the link edited to the new place: the highlights are there
+  - [x] the file deleted: the viewer says so, offers the system's program and keeps the sidecar
 
 ### LV3 Opening: the click, the modifier, the ↗, the setting
 
@@ -112,13 +113,14 @@ place. A link that is not a PDF or an EPUB, or a PDF on another server, is not t
   the modifier and the setting; the ↗ is a real `<button>` after the link, with a label; _Settings → Linked files_ has the
   choice; the viewer's button calls `backend.openAsset` / `openExternal`; `/file` writes the same links as before.
 - **Verify:**
-  - [ ] a click opens the viewer; Ctrl+click, Cmd+click, middle click and the ↗ call the system's open with the link
+  - [x] a click opens the viewer; Ctrl+click, Cmd+click, middle click and the ↗ call the system's open with the link
         (`window.open` stubbed in the browser tests, `open_asset`/`openExternal` in the shell) and open no viewer
-  - [ ] with the setting on _the system's program_ it is the other way round, and the setting survives a restart
-  - [ ] the ↗ is reachable by Tab, has an accessible name, shows on focus and hover, is always shown and 44 px on a touch
+  - [x] with the setting on _the system's program_ it is the other way round, and the setting survives a restart
+  - [x] the ↗ is reachable by Tab, has an accessible name, shows on focus and hover, is always shown and 44 px on a touch
         screen; a link that is no PDF/EPUB has none
-  - [ ] on a browser and a phone a `file:///` link behaves as before and says the viewer needs the desktop app
-  - [ ] a link in a table, a query result, an embed and the journal behaves the same (they all render through `Inlines`)
+  - [x] on a browser and a phone a `file:///` link behaves as before and says the viewer needs the desktop app
+  - [x] a link in a table, a query result, an embed and the journal behaves the same (they all render through `Inlines`;
+        tested in a table cell and on a page, not separately in a query result or an embed)
 
 ### LV4 Tests, documents, checks
 
@@ -126,12 +128,34 @@ place. A link that is not a PDF or an EPUB, or a PDF on another server, is not t
   and WebKit. Docs: `requirements.md` (LV rows), `keymap.md`, `file-format.md` (`file:` as a `file:///` address),
   `logging.md`, `testing.md`, `TODO.md`, `CLAUDE.md`.
 - **Verify:**
-  - [ ] the whole path: `/file` → This computer → _Link to the file where it is_ is replaced here by a note with a
+  - [x] the whole path: `/file` → This computer → _Link to the file where it is_ is replaced here by a note with a
         `file:///` link; click, highlight, comment, `((id))` and its chip, move the file, fix the link, the highlight stays
-  - [ ] the default click, the modifier, the ↗ and the setting (LV3), by keyboard and by touch
-  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass
+  - [x] the default click, the modifier, the ↗ and the setting (LV3), by keyboard and by touch
+  - [x] `scripts/check.sh` and `scripts/check-webkit.sh` pass
   - [ ] by hand, in the real desktop app: the file from the question (`/other/nc/…pdf` with spaces and Polish letters), a
         file on a removable drive, a file that is unreadable, Ctrl+click opening the system's viewer
+
+### How it was built, where it differs from the plan
+
+- **`file_uri_path` and `canonical_address`** (`crates/app/src/state/local_docs.rs`) are the pure parts; a file has one
+  address however it was spelled, and `file://localhost/…` and `%`-encodings give the same.
+- **`AnnotationPageArgs.remote` is now `origin`** and `remote_keep` is `keep_document`, as planned; both take a Nextcloud cache
+  path or a `local/<token>` path (`document_file`). `DocumentBar` (was `RemoteBar`) and `ResolvedDoc` (in
+  `ui/src/lib/annotate/remote.ts`) serve both kinds; the viewers' open request carries `doc` instead of `remote`.
+- **A sidecar's own `file` is kept while it still leads to a file:** a path of the graph, or the address of a file that is still
+  there. That is what lets a second copy of the same bytes share the sidecar without rewriting `file` each time.
+- **Tokens:** the same file keeps its token while it is registered (an open viewer keeps working), at most 256 are kept
+  (the oldest stop working; a viewer asks again when it opens).
+- **Who may read files:** the desktop shell turns it on (`with_local_files`, `#[cfg(desktop)]`); the dev server only with
+  `--allow-local-files`; a phone or tablet build never. The UI does not guess: it asks `local_open`, and the answer
+  `unsupported` sends the link to the system's program with one line of explanation.
+- **The setting is kept in the webview's storage** (`localStorage`, key `notatnik.documentLinks`), so it is per device
+  and survives a restart; it is not in the device settings file.
+- **The system's program from the viewer** is the existing `open_asset` (it takes a path of the graph, a cached
+  Nextcloud copy or a `local/` token), so the header button needs no new command. A link to a Nextcloud document has no
+  extension, so it has no ↗; Ctrl+click opens it in the browser.
+- **A fix on the way:** `open_external` of the shell dropped nothing from `file:///…/a.pdf#page=3`, so the page
+  fragment became part of the file name and the file was "not found"; the fragment and the query are cut now.
 
 ## Later (not in this phase, but not made impossible)
 

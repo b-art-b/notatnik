@@ -388,11 +388,11 @@ fn the_sidecar_of_a_remote_document_has_its_address_and_follows_the_file_when_it
     t.dav.put_file("Docs/Report.pdf", PDF);
     let link = t.link("Docs/Report.pdf");
     let r = t.open(&link);
-    let args = json!({"path": r["path"], "remote": r["address"]});
+    let args = json!({"path": r["path"], "origin": r["address"]});
     // looking makes no page
     let looked = t.ok(
         "annotation_page",
-        json!({"path": r["path"], "remote": r["address"], "create": false}),
+        json!({"path": r["path"], "origin": r["address"], "create": false}),
     );
     assert_eq!(looked["page"], "");
     let side = t.ok("annotation_page", args.clone());
@@ -419,7 +419,7 @@ fn the_sidecar_of_a_remote_document_has_its_address_and_follows_the_file_when_it
     let r2 = t.open(&link);
     let after = t.ok(
         "annotation_page",
-        json!({"path": r2["path"], "remote": r2["address"]}),
+        json!({"path": r2["path"], "origin": r2["address"]}),
     );
     assert_eq!(
         (after["page"].clone(), after["created"].clone()),
@@ -441,10 +441,10 @@ fn keeping_a_copy_points_the_sidecar_at_it_and_the_old_link_finds_the_same_sidec
     let r = t.open(&link);
     let side = t.ok(
         "annotation_page",
-        json!({"path": r["path"], "remote": r["address"]}),
+        json!({"path": r["path"], "origin": r["address"]}),
     );
     let kept = t.ok(
-        "remote_keep",
+        "keep_document",
         json!({"path": r["path"], "address": r["address"], "page": "inbox"}),
     );
     let path = kept["path"].as_str().unwrap();
@@ -473,7 +473,7 @@ fn keeping_a_copy_points_the_sidecar_at_it_and_the_old_link_finds_the_same_sidec
     // opened by the old link: the same sidecar, not a second one, and it keeps pointing at the copy
     let remote_again = t.ok(
         "annotation_page",
-        json!({"path": r["path"], "remote": r["address"]}),
+        json!({"path": r["path"], "origin": r["address"]}),
     );
     assert_eq!(remote_again["page"], side["page"]);
     assert_eq!(remote_again["created"], false);
@@ -492,7 +492,7 @@ fn keeping_a_copy_of_a_document_without_highlights_just_copies_it() {
         .put_file("Docs/Book.epub", b"PK\x03\x04 not really a book");
     let r = t.open(&t.link("Docs/Book.epub"));
     let kept = t.ok(
-        "remote_keep",
+        "keep_document",
         json!({"path": r["path"], "address": r["address"], "page": "inbox"}),
     );
     assert_eq!(kept["sidecar_moved"], false);
@@ -507,7 +507,7 @@ fn the_sidecar_calls_refuse_what_is_not_a_cached_document() {
         let e = t
             .call(
                 "annotation_page",
-                json!({"path": path, "remote": "https://x.example/f/1"}),
+                json!({"path": path, "origin": "https://x.example/f/1"}),
             )
             .unwrap_err();
         assert!(
@@ -520,7 +520,7 @@ fn the_sidecar_calls_refuse_what_is_not_a_cached_document() {
     let e = t
         .call(
             "annotation_page",
-            json!({"path": r["path"], "remote": "javascript:alert(1)"}),
+            json!({"path": r["path"], "origin": "javascript:alert(1)"}),
         )
         .unwrap_err();
     assert_eq!(e.code, "invalid");
@@ -557,7 +557,7 @@ fn the_address_the_path_and_the_name_of_a_document_are_not_in_the_log_above_debu
     t.open(&link);
     t.ok(
         "annotation_page",
-        json!({"path": r["path"], "remote": r["address"]}),
+        json!({"path": r["path"], "origin": r["address"]}),
     );
     let _ = t.call(
         "remote_open",

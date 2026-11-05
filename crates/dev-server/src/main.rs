@@ -39,6 +39,9 @@ struct Args {
     /// Let a web page clip fetch addresses on this computer (the tests serve their pages from here); the app never does
     #[arg(long)]
     allow_local_fetch: bool,
+    /// Let the viewers open `file:///` PDFs and EPUBs of this computer (the desktop app does; the tests write their files here)
+    #[arg(long)]
+    allow_local_files: bool,
     /// Use an in-memory calendar server (calendars Tasks, Birthdays, Personal) instead of connecting to one
     #[arg(long)]
     fake_calendar: bool,
@@ -187,6 +190,9 @@ fn main() {
     }
     if args.allow_local_fetch {
         state = state.with_local_fetch();
+    }
+    if args.allow_local_files {
+        state = state.with_local_files();
     }
     let app = Arc::new(state);
     let graph = args.graph.to_string_lossy().into_owned();

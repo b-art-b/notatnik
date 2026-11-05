@@ -495,6 +495,8 @@ in the reading order and the title, only for display), `hl-color` and `hl-contex
 or `hl-rect`. If the CFI no longer fits the book, the quote and context find the place again and the CFI is corrected
 ([phases/epub-annotation.md](phases/epub-annotation.md)).
 
+**Sidecar of a file of this computer (LV-4).** The sidecar's `file` is the file's address as `local_open` writes it, `file:///` and the path with every segment percent-encoded (`file:///home/me/My%20Report.pdf`; `file:///C:/Users/me/a.pdf` on Windows), so one file has one address however a link spelled it. It is a hint: the file is found by `sha`, and when it was moved or renamed `file` is updated to the new address only if the old one no longer leads to a file. After _Keep a copy in the graph_ `file` is the path of the copy. The file itself is never in the graph unless it is kept.
+
 **Sidecar of a document in Nextcloud (NA-4).** When the PDF or EPUB is a file of the graph's Nextcloud, the sidecar's `file`
 is the document's address, `<server>/f/<number>` (else its WebDAV address when the server gives no numbers), and `sha` is
 the hash of the bytes as downloaded. The highlight blocks are the same as for a file in the graph (`hl-page`... or

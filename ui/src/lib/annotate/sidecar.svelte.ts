@@ -38,14 +38,14 @@ export class Sidecar {
   private fixed = new Set<string>()
 
   /** The Nextcloud document this sidecar belongs to: its address (NA-4); `path` is then the copy in the device cache. */
-  remote: string | undefined
+  origin: string | undefined
 
   constructor(public path: string) {}
 
   /** The document turned out to be a copy of a Nextcloud file: ask for its sidecar by the file's address. */
-  use(path: string, remote: string) {
+  use(path: string, origin: string) {
     this.path = path
-    this.remote = remote
+    this.origin = origin
   }
 
   /** Looks for the sidecar; makes none. */
@@ -53,7 +53,7 @@ export class Sidecar {
     try {
       this.side = await backend.call('annotation_page', {
         path: this.path,
-        remote: this.remote,
+        origin: this.origin,
         create: false,
       })
       if (this.side.page) {
@@ -72,7 +72,7 @@ export class Sidecar {
   /** The sidecar page, made on the first highlight. */
   async ensure(): Promise<PageDoc> {
     if (!this.side?.page) {
-      this.side = await backend.call('annotation_page', { path: this.path, remote: this.remote })
+      this.side = await backend.call('annotation_page', { path: this.path, origin: this.origin })
       this.doc = getDoc(this.side.page)
       await this.doc.load()
     }

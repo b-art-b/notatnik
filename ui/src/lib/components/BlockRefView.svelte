@@ -8,7 +8,7 @@
   import { bus } from '../stores/events.svelte'
   import { openPdf } from '../commands/pdf'
   import { openBook } from '../commands/epub'
-  import { isRemote } from '../annotate/remote'
+  import { isExternalDoc } from '../annotate/remote'
 
   let { uid, chain }: { uid: string; chain: string[] } = $props()
 
@@ -45,7 +45,7 @@
     if (!b || !file) return null
     // a document of the graph's Nextcloud: `file` is its address, with no name; the sidecar's name has it, and the kind
     // is told by the highlight (a page or a CFI)
-    if (isRemote(file)) {
+    if (isExternalDoc(file)) {
       const nm = result!.page.split('/').pop() ?? result!.page
       const pg = b.props.find((p) => p.key === 'hl-page')?.raw
       if (pg && Number.isInteger(Number(pg)))

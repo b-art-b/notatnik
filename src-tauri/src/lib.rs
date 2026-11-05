@@ -32,7 +32,13 @@ fn invoke_api(
 fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let l = url.to_ascii_lowercase();
     if l.starts_with("file:///") {
-        let path = percent_decode(&url["file://".len()..]);
+        // `…/a.pdf#page=3`: a page or a query is not part of the path
+        let path = percent_decode(
+            url["file://".len()..]
+                .split(['#', '?'])
+                .next()
+                .unwrap_or(""),
+        );
         return open_local(&app, std::path::Path::new(&path));
     }
     if !(l.starts_with("http://") || l.starts_with("https://") || l.starts_with("mailto:")) {
@@ -342,6 +348,9 @@ pub fn run() {
             let state = state.with_secrets(Arc::new(keystore::KeystoreSecrets::new(
                 app.state::<keystore::SecretsHandle>().0.clone(),
             )));
+            // a computer can read its own files for the viewers (LV-1); a phone or tablet cannot read a path of one
+            #[cfg(desktop)]
+            let state = state.with_local_files();
             let state = Arc::new(state);
             // reopen the last graph without asking only when the device setting says so; otherwise the start
             // screen lists the graphs, the last one selected
