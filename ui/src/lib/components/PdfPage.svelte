@@ -115,6 +115,8 @@
           viewport,
           transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
         })
+        // a render that is cancelled (the page was left, or zoomed) rejects; nobody may be left waiting for it
+        task.promise.catch(() => undefined)
         const content = await page.getTextContent()
         if (dead) return
         pageEl.style.setProperty('--scale-factor', String(scaleNow))

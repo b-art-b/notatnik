@@ -17,7 +17,8 @@
     type DrawingMode,
   } from '../commands/drawing'
   import { openPdf } from '../commands/pdf'
-  import { parsePdfHref } from '../pdf/highlights'
+  import { openBook } from '../commands/epub'
+  import { parseEpubHref, parsePdfHref } from '../pdf/highlights'
 
   // the block this text is in, if any: it can rewrite or remove the reference to a drawing (`Block.svelte`)
   const drawingHost = getContext<DrawingHost | undefined>(DRAWING_HOST) ?? null
@@ -85,7 +86,9 @@
           e.stopPropagation()
           // a link without a scheme is a file copied into the graph (`../assets/…`); a PDF opens in the viewer (PA-1)
           const pdf = parsePdfHref(it.href)
+          const book = parseEpubHref(it.href)
           if (pdf) void openPdf({ path: pdf.path, page: pdf.page ?? undefined })
+          else if (book) void openBook({ path: book.path, cfi: book.cfi ?? undefined })
           else if (/^[a-z][a-z0-9+.-]*:/i.test(it.href)) backend.openExternal(it.href)
           else backend.openAsset(it.href)
         }}><Self items={it.children} {chain} /></a

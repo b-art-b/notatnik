@@ -12,3 +12,5 @@ tests/drawing-extras.spec.ts
 tests/touch.spec.ts
 tests/pdf.spec.ts
 tests/pdf-touch.spec.ts
+tests/epub.spec.ts
+tests/epub-touch.spec.ts

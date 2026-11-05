@@ -544,6 +544,15 @@ fn is_asset_link(h: &str) -> bool {
     clean.starts_with("assets/") && !clean.contains("/../")
 }
 
+/// `epubcfi(/6/14!/4/2/1,:20,:97)`: the characters of a CFI and nothing that could end a link or start a script.
+fn is_cfi_fragment(f: &str) -> bool {
+    f.len() <= 400
+        && f.starts_with("epubcfi(")
+        && f.ends_with(')')
+        && f.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "()/:!,.~@[];=_-%^".contains(c))
+}
+
 fn has_scheme(s: &str) -> bool {
     let head = s.split(['/', '?', '#']).next().unwrap_or("");
     head.contains(':')
@@ -582,14 +591,21 @@ fn parse_inline_item(it: &mut Events, refs: &[&RefSpan], out: &mut Vec<Inline>) 
                 });
             } else if let Some(mut href) = local_target(&dest_url, false) {
                 // a file in the graph (a copied attachment, Nextcloud's `.attachments.N/…`): opened by the shell.
-                // A PDF keeps the page of `#page=12`, which the viewer opens on (PA-1).
-                if href.to_ascii_lowercase().ends_with(".pdf")
-                    && let Some(page) = dest_url.split_once('#').and_then(|(_, frag)| {
+                // A PDF keeps the page of `#page=12`, an EPUB the place of `#epubcfi(/6/14!/4/2)`: the viewers open there
+                // (PA-1, EA-7).
+                let lower = href.to_ascii_lowercase();
+                let fragment = dest_url.split_once('#').map(|(_, f)| f);
+                if lower.ends_with(".pdf")
+                    && let Some(page) = fragment.and_then(|frag| {
                         frag.split('&')
                             .find_map(|kv| kv.strip_prefix("page=")?.parse::<u32>().ok())
                     })
                 {
                     href = format!("{href}#page={page}");
+                } else if lower.ends_with(".epub")
+                    && let Some(cfi) = fragment.filter(|f| is_cfi_fragment(f))
+                {
+                    href = format!("{href}#{cfi}");
                 }
                 out.push(Inline::Link { href, children });
             } else {
@@ -953,6 +969,33 @@ mod tests {
                 "assets/r.pdf#page=3",
                 "assets/r.pdf",
                 "assets/r.txt"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_link_to_an_epub_keeps_its_place() {
+        let _g = with_base_dir("pages");
+        let n = render_with_core(
+            "[a](<../assets/b.epub#epubcfi(/6/14!/4/2/1,:20,:97)>) [b](../assets/b.epub#epubcfi(a'b)) [c](../assets/b.epub#other) [d](../assets/b.txt#epubcfi(/6/2))",
+        );
+        let Node::Paragraph { children } = &n[0] else {
+            panic!()
+        };
+        let links: Vec<&str> = children
+            .iter()
+            .filter_map(|c| match c {
+                Inline::Link { href, .. } => Some(href.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            links,
+            [
+                "assets/b.epub#epubcfi(/6/14!/4/2/1,:20,:97)",
+                "assets/b.epub",
+                "assets/b.epub",
+                "assets/b.txt"
             ]
         );
     }

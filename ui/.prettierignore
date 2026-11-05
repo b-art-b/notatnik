@@ -3,3 +3,4 @@ node_modules
 src/lib/api/bindings.ts
 playwright-report
 test-results
+vendor

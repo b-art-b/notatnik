@@ -143,7 +143,7 @@ The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs 
 that matter for editing: it takes the focus away from a moved row without raising an event, so Alt+↑/↓ used to stop
 after one move there while Chrome was fine. `scripts/check-webkit.sh` runs the files in `ui/tests/webkit.list` (editing,
 selection, moves, the drawing editor, the PDF viewer) in Playwright's WebKit build (`ui/playwright.webkit.config.ts`; the first run downloads it, about
-100 MB). The PDF specs (`pdf.spec.ts`, `pdf-touch.spec.ts`) make their PDFs in `ui/tests/pdf-fixture.ts` (plain text pages, rotated pages, 300 pages, an RC4-encrypted file) so no binary has to be reviewed. Run it after changes to the editor, focus handling or keys. The whole suite also runs there
+100 MB). The PDF specs (`pdf.spec.ts`, `pdf-touch.spec.ts`) make their PDFs in `ui/tests/pdf-fixture.ts` (plain text pages, rotated pages, 300 pages, an RC4-encrypted file) so no binary has to be reviewed; the EPUB specs (`epub.spec.ts`, `epub-touch.spec.ts`) do the same with `ui/tests/epub-fixture.ts` (a small zip writer: a novel with a picture and a footnote, a 60-chapter book, one long chapter, a hostile book, a fixed-layout book). Run it after changes to the editor, focus handling or keys. The whole suite also runs there
 (`npx playwright test -c playwright.webkit.config.ts`): all but one test in `navigation.spec.ts` (clipboard) pass.
 
 ## Two graphs at once (MG-1 to MG-6)

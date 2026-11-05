@@ -18,6 +18,11 @@ function toTerminal(message: string) {
   backend.call('log_client', { level: 'error', message }).catch(() => {})
 }
 window.addEventListener('error', (e) => {
+  // the browser's own note that a resize was handled in the next frame; layout code (the EPUB reader) triggers it, harmless
+  if (e.message.startsWith('ResizeObserver loop')) return
+  // foliate-js (the EPUB reader) resizes a chapter's frame once more while the frame is being removed, WebKit then has no
+  // document for it; nothing is lost, the reader is closing
+  if (e.filename.includes('/paginator') && e.message.includes('documentElement')) return
   toTerminal(`${e.message} (${e.filename}:${e.lineno})`)
 })
 window.addEventListener('unhandledrejection', (e) => {

@@ -7,6 +7,7 @@ export default ts.config(
   {
     ignores: [
       'dist/**',
+      'vendor/**',
       'node_modules/**',
       'src/lib/api/bindings.ts',
       'playwright-report/**',

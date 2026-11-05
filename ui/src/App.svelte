@@ -51,6 +51,7 @@
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import DrawingEditor from './lib/components/DrawingEditor.svelte'
   import PdfViewer from './lib/components/PdfViewer.svelte'
+  import EpubViewer from './lib/components/EpubViewer.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
   import TransferDialog from './lib/components/TransferDialog.svelte'
   import Palette from './lib/components/Palette.svelte'
@@ -549,6 +550,7 @@
 {#if app.templateAsks}<TemplateAskDialog />{/if}
 {#if app.drawing}<DrawingEditor />{/if}
 {#if app.pdf}<PdfViewer />{/if}
+{#if app.book}<EpubViewer />{/if}
 <div class="toasts" aria-live="polite">
   {#each app.toasts as t (t.id)}<div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
       {t.message}

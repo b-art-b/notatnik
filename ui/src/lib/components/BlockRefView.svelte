@@ -7,6 +7,7 @@
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
   import { openPdf } from '../commands/pdf'
+  import { openBook } from '../commands/epub'
 
   let { uid, chain }: { uid: string; chain: string[] } = $props()
 
@@ -33,17 +34,26 @@
     }
   })
 
-  // a highlight of a PDF (PA-6): the block has `hl-page` and its page says which file it annotates. A small chip
-  // names the file and the page, and a click opens the PDF there.
+  // a highlight of a PDF or an EPUB (PA-6, EA-7): the block has `hl-page` or `hl-cfi` and its page says which file it
+  // annotates. A small chip names the file and the place, and a click opens the document there.
   // (the page's document is made in a derived of its own: a state read in the same derived that made it is not tracked)
   const sidecar = $derived(result ? getDoc(result.page) : null)
-  const pdf = $derived.by(() => {
+  const doc = $derived.by(() => {
     const b = result?.block
-    const pg = b?.props.find((p) => p.key === 'hl-page')?.raw
-    if (!result || !b || !pg || !Number.isInteger(Number(pg))) return null
     const file = sidecar?.view?.frontmatter?.props.find((p) => p.key === 'file')?.raw
-    if (!file?.toLowerCase().endsWith('.pdf')) return null
-    return { file, page: Number(pg), name: file.split('/').pop() ?? file }
+    if (!b || !file) return null
+    const name = file.split('/').pop() ?? file
+    if (file.toLowerCase().endsWith('.pdf')) {
+      const pg = b.props.find((p) => p.key === 'hl-page')?.raw
+      if (!pg || !Number.isInteger(Number(pg))) return null
+      return { kind: 'pdf' as const, file, page: Number(pg), label: `${name} p. ${pg}`, name }
+    }
+    if (file.toLowerCase().endsWith('.epub')) {
+      if (!b.props.some((p) => p.key === 'hl-cfi')) return null
+      const chapter = b.props.find((p) => p.key === 'hl-chapter')?.raw
+      return { kind: 'epub' as const, file, page: 0, label: chapter ? `${name} · ${chapter}` : name, name }
+    }
+    return null
   })
 
   const inlines = $derived.by(() => {
@@ -65,15 +75,16 @@
     data-uid={uid}
     title={`^${uid} on ${result.page}`}
     onclick={(e) => e.stopPropagation()}><Inlines items={inlines} chain={[...chain, uid]} /></a
-  >{#if pdf}<button
+  >{#if doc}<button
       type="button"
       class="pdf-chip"
       data-testid="pdf-ref-chip"
-      title="Open {pdf.name} at this highlight"
+      title="Open {doc.name} at this highlight"
       onclick={(e) => {
         e.stopPropagation()
-        void openPdf({ path: pdf.file, page: pdf.page, highlight: uid })
-      }}>{pdf.name} p. {pdf.page}</button
+        if (doc.kind === 'pdf') void openPdf({ path: doc.file, page: doc.page, highlight: uid })
+        else void openBook({ path: doc.file, highlight: uid })
+      }}>{doc.label}</button
     >{/if}
 {/if}
 

@@ -8,7 +8,7 @@ spot in the book. The EPUB file is never changed.
 **Requirements covered:** EA-1 to EA-10 (see `requirements.md`).
 **Depends on:** the PDF annotation phase (the sidecar, `annotation_page`, the panel, the popup, the `((id))` chip), assets
 (ST-8).
-**Status:** not started. Written down for review; nothing is built.
+**Status:** E1 to E7 built and tested in Chromium and WebKit. Open: the manual checks on a real iPad, in the desktop app (WebKitGTK), across two synced devices and with real books (E7).
 
 ## Design
 
@@ -57,7 +57,8 @@ spot in the book. The EPUB file is never changed.
   chapter (`anchor.ts`, the same `resolveAnchor` as for PDFs, with `hl-context` to choose between equal quotes), makes a new
   CFI from where it found it and corrects `hl-cfi` with a guarded write. If it is not found, the highlight is listed
   as _not found in chapter N_ and is not drawn.
-- **A selection across chapters** is one block for each chapter (as across PDF pages), each with its own CFI.
+- **A selection never spans chapters**: foliate-js shows one chapter at a time, each in its own frame, so a selection
+  belongs to one chapter and is always one block with one CFI (a PDF selection over two pages is two blocks).
 - **Safety first.** An EPUB is a web page that someone else wrote. foliate-js shows each chapter in an `iframe` from a
   `blob:` URL, which has the origin of the app, and cannot sandbox them (its README explains the WebKit bug). So the
   app's **Content-Security-Policy is what keeps a book's scripts from running**: `script-src 'self'` stays as it is, `blob:`
@@ -76,7 +77,7 @@ spot in the book. The EPUB file is never changed.
 
 ## Tasks
 
-### E1 The sidecar of an EPUB (`annotation_page`)
+### E1 The sidecar of an EPUB (`annotation_page`) (done)
 
 - `is_annotatable_path` in `crates/graph/src/pdfs.rs` (a file below `assets/` ending in `.pdf` or `.epub`, same rules
   about `..`, backslashes, empty segments); `annotation_page` uses it; the error text says "a PDF or an EPUB". The sha
@@ -85,29 +86,30 @@ spot in the book. The EPUB file is never changed.
   as two PDFs do.
 - A highlight block with `hl-cfi` parses like any block; golden cases for the shape.
 - **Verify:**
-  - [ ] an EPUB in `assets/` gets `pages/hls/<name>.md` with `file`, `sha`, `kind: annotations`, `archived: true`; a second
+  - [x] an EPUB in `assets/` gets `pages/hls/<name>.md` with `file`, `sha`, `kind: annotations`, `archived: true`; a second
         call returns it and changes nothing; `create: false` makes nothing
-  - [ ] `book.pdf` and `book.epub` side by side get two sidecars
-  - [ ] a path that is not a `.pdf` or `.epub`, one outside `assets/`, one with `..` is refused
-  - [ ] a moved EPUB is found by `sha` and `file` is corrected
-  - [ ] a sidecar with a CFI highlight parses, `hl-cfi` keeps its parentheses, commas and colons, a no-op edit is
+  - [x] `book.pdf` and `book.epub` side by side get two sidecars
+  - [x] a path that is not a `.pdf` or `.epub`, one outside `assets/`, one with `..` is refused
+  - [x] a moved EPUB is found by `sha` and `file` is corrected
+  - [x] a sidecar with a CFI highlight parses, `hl-cfi` keeps its parentheses, commas and colons, a no-op edit is
         byte-identical, and setting `hl-color` rewrites only that line (golden cases in `fixtures/edits/` and
         `fixtures/annotations/`)
-  - [ ] a search for a word in the quote of a CFI highlight finds the block
+  - [x] a search for a word in the quote of a CFI highlight finds the block
 
-### E2 The shared parts move out of the PDF viewer
+### E2 The shared parts move out of the PDF viewer (done)
 
 - `ui/src/lib/annotate/`: the sidecar handling (`ensureSidecar`, `pathOfUid`, edit/colour/delete/comment ops,
-  `copyText`), the model (`Highlight` with a `locator`, either `{ kind: 'pdf', page, from, to, rect }` or
-  `{ kind: 'epub', cfi, chapter }`), and the components `AnnotationPanel.svelte`, `HighlightPopup.svelte`,
+  `copyText`), the model (`Highlight` has `kind: 'text' | 'area' | 'epub'`; an `epub` one has `cfi` and `chapter` and no page or
+  offsets; `highlightsOf` takes the kind from the `file` in the sidecar's frontmatter and ignores blocks with the other
+  kind of locator), and the components `AnnotationPanel.svelte`, `HighlightPopup.svelte`,
   `SelectionBar.svelte`. `highlightsOf` reads both kinds. `PdfViewer.svelte` keeps only what is PDF.
 - No behaviour change: `pdf.spec.ts` and `pdf-touch.spec.ts` are not edited and pass in Chromium and WebKit.
 - **Verify:**
-  - [ ] the PDF specs pass unchanged (Chromium and WebKit); the vitest tests of `highlights.ts` still pass, with new
+  - [x] the PDF specs pass unchanged (Chromium and WebKit); the vitest tests of `highlights.ts` still pass, with new
         cases for `hl-cfi` blocks, a mixed list, and a block with both kinds of property (ignored, the file decides)
-  - [ ] `PdfViewer.svelte` is smaller by the moved code and imports it (no copy is left)
+  - [x] `PdfViewer.svelte` is smaller by the moved code and imports it (no copy is left)
 
-### E3 The reader
+### E3 The reader (done)
 
 - `ui/vendor/foliate-js/` at a pinned commit (with `LICENSE`, and a `README` line saying which commit and why it is
   not edited); `ui/src/lib/epub/foliate.ts` (the loader, `open(blob)`, the events we use, `getCFI`, the overlayer
@@ -120,22 +122,22 @@ spot in the book. The EPUB file is never changed.
 - The CSP changes (`ui/index.html` and `src-tauri/tauri.conf.json`): `frame-src blob:`, `img-src … blob:`, `font-src
 'self' blob: data:`, `style-src … blob:`. `script-src` is not touched.
 - **Verify:**
-  - [ ] a fixture EPUB (three chapters, a table of contents, an image, a footnote) opens; the first chapter's text is
+  - [x] a fixture EPUB (three chapters, a table of contents, an image, a footnote) opens; the first chapter's text is
         on the page; next/previous change the page; the percent grows; the table of contents opens a chapter
-  - [ ] a book with 60 chapters opens at once and only a few chapters are loaded (the number of section iframes is
+  - [x] a book with 60 chapters opens at once and only a few chapters are loaded (the number of section iframes is
         checked after jumping to the middle and to the end)
-  - [ ] a book with a `<script>` in a chapter, a script in an `onclick`, a `javascript:` link, a remote `<img>` and
+  - [x] a book with a `<script>` in a chapter, a script in an `onclick`, a `javascript:` link, a remote `<img>` and
         a remote stylesheet: the script does not run (a flag it would set on `window.parent` stays unset), the link
         does nothing, the remote requests are blocked (no request leaves for them)
-  - [ ] an external link in a book calls `openExternal` with an `https` address and nothing for other schemes
-  - [ ] the theme, the font size and the flow change the display and are still set after closing and opening the book;
+  - [x] an external link in a book calls `openExternal` with an `https` address and nothing for other schemes
+  - [x] the theme, the font size and the flow change the display and are still set after closing and opening the book;
         the place where the reader stopped is restored (and is not restored for another book)
-  - [ ] Find marks hits across chapters and steps through them
-  - [ ] a fixed-layout fixture and a file that is not an EPUB show a message
-  - [ ] the foliate code is not in the first page's bundle or requests (as for pdf.js)
-  - [ ] the same in Chromium and in WebKit
+  - [x] Find marks hits across chapters and steps through them
+  - [x] a fixed-layout fixture and a file that is not an EPUB show a message
+  - [x] the foliate code is not in the first page's bundle or requests (as for pdf.js)
+  - [x] the same in Chromium and in WebKit
 
-### E4 Highlighting text
+### E4 Highlighting text (done)
 
 - Select text in a chapter (the selection is inside a section `iframe`, so `selectionchange` is listened to on each
   section document when foliate says it loaded): the colour bar appears next to the selection (its position is the
@@ -146,35 +148,33 @@ spot in the book. The EPUB file is never changed.
 - Finding again: when a chapter loads, each of its highlights is checked (the CFI resolves, and the text of the range is
   the quote with white space ignored); if not, the quote is searched in the chapter's text, the CFI is corrected with a
   guarded write, or the highlight is marked _not found_.
-- A selection that spans chapters (only possible in scrolled flow) is one block for each chapter.
 - **Verify:**
-  - [ ] selecting a sentence and choosing _yellow_ adds one block with the quote, a CFI that foliate resolves back to
+  - [x] selecting a sentence and choosing _yellow_ adds one block with the quote, a CFI that foliate resolves back to
         the same words, `hl-chapter`, `hl-color: yellow`, `hl-context` and an ID; the highlight is drawn over the words
-  - [ ] a selection of a whole page of text is one short `hl-cfi` (no long property)
-  - [ ] the highlight stays on the same words after a change of font size, of theme, of flow and of window size
-  - [ ] a selection over two chapters (scrolled flow) makes two blocks, each in its own chapter
-  - [ ] changing the colour rewrites only that property (ST-3); deleting removes the block, its comment and the drawing
-  - [ ] one undo removes a highlight made just now; a highlight made on another device (the sidecar changed on disk)
+  - [x] a selection of a whole page of text is one short `hl-cfi` (no long property)
+  - [x] the highlight stays on the same words after a change of font size, of theme, of flow and of window size
+  - [x] changing the colour rewrites only that property (ST-3); deleting removes the block, its comment and the drawing
+  - [x] one undo removes a highlight made just now; a highlight made on another device (the sidecar changed on disk)
         appears without reopening the book
-  - [ ] a sidecar whose CFI is wrong (edited by hand) but whose quote is in the chapter: the highlight is found,
+  - [x] a sidecar whose CFI is wrong (edited by hand) but whose quote is in the chapter: the highlight is found,
         drawn, and the CFI in the file is corrected; a quote that is not in the book is listed _not found_ and not drawn
-  - [ ] the same highlight, made in Chromium, is at the same words in WebKit (the CFI means the same everywhere)
-  - [ ] Chromium and WebKit
+  - [x] the same highlight, made in Chromium, is at the same words in WebKit (the CFI means the same everywhere)
+  - [x] Chromium and WebKit
 
-### E5 The panel and the comments
+### E5 The panel and the comments (done)
 
 - The shared panel with the EPUB's locator: the label is the chapter (`3 · The Storm`) instead of `p. 12`; the list is in
   reading order (spine index, then `CFI.compare`); a click on a quote goes to the highlight (`goTo(cfi)`) and flashes
   it; selecting a highlight in the book selects its entry; the colour and text filters; _＋ Comment_ and the comment
   editing are the shared ones; _Not found in chapter N_.
 - **Verify:**
-  - [ ] the list holds every highlight of the sidecar in reading order; one added later (outside the viewer) joins it
-  - [ ] typing a comment writes a child block in the sidecar file; `[[links]]` and `#tags` show up in the backlinks;
+  - [x] the list holds every highlight of the sidecar in reading order; one added later (outside the viewer) joins it
+  - [x] typing a comment writes a child block in the sidecar file; `[[links]]` and `#tags` show up in the backlinks;
         a `TODO` comment is on the agenda with the quote above it
-  - [ ] a click on a quote opens the book at that highlight and marks it; a click on a highlight selects its entry
-  - [ ] the colour filter and the text filter narrow the list and the drawn highlights
+  - [x] a click on a quote opens the book at that highlight and marks it; a click on a highlight selects its entry
+  - [x] the colour filter and the text filter narrow the list and the drawn highlights
 
-### E6 References from the notes
+### E6 References from the notes (done)
 
 - `((id))` of an EPUB highlight shows the quote and a chip _book.epub · 3 · The Storm_ (`BlockRefView.svelte` looks for
   `hl-cfi` as well as `hl-page`, and for the file's extension); the chip calls `openBook` at the highlight. A link
@@ -182,13 +182,13 @@ spot in the book. The EPUB file is never changed.
   `#epubcfi(…)` fragment of an `.epub` link, as it keeps `#page=N` of a PDF; the link is written in `<…>` because of
   the parentheses, which `fileLink` already does).
 - **Verify:**
-  - [ ] a reference pasted into a journal shows the quote and the chip; the chip opens the book at the highlight, which
+  - [x] a reference pasted into a journal shows the quote and the chip; the chip opens the book at the highlight, which
         flashes
-  - [ ] a link with `#epubcfi(…)` opens at that place; one with a bad CFI opens at the start of the book
-  - [ ] deleting the highlight leaves a dead reference without a chip (no crash)
-  - [ ] a unit test of the renderer: the fragment is kept for `.epub` and dropped for other files
+  - [x] a link with `#epubcfi(…)` opens at that place; one with a bad CFI opens at the start of the book
+  - [x] deleting the highlight leaves a dead reference without a chip (no crash)
+  - [x] a unit test of the renderer: the fragment is kept for `.epub` and dropped for other files
 
-### E7 Touch, iPad, documents and checks
+### E7 Touch, iPad, documents and checks (built; manual checks open)
 
 - Touch: the colour bar and the buttons are 44 px on a coarse pointer, a swipe turns the page, a tap on the edge turns
   it, the text selection of the system works inside the section frames, the panel is a drawer on a narrow window.
@@ -200,7 +200,7 @@ spot in the book. The EPUB file is never changed.
   needed: a plain book, a book with an image and a footnote, a 60-chapter book, a hostile book, a fixed-layout book),
   Chromium and WebKit.
 - **Verify:**
-  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new specs
+  - [x] `scripts/check.sh` and `scripts/check-webkit.sh` pass with the new specs (Rust, 293 unit tests, 397 browser tests in Chrome, 127 in WebKit)
   - [ ] on a real iPad: selecting text by long press and handles inside the book, the colour bar, turning pages by
         swipe, a 100-chapter book, the drawer (stays open until done)
   - [ ] the desktop app: a book opened from a link renders and highlights (WebKitGTK), the CSP lets the chapters
@@ -208,6 +208,43 @@ spot in the book. The EPUB file is never changed.
   - [ ] a graph with EPUB highlights synced to a second device shows the same highlights
   - [ ] three real books (a novel, one with many images, one with footnotes and a table of contents of several levels)
         open, paginate, and take a highlight in each chapter type
+
+### How it was built, where it differs from the plan
+
+- foliate-js is vendored at commit `78914aef…` (2026-05-01) in `ui/vendor/foliate-js/` (see its `README.md`: which
+  files, how to update). The PDF adapter and the 10 MB of PDF.js it needs are left out; `pdf.js` there is a stub. It is
+  bundled by Vite through `import.meta.glob` in `ui/src/lib/epub/foliate.ts`, so TypeScript does not follow the
+  imports into code written for other compiler settings. ESLint and Prettier skip `vendor/`.
+- The CSP gets `frame-src blob:`, `font-src 'self' data: blob:`, and `blob:` in `img-src` and `style-src`; `script-src`
+  is untouched. No `connect-src` change was needed. The first reader spec fails if the policy refuses anything a plain
+  book needs; the hostile-book spec fails if a script runs or a remote request leaves.
+- The shared parts are `ui/src/lib/annotate/` (`Sidecar`, colours) and `SelectionBar`, `HighlightPopup`,
+  `AnnotationPanel`. Their test ids keep the `pdf-` prefix of the first viewer, so the PDF specs were not touched.
+- A highlight block: `^id`, `hl-cfi`, `hl-chapter` (`<section number> · <table-of-contents entry>`), `hl-color`,
+  `hl-context`. After a chapter loads, each highlight is checked against it: the CFI must resolve in that chapter and
+  the words under it must be the quote (white space ignored); if not, the quote is searched in the chapter's text and
+  the CFI is corrected with a guarded write; if that fails the highlight is listed as not found and not drawn.
+- The reader draws highlights through foliate's overlay, which is in a closed shadow root, so the reader also keeps a
+  visually hidden list of the highlights drawn in the chapter on the screen (`epub-marks`: the colour, the words under
+  the drawing, whether it is flashing). The tests read it.
+- Where the reader stopped is kept per device in `localStorage` under the book's `sha`; theme, size and layout in one
+  more key. A CFI in a link or a saved place that leads nowhere in the book is dropped and the book opens at its start.
+- A tap on the left or right fifth of the page and a swipe turn the page (paginated layout); a tap on a highlight
+  opens its menu and does not turn the page.
+- The note renderer keeps an `#epubcfi(…)` fragment of an `.epub` link (only the characters a CFI uses); the link is
+  written in `<…>` because of the parentheses.
+- The app's own error log ignores two harmless browser/foliate messages (`ResizeObserver loop…`, and foliate's resize of
+  a chapter frame that is being removed).
+
+### Open checks (not done here)
+
+- On a real iPad: selecting text inside the book by long press and with the handles (the system's own bar appears too),
+  swipes, a 100-chapter book, the drawers.
+- In the desktop app (WebKitGTK): a book opened from a link renders and highlights, the CSP lets the chapter frames,
+  pictures and fonts load and still blocks a script.
+- Two devices: highlights made on one appear on the other after a sync.
+- Real books: a novel, one with many images, one with footnotes and a table of contents of several levels, an
+  EPUB 2. Only generated books were run.
 
 ## Later (not in this phase, but not made impossible)
 

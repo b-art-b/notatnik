@@ -344,6 +344,17 @@ A link to a **PDF in the graph** (`[Report](../assets/report.pdf)`, also `…#pa
 - **In your notes:** a `((id))` of a highlight shows its quote and a chip _report.pdf p. 12_; the chip opens the PDF at the highlight.
 - **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`). Edit them in a text editor if you like.
 
+## EPUBs: reading, highlighting, notes (EA-1..EA-10)
+
+A link to an **EPUB in the graph** (`[Book](../assets/books/novel.epub)`, also `…#epubcfi(…)`) opens the book in a full-screen reader (foliate-js); one elsewhere still opens outside. The book is never changed. A book that runs scripts or asks for web pictures gets neither: the app's content policy blocks them. A fixed-layout book, or a file that is not a book, shows a message.
+
+- **Header:** _Contents_ (the table of contents; a click opens the chapter), the title, `‹` `›`, the chapter you are in, **Find** (Ctrl+F; Enter next, Shift+Enter previous; hits are marked and counted), **Aa** (theme light/sepia/dark, text size, paginated or scrolled; kept on this device), **Highlights** (the panel), **Close** (Esc). The bar under the page shows the place in the whole book; drag it to jump.
+- **Turning pages:** `←` `→`, PageUp/PageDown, Space/Shift+Space, a click or tap on the left or right fifth of the page, a swipe. The place where you stopped is kept per book on this device.
+- **Highlight text:** select text; a bar with five colours and _Copy_ appears next to it; one click makes the highlight (its place is an EPUB CFI, so it stays on the same words when the text size, theme, layout or window change). A click on a highlight opens the same small menu as in a PDF: colour, _Add comment_, _Copy reference_, _Copy as quote_, _Delete_.
+- **Panel:** the same as for PDFs (reading order, filters, comments as editable blocks, a `TODO` there is on the agenda); the place of a highlight is its chapter; a click on a quote opens the book there and flashes it. A highlight that is not in the book any more says _Not found in …_ and is not drawn.
+- **In your notes:** a `((id))` of a highlight shows its quote and a chip _novel.epub · 3 · Calm_ that opens the book at the highlight.
+- **Where it is kept:** the highlights are blocks of the hidden page `hls/<name>` (see `file-format.md`).
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.
