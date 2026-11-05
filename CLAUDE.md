@@ -17,6 +17,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/phases/web-annotation.md`: clip a web page as a one-chapter EPUB and annotate it with the EPUB reader (WA-1..WA-10)
 - `docs/phases/nextcloud-annotation.md`: open and annotate PDFs and EPUBs of the graph's Nextcloud through a device cache, no copy in the graph (NA-1..NA-8)
 - `docs/phases/local-annotation.md`: open and annotate PDFs and EPUBs of this computer in place (`file:///` links), system viewer by modifier, ↗ or setting (LV-1..LV-8)
+- `docs/phases/docked-documents.md`: dock the PDF/EPUB viewer into the right side panel beside the notes, not the default (DD-1..DD-8)
 - `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)
