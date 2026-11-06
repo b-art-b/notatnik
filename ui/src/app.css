@@ -304,6 +304,12 @@ main > .column {
   overflow-y: auto;
   background: var(--panel);
 }
+/* the document tab of the panel is shown: the slot of the docked viewer takes the height that is left */
+.right.dock-current {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 /* the button for the right panel: on the panel's edge while it is open, in the top right corner when closed */
 .right-toggle {
   position: absolute;

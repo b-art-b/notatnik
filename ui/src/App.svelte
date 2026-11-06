@@ -70,11 +70,13 @@
   import { navForAlt, navForChord, type NavTarget } from './lib/shortcuts'
   import { installNavigation } from './lib/mouse'
   import { dropOn, foreignTo } from './lib/transferDrag.svelte'
+  import { dockedNow } from './lib/stores/dock.svelte'
 
   const route = $derived(app.route)
   // The right panel: this page's references and tasks (when Settings put them there), and the pages opened beside it
   const hasContext = $derived(route.kind === 'page' && (onSide('refs') || onSide('tasks')))
-  const rightExists = $derived(hasContext || app.rightPanels.length > 0)
+  // (a document docked in the panel needs it too, wherever the page is)
+  const rightExists = $derived(hasContext || app.rightPanels.length > 0 || dockedNow())
   const rightShown = $derived(rightExists && app.rightOpen)
   // the page is folded away: the panel has the window
   const focus = $derived(rightShown && app.rightFocus)
@@ -538,7 +540,12 @@
         onkeydown={resizeKeyRight}
         ondblclick={toggleRightFocus}
       ></div>
-      <aside class="right" aria-label="Side panels" data-testid="side-panel">
+      <aside
+        class="right"
+        class:dock-current={app.rightTab === 'document' && dockedNow()}
+        aria-label="Side panels"
+        data-testid="side-panel"
+      >
         <SidePanel page={route.kind === 'page' ? route.name : null} />
       </aside>
     {/if}

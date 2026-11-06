@@ -30,12 +30,26 @@
   import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
   import { isExternalDoc, openInSystem, resolveDocument, type ResolvedDoc } from '../annotate/remote'
   import DocumentBar from './DocumentBar.svelte'
+  import { canDock, dockDocument } from '../stores/dock.svelte'
 
   // `app.pdf` is set when the viewer opens and stays the same until it closes: a snapshot is enough
   const target = untrack(() => app.pdf)!
   // a document of the graph's Nextcloud: `target.path` is its address, `info` what the backend made of it (NA-1)
   let info = $state<ResolvedDoc | null>(null)
   const fileName = $derived(info?.name ?? target.path.split('/').pop() ?? target.path)
+  // docked in the side panel beside the notes (DD-1), or full screen
+  const docked = $derived(!!app.pdf?.docked)
+  // the width of the box the viewer is in, which decides how it is laid out (DD-6); a docked one is as wide as the panel
+  let boxW = $state(0)
+  const narrow = $derived(boxW > 0 && boxW <= 900)
+  // the window got too narrow to dock: the document goes back to full screen
+  $effect(() => {
+    if (docked && !canDock()) dockDocument(false)
+  })
+  // the tab of the side panel is named after the document
+  $effect(() => {
+    app.docTitle = fileName
+  })
 
   const GAP = 12
   const PAD = 16
@@ -145,14 +159,43 @@
     mountTo = pageAt(top + 2 * viewH)
   }
 
+  // The place in the document as the person last left it by scrolling: the page at the top of the window and how far
+  // down it. A change of the width (docking, the panel resized, a window resized) changes every page's height, and the
+  // browser keeps the scroll offset in pixels, which then is another page; this puts the same place back (DD-3).
+  let anchor = { page: 1, frac: 0 }
+  function rememberAnchor() {
+    if (!scroller || numPages === 0) return
+    const page = pageAt(scroller.scrollTop)
+    anchor = { page, frac: (scroller.scrollTop - layout.tops[page - 1]) / Math.max(1, pts(page).h * scale) }
+  }
+
   let raf = 0
   function onScroll() {
     if (raf) return
     raf = requestAnimationFrame(() => {
       raf = 0
       updateVisible()
+      // a scroll that follows a change of the layout is the browser keeping the offset in pixels (or the restore below), not
+      // the person scrolling: the place they left is not replaced by it
+      if (performance.now() - layoutChangedAt > 250) rememberAnchor()
     })
   }
+  let layoutChangedAt = 0
+
+  // (before the effect below: the place is restored first, then the pages on the screen are worked out)
+  let lastScale = 0
+  $effect(() => {
+    const s = scale
+    if (!placed || !scroller || lastScale === 0 || s === lastScale) {
+      lastScale = s
+      return
+    }
+    lastScale = s
+    layoutChangedAt = performance.now()
+    untrack(() => {
+      if (scroller) scroller.scrollTop = layout.tops[anchor.page - 1] + anchor.frac * pts(anchor.page).h * s
+    })
+  })
 
   $effect(() => {
     // when the window, the zoom or the page sizes change, which pages are on the screen changes too
@@ -538,6 +581,22 @@
 
   // ---------------------------------------------------------------- the panel
   let panelOpen = $state(typeof window === 'undefined' || window.innerWidth > 900)
+  // in a narrow box (a docked viewer) the list of highlights is a drawer over the document: it starts closed there, and
+  // comes back when the box is wide again if it was open (DD-6)
+  let reopenPanel = false
+  $effect(() => {
+    if (narrow) {
+      untrack(() => {
+        reopenPanel = panelOpen
+        panelOpen = false
+      })
+    } else {
+      untrack(() => {
+        if (reopenPanel) panelOpen = true
+        reopenPanel = false
+      })
+    }
+  })
 
   function openNotesPage() {
     if (!sc.side?.page) return
@@ -576,16 +635,30 @@
   }
 
   let dialog = $state<HTMLDivElement | null>(null)
-  onMount(() => dialog?.focus())
+  // a full-screen document takes the focus; a docked one leaves it where it is, so the note being written keeps the cursor
+  $effect(() => {
+    if (!docked) dialog?.focus()
+  })
   void CONTEXT_CHARS
 </script>
 
-<div class="overlay" role="presentation">
+<div
+  class="overlay"
+  class:docked
+  role="presentation"
+  style={docked
+    ? app.dockRect
+      ? `left:${app.dockRect.left}px;top:${app.dockRect.top}px;width:${app.dockRect.width}px;height:${app.dockRect.height}px`
+      : 'display:none'
+    : undefined}
+>
   <div
     class="dialog"
-    role="dialog"
+    class:narrow
+    bind:clientWidth={boxW}
+    role={docked ? 'region' : 'dialog'}
     aria-label={`PDF ${fileName}`}
-    aria-modal="true"
+    aria-modal={docked ? undefined : 'true'}
     tabindex="-1"
     data-testid="pdf-viewer"
     bind:this={dialog}
@@ -684,6 +757,17 @@
         title="Open this file in the system's viewer"
         data-testid="doc-system">System viewer</button
       >
+      {#if docked || canDock()}
+        <button
+          type="button"
+          class="tool"
+          onclick={() => dockDocument(!docked)}
+          title={docked
+            ? 'Bring the document back to full screen'
+            : 'Show the document beside the notes, in the side panel'}
+          data-testid="doc-dock">{docked ? 'Full screen' : 'Dock'}</button
+        >
+      {/if}
       <button type="button" class="primary" onclick={finishPdf} data-testid="pdf-close">Close</button>
     </header>
     {#if info}<DocumentBar doc={info} />{/if}
@@ -765,6 +849,7 @@
       {#if panelOpen}
         <AnnotationPanel
           {sc}
+          {narrow}
           place={(h) => `p. ${h.page}`}
           notFound={(h) => `Not found on page ${h.page}.`}
           hint="Select text in the PDF and choose a colour."
@@ -844,6 +929,17 @@
     background: rgba(0, 0, 0, 0.45);
     z-index: 60;
     display: flex;
+  }
+  /* docked: a plain box over the slot of the side panel, no dimmed window; its place is set from the slot's rectangle */
+  .overlay.docked {
+    inset: auto;
+    background: none;
+    z-index: 20;
+  }
+  .overlay.docked .dialog {
+    margin: 0;
+    border-radius: 0;
+    border: 1px solid var(--border);
   }
   .dialog {
     position: relative;
@@ -1036,9 +1132,8 @@
       height: 44px;
     }
   }
-  @media (max-width: 900px) {
-    h2 {
-      max-width: 9em;
-    }
+  /* a box narrower than 900 px: a docked viewer in the side panel, or a small window */
+  .narrow h2 {
+    max-width: 9em;
   }
 </style>

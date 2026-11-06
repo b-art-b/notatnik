@@ -388,6 +388,17 @@ A link to a **PDF or EPUB on this computer** (`[Report](file:///home/me/Document
 - **A file that is not there any more**, that cannot be read, that is over 100 MB, or that is only named like a PDF (not a real PDF) says so, with _Open in the system's program_ where that helps. The highlights stay in the graph.
 - **`((id))` references** to such a highlight show the quote and a chip with the document's name that opens it at the highlight (if the file is still there).
 
+## Documents beside the notes (DD-1..DD-8)
+
+A PDF or an EPUB (also a clipped page, a Nextcloud document, a file of this computer) normally opens **full screen**. The **Dock** button in its header moves it into the **side panel**, so the notes page stays visible and editable beside it; **Full screen** (the same button) brings it back. Nothing is reloaded: the page or place, the zoom, the find, the highlights and the open comment stay.
+
+- **Not the default.** Every document opens full screen. _Settings → Linked files → Open documents beside the notes_ (this device, **off**) makes them open docked. Nothing remembers the last choice by itself.
+- **The side panel is the only panel.** The document is one more tab of it (named after the file) next to References, Tasks and Pages; those tabs, the resizer (drag it to make the document wider) and the focus mode (double click on the resizer) work as before, and choosing another tab hides the document without closing it. With only the document in the panel there is no tab bar; the viewer's own **Close** closes it, and with several tabs the tab has a **×**. Docking opens the panel if it was closed.
+- **One document at a time.** A link to a PDF or an EPUB, a `((id))` chip, _Open in the document_ or _Open the document_ replaces the docked document **in the panel** (even with the setting off), so the next click does not cover the screen.
+- **Window at least 900 px wide.** Below that there is no Dock button, a document opens full screen, and a window made narrower brings a docked one back to full screen.
+- **Writing next to it:** every key of the notes reaches the notes (typing, Escape, Ctrl+Z, Alt+1..5, Ctrl+K); the viewer's own keys (←/→ in a book, Ctrl+F, Ctrl++ and Ctrl+− in a PDF, Escape for the popup, the colour bar, the find bar and finally the document) act only while the focus is inside it, and a docked viewer does not take the focus when it opens. Highlight a passage, **Copy as quote**, click in a note and paste; the chip then opens the document at the highlight, in the panel. Clicking into a note ends a selection in the document, as any click outside does.
+- **A narrow panel:** the list of highlights is a drawer over the document (closed to start with; the _Highlights_ button opens it), and the header wraps; the PDF is laid out for the panel's width and an EPUB re-flows.
+
 ## Linking files
 
 - `/file` ("Link a file or folder…") opens a picker under the cursor and inserts a Markdown link `[name](address)` where the command was typed. Esc steps back one level; Esc on the first level closes it.

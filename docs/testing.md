@@ -195,6 +195,20 @@ must never regress:
 - **By hand, in the real desktop app:** the file of the first question (`/other/nc/Rozrachunki do luty 2024_0001.pdf`), a
   file on a removable drive, an unreadable file, Ctrl+click opening the system's viewer.
 
+## Documents beside the notes (DD-1 to DD-8)
+
+- **`ui/tests/dock.spec.ts`, `dock-touch.spec.ts`** (Chromium and WebKit; the clipboard test Chromium only), window sizes 1500 px,
+  800 px and a tablet's 1100 px: Dock and Full screen for a PDF (inside the panel's rectangle, role `region` and not modal, the
+  notes link beside it, back to a modal `dialog` of the whole window), the PDF's page kept over both moves, an EPUB kept over both
+  moves (the chapter frame is the same element, the same place and text, laid out for the panel's width), the resizer making the
+  document wider, the Pages tab hiding and showing it, the tab's × closing it and the previous tab coming back, no Dock below 900 px
+  and a window made narrower bringing it back, the setting (a switch in Settings, kept; opening docked without taking the focus; the next
+  document replacing it; also with the setting off), the notes' keys reaching the notes (typing, arrows, Escape, Alt+1) with the book not
+  turning, the book's keys and Escape from inside only, highlight → _Copy as quote_ → paste in a note → the chip opening the book in
+  the panel, the highlights drawer in a narrow box with no sideways scroll, a PDF laid out for the panel, the keyboard, 44 px.
+- **By hand, not done in this phase:** the real desktop app (WebKitGTK): an EPUB with embedded fonts and a 300-page PDF docked, selecting
+  text in the panel while a note is open, the panel at 360, 600 and 900 px, and the iPad in landscape.
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details

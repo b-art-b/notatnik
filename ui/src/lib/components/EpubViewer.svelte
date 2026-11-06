@@ -29,6 +29,7 @@
   import { Sidecar, copyText, quoteBlock, refOf } from '../annotate/sidecar.svelte'
   import { isExternalDoc, openInSystem, resolveDocument, type ResolvedDoc } from '../annotate/remote'
   import DocumentBar from './DocumentBar.svelte'
+  import { canDock, dockDocument } from '../stores/dock.svelte'
   import AnnotationPanel from './AnnotationPanel.svelte'
   import HighlightPopup from './HighlightPopup.svelte'
   import SelectionBar from './SelectionBar.svelte'
@@ -38,6 +39,19 @@
   // a document of the graph's Nextcloud: `target.path` is its address, `info` what the backend made of it (NA-1)
   let info = $state<ResolvedDoc | null>(null)
   const fileName = $derived(info?.name ?? target.path.split('/').pop() ?? target.path)
+  // docked in the side panel beside the notes (DD-1), or full screen
+  const docked = $derived(!!app.book?.docked)
+  // the width of the box the viewer is in, which decides how it is laid out (DD-6); a docked one is as wide as the panel
+  let boxW = $state(0)
+  const narrow = $derived(boxW > 0 && boxW <= 900)
+  // the window got too narrow to dock: the document goes back to full screen
+  $effect(() => {
+    if (docked && !canDock()) dockDocument(false)
+  })
+  // the tab of the side panel is named after the document
+  $effect(() => {
+    app.docTitle = view ? titleOf(view.book) || fileName : fileName
+  })
   const sc = new Sidecar(target.path)
 
   // ---------------------------------------------------------------- reading settings (per device, EA-1)
@@ -485,6 +499,22 @@
 
   // ---------------------------------------------------------------- the panel and the popup
   let panelOpen = $state(typeof window === 'undefined' || window.innerWidth > 900)
+  // in a narrow box (a docked viewer) the list of highlights is a drawer over the document: it starts closed there, and
+  // comes back when the box is wide again if it was open (DD-6)
+  let reopenPanel = false
+  $effect(() => {
+    if (narrow) {
+      untrack(() => {
+        reopenPanel = panelOpen
+        panelOpen = false
+      })
+    } else {
+      untrack(() => {
+        if (reopenPanel) panelOpen = true
+        reopenPanel = false
+      })
+    }
+  })
 
   async function reveal(h: Highlight) {
     if (!view) return
@@ -613,15 +643,29 @@
   }
 
   let dialog = $state<HTMLDivElement | null>(null)
-  onMount(() => dialog?.focus())
+  // a full-screen document takes the focus; a docked one leaves it where it is, so the note being written keeps the cursor
+  $effect(() => {
+    if (!docked) dialog?.focus()
+  })
 </script>
 
-<div class="overlay" role="presentation">
+<div
+  class="overlay"
+  class:docked
+  role="presentation"
+  style={docked
+    ? app.dockRect
+      ? `left:${app.dockRect.left}px;top:${app.dockRect.top}px;width:${app.dockRect.width}px;height:${app.dockRect.height}px`
+      : 'display:none'
+    : undefined}
+>
   <div
     class="dialog"
-    role="dialog"
+    class:narrow
+    bind:clientWidth={boxW}
+    role={docked ? 'region' : 'dialog'}
     aria-label={`Book ${fileName}`}
-    aria-modal="true"
+    aria-modal={docked ? undefined : 'true'}
     tabindex="-1"
     data-testid="epub-reader"
     bind:this={dialog}
@@ -734,6 +778,17 @@
         title="Open this file in the system's viewer"
         data-testid="doc-system">System viewer</button
       >
+      {#if docked || canDock()}
+        <button
+          type="button"
+          class="tool"
+          onclick={() => dockDocument(!docked)}
+          title={docked
+            ? 'Bring the document back to full screen'
+            : 'Show the document beside the notes, in the side panel'}
+          data-testid="doc-dock">{docked ? 'Full screen' : 'Dock'}</button
+        >
+      {/if}
       <button type="button" class="primary" onclick={finishBook} data-testid="epub-close">Close</button>
     </header>
     {#if info}<DocumentBar doc={info} />{/if}
@@ -804,6 +859,7 @@
       {#if panelOpen}
         <AnnotationPanel
           {sc}
+          {narrow}
           place={(h) => h.chapter || 'Book'}
           notFound={(h) => `Not found${h.chapter ? ` in ${h.chapter}` : ' in the book'}.`}
           hint="Select text in the book and choose a colour."
@@ -874,6 +930,17 @@
     background: rgba(0, 0, 0, 0.45);
     z-index: 60;
     display: flex;
+  }
+  /* docked: a plain box over the slot of the side panel, no dimmed window; its place is set from the slot's rectangle */
+  .overlay.docked {
+    inset: auto;
+    background: none;
+    z-index: 20;
+  }
+  .overlay.docked .dialog {
+    margin: 0;
+    border-radius: 0;
+    border: 1px solid var(--border);
   }
   .dialog {
     position: relative;
@@ -1089,23 +1156,22 @@
       min-width: 44px;
     }
   }
-  @media (max-width: 900px) {
-    h2 {
-      max-width: 9em;
-    }
-    .origin {
-      display: none;
-    }
-    .chapter {
-      display: none;
-    }
-    .toc {
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      z-index: 20;
-      box-shadow: 4px 0 14px rgb(0 0 0 / 0.3);
-    }
+  /* a box narrower than 900 px: a docked viewer in the side panel, or a small window */
+  .narrow h2 {
+    max-width: 9em;
+  }
+  .narrow .origin {
+    display: none;
+  }
+  .narrow .chapter {
+    display: none;
+  }
+  .narrow .toc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+    box-shadow: 4px 0 14px rgb(0 0 0 / 0.3);
   }
 </style>

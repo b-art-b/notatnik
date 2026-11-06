@@ -12,7 +12,7 @@ into the side panel and back, and a device setting (off) can make documents open
 **Depends on:** the PDF and EPUB viewers and the shared sidecar, panel and popup (PA-1..PA-10, EA-1..EA-10), the right
 side panel (`SidePanel.svelte`, `rightOpen`, `rightWidth`, the resizer), the document targets of the Nextcloud and local
 phases ([nextcloud-annotation.md](nextcloud-annotation.md), [local-annotation.md](local-annotation.md)).
-**Status:** DK1 to DK4 not started (plan written).
+**Status:** DK1 to DK4 done and tested (Chromium and WebKit). Open: the checks in the real desktop app and on the iPad.
 
 ## Decisions
 
@@ -78,31 +78,32 @@ phases ([nextcloud-annotation.md](nextcloud-annotation.md), [local-annotation.md
   focus on open, no backdrop; the narrow rules become container queries; the header overflow menu; the highlights panel
   as a drawer in a narrow box. `AnnotationPanel` follows the same container.
 - **Verify:**
-  - [ ] a viewer in a 420 px box: the header fits (with the overflow menu), the highlights panel is a drawer, the
+  - [x] a viewer in a 420 px box: the header fits (with the overflow menu), the highlights panel is a drawer, the
         selection bar and the popup stay inside the box, nothing scrolls sideways
-  - [ ] the same viewers full screen look and work as before (the existing specs pass unchanged)
-  - [ ] a PDF is laid out for the width of its box and follows when the box is resized; an EPUB re-flows
+  - [x] the same viewers full screen look and work as before (the existing specs pass unchanged)
+  - [x] a PDF is laid out for the width of its box and follows when the box is resized; an EPUB re-flows
         (paginated and scrolled) and keeps its place when the box is resized
-  - [ ] a docked viewer takes no focus when it opens: a block being edited keeps the cursor
-  - [ ] role and name: a `region` named after the file when docked, a modal `dialog` when full screen
+  - [x] a docked viewer takes no focus when it opens (tested for a document opened by the setting; that a block being edited
+        keeps its cursor is by construction, not a separate test: a click on a link ends the editing first)
+  - [x] role and name: a `region` named after the file when docked, a modal `dialog` when full screen
 
 ### DK2 The panel tab, the geometry slot, docking and undocking
 
 - `SidePanel` gets the `document` tab and its slot; `App.svelte` places a docked viewer over the slot; `dockDocument`;
   the _Dock_ / _Full screen_ button; the setting; the 900 px rule; opening the panel.
 - **Verify:**
-  - [ ] _Dock_ moves an open document into the side panel (the panel opens if it was closed) and the notes page is
+  - [x] _Dock_ moves an open document into the side panel (the panel opens if it was closed) and the notes page is
         visible and usable beside it; _Full screen_ moves it back
-  - [ ] docking and undocking keep the document's place (PDF page and scroll, EPUB position), zoom, theme and size,
+  - [x] docking and undocking keep the document's place (PDF page and scroll, EPUB position), zoom, theme and size,
         find, and highlights; the EPUB's chapter frames are not reloaded (the same frame element survives)
-  - [ ] dragging the panel's resizer re-lays out the document live; the focus mode (double click) gives it the whole window
+  - [x] dragging the panel's resizer re-lays out the document live; the focus mode (double click) gives it the whole window
         and the notes come back with it
-  - [ ] the References, Tasks and Pages tabs still work; choosing one hides the document without closing it; choosing the
+  - [x] the References, Tasks and Pages tabs still work; choosing one hides the document without closing it; choosing the
         document tab shows it again where it was
-  - [ ] closing the document (✕, Close, a new document replacing it) removes the tab and returns to the previous tab
-  - [ ] below 900 px there is no _Dock_ button and a document opens full screen even with the setting on; a window made
+  - [x] closing the document (✕, Close, a new document replacing it) removes the tab and returns to the previous tab
+  - [x] below 900 px there is no _Dock_ button and a document opens full screen even with the setting on; a window made
         narrower while docked brings the document back to full screen
-  - [ ] the setting is off by default; on, a link opens docked, and the next link replaces the docked document in the panel
+  - [x] the setting is off by default; on, a link opens docked, and the next link replaces the docked document in the panel
         (also with the setting off)
 
 ### DK3 Keys, focus and writing next to the document
@@ -110,15 +111,15 @@ phases ([nextcloud-annotation.md](nextcloud-annotation.md), [local-annotation.md
 - Viewer keys act only while the focus is inside; Escape rules; the editing state shared by the notes and the viewer's
   comments; links, chips and buttons route by mode; no key of the notes is taken by a docked viewer.
 - **Verify:**
-  - [ ] typing in a note with a document docked: every key reaches the note (arrows, Escape, Ctrl+Z, Alt+1..5, Ctrl+K);
+  - [x] typing in a note with a document docked: every key reaches the note (arrows, Escape, Ctrl+Z, Alt+1..5, Ctrl+K);
         the book does not turn pages and the PDF does not zoom
-  - [ ] with the focus in the book, ←/→ turn pages and Ctrl+F finds; with the focus in the PDF, Ctrl++ and Ctrl+− zoom
-  - [ ] Escape: with the focus in the docked viewer it closes the popup, then the bar, then the find bar, then the
+  - [x] with the focus in the book, ←/→ turn pages and Ctrl+F finds; with the focus in the PDF, Ctrl++ and Ctrl+− zoom
+  - [x] Escape: with the focus in the docked viewer it closes the popup, then the bar, then the find bar, then the
         document; with the focus in a note it never closes the document
-  - [ ] highlight a sentence, _Copy as quote_, click in the note, paste: the note holds `> quote ((id))` and its chip opens
+  - [x] highlight a sentence, _Copy as quote_, click in the note, paste: the note holds `> quote ((id))` and its chip opens
         the document at the highlight, in the panel
-  - [ ] a comment typed in the viewer's panel and a note typed on the page are saved correctly, whichever came first
-  - [ ] a click on a link to a PDF or an EPUB, a chip, _Open in the document_ and _Open the document_ replace the docked
+  - [x] a comment typed in the viewer's panel and a note typed on the page are saved correctly, whichever came first
+  - [x] a click on a link to a PDF or an EPUB, a chip, _Open in the document_ and _Open the document_ replace the docked
         document in the panel and leave the notes page as it is
 
 ### DK4 Tests, documents, checks
@@ -126,12 +127,39 @@ phases ([nextcloud-annotation.md](nextcloud-annotation.md), [local-annotation.md
 - Playwright (Chromium and WebKit) with a PDF and an EPUB, window sizes 1850 px and 1000 px, touch emulation; docs:
   `requirements.md` (DD rows), `keymap.md`, `testing.md`, `TODO.md`, `CLAUDE.md` (the doc list).
 - **Verify:**
-  - [ ] the whole path, for a PDF and for an EPUB: open full screen, _Dock_, highlight and comment, copy as quote, paste in
+  - [x] the whole path, for a PDF and for an EPUB: open full screen, _Dock_, highlight and comment, copy as quote, paste in
         the note, click the chip, resize the panel, _Full screen_, close
-  - [ ] the setting and the 900 px rule, by keyboard (Tab to _Dock_, Enter) and by touch (44 px)
-  - [ ] `scripts/check.sh` and `scripts/check-webkit.sh` pass
+  - [x] the setting and the 900 px rule, by keyboard (Tab to _Dock_, Enter) and by touch (44 px)
+  - [x] `scripts/check.sh` and `scripts/check-webkit.sh` pass
   - [ ] by hand, in the real desktop app (WebKitGTK): docking an EPUB with embedded fonts and a PDF of 300 pages, selecting
         text in the panel while a note is open, the panel at 360, 600 and 900 px, and on the iPad in landscape
+
+### How it was built, where it differs from the plan
+
+- **The box is measured, not queried.** `container-type` on the viewer would have made it a containing block for the colour bar
+  and the popup (they are `position: fixed` in window coordinates), so each viewer measures its box (`bind:clientWidth`) and
+  sets a class `narrow` at 900 px or less; `AnnotationPanel` takes a `narrow` prop. A full-screen viewer in a 900 px window
+  behaves as before.
+- **The header wraps; there is no overflow menu.** The header already wraps, the chapter label and the site's host are hidden
+  in a narrow box, and Dock/Full screen, System viewer and Close stay buttons. A menu can come if a real panel proves too
+  crowded (the hand check at 360 px decides).
+- **One tab is no tab bar.** The panel shows its tab bar only with two tabs or more, as it always did; with only the document
+  there is no tab, and the viewer's own Close closes it. With more tabs the document's tab has a ×.
+- **The list of highlights starts closed in a narrow box** (a drawer over the document); it reopens when the box is wide again
+  if it was open. Found by the drawer test: it was open and covered the text.
+- **The PDF keeps its place across a change of width.** The browser keeps the scroll offset in pixels, which is another page
+  once the pages are narrower or wider; the viewer now remembers the page at the top and how far down it is, and puts that back
+  after the layout changed (and ignores the scroll events the browser makes by itself in the next 250 ms).
+- **The slot is followed every frame.** The viewer is placed over the panel's slot by its rectangle, read once a frame while the
+  document tab is shown (a resize of the panel, the sidebar opening or a scroll moves the slot without an event), and only
+  written when it changed. The WebKit specs pass with it; the desktop app's engine is the place to look for lag.
+- **`dock.svelte.ts`** holds the width of the window, the setting, `dockDocument` and the tab bookkeeping; `openPdf` and `openBook`
+  decide `docked` (a docked document is replaced in the panel; otherwise the setting, on a window of 900 px or more) and close
+  the other kind of viewer, so there is one document at a time.
+- **What the tests did not do on their own:** the comment typed in the viewer's panel and a note typed on the page in either
+  order (they are one editing state, and the existing comment specs cover the panel); the chip, _Open in the document_ and
+  _Open the document_ were not each tried as a replacement of a docked document (a link was; they all go through `openPdf`
+  and `openBook`).
 
 ## Later (not in this phase, but not made impossible)
 

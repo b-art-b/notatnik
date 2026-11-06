@@ -94,7 +94,14 @@ export const app = $state({
   /** The right panel fills the window and the page is folded away to a strip (not remembered across restarts). */
   rightFocus: false,
   /** The tab of the right panel that is open: `refs`, `tasks` or `pages` (the pages opened beside the page). */
-  rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as 'refs' | 'tasks' | 'pages',
+  rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as 'refs' | 'tasks' | 'pages' | 'document',
+  /** The tab that was open before a document was docked: it comes back when the document is closed (DD-4). */
+  rightTabBefore: 'refs' as 'refs' | 'tasks' | 'pages',
+  /** The title of the open document, for the tab of the side panel (DD-1). */
+  docTitle: '',
+  /** Where a docked document is on the screen: the slot in the side panel, in window pixels; `null` while that tab is
+   * not the one shown (DD-3). */
+  dockRect: null as { left: number; top: number; width: number; height: number } | null,
   /** Where the references and the tasks of a page go. */
   placement: loadPlacement(),
   /** The window is wide enough for a side panel. */
@@ -186,8 +193,10 @@ export function setRightWidth(px: number, save = true) {
   }
 }
 
-export function setRightTab(tab: 'refs' | 'tasks' | 'pages') {
+export function setRightTab(tab: 'refs' | 'tasks' | 'pages' | 'document') {
   app.rightTab = tab
+  // the document tab only exists while a document is docked: it is not remembered
+  if (tab === 'document') return
   try {
     localStorage.setItem('notatnik-right-tab', tab)
   } catch {

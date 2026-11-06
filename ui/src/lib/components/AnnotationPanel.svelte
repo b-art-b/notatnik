@@ -17,6 +17,7 @@
     onReveal,
     onComment,
     onNotes,
+    narrow = false,
   }: {
     sc: Sidecar
     /** How a highlight's place is called in the list. */
@@ -28,6 +29,8 @@
     onReveal: (h: Highlight) => void
     onComment: (h: Highlight) => void
     onNotes: () => void
+    /** The viewer's box is narrow: the panel is a drawer over the document. */
+    narrow?: boolean
   } = $props()
 
   let colorFilter = $state<Color | ''>('')
@@ -49,7 +52,7 @@
   }
 </script>
 
-<aside class="panel" aria-label="Highlights" data-testid="pdf-panel">
+<aside class="panel" class:narrow aria-label="Highlights" data-testid="pdf-panel">
   <div class="filters">
     <span class="colors" role="group" aria-label="Filter by colour">
       <button
@@ -271,16 +274,15 @@
       height: 44px;
     }
   }
-  @media (max-width: 900px) {
-    .panel {
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: min(22em, 90%);
-      max-width: none;
-      box-shadow: -4px 0 14px rgb(0 0 0 / 0.3);
-      z-index: 20;
-    }
+  /* a viewer box narrower than 900 px (a docked viewer, a small window): the panel is a drawer over the document */
+  .panel.narrow {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(22em, 90%);
+    max-width: none;
+    box-shadow: -4px 0 14px rgb(0 0 0 / 0.3);
+    z-index: 20;
   }
 </style>

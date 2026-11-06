@@ -6,10 +6,14 @@
   import { errorMessage, toast } from '../../stores/app.svelte'
   import FileSourceForm from '../FileSourceForm.svelte'
   import { documentLinkSetting, setDocumentLinkSetting } from '../../annotate/remote'
+  import { dockSetting, setDockSetting } from '../../stores/dock.svelte'
+  import Switch from '../Switch.svelte'
 
   let sources = $state<FileSourceView[]>([])
   // what a click on a link to a PDF or an EPUB opens on this device (LV-2)
   let opens = $state(documentLinkSetting())
+  // documents open in the side panel beside the notes, not full screen (DD-2)
+  let docked = $state(dockSetting())
   /** `new`, a source ID being edited, or nothing. */
   let editing = $state<string | null>(null)
   let removing = $state<string | null>(null)
@@ -130,6 +134,22 @@
   >
 </fieldset>
 
+<div class="opens docking">
+  <label
+    ><Switch
+      checked={docked}
+      aria-label="Open documents beside the notes"
+      data-testid="dock-setting"
+      onchange={(e) => setDockSetting((docked = e.currentTarget.checked))}
+    /> Open documents beside the notes, in the side panel</label
+  >
+  <small class="note"
+    >On this device, off by default. A PDF or EPUB then opens docked next to the page (when the window is at
+    least 900 px wide); <em>Full screen</em> in its header brings it back. Without it a document opens full
+    screen and <em>Dock</em> moves it.</small
+  >
+</div>
+
 <p class="downloads">
   <button type="button" class="plain" data-testid="clear-downloads" onclick={clearDownloads}
     >Delete downloaded documents</button
@@ -142,6 +162,11 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.5em 0.9em;
+  }
+  .docking {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 0.8em;
   }
   .opens label {
     display: block;
