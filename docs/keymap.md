@@ -208,6 +208,7 @@ The list at the left has ten sections in four groups: **Look and feel** (_Appear
 - **Copy block reference** puts `((abc123))` on the clipboard. Paste it into any block, on any page: it becomes a link to this block (shown with the block's text; the block lists the place in its references). The block gets its `^abc123` ID when it had none.
 - **Copy as embed** puts `!((abc123))`: pasted, it shows the block (with its children) in place, editable.
 - **Copy block text** and **Copy with children** (as Markdown, with indentation) copy the text.
+- **Children as bullets / numbered / letters / roman numerals** chooses how this block's direct children are marked (the current choice is ticked): `1. 2. 3.`, `a. b. c.` (then `aa.`), `i. ii. iii.`, instead of the dot. The numbers follow the blocks when you drag, indent or delete them, and restart under every parent. The choice is the hidden property `list::` of the block (_Bullets_ removes it) and one undo step. The same four commands are in the palette (**Ctrl+K**, "Children as ...") and apply to the selected blocks or the block being edited. _Copy with children_ includes the property, so a pasted block keeps its style.
 - **Zoom in** is the same as clicking the bullet.
 
 The top of the menu shows the block's ID (`^abc123`, or "no ID yet"), and the references in the menu show it too. A block that has an ID also shows it in its bullet's tooltip. IDs are otherwise hidden: they are in the file at the end of the block's first line, not in the editor.

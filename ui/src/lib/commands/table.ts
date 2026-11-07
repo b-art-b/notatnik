@@ -11,7 +11,8 @@ import {
 import { openDocs } from '../stores/pages.svelte'
 import { isFavorite, setFavorite } from '../stores/favorites.svelte'
 import { clipIntoPage } from './clip'
-import { globalUndo, saveAsTemplate, sendSelectionToGraph } from './exec'
+import { globalUndo, saveAsTemplate, sendSelectionToGraph, setListStyleOfSelection } from './exec'
+import { LIST_STYLES } from '../listStyle'
 import { syncNow } from '../stores/sync.svelte'
 import { calendarSyncNow, togglePauseCalendarSync } from '../calendar'
 
@@ -60,6 +61,13 @@ export const commands: Command[] = [
     keys: '',
     run: saveAsTemplate,
   },
+  // LS-4: how the children of the focused or selected block are marked
+  ...LIST_STYLES.map((o): Command => ({
+    id: `list-style-${o.style}`,
+    title: `Children as ${o.label.toLowerCase()}`,
+    keys: '',
+    run: () => void setListStyleOfSelection(o.style),
+  })),
   {
     id: 'clip-page',
     title: 'Clip a web page…',

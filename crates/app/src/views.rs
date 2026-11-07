@@ -17,6 +17,10 @@ pub struct ViewOptions<'a> {
     pub followed: &'a HashSet<String>,
 }
 
+/// The property that chooses how the children of a block are marked (bullets, numbers, letters, roman numerals;
+/// LS-1). It is always hidden in the property card: the bullet menu sets it.
+const LIST_STYLE_KEY: &str = "list";
+
 fn prop_view(key: &str, raw: &str, value: &PropertyValue, hidden: &HashSet<String>) -> PropView {
     let (kind, links) = match value {
         PropertyValue::Text(_) => ("text", Vec::new()),
@@ -32,7 +36,7 @@ fn prop_view(key: &str, raw: &str, value: &PropertyValue, hidden: &HashSet<Strin
         raw: raw.to_string(),
         kind: kind.to_string(),
         links,
-        hidden: hidden.contains(key),
+        hidden: hidden.contains(key) || key == LIST_STYLE_KEY,
     }
 }
 

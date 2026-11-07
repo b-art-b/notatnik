@@ -17,6 +17,7 @@
     keepMine,
     pasteBlocks,
     setProperty,
+    setListStyleOf,
     setTaskState,
     takeTheirs,
     type Ctx,
@@ -44,6 +45,7 @@
   import { highlightDoc } from '../annotate/highlightDoc'
   import HighlightChip from './HighlightChip.svelte'
   import Self from './Block.svelte'
+  import { LIST_STYLES, listMark, listStyleOf } from '../listStyle'
   import { isLogOpen, logKey, toggleLog } from '../stores/logbook.svelte'
   import { calendarOf, calendarTargets } from '../stores/calendarTargets.svelte'
 
@@ -56,8 +58,21 @@
     /** Pages and journals pass `true`: with the "compact" task-details setting the schedule, repeat and logbook
      * become small indicators. Agenda, query results and linked references leave it off and show everything. */
     compact?: boolean
+    /** The mark that replaces the bullet dot (`1.`, `a.`, `i.`): set by a parent with `list::` (LS-1). */
+    mark?: string | null
   }
-  let { block, docName, viewKey, readonly = false, chain = [], compact = false }: Props = $props()
+  let {
+    block,
+    docName,
+    viewKey,
+    readonly = false,
+    chain = [],
+    compact = false,
+    mark = null,
+  }: Props = $props()
+
+  // how this block marks its own children; the mark of each child is its index among the siblings
+  const childStyle = $derived(listStyleOf(block))
 
   // two independent device settings: task details (dates, repeat, logbook) and block properties (the card)
   const taskCompact = $derived(
@@ -290,6 +305,13 @@
         label: 'To another graph…',
         run: () => (app.transfer = { kind: 'blocks', page: docName, blocks: [block.path] }),
       })
+    if (!readonly && !block.plain)
+      for (const o of LIST_STYLES)
+        items.push({
+          label: `Children as ${o.label.toLowerCase()}`,
+          hint: o.style === childStyle ? '✓' : undefined,
+          run: () => void setListStyleOf(doc, block.id, o.style),
+        })
     if (!readonly)
       items.push({
         label: 'Zoom in',
@@ -477,6 +499,7 @@
       <button
         class="bullet"
         class:collapsed={block.collapsed && hasChildren}
+        class:marked={mark !== null}
         draggable={!readonly}
         ondragstart={startDrag}
         ondragend={endDrag}
@@ -498,7 +521,8 @@
             e.stopPropagation()
           } else if (e.altKey) openMenu(e)
           else if (!readonly) navigate({ kind: 'page', name: docName, zoom: block.path })
-        }}>●</button
+        }}
+        >{#if mark}<span class="mark">{mark}</span>{:else}●{/if}</button
       >
     {/if}
     {#if menu}
@@ -720,8 +744,8 @@
   </div>
   {#if hasChildren && !block.collapsed}
     <div class="children" role="group">
-      {#each block.children as child (child.id)}
-        <Self block={child} {docName} {viewKey} {readonly} {chain} {compact} />
+      {#each block.children as child, i (child.id)}
+        <Self block={child} {docName} {viewKey} {readonly} {chain} {compact} mark={listMark(childStyle, i)} />
       {/each}
     </div>
   {/if}
@@ -890,6 +914,26 @@
     transition:
       transform 0.12s,
       opacity 0.12s;
+  }
+  /* a number, letter or roman numeral instead of the dot (LS-3): anchored at the right edge of the same 18px column, so a
+     long mark (`viii.`) grows to the left and never moves the text; the dot is not drawn */
+  .bullet.marked::before {
+    display: none;
+  }
+  .mark {
+    position: absolute;
+    right: 1px;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-size: 0.85em;
+    line-height: 1;
+    color: var(--muted);
+    opacity: 0.85;
+  }
+  .bullet.marked:hover .mark {
+    color: var(--text);
+    opacity: 1;
   }
   .bullet.ghost::before {
     display: none;

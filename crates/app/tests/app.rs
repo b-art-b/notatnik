@@ -73,6 +73,24 @@ impl T {
     }
 }
 
+/// LS-1: `list::` (how the children of a block are marked) is always hidden in the property card, whatever the
+/// configured hidden properties are, and stays in the block's text.
+#[test]
+fn list_style_property_is_hidden() {
+    let t = start("basic");
+    std::fs::write(
+        t.graph().join("pages/ls.md"),
+        "- parent\n  list:: numbered\n  - one\n",
+    )
+    .unwrap();
+    let p = t.ok("get_page", json!({"name": "ls"}));
+    let parent = &p["blocks"][0];
+    assert_eq!(parent["text"], "parent\nlist:: numbered");
+    assert_eq!(parent["props"][0]["key"], "list");
+    assert_eq!(parent["props"][0]["raw"], "numbered");
+    assert_eq!(parent["props"][0]["hidden"], true);
+}
+
 #[test]
 fn page_view_of_the_alpha_page() {
     let t = start("basic");

@@ -130,6 +130,11 @@ started: 2026-09-01
   (`[[a]], [[b]]`) or text.
 - System properties (hidden in normal view): `done`, `completed`, plus any property
   listed in `config.toml` → `[properties] hidden`.
+- `list:: numbered` | `letters` | `roman` (LS-1): how the **direct children** of the block are marked (`1.`, `a.`, `i.`
+  instead of the bullet dot; the file keeps `-` bullets). Any other value, or no property, is the plain bullet. The
+  mark is the child's index among its siblings and restarts under every parent; nothing is written to the children.
+  Always hidden in the property card (set from the bullet menu or the palette). Round-trips byte-identical
+  (`fixtures/edits/set_property/list-style-add`, `remove_property/list-style-remove`).
 
 ### 3.4 Block IDs
 

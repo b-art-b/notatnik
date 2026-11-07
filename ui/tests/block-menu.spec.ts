@@ -29,6 +29,10 @@ test('right-click a bullet, copy the block reference, paste it into another bloc
     /Copy as embed/,
     /Copy block text/,
     /Copy with children/,
+    /Children as bullets/,
+    /Children as numbered/,
+    /Children as letters/,
+    /Children as roman numerals/,
     /Zoom in/,
   ])
   await menu.getByRole('menuitem', { name: /Copy block reference/ }).click()

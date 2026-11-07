@@ -1,6 +1,7 @@
 // Runs block commands: turns a Plan from tree.ts into a request and moves the cursor afterwards.
 import { tick } from 'svelte'
 import { backend, type BlockOp } from '../api'
+import type { ListStyle } from '../listStyle'
 import { askQuestions } from './asks'
 import { editing, startEditing, startSelecting, stopEditing } from '../stores/editing.svelte'
 import { getDoc, undoRedo, type PageDoc } from '../stores/pages.svelte'
@@ -878,6 +879,28 @@ export async function setPropertyOf(
       value === null ? { op: 'remove_property', block, key } : { op: 'set_property', block, key, value },
     ]
   })
+}
+
+/** Chooses how the children of a block are marked (LS-4): `list:: numbered|letters|roman` on the block, removed for
+ * bullets (the default). One undo step; the text of the block is not touched. */
+export async function setListStyleOf(
+  doc: PageDoc | undefined,
+  blockId: number,
+  style: ListStyle,
+): Promise<void> {
+  if (doc) await setPropertyOf(doc, blockId, 'list', style === 'bullets' ? null : style)
+}
+
+/** The palette's "Children as ...": every selected block, or the block being edited. */
+export async function setListStyleOfSelection(style: ListStyle): Promise<void> {
+  const view = editing.docName ? getDoc(editing.docName).view : undefined
+  const ids = editing.mode === 'select' ? editing.selection : editing.mode === 'edit' ? [editing.blockId] : []
+  if (!view || ids.length === 0) {
+    toast('Select a block first (Esc in a block selects it)', 'info')
+    return
+  }
+  const doc = getDoc(editing.docName)
+  for (const id of ids) await setListStyleOf(doc, id, style)
 }
 
 /** Sets (or, with `null`, removes) a property of a block. */

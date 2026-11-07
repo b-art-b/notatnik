@@ -251,6 +251,17 @@ A **graph** is a folder of notes.
 | DD-7 | Writing next to the document works: _Copy as quote_ pasted into a note, its chip opening the document at the highlight in the panel, comments and notes saved in either order.                                                                    | V1       |
 | DD-8 | Links, chips, _Open in the document_ and _Open the document_ replace a docked document in the panel, and do not cover the screen.                                                                                                                 | V1       |
 
+### Numbered and lettered sub-bullets (LS1..LS3, [phases/list-styles.md](phases/list-styles.md))
+
+| ID   | Requirement                                                                                                                                                                                                                    | Priority |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| LS-1 | A block can mark its direct children as bullets (default), numbers, letters or roman numerals; the choice is the hidden block property `list::` (`numbered`, `letters`, `roman`), kept in the file; no property means bullets. | V1       |
+| LS-2 | The marks are the index among the siblings, restart under every parent, and follow drag, indent, outdent, delete and undo; nothing is written to the children.                                                                 | V1       |
+| LS-3 | The marks replace the bullet dot only: same column, guide lines, drag handle, zoom and menu.                                                                                                                                   | V1       |
+| LS-4 | _List style_ in the bullet menu and the command palette sets and removes the property (undoable); the property is not shown in the property card.                                                                              | V1       |
+| LS-5 | _Copy with children_ and the Markdown export write the children as `1.`, `a.`, `i.` lines; the file keeps `-` bullets and the property.                                                                                        | V1       |
+| LS-6 | A file with `list::` round-trips byte-identical.                                                                                                                                                                               | V1       |
+
 ## 5. Pages, links and namespaces
 
 | ID    | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Priority |

@@ -209,6 +209,15 @@ must never regress:
 - **By hand, not done in this phase:** the real desktop app (WebKitGTK): an EPUB with embedded fonts and a 300-page PDF docked, selecting
   text in the panel while a note is open, the panel at 360, 600 and 900 px, and the iPad in landscape.
 
+## Numbered and lettered sub-bullets (LS-1 to LS-6)
+
+- **`ui/src/lib/listStyle.test.ts`** (Vitest): the marks (1, 10, `z.` → `aa.`, roman up to 3999, 4000 as a number) and reading the property.
+- **`ui/tests/list-styles.spec.ts`** (Chromium and WebKit): each style from the bullet menu (the file text, the marks, the ✓, Bullets removes
+  the property, undo), marks restarting under each parent and not reaching grandchildren, renumbering after delete, undo and move, the palette
+  by keyboard, a file with `list::` read back byte-identical and an unknown value as the dot, the text column not moving with `viii.` at
+  1850 and 700 px, _Copy with children_ keeping the property.
+- **`fixtures/edits/set_property/list-style-add`, `remove_property/list-style-remove`** (golden), `list_style_property_is_hidden` in `crates/app/tests/app.rs`.
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details
