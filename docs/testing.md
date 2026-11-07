@@ -218,6 +218,14 @@ must never regress:
   1850 and 700 px, _Copy with children_ keeping the property.
 - **`fixtures/edits/set_property/list-style-add`, `remove_property/list-style-remove`** (golden), `list_style_property_is_hidden` in `crates/app/tests/app.rs`.
 
+## Formatting keys (FK-1 to FK-7)
+
+- **`ui/src/lib/formatText.test.ts`** (Vitest): `toggleWrap` for a word, a phrase, off again (markers outside or inside the selection), spaces at the ends,
+  an empty selection, bold + italic apart and together, a link or reference, several lines, the new selection.
+- **`ui/tests/format-keys.spec.ts`** (Chromium and WebKit): each of the five keys on a selected word (the text, the selection kept, the file), the key
+  again and one Ctrl+Z, bold + italic, Ctrl+B moving the cursor without a selection and the other keys doing nothing, a code fence untouched.
+  Not tested: the Mac's Cmd keys (the Linux browsers use Ctrl).
+
 ## WebKit (the desktop app's engine)
 
 The browser tests in `scripts/check.sh` run in Chrome, but the desktop app runs in WebKitGTK, which differs in details

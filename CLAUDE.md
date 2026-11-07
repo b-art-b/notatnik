@@ -19,6 +19,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/phases/local-annotation.md`: open and annotate PDFs and EPUBs of this computer in place (`file:///` links), system viewer by modifier, ↗ or setting (LV-1..LV-8)
 - `docs/phases/docked-documents.md`: dock the PDF/EPUB viewer into the right side panel beside the notes, not the default (DD-1..DD-8)
 - `docs/phases/list-styles.md`: children of a block shown as bullets, numbers, letters or roman numerals, chosen from the bullet menu, kept as the hidden property `list::` (LS-1..LS-6)
+- `docs/phases/format-keys.md`: bold, italic, strike, highlight and code keys for the selected text in the block editor, Ctrl+B stays cursor-left without a selection (FK-1..FK-7)
 - `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)

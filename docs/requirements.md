@@ -262,6 +262,18 @@ A **graph** is a folder of notes.
 | LS-5 | _Copy with children_ and the Markdown export write the children as `1.`, `a.`, `i.` lines; the file keeps `-` bullets and the property.                                                                                        | V1       |
 | LS-6 | A file with `list::` round-trips byte-identical.                                                                                                                                                                               | V1       |
 
+### Formatting keys (FK1..FK3, [phases/format-keys.md](phases/format-keys.md))
+
+| ID   | Requirement                                                                                                                                                                                                                     | Priority |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| FK-1 | With text selected in the block editor, Ctrl+B, Ctrl+I, Ctrl+Shift+X, Ctrl+Shift+H and Ctrl+Shift+C (Cmd+B, Cmd+I on a Mac) wrap it in `**`, `*`, `~~`, `==` or a backtick, and remove the markers when they are already there. | V1       |
+| FK-2 | Ctrl+B keeps its Emacs meaning (cursor one character left) when nothing is selected; no setting.                                                                                                                                | V1       |
+| FK-3 | Nothing happens without a selection (except Ctrl+B moving the cursor), and nothing inside a fenced code block.                                                                                                                  | V1       |
+| FK-4 | Bold and italic combine (`***x***`); italic does not mistake the markers of bold for its own.                                                                                                                                   | V1       |
+| FK-5 | The selection stays on the text, trailing spaces stay outside the markers, and each key press is one undo step.                                                                                                                 | V1       |
+| FK-6 | The result is plain inline Markdown; the file format does not change.                                                                                                                                                           | V1       |
+| FK-7 | The keys are in `keymap.md`, with the Ctrl+B rule next to the Emacs keys.                                                                                                                                                       | V1       |
+
 ## 5. Pages, links and namespaces
 
 | ID    | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Priority |

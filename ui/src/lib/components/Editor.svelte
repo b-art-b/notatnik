@@ -44,8 +44,9 @@
   } from '@codemirror/commands'
   import { acceptCompletion, closeCompletion, completionStatus } from '@codemirror/autocomplete'
   import { markdown } from '@codemirror/lang-markdown'
+  import { toggleWrap, type Marker } from '../formatText'
   import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
-  import type { Cursor } from '../tree'
+  import { insideFence, type Cursor } from '../tree'
   import type { EditorAction } from '../commands/exec'
   import { wikiCompletions } from '../completion'
   import { backend } from '../api'
@@ -410,6 +411,33 @@
     },
   })
 
+  // Formatting keys (FK-1..FK-6): the selected text gets the Markdown markers, or loses them. Nothing happens without
+  // a selection, and not inside a fenced code block. `swallow` says what to answer then: Ctrl+B on Linux and Windows
+  // is also "cursor left" (below), so with nothing selected it answers false and that binding moves the cursor; the
+  // other keys answer true, so the browser does not do its own thing with them.
+  const format = (marker: Marker, swallow: boolean) => (v: EditorView) => {
+    const sel = v.state.selection.main
+    const text = v.state.doc.toString()
+    const done = sel.empty || insideFence(text, sel.from) ? null : toggleWrap(text, sel.from, sel.to, marker)
+    if (!done) return swallow
+    // the smallest change that turns `text` into `done.text`, so the cursor, the undo step and the sync stay small
+    let a = 0
+    while (a < text.length && a < done.text.length && text[a] === done.text[a]) a++
+    let b = 0
+    while (
+      b < text.length - a &&
+      b < done.text.length - a &&
+      text[text.length - 1 - b] === done.text[done.text.length - 1 - b]
+    )
+      b++
+    v.dispatch({
+      changes: { from: a, to: text.length - b, insert: done.text.slice(a, done.text.length - b) },
+      selection: { anchor: done.from, head: done.to },
+      userEvent: 'input.format',
+    })
+    return true
+  }
+
   function keys(): Extension {
     return [
       Prec.highest(selectKey),
@@ -464,6 +492,13 @@
             },
           },
           { mac: 'Cmd-a', run: selectTextOrBlocks },
+          // formatting; Ctrl+B comes before the Emacs `Ctrl-b` below and gives way to it when nothing is selected
+          { linux: 'Ctrl-b', win: 'Ctrl-b', run: format('**', false) },
+          { mac: 'Cmd-b', run: format('**', true) },
+          { key: 'Mod-i', run: format('*', true) },
+          { key: 'Mod-Shift-x', run: format('~~', true) },
+          { key: 'Mod-Shift-h', run: format('==', true) },
+          { key: 'Mod-Shift-c', run: format('`', true) },
           // Emacs / readline keys, on every platform (Ctrl is the Control key itself, also on a Mac). Ctrl+K stays the
           // command palette, Ctrl+A in a block is the line start, so selecting the whole text moved to Ctrl+Shift+A
           { key: 'Ctrl-a', run: cursorLineBoundaryBackward },
