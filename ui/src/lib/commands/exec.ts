@@ -884,7 +884,7 @@ export async function setPropertyOf(
 /** Chooses how the children of a block are marked (LS-4): `list:: numbered|letters|roman` on the block, removed for
  * bullets (the default). One undo step; the text of the block is not touched. */
 export async function setListStyleOf(
-  doc: PageDoc | undefined,
+  doc: PageDoc | null | undefined,
   blockId: number,
   style: ListStyle,
 ): Promise<void> {

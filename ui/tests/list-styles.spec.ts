@@ -1,7 +1,6 @@
 import { expect, test } from './fixtures'
 
 // LS-1..LS-6: the children of a block as bullets, numbers, letters or roman numerals (`list::` on the parent).
-const PAGE = '- parent\n- other\n  - x\n'
 const FILE = 'pages/ls.md'
 
 async function chooseFromMenu(page: import('@playwright/test').Page, bullet: number, item: RegExp) {
