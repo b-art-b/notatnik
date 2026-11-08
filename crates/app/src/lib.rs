@@ -122,6 +122,7 @@ commands! {
     page_files(PageFilesArgs) -> PageFilesView => page_files,
     segment_places(SegmentPlacesArgs) -> SegmentPlacesView => segment_places,
     all_pages(NoArgs) -> Vec<PageListRow> => all_pages,
+    local_graph(LocalGraphArgs) -> LocalGraphView => local_graph,
     page_property_keys(NoArgs) -> Vec<PageKeyView> => page_property_keys,
     page_groups(PageGroupsArgs) -> Vec<PageGroupView> => page_groups,
     list_namespace(ListNamespaceArgs) -> Vec<NamespaceEntry> => list_namespace,

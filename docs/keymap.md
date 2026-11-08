@@ -203,6 +203,11 @@ The list at the left has ten sections in four groups: **Look and feel** (_Appear
 | Click a day's title in the journals feed (also today's) | Open that day as a page                                                                                                                                                       |
 | Ctrl+wheel, Ctrl +/-/0                                  | Zoom                                                                                                                                                                          |
 
+## Local graph and pages with no links (LN-9, LN-13)
+
+- **Local graph** (palette, **Ctrl+K**): a tab _Graph_ in the right side panel (it opens the panel if it is hidden): the page you are on in the middle, the pages it links to and the pages that link to it around it (links, tags and page embeds, also through an alias; a link to the page itself and block references are not drawn), and the links between those pages. An arrow shows the direction. **1 step / 2 steps** set how far it reaches; **Only this namespace** keeps the pages of one namespace (the page itself stays). At most 60 pages are drawn, the nearest first, and it says so. Each page is a link (Tab to it, Enter opens it; the graph is then drawn around that page); long names are shortened in the picture and whole in the tooltip and in the lists below it (_Links to_, _Linked from_, _Further away_). × closes it. A page that is linked to by nobody and links to nobody says so. There is no picture of the whole graph.
+- **Pages with no links** (palette, or _Only pages with no links_ in **All pages**): the pages that no page links to and that link to no page, so islands can be linked or deleted. Journal days, hidden/archived pages (unless _Hidden pages_ says so) and pages that only exist because something links to them are left out. Linking a page from elsewhere makes it leave the list. The address is `#/pages?links=none`.
+
 ## Block menu: copy a reference
 
 **Right-click a block's bullet** (or **Alt+click** it) for the block menu:

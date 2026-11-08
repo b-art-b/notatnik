@@ -509,6 +509,10 @@ blocks: number,
  */
 backlinks: number, 
 /**
+ * Number of other pages this page links to.
+ */
+outgoing: number, 
+/**
  * File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
  */
 modified: string | null, 
@@ -516,6 +520,30 @@ modified: string | null,
  * The file, relative to the graph (to tell whether it is stored encrypted).
  */
 path: string | null, };
+export type LocalGraphArgs = { 
+/**
+ * The page in the middle.
+ */
+page: string, 
+/**
+ * 1 (the pages it links to and that link to it) or 2 (one step further).
+ */
+depth: number, };
+export type GraphNodeView = { name: string, 
+/**
+ * No file behind it (only linked to).
+ */
+is_virtual: boolean, 
+/**
+ * 0 for the page itself, 1 and 2 for the steps away.
+ */
+depth: number, };
+export type GraphEdgeView = { from: string, to: string, };
+export type LocalGraphView = { center: string, nodes: Array<GraphNodeView>, edges: Array<GraphEdgeView>, 
+/**
+ * There were more pages than the limit; the farthest are left out.
+ */
+truncated: boolean, };
 export type SegmentArgs = { 
 /**
  * A name used as a path segment (`Renewal`), or several in a row (`Renewal/Snowflake`).
@@ -2982,6 +3010,7 @@ export type Commands = {
   page_files: { args: PageFilesArgs; result: PageFilesView };
   segment_places: { args: SegmentPlacesArgs; result: SegmentPlacesView };
   all_pages: { args: NoArgs; result: PageListRow[] };
+  local_graph: { args: LocalGraphArgs; result: LocalGraphView };
   page_property_keys: { args: NoArgs; result: PageKeyView[] };
   page_groups: { args: PageGroupsArgs; result: PageGroupView[] };
   list_namespace: { args: ListNamespaceArgs; result: NamespaceEntry[] };

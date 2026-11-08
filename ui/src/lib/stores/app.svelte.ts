@@ -94,7 +94,8 @@ export const app = $state({
   /** The right panel fills the window and the page is folded away to a strip (not remembered across restarts). */
   rightFocus: false,
   /** The tab of the right panel that is open: `refs`, `tasks` or `pages` (the pages opened beside the page). */
-  rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as 'refs' | 'tasks' | 'pages' | 'document',
+  rightTab: (localStorage.getItem('notatnik-right-tab') ?? 'refs') as
+    'refs' | 'tasks' | 'pages' | 'document' | 'graph',
   /** The tab that was open before a document was docked: it comes back when the document is closed (DD-4). */
   rightTabBefore: 'refs' as 'refs' | 'tasks' | 'pages',
   /** The title of the open document, for the tab of the side panel (DD-1). */
@@ -114,6 +115,8 @@ export const app = $state({
   theme: 'system' as Theme,
   conflicts: [] as string[],
   rightPanels: [] as string[],
+  /** The local graph (LN-9) is open as a tab of the right panel. */
+  graphTab: false,
   paletteOpen: false,
   searchOpen: false,
   /** A page that was just created from the dialog: its first block opens for typing. */
@@ -196,15 +199,23 @@ export function setRightWidth(px: number, save = true) {
   }
 }
 
-export function setRightTab(tab: 'refs' | 'tasks' | 'pages' | 'document') {
+export function setRightTab(tab: 'refs' | 'tasks' | 'pages' | 'document' | 'graph') {
   app.rightTab = tab
-  // the document tab only exists while a document is docked: it is not remembered
-  if (tab === 'document') return
+  // the document and graph tabs only exist while they are open: they are not remembered
+  if (tab === 'document' || tab === 'graph') return
   try {
     localStorage.setItem('notatnik-right-tab', tab)
   } catch {
     /* not remembered */
   }
+}
+
+/** Opens the local graph of the current page as a tab of the right panel (LN-9). */
+export function openLocalGraph() {
+  app.graphTab = true
+  app.rightOpen = true
+  app.rightFocus = false
+  setRightTab('graph')
 }
 
 /** The page is folded away and the right panel gets the whole window, or the page is back. */

@@ -21,6 +21,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/phases/list-styles.md`: children of a block shown as bullets, numbers, letters or roman numerals, chosen from the bullet menu, kept as the hidden property `list::` (LS-1..LS-6)
 - `docs/phases/format-keys.md`: bold, italic, strike, highlight and code keys for the selected text in the block editor, Ctrl+B stays cursor-left without a selection (FK-1..FK-7)
 - `docs/phases/template-choices.md`: `{{askchoice:Label|a|b|c}}` in templates, pick one of a list in the ask dialog (TC-1..TC-6)
+- `docs/phases/local-graph.md`: the Graph tab of the side panel (the page, its links and backlinks) and the list of pages with no links (LN-9, LN-13)
 - `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
 - `docs/testing.md`: how things are verified (test levels, fixtures, check script)

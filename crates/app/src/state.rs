@@ -1890,6 +1890,36 @@ impl AppState {
         })
     }
 
+    /// `local_graph`: the pages and links around a page, at most 60 pages (LN-9).
+    pub fn local_graph(&self, a: LocalGraphArgs) -> ApiResult<LocalGraphView> {
+        self.with_open(|o| {
+            let g = o
+                .graph
+                .with_index(|i| i.link_graph(&a.page, a.depth.clamp(1, 2), 60))?;
+            Ok(LocalGraphView {
+                center: g.center,
+                truncated: g.truncated,
+                nodes: g
+                    .nodes
+                    .into_iter()
+                    .map(|n| GraphNodeView {
+                        name: n.name,
+                        is_virtual: n.is_virtual,
+                        depth: n.depth,
+                    })
+                    .collect(),
+                edges: g
+                    .edges
+                    .into_iter()
+                    .map(|e| GraphEdgeView {
+                        from: e.from,
+                        to: e.to,
+                    })
+                    .collect(),
+            })
+        })
+    }
+
     /// `all_pages`: every page with counts, for the all-pages view.
     pub fn all_pages(&self, _a: NoArgs) -> ApiResult<Vec<PageListRow>> {
         self.with_open(|o| {
@@ -1903,6 +1933,7 @@ impl AppState {
                     is_journal: r.is_journal,
                     blocks: r.blocks as u32,
                     backlinks: r.backlinks as u32,
+                    outgoing: r.outgoing as u32,
                     modified: r.mtime_ns.and_then(|ns| {
                         chrono::DateTime::from_timestamp(ns.div_euclid(1_000_000_000), 0)
                             .map(|d| d.format("%Y-%m-%d %H:%M").to_string())

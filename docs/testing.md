@@ -218,6 +218,12 @@ must never regress:
   1850 and 700 px, _Copy with children_ keeping the property.
 - **`fixtures/edits/set_property/list-style-add`, `remove_property/list-style-remove`** (golden), `list_style_property_is_hidden` in `crates/app/tests/app.rs`.
 
+## Local graph and pages with no links (LN-9, LN-13)
+
+- **`crates/app/tests/app.rs`**: `the_local_graph_shows_the_neighbourhood_of_a_page` (depth 1 and 2, links among neighbours, tag and page embed, a self link and a block reference not counted, a name that is no page), `the_local_graph_is_capped_and_says_so` (60 pages, depth 1 first), `links_through_an_alias_count_for_the_graph_and_the_page_list`, `an_unlinked_page_has_no_links_in_either_direction`.
+- **`ui/src/lib/graphLayout.test.ts`** (Vitest): the same picture twice whatever the order, the page in the middle, no two nodes of a ring closer than 12 units with a full ring of 59 pages, a page two steps away beside the page that brought it in, short names.
+- **`ui/tests/local-graph.spec.ts`** (Chromium and WebKit): the palette command opens the panel, a node opened by keyboard redraws the graph around the new page, 1 and 2 steps, the namespace field, a page with no links, × closing, a long name shortened (whole in its title and the list), _Pages with no links_ (not linked pages, not archived pages; the checkbox; linking a page makes it leave).
+
 ## Formatting keys (FK-1 to FK-7)
 
 - **`ui/src/lib/formatText.test.ts`** (Vitest): `toggleWrap` for a word, a phrase, off again (markers outside or inside the selection), spaces at the ends,

@@ -106,7 +106,8 @@ test('/template continues editing at {{cursor}}, else in the first inserted bloc
 })
 
 // `{{selection}}` is the text typed in the block besides the command, `{{clipboard}}` what was copied.
-test('/template fills {{selection}} and {{clipboard}}', async ({ backend, page, context }) => {
+test('/template fills {{selection}} and {{clipboard}}', async ({ backend, page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'clipboard permissions are a Chromium feature of the test driver')
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   backend.write('templates/snippets/Mail.md', '- Mail to {{selection}}: {{clipboard}}{{cursor}}\n')
   backend.write('pages/Mails.md', '- Anna Nowak\n')

@@ -18,8 +18,8 @@ pub use fuzzy::FuzzyHit;
 pub use ingest::{DuplicateId, FileStat, ReconcileStats, ReindexOutcome};
 pub use qsql::{CompileError, CompiledQuery, QueryContext, QueryResults, QueryRow, compile};
 pub use read::{
-    Backlink, Counts, IssueRow, NamespaceRow, PageGroup, PageInfo, PageKeyCount, PageRow,
-    SearchHit, SearchKind, SegmentGroup, SubPage, Unlinked,
+    Backlink, Counts, GraphEdge, GraphNode, IssueRow, LinkGraph, NamespaceRow, PageGroup, PageInfo,
+    PageKeyCount, PageRow, SearchHit, SearchKind, SegmentGroup, SubPage, Unlinked,
 };
 pub use schema::SCHEMA_VERSION;
 

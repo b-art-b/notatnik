@@ -10,10 +10,11 @@
   import Backlinks from './Backlinks.svelte'
   import PageTasks from './PageTasks.svelte'
   import PageContent from './PageContent.svelte'
+  import LocalGraph from './LocalGraph.svelte'
 
   let { page }: { page: string | null } = $props()
 
-  type Tab = 'refs' | 'tasks' | 'pages' | 'document'
+  type Tab = 'refs' | 'tasks' | 'pages' | 'document' | 'graph'
   let refCount = $state(0)
   let taskCount = $state(0)
 
@@ -22,6 +23,7 @@
     if (page !== null && onSide('refs')) t.push({ id: 'refs', label: 'References', n: refCount })
     if (page !== null && onSide('tasks')) t.push({ id: 'tasks', label: 'Tasks', n: taskCount })
     if (app.rightPanels.length) t.push({ id: 'pages', label: 'Pages', n: app.rightPanels.length })
+    if (app.graphTab) t.push({ id: 'graph', label: 'Graph', n: null })
     // a document docked beside the notes (DD-1, DD-4): one tab, whose body is where the viewer is drawn
     if (dockedNow()) t.push({ id: 'document', label: app.docTitle || 'Document', n: null })
     return t
@@ -125,6 +127,11 @@
       </div>
     {/if}
   {/key}
+{/if}
+{#if app.graphTab}
+  <div id="side-pane-graph" role={tabs.length > 1 ? 'tabpanel' : undefined} hidden={current !== 'graph'}>
+    <LocalGraph {page} onclose={() => (app.graphTab = false)} />
+  </div>
 {/if}
 {#if dockedNow()}
   <div

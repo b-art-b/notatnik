@@ -6776,6 +6776,153 @@ fn a_saved_query_is_edited_where_it_stands_and_can_be_renamed() {
     );
 }
 
+/// Makes a page whose only block is `text`.
+fn page_with(t: &T, name: &str, text: &str) {
+    t.ok(
+        "apply_ops",
+        json!({"page": name, "base_hash": null, "ops": [
+        {"op": "insert", "parent": [], "index": 0, "text": text}]}),
+    );
+}
+
+fn graph_names(g: &Value) -> Vec<(String, u64)> {
+    let mut v: Vec<(String, u64)> = g["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| {
+            (
+                n["name"].as_str().unwrap().to_string(),
+                n["depth"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    v.sort();
+    v
+}
+
+fn has_edge(g: &Value, from: &str, to: &str) -> bool {
+    g["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|e| e["from"] == from && e["to"] == to)
+}
+
+/// LN-9: the local graph is the page, what it links to and what links to it, and the links among them.
+#[test]
+fn the_local_graph_shows_the_neighbourhood_of_a_page() {
+    let t = start("basic");
+    page_with(&t, "Hub", "to [[Out1]] and #Out2 and ![[Out3]]");
+    page_with(&t, "In1", "see [[Hub]]");
+    page_with(&t, "Out1", "and [[Far]] and [[In1]]");
+    page_with(
+        &t,
+        "Far",
+        "end, ((abc123)) is no page link and [[Far]] is a self link",
+    );
+    page_with(&t, "Out2", "x");
+    page_with(&t, "Out3", "y");
+    let g = t.ok("local_graph", json!({"page": "Hub", "depth": 1}));
+    assert_eq!(g["center"], "Hub");
+    assert_eq!(
+        graph_names(&g),
+        vec![
+            ("Hub".into(), 0),
+            ("In1".into(), 1),
+            ("Out1".into(), 1),
+            ("Out2".into(), 1),
+            ("Out3".into(), 1),
+        ]
+    );
+    assert!(has_edge(&g, "Hub", "Out1"), "{g}");
+    assert!(has_edge(&g, "In1", "Hub"), "{g}");
+    // a link between two neighbours is an edge of its own
+    assert!(has_edge(&g, "Out1", "In1"), "{g}");
+    // a page that only a neighbour links to is one step further
+    assert!(!graph_names(&g).iter().any(|(n, _)| n == "Far"));
+    let g2 = t.ok("local_graph", json!({"page": "Hub", "depth": 2}));
+    assert!(graph_names(&g2).contains(&("Far".into(), 2)), "{g2}");
+    assert!(has_edge(&g2, "Out1", "Far"), "{g2}");
+    // a self link is no link
+    assert!(!has_edge(&g2, "Far", "Far"), "{g2}");
+    assert_eq!(g2["truncated"], false);
+    // a name that is no page: just itself
+    let none = t.ok("local_graph", json!({"page": "Nowhere", "depth": 2}));
+    assert_eq!(graph_names(&none), vec![("Nowhere".into(), 0)]);
+}
+
+/// LN-9: at most 60 pages; the nearer ones are kept.
+#[test]
+fn the_local_graph_is_capped_and_says_so() {
+    let t = start("basic");
+    let links: Vec<String> = (0..70).map(|i| format!("[[N{i:02}]]")).collect();
+    page_with(&t, "Big", &links.join(" "));
+    page_with(&t, "N00", "[[Beyond]]");
+    let g = t.ok("local_graph", json!({"page": "Big", "depth": 2}));
+    assert_eq!(g["nodes"].as_array().unwrap().len(), 60, "{g}");
+    assert_eq!(g["truncated"], true);
+    assert!(
+        g["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n["depth"].as_u64().unwrap() <= 1),
+        "depth 1 comes before depth 2: {g}"
+    );
+}
+
+/// LN-9, LN-13: links through an alias count, for the graph and for the all-pages counts.
+#[test]
+fn links_through_an_alias_count_for_the_graph_and_the_page_list() {
+    let t = start("basic");
+    page_with(&t, "Target", "the target");
+    page_with(&t, "Linker", "see [[tgt]]");
+    t.ok(
+        "page_aliases",
+        json!({"page": "Target", "aliases": ["tgt"]}),
+    );
+    let g = t.ok("local_graph", json!({"page": "Target", "depth": 1}));
+    assert!(has_edge(&g, "Linker", "Target"), "{g}");
+    let rows = t.ok("all_pages", json!({}));
+    let row = |n: &str| {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == n)
+            .unwrap_or_else(|| panic!("{n} in {rows}"))
+            .clone()
+    };
+    assert_eq!(row("Target")["backlinks"], 1);
+    assert_eq!(row("Linker")["outgoing"], 1);
+    assert_eq!(row("Target")["outgoing"], 0);
+}
+
+/// LN-13: the all-pages rows carry what the "no links" filter needs.
+#[test]
+fn an_unlinked_page_has_no_links_in_either_direction() {
+    let t = start("basic");
+    page_with(&t, "Island", "nothing here");
+    page_with(&t, "A", "see [[B]]");
+    page_with(&t, "B", "b");
+    let rows = t.ok("all_pages", json!({}));
+    let find = |n: &str| {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == n)
+            .unwrap()
+            .clone()
+    };
+    let island = find("Island");
+    assert_eq!(
+        (island["backlinks"].clone(), island["outgoing"].clone()),
+        (json!(0), json!(0))
+    );
+    assert_eq!(find("A")["outgoing"], 1);
+    assert_eq!(find("B")["backlinks"], 1);
+}
+
 #[test]
 fn aliases_are_set_from_the_api_and_links_through_them_work() {
     let t = start("basic");

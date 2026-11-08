@@ -76,7 +76,7 @@
   // The right panel: this page's references and tasks (when Settings put them there), and the pages opened beside it
   const hasContext = $derived(route.kind === 'page' && (onSide('refs') || onSide('tasks')))
   // (a document docked in the panel needs it too, wherever the page is)
-  const rightExists = $derived(hasContext || app.rightPanels.length > 0 || dockedNow())
+  const rightExists = $derived(hasContext || app.rightPanels.length > 0 || dockedNow() || app.graphTab)
   const rightShown = $derived(rightExists && app.rightOpen)
   // the page is folded away: the panel has the window
   const focus = $derived(rightShown && app.rightFocus)

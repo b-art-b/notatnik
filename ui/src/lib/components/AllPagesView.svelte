@@ -4,6 +4,7 @@
   import { untrack } from 'svelte'
   import { backend, type PageListRow } from '../api'
   import { bus } from '../stores/events.svelte'
+  import { app, navigate } from '../stores/app.svelte'
   import { pageHash } from '../route'
   import { isArchived, isArchivedItself } from '../stores/archived.svelte'
   import { hidePages, toggleHide } from '../pageActions'
@@ -36,6 +37,12 @@
   let onlyEncrypted = $state(false)
   let virtual = $state(true)
   let limit = $state(SHOWN)
+  // "pages with no links" (LN-13): the route `#/pages?links=none`. Pages that no page links to and that link to no page;
+  // a page that is only linked to (no file) has a link, journal days are left out. Always the flat list.
+  const noLinks = $derived(app.route.kind === 'pages' && app.route.links === 'none')
+  $effect(() => {
+    if (noLinks) untrack(() => (mode = 'list'))
+  })
 
   try {
     const s = JSON.parse(localStorage.getItem('notatnik-all-pages') ?? '{}')
@@ -96,7 +103,9 @@
     const q = filter.trim().toLowerCase()
     const out = rows.filter(
       (r) =>
-        (journals || !r.is_journal) &&
+        (noLinks
+          ? !r.is_journal && !r.is_virtual && r.backlinks === 0 && r.outgoing === 0
+          : journals || !r.is_journal) &&
         (virtual || !r.is_virtual) &&
         (hiddenMode === 'with' || (hiddenMode === 'only') === isArchived(r.name)) &&
         (!onlyEncrypted || !!padlock(r)) &&
@@ -142,6 +151,7 @@
   // show the filter result from the top again whenever the filter or toggles change
   $effect(() => {
     void filter
+    void noLinks
     void journals
     void hiddenMode
     void onlyEncrypted
@@ -151,7 +161,10 @@
   import PageIcon from './PageIcon.svelte'
 </script>
 
-<h1>All pages <span class="count" data-testid="pages-count">{visible.length}</span></h1>
+<h1>
+  {noLinks ? 'Pages with no links' : 'All pages'}
+  <span class="count" data-testid="pages-count">{visible.length}</span>
+</h1>
 
 <div class="bar">
   <div class="seg" role="group" aria-label="View">
@@ -170,7 +183,14 @@
       aria-label="Filter pages"
       bind:value={filter}
     />
-    <label><input type="checkbox" bind:checked={journals} /> Journals</label>
+    <label
+      ><input
+        type="checkbox"
+        checked={noLinks}
+        onchange={() => navigate(noLinks ? { kind: 'pages' } : { kind: 'pages', links: 'none' })}
+      /> Only pages with no links</label
+    >
+    {#if !noLinks}<label><input type="checkbox" bind:checked={journals} /> Journals</label>{/if}
     <label><input type="checkbox" bind:checked={virtual} /> Pages without a file</label>
   {/if}
   <label class="hf"

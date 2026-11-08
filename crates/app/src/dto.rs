@@ -513,6 +513,42 @@ pub struct UnlinkedView {
     pub link_text: String,
 }
 
+/// Arguments of `local_graph`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct LocalGraphArgs {
+    /// The page in the middle.
+    pub page: String,
+    /// 1 (the pages it links to and that link to it) or 2 (one step further).
+    pub depth: u8,
+}
+
+/// A page of the local graph.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct GraphNodeView {
+    pub name: String,
+    /// No file behind it (only linked to).
+    pub is_virtual: bool,
+    /// 0 for the page itself, 1 and 2 for the steps away.
+    pub depth: u8,
+}
+
+/// A link between two pages of the local graph.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct GraphEdgeView {
+    pub from: String,
+    pub to: String,
+}
+
+/// The pages and links around a page (LN-9).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct LocalGraphView {
+    pub center: String,
+    pub nodes: Vec<GraphNodeView>,
+    pub edges: Vec<GraphEdgeView>,
+    /// There were more pages than the limit; the farthest are left out.
+    pub truncated: bool,
+}
+
 /// One row of the all-pages list.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct PageListRow {
@@ -526,6 +562,8 @@ pub struct PageListRow {
     pub blocks: u32,
     /// Number of blocks/pages that link here.
     pub backlinks: u32,
+    /// Number of other pages this page links to.
+    pub outgoing: u32,
     /// File modification time as `YYYY-MM-DD HH:MM` (UTC), if the page has a file.
     pub modified: Option<String>,
     /// The file, relative to the graph (to tell whether it is stored encrypted).

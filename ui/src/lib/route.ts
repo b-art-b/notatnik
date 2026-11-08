@@ -4,7 +4,7 @@ export type Route =
   | { kind: 'page'; name: string; zoom: number[] }
   | { kind: 'settings' }
   | { kind: 'agenda' }
-  | { kind: 'pages' }
+  | { kind: 'pages'; links?: 'none' }
   | { kind: 'property'; key: string; value: string | null }
   | { kind: 'blockprop'; key: string; value: string | null }
   | { kind: 'segment'; name: string }
@@ -53,7 +53,10 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/settings') return { kind: 'settings' }
   if (path === '/agenda') return { kind: 'agenda' }
-  if (path === '/pages') return { kind: 'pages' }
+  if (path === '/pages')
+    return new URLSearchParams(query).get('links') === 'none'
+      ? { kind: 'pages', links: 'none' }
+      : { kind: 'pages' }
   if (path.startsWith('/segment/'))
     return { kind: 'segment', name: decodeURIComponent(path.slice('/segment/'.length)) }
   if (path.startsWith('/property/')) {
@@ -83,7 +86,7 @@ function plainHash(r: Route): string {
     case 'agenda':
       return '#/agenda'
     case 'pages':
-      return '#/pages'
+      return r.links === 'none' ? '#/pages?links=none' : '#/pages'
     case 'segment':
       return `#/segment/${encodeURIComponent(r.name)}`
     case 'property':

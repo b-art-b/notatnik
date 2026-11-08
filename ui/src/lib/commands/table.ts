@@ -7,6 +7,7 @@ import {
   toggleLeft,
   toggleRight,
   toggleRightFocus,
+  openLocalGraph,
 } from '../stores/app.svelte'
 import { openDocs } from '../stores/pages.svelte'
 import { isFavorite, setFavorite } from '../stores/favorites.svelte'
@@ -106,6 +107,15 @@ export const commands: Command[] = [
   },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
+  // LN-13: the pages that no page links to and that link to no page
+  {
+    id: 'pages-no-links',
+    title: 'Pages with no links',
+    keys: '',
+    run: () => navigate({ kind: 'pages', links: 'none' }),
+  },
+  // LN-9: the page, what it links to and what links to it, as a tab of the side panel
+  { id: 'local-graph', title: 'Local graph', keys: '', run: openLocalGraph },
   { id: 'settings', title: 'Settings', keys: '', run: () => navigate({ kind: 'settings' }) },
   { id: 'toggle-sidebar', title: 'Show or hide the sidebar', keys: 'Ctrl+\\', run: toggleLeft },
   { id: 'toggle-side-panel', title: 'Show or hide the side panel', keys: 'Ctrl+Shift+\\', run: toggleRight },

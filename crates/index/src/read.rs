@@ -1177,6 +1177,33 @@ pub struct SubPage {
     pub file_path: Option<String>,
 }
 
+/// A page in [`LinkGraph`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GraphNode {
+    pub name: String,
+    /// No file behind it (only linked to).
+    pub is_virtual: bool,
+    /// 0 for the page itself, 1 for pages it links to or that link to it, 2 for one step further.
+    pub depth: u8,
+}
+
+/// A link from one page of [`LinkGraph`] to another.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct GraphEdge {
+    pub from: String,
+    pub to: String,
+}
+
+/// The pages and links around a page (LN-9).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LinkGraph {
+    pub center: String,
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+    /// More pages than the limit: the farthest were left out.
+    pub truncated: bool,
+}
+
 /// One row of the "all pages" list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PageRow {
@@ -1188,8 +1215,10 @@ pub struct PageRow {
     pub is_journal: bool,
     /// Blocks in the page (without the preamble).
     pub blocks: usize,
-    /// Blocks and pages elsewhere that link to it (page links, tags, embeds).
+    /// Blocks and pages elsewhere that link to it (page links, tags, embeds; also through an alias).
     pub backlinks: usize,
+    /// Other pages it links to (page links, tags, embeds; also through an alias).
+    pub outgoing: usize,
     /// File modification time, nanoseconds since the Unix epoch.
     pub mtime_ns: Option<i64>,
     /// The file, relative to the graph.
@@ -1248,16 +1277,23 @@ impl Index {
     /// Every page (files and referenced-only pages) with a few counts, ordered by name.
     pub fn all_pages(&self) -> Result<Vec<PageRow>> {
         // grouped once instead of one subquery per page (10,000 pages: 4 s -> tens of ms)
+        // `tk`: every key a link can use for a page (its own and its aliases)
         let sql = "WITH bc AS (SELECT page_id, COUNT(*) n FROM blocks WHERE is_preamble = 0 GROUP BY page_id),
-                        bl AS (SELECT p2.id AS pid, COUNT(*) n
-                               FROM (SELECT DISTINCT src_page_id, COALESCE(src_block_id, 0) AS b, target_key
-                                     FROM refs WHERE kind IN ('page','tag','page_embed')) r
-                               JOIN pages p2 ON p2.key = r.target_key
-                               WHERE r.src_page_id <> p2.id GROUP BY p2.id)
-                   SELECT p.name, p.is_virtual, p.is_journal, COALESCE(bc.n, 0), COALESCE(bl.n, 0), f.mtime_ns, p.file_path
+                        tk AS (SELECT key AS k, id FROM pages UNION SELECT alias_key, page_id FROM aliases),
+                        lk AS (SELECT DISTINCT src_page_id, COALESCE(src_block_id, 0) AS b, target_key
+                               FROM refs WHERE kind IN ('page','tag','page_embed')),
+                        bl AS (SELECT tk.id AS pid, COUNT(*) n
+                               FROM lk JOIN tk ON tk.k = lk.target_key
+                               WHERE lk.src_page_id <> tk.id GROUP BY tk.id),
+                        ol AS (SELECT lk.src_page_id AS pid, COUNT(DISTINCT tk.id) n
+                               FROM lk JOIN tk ON tk.k = lk.target_key
+                               WHERE lk.src_page_id <> tk.id GROUP BY lk.src_page_id)
+                   SELECT p.name, p.is_virtual, p.is_journal, COALESCE(bc.n, 0), COALESCE(bl.n, 0), f.mtime_ns, p.file_path,
+                          COALESCE(ol.n, 0)
                    FROM pages p
                    LEFT JOIN bc ON bc.page_id = p.id
                    LEFT JOIN bl ON bl.pid = p.id
+                   LEFT JOIN ol ON ol.pid = p.id
                    LEFT JOIN files f ON f.path = p.file_path
                    ORDER BY p.key";
         let mut st = self.conn.prepare_cached(sql)?;
@@ -1271,10 +1307,116 @@ impl Index {
                     backlinks: r.get::<_, i64>(4)? as usize,
                     mtime_ns: r.get(5)?,
                     file_path: r.get(6)?,
+                    outgoing: r.get::<_, i64>(7)? as usize,
                 })
             })?
             .collect::<std::result::Result<_, _>>()?;
         Ok(rows)
+    }
+
+    /// The pages and links around `name` (LN-9): the page (depth 0), the pages it links to and the pages that link to
+    /// it (depth 1) and, with `depth` 2, those one step further; and the links between all of the pages kept. At most
+    /// `max` pages: nearer ones first, then by name.
+    pub fn link_graph(&self, name: &str, depth: u8, max: usize) -> Result<LinkGraph> {
+        let key = PageName::parse(name)
+            .map(|n| n.lookup_key())
+            .unwrap_or_else(|_| search_fold(name));
+        let Some(center) = self.resolve_page_id(&key)? else {
+            return Ok(LinkGraph {
+                center: name.to_string(),
+                nodes: vec![GraphNode {
+                    name: name.to_string(),
+                    is_virtual: true,
+                    depth: 0,
+                }],
+                edges: Vec::new(),
+                truncated: false,
+            });
+        };
+        // the pages `id` links to, and the pages that link to `id`; names are folded keys for the order
+        let outgoing = |id: i64| -> Result<Vec<i64>> {
+            let mut st = self.conn.prepare_cached(
+                "SELECT DISTINCT tk.id FROM refs r
+                 JOIN (SELECT key AS k, id FROM pages UNION SELECT alias_key, page_id FROM aliases) tk ON tk.k = r.target_key
+                 WHERE r.src_page_id = ?1 AND r.kind IN ('page','tag','page_embed') AND tk.id <> ?1",
+            )?;
+            let rows = st
+                .query_map([id], |r| r.get(0))?
+                .collect::<std::result::Result<_, _>>()?;
+            Ok(rows)
+        };
+        let incoming = |id: i64| -> Result<Vec<i64>> {
+            let mut st = self.conn.prepare_cached(
+                "SELECT DISTINCT r.src_page_id FROM refs r
+                 JOIN (SELECT key AS k, id FROM pages UNION SELECT alias_key, page_id FROM aliases) tk ON tk.k = r.target_key
+                 WHERE tk.id = ?1 AND r.kind IN ('page','tag','page_embed') AND r.src_page_id <> ?1",
+            )?;
+            let rows = st
+                .query_map([id], |r| r.get(0))?
+                .collect::<std::result::Result<_, _>>()?;
+            Ok(rows)
+        };
+        let info = |id: i64| -> Result<(String, String, bool)> {
+            Ok(self.conn.query_row(
+                "SELECT name, key, is_virtual FROM pages WHERE id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0)),
+            )?)
+        };
+        let max = max.max(1);
+        let mut kept: Vec<(i64, u8)> = vec![(center, 0)];
+        let mut truncated = false;
+        let mut frontier = vec![center];
+        for level in 1..=depth.clamp(1, 2) {
+            let mut next: Vec<(String, i64)> = Vec::new();
+            for id in &frontier {
+                for n in outgoing(*id)?.into_iter().chain(incoming(*id)?) {
+                    if !kept.iter().any(|(k, _)| *k == n) && !next.iter().any(|(_, k)| *k == n) {
+                        next.push((info(n)?.1, n));
+                    }
+                }
+            }
+            next.sort();
+            frontier = Vec::new();
+            for (_, id) in next {
+                if kept.len() >= max {
+                    truncated = true;
+                    break;
+                }
+                kept.push((id, level));
+                frontier.push(id);
+            }
+        }
+        let mut nodes = Vec::new();
+        for (id, d) in &kept {
+            let (name, _, is_virtual) = info(*id)?;
+            nodes.push(GraphNode {
+                name,
+                is_virtual,
+                depth: *d,
+            });
+        }
+        let mut edges = Vec::new();
+        for (id, _) in &kept {
+            let from = info(*id)?.0;
+            let mut to: Vec<String> = Vec::new();
+            for t in outgoing(*id)? {
+                if kept.iter().any(|(k, _)| *k == t) {
+                    to.push(info(t)?.0);
+                }
+            }
+            to.sort();
+            edges.extend(to.into_iter().map(|to| GraphEdge {
+                from: from.clone(),
+                to,
+            }));
+        }
+        Ok(LinkGraph {
+            center: nodes[0].name.clone(),
+            nodes,
+            edges,
+            truncated,
+        })
     }
 
     /// Whether a page with this name exists as a file.
