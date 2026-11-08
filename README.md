@@ -8,7 +8,7 @@ A local-first, block-based outliner for personal knowledge management, inspired 
 - Daily journals, tasks, live queries and custom views (list / table / kanban / timeline).
 - Two-way CalDAV sync with Nextcloud Calendar.
 - Plugins (TypeScript, later WASM) and optional local AI (semantic search, chat with notes).
-- Linux desktop first, Android later.
+- Linux desktop first; an Android app (same code, Nextcloud/WebDAV sync, home-screen widgets) is built and in use, see [docs/phases/phase-8.md](docs/phases/phase-8.md).
 
 ## Documentation
 

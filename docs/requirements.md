@@ -475,7 +475,10 @@ A **graph** is a folder of notes.
 | IN-4 | Nextcloud Deck / Notes import or export.                                            | Later    |
 | IN-5 | Export: page or namespace to HTML / PDF; publish a static site from a namespace.    | Later    |
 
-## 16. Android (later phase)
+## 16. Android
+
+The Android app exists and is in use (state: [phases/phase-8.md](phases/phase-8.md)); `Later` below marks a requirement that is not
+complete yet, not a missing app.
 
 | ID   | Requirement                                                                                                                        | Priority |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- |

@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">"Notatnik"</string>
     <string name="main_activity_title">"Notatnik"</string>
-    <string name="capture_widget_description">Add a line to today's journal</string>
+    <string name="capture_widget_description">Add a line to today\'s journal</string>
     <string name="capture_hint">Add to journal…</string>
     <string name="capture_add">Add</string>
     <string name="capture_cancel">Cancel</string>
@@ -9,7 +9,7 @@
     <string name="capture_empty">There is nothing to add.</string>
     <string name="capture_saved">Saved. It is added to the journal when Notatnik runs.</string>
     <string name="capture_set_up">Open Notatnik once first.</string>
-    <string name="tasks_widget_description">Today's tasks and the overdue ones</string>
+    <string name="tasks_widget_description">Today\'s tasks and the overdue ones</string>
     <string name="tasks_title">Today</string>
     <string name="tasks_none">Nothing due today</string>
     <string name="tasks_refresh">Open the app to refresh</string>

@@ -22,6 +22,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/phases/format-keys.md`: bold, italic, strike, highlight and code keys for the selected text in the block editor, Ctrl+B stays cursor-left without a selection (FK-1..FK-7)
 - `docs/phases/template-choices.md`: `{{askchoice:Label|a|b|c}}` in templates, pick one of a list in the ask dialog (TC-1..TC-6)
 - `docs/phases/local-graph.md`: the Graph tab of the side panel (the page, its links and backlinks) and the list of pages with no links (LN-9, LN-13)
+- `docs/phases/phase-8.md`: Android; its top block says what is built (the app, sync, Keystore, widgets) and what is open; `docs/phases/android-sync.md` replaces P8.3 to P8.7
 - `docs/phases/android-widgets.md`: Android home-screen widgets, a capture bar (queue drained by the app) and today's tasks (snapshot file), and the capture screen (AN-5..AN-7, AW1..AW6)
 - `docs/phases/multi-graph.md`: two graphs open at once, notes moved between them, a color per graph (MG-1..MG-6)
 - `docs/install.md`: installing on Linux, `scripts/release.sh`, versions
@@ -63,6 +64,8 @@ make help                   # the same as short names: make check, make deb, mak
 Node is installed with fnm: `export PATH="$HOME/.local/share/fnm/node-versions/v24.21.0/installation/bin:$PATH"`.
 
 ## Rules
+
+- Status documents lag behind the code. Before saying that something is missing, not started or not available, check the code and `git log` (`git log --oneline -i --grep=<topic>`, `ls`/`grep` for the files), and when a status document disagrees with the code, fix the document in the same change.
 
 - Never build another checkout (a `git worktree`, an old commit) into this repo's `target/`; use `CARGO_TARGET_DIR=...`. Otherwise Cargo reuses artifacts by crate id and the browser tests run against a stale `notatnik-dev-server`.
 - Don't start implementing a phase until the user asks; follow the task order and Verify steps in the phase doc.

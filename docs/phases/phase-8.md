@@ -3,6 +3,19 @@
 **Goal:** the same app on your Android phone, focused on capture, journals, search, tasks and
 reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV sync).
 
+**Where Android stands (2026-11-08): the app exists and is in use on a phone.** Do not read the unticked boxes below as
+"not started": most of this phase was done in other documents and the boxes here were not all kept up to date.
+
+- **Built:** the Tauri Android project (`src-tauri/gen/android`, tracked), debug and signed release APK (`scripts/android.sh`,
+  PL-3), system-bar and keyboard padding, phone layout of the start screen and Settings, the graph in app-private storage,
+  WebDAV/Nextcloud sync with the login in the Android Keystore and a sync on coming back to the foreground (**replaces
+  P8.3 to P8.7**: [android-sync.md](android-sync.md)), the capture screen and the home-screen widgets
+  ([android-widgets.md](android-widgets.md), AN-5..AN-7).
+- **Open:** the share target (P8.13), CalDAV on Android (P8.14), the full mobile layout (P8.8 to P8.11, bottom bar), background
+  sync (WorkManager), release/Play packaging beyond the signed APK (P8.15), and the device checks listed in each Verify
+  block (the emulator was the test device; the maintainer now runs the app on a phone).
+- **To find out what is true, look at the code and `git log --grep=android`, not only at the checkboxes.**
+
 **Requirements covered:** PL-3, NC-3, AN-1–4, IN-1 (share target), PG-7.
 **Depends on:** phases 1–5 (phase 6/7 features are added where they work on mobile).
 

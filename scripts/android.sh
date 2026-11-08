@@ -61,7 +61,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 case "${1:-}" in
   init) cargo tauri android init ;;
   dev) shift; cargo tauri android dev "$@" ;;
-  test) (cd src-tauri/gen/android && ./gradlew :app:testDebugUnitTest) ;;
+  test) (cd src-tauri/gen/android && ./gradlew :app:testUniversalDebugUnitTest) ;;
   build)
     shift
     args=("${@:---debug}")

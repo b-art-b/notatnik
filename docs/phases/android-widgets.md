@@ -14,7 +14,12 @@ app to load), and a **list of today's tasks**. Both are native Android widgets: 
 **Requirements covered:** AN-2 (quick capture), new AN-5 to AN-7 (see `requirements.md`); P8.12 of `phase-8.md`.
 **Depends on:** the Android shell and sync (`android-sync.md`, AS4: sync on resume), the device folders of the app
 (`device_dirs`, below the app's data folder on Android), the agenda/task queries, encryption (EN-\*: encrypted pages).
-**Status:** AW1 to AW5 built (Rust and browser tests pass; Kotlin builds, see each Verify); the checks on a device (AW6) are open.
+**Status:** AW1 to AW5 built. Rust, browser and Kotlin unit tests pass; the debug APK builds (x86_64). On the tablet
+emulator (2026-11-08): `notatnik://capture` opened the capture screen in the running app, `notatnik://page/<day>` opened the
+page from a cold start, and a line appended by hand to `capture-queue.jsonl` was added to today's journal when the app came
+back to the foreground (queue removed, id kept in `capture-applied.json`); `today.json` was written with the graph's id.
+**Not checked yet:** placing the widgets on a home screen, the capture dialog itself (it cannot be started from `adb`;
+it needs the widget's tap), the tasks list with real tasks, light/dark and font scale, and everything on the phone (AW6).
 
 ## Decisions
 
