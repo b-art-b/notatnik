@@ -45,4 +45,4 @@ writing one graph, and two sync loops on one server folder, are not supported).
 
 ## With make
 
-The `Makefile` gives the commands short names; `make help` lists them. `make deb` builds the package, `make install` installs the newest `.deb` of the current version (building it first when there is none; it asks for sudo), `make uninstall` removes it, `make release RELEASE=X.Y.Z` is `scripts/release.sh X.Y.Z`, `make check` and `make dev` run the check script and the dev app.
+The `Makefile` gives the commands short names; `make help` lists them. `make deb` builds the package, `make install` installs the newest `.deb` of the current version (building it first when there is none; it asks for sudo), `make reinstall` builds the package again (only what changed is compiled) and installs it over the installed app, which is what you want after changing code (`make install` alone installs the newest `.deb` that already exists; `make clean` is not needed and throws the build cache away), `make uninstall` removes it, `make release RELEASE=X.Y.Z` is `scripts/release.sh X.Y.Z`, `make check` and `make dev` run the check script and the dev app.

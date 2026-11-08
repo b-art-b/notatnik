@@ -12,7 +12,7 @@ DEB_DIR := target/release/bundle/deb
 DEB = $(shell ls -t dist/*$(VERSION)*.deb $(DEB_DIR)/*$(VERSION)*.deb 2>/dev/null | head -1)
 
 .DEFAULT_GOAL := help
-.PHONY: help build test check check-webkit bindings dev deb install uninstall release version clean
+.PHONY: help build test check check-webkit bindings dev deb install reinstall uninstall release version clean
 .PHONY: android-doctor android-apk android-apk-debug android-install android-dev
 .PHONY: ios-team ios-doctor ios-check ios-init ios-dev ios-ipa ios-first-run
 
@@ -50,6 +50,10 @@ install: ## install the newest .deb of this version (builds it when there is non
 	test -n "$$deb" || { echo "no .deb found"; exit 1; }; \
 	echo "installing $$deb"; \
 	sudo apt install -y --reinstall "$(CURDIR)/$$deb"
+
+reinstall: ## build the .deb again (incrementally) and install it over the installed app; asks for sudo
+	$(MAKE) deb
+	$(MAKE) install
 
 uninstall: ## remove the installed app (graphs and settings stay)
 	sudo apt remove -y notatnik
