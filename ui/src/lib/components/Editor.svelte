@@ -763,6 +763,12 @@
     void editing.focusNonce
     untrack(() => focus())
   })
+  /** True while a picker (templates, dates, emoji, files ...) is open: the draft of a new page waits with turning
+   * itself into a block, because that would unmount this editor and close the picker under the user's hand. */
+  export function pickerOpen(): boolean {
+    return picker !== null
+  }
+
   export function getText(): string {
     return currentText()
   }

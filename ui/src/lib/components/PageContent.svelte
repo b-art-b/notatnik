@@ -13,6 +13,7 @@
   import DayEvents from './DayEvents.svelte'
   import Hierarchy from './Hierarchy.svelte'
   import Editor from './Editor.svelte'
+  import { editorAction, type EditorAction } from '../commands/exec'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import { hasOtherGraph } from '../stores/workspace.svelte'
@@ -272,6 +273,31 @@
     const v = await doc.apply([{ op: 'insert', parent: [], index: 0, text }])
     const b = v?.blocks[0]
     if (b) startEditing(viewKey, doc.name, b.id, 'end')
+  }
+
+  // The draft of an empty page is not a block yet (nothing is written until you type). While a command is being
+  // typed or chosen (`/template`, a picker open) it must stay an editor: turning it into a block unmounts the
+  // editor, and the menu or picker the user is working in disappears with it.
+  let draftEditor = $state<Editor>()
+  const typingCommand = (t: string) => /(^|\s)\/[\w-]*$/.test(t)
+  function draftChanged(t: string) {
+    if (draftEditor?.pickerOpen() || typingCommand(t)) return
+    void commitDraft(t)
+  }
+
+  /** An action from the draft's editor. `/template` needs a block to insert after: the draft becomes the first block
+   * (with the text typed so far, empty too), and the action runs on it. Everything else is ignored, as before. */
+  async function draftAction(a: EditorAction): Promise<boolean> {
+    if (a.kind === 'escape') {
+      draft = false
+      return true
+    }
+    if (a.kind !== 'template') return true
+    draft = false
+    const v = await doc.apply([{ op: 'insert', parent: [], index: 0, text: a.text }])
+    const b = v?.blocks[0]
+    if (b) await editorAction({ doc, viewKey }, b.id, { ...a, prev: a.text })
+    return true
   }
   const isoTitle = $derived(view?.is_journal ? shownDate(view.name) : null)
   import PageIcon from './PageIcon.svelte'
@@ -592,14 +618,12 @@
           <div class="draft">
             <span class="draft-dot" aria-hidden="true"></span>
             <Editor
+              bind:this={draftEditor}
               text=""
               cursor="start"
               pageName={view.name}
-              onchange={commitDraft}
-              onaction={async (a) => {
-                if (a.kind === 'escape') draft = false
-                return true
-              }}
+              onchange={draftChanged}
+              onaction={draftAction}
               onundo={() => {}}
               onpaste={async () => false}
               onblur={(t) => {
