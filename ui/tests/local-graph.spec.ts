@@ -128,3 +128,33 @@ test('Pages with no links lists the unlinked pages only; linking one makes it le
   await expect(page.getByRole('heading', { name: /Pages with no links/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: 'Island', exact: true })).toHaveCount(0)
 })
+
+test('Settings can switch the local graph off: no palette command, the tab closes; remembered', async ({
+  backend,
+  page,
+}) => {
+  await page.setViewportSize({ width: 1500, height: 900 })
+  write(backend)
+  await backend.open('/page/Hub')
+  await palette(page, 'Local graph')
+  const side = page.getByTestId('side-panel')
+  await expect(side.getByRole('region', { name: 'Local graph' })).toBeVisible()
+  await page.getByRole('link', { name: 'Settings' }).click()
+  const sw = page.getByRole('switch', { name: 'Local graph' })
+  await expect(sw).toBeChecked()
+  await sw.click()
+  await expect(sw).not.toBeChecked()
+  await backend.open('/page/Hub')
+  await expect(page.getByRole('region', { name: 'Local graph' })).toHaveCount(0)
+  await page.keyboard.press('Control+k')
+  const dlg = page.getByRole('dialog', { name: 'Command palette' })
+  await dlg.getByLabel('Command or page').fill('Local graph')
+  await page.waitForTimeout(150)
+  await expect(dlg.getByRole('option', { name: /^Local graph/ })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await page.reload()
+  await page.keyboard.press('Control+k')
+  await dlg.getByLabel('Command or page').fill('Local graph')
+  await page.waitForTimeout(150)
+  await expect(dlg.getByRole('option', { name: /^Local graph/ })).toHaveCount(0)
+})

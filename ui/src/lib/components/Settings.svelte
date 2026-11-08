@@ -21,6 +21,7 @@
     LEFT_DEFAULT,
     setLeftWidth,
     setPlacement,
+    setShowGraph,
     toast,
     type Theme,
   } from '../stores/app.svelte'
@@ -723,6 +724,17 @@
                 { value: 'side', label: 'Side panel' },
               ]}
               onchange={(v) => setPlacement('tasks', v === 'side' ? 'side' : 'bottom')}
+            />
+          </SettingRow>
+          <SettingRow
+            title="Local graph"
+            description="Offer the local graph: the Local graph command in the palette and its Graph tab in the side panel. This device."
+            labelFor="show-graph"
+          >
+            <Switch
+              id="show-graph"
+              checked={app.showGraph}
+              onchange={(e) => setShowGraph((e.currentTarget as HTMLInputElement).checked)}
             />
           </SettingRow>
           <SettingRow

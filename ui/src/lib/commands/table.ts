@@ -24,6 +24,8 @@ export interface Command {
   /** Handled inside the editor/selection code, listed here so the palette can show it. */
   editorOnly?: boolean
   run?: () => void
+  /** Left out of the palette while this answers false. */
+  available?: () => boolean
 }
 
 export const commands: Command[] = [
@@ -115,7 +117,7 @@ export const commands: Command[] = [
     run: () => navigate({ kind: 'pages', links: 'none' }),
   },
   // LN-9: the page, what it links to and what links to it, as a tab of the side panel
-  { id: 'local-graph', title: 'Local graph', keys: '', run: openLocalGraph },
+  { id: 'local-graph', title: 'Local graph', keys: '', run: openLocalGraph, available: () => app.showGraph },
   { id: 'settings', title: 'Settings', keys: '', run: () => navigate({ kind: 'settings' }) },
   { id: 'toggle-sidebar', title: 'Show or hide the sidebar', keys: 'Ctrl+\\', run: toggleLeft },
   { id: 'toggle-side-panel', title: 'Show or hide the side panel', keys: 'Ctrl+Shift+\\', run: toggleRight },

@@ -10,7 +10,11 @@
   let input: HTMLInputElement | undefined = $state()
   $effect(() => input?.focus())
 
-  const cmds = $derived(commands.filter((c) => c.run && c.title.toLowerCase().includes(q.toLowerCase())))
+  const cmds = $derived(
+    commands.filter(
+      (c) => c.run && (c.available?.() ?? true) && c.title.toLowerCase().includes(q.toLowerCase()),
+    ),
+  )
   type Item = { label: string; detail: string; run: () => void; create?: boolean }
   // a name that matches no page can be created right here (Logseq's "Create page"); it is the last row, so a page or command that matches wins Enter (Ctrl+Enter always creates)
   const creatable = $derived(

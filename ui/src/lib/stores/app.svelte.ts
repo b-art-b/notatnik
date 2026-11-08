@@ -84,6 +84,15 @@ function loadPlacement(): Placement {
   }
 }
 
+/** Whether the local graph is offered (device setting, on by default). */
+function loadShowGraph(): boolean {
+  try {
+    return localStorage.getItem('notatnik-show-graph') !== 'no'
+  } catch {
+    return true
+  }
+}
+
 const wideQuery =
   typeof window.matchMedia === 'function' ? window.matchMedia(`(min-width: ${WIDE_PX}px)`) : null
 
@@ -117,6 +126,8 @@ export const app = $state({
   rightPanels: [] as string[],
   /** The local graph (LN-9) is open as a tab of the right panel. */
   graphTab: false,
+  /** The local graph is offered: the palette command and the tab (Settings → Appearance, this device). */
+  showGraph: loadShowGraph(),
   paletteOpen: false,
   searchOpen: false,
   /** A page that was just created from the dialog: its first block opens for typing. */
@@ -210,8 +221,22 @@ export function setRightTab(tab: 'refs' | 'tasks' | 'pages' | 'document' | 'grap
   }
 }
 
+export function setShowGraph(on: boolean) {
+  app.showGraph = on
+  if (!on) {
+    app.graphTab = false
+    if (app.rightTab === 'graph') setRightTab('refs')
+  }
+  try {
+    localStorage.setItem('notatnik-show-graph', on ? 'yes' : 'no')
+  } catch {
+    /* not remembered */
+  }
+}
+
 /** Opens the local graph of the current page as a tab of the right panel (LN-9). */
 export function openLocalGraph() {
+  if (!app.showGraph) return
   app.graphTab = true
   app.rightOpen = true
   app.rightFocus = false
