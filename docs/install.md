@@ -25,10 +25,16 @@ Graphs and settings live in the graph folders and the user's config directory, n
 upgrading and removing never touch notes. Keep the old `.deb` files if you want to go back: nothing archives them. Take a
 backup (Settings → Backup) before a big upgrade.
 
-## iPad (and Android): not available yet
+## Android and iPad
 
-There is no installable iPad or Android app. The iPad app needs a Mac with Xcode to build and sign; the steps and the helper
-script (`scripts/ios.sh`) are in [phases/ipad.md](phases/ipad.md). Android is [phase 8](phases/phase-8.md); it can be built on Linux (`scripts/android.sh`).
+**Android:** `scripts/android.sh build` (debug APK) or `scripts/android.sh build --release --target aarch64` (signed with the key in
+`~/.config/notatnik-android`, PL-3) writes the APK to `dist/`; `adb install -r dist/<file>.apk` installs it over the old one. The
+app keeps its graph in its own storage and syncs with a Nextcloud/WebDAV folder ([phases/android-sync.md](phases/android-sync.md)); the
+home screen can have a capture bar and a list of today's tasks ([phases/android-widgets.md](phases/android-widgets.md)). Phase 8 lists what is
+still open ([phases/phase-8.md](phases/phase-8.md)).
+
+**iPad:** not installable yet. It needs a Mac with Xcode to build and sign; the steps and the helper script (`scripts/ios.sh`) are in
+[phases/ipad.md](phases/ipad.md).
 
 ## Not available yet
 

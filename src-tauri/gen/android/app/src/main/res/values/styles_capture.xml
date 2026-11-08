@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dialog of the capture widget: a small window over the home screen. -->
+    <style name="Theme.Notatnik.Capture" parent="Theme.AppCompat.DayNight.Dialog" />
+</resources>

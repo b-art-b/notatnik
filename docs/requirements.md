@@ -477,12 +477,15 @@ A **graph** is a folder of notes.
 
 ## 16. Android (later phase)
 
-| ID   | Requirement                                                                                          | Priority |
-| ---- | ---------------------------------------------------------------------------------------------------- | -------- |
-| AN-1 | Same core (Rust) and UI (Svelte) via Tauri Android. Mobile layout with touch-friendly block editing. | Later    |
-| AN-2 | Quick capture to today's journal (home-screen widget / share target).                                | Later    |
-| AN-3 | Graph stored in app storage, synced via built-in WebDAV (NC-3).                                      | Later    |
-| AN-4 | Reads tasks and calendar through the same CalDAV sync (no dependency on DAVx⁵).                      | Later    |
+| ID   | Requirement                                                                                                                        | Priority |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| AN-1 | Same core (Rust) and UI (Svelte) via Tauri Android. Mobile layout with touch-friendly block editing.                               | Later    |
+| AN-2 | Quick capture to today's journal (home-screen widget / share target).                                                              | Later    |
+| AN-3 | Graph stored in app storage, synced via built-in WebDAV (NC-3).                                                                    | Later    |
+| AN-4 | Reads tasks and calendar through the same CalDAV sync (no dependency on DAVx⁵).                                                    | Later    |
+| AN-5 | Capture screen: `#/capture` and `notatnik://capture` open straight to an input that appends to today's journal (or an inbox page). | Later    |
+| AN-6 | Home-screen widget (4×1) to capture a line without opening the app: a queue file the app drains on start and resume.               | Later    |
+| AN-7 | Home-screen widget (4×2) listing today's and overdue tasks from a snapshot file; encrypted pages are left out.                     | Later    |
 
 ## 17. Non-functional requirements
 

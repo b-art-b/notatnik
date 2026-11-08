@@ -2,6 +2,7 @@ import { backend, backendFor, CommandError, type Backend, type BlockOp, type Pag
 import { collapsedHashes } from '../tree'
 import { app, errorMessage, toast } from './app.svelte'
 import { bus } from './events.svelte'
+import { scheduleWidgetSync } from '../widgets'
 
 export type SaveStatus = 'saved' | 'saving' | 'error'
 
@@ -68,6 +69,7 @@ export class PageDoc {
           ops,
         })
         this.view = r.page
+        scheduleWidgetSync()
         if (r.template_error) toast(r.template_error, 'error')
         else if (r.template && r.template_added.length)
           toast(`Added ${r.template_added.join(', ')} from the template “${r.template}”.`)

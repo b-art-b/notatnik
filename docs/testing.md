@@ -263,3 +263,12 @@ server (also: marking on a local graph, connecting, the lock in the lists). `cra
 The sync engine and the app are tested against `notatnik-sync`'s in-memory WebDAV server (`fakedav` feature; the
 browser tests start its binary `notatnik-fakedav`). Runs against a real Nextcloud are `#[ignore]` tests that read
 the server and login from environment variables and clean up after themselves; see [webdav.md](webdav.md).
+
+## Android widgets (AN-5 to AN-7)
+
+- Rust: `crates/app/src/state/widgets.rs` (queue drain: order, crash replay, other graph, broken line; the day of a line; task text) and
+  `crates/app/tests/app.rs` (`capture_*`, `widgets_sync_*`, `the_task_snapshot_*`, encrypted pages left out).
+- UI: `ui/src/lib/widgets.test.ts` (the `notatnik://` links), `ui/tests/capture.spec.ts` (the capture screen on a phone-sized viewport).
+- Kotlin: `src-tauri/gen/android/app/src/test/.../WidgetDataTest.kt` (snapshot parsing, staleness, the queue line) runs with
+  `scripts/android.sh test`. The widgets themselves are checked on the emulator and the phone by hand (the Verify lists of
+  `phases/android-widgets.md`): no browser test can place a home-screen widget.

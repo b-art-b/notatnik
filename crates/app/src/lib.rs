@@ -11,7 +11,8 @@ mod ts;
 pub mod views;
 
 pub use state::{
-    ApiError, ApiResult, AppOptions, AppState, Emitter, MemorySecrets, Secrets, asset_content_type,
+    ApiError, ApiResult, AppOptions, AppState, Emitter, MemorySecrets, NoWidgets, Secrets, Widgets,
+    asset_content_type,
 };
 pub use ts::typescript_bindings;
 
@@ -233,6 +234,9 @@ commands! {
     calendar_move_inbox_copies(NoArgs) -> MovedCopies => calendar_move_inbox_copies,
     calendar_pause(CalendarPauseArgs) -> CalendarStatus => calendar_pause,
     calendar_set_color(CalendarColorArgs) -> CalendarStatus => calendar_set_color,
+    capture(CaptureArgs) -> StringValue => capture,
+    widgets_sync(NoArgs) -> WidgetsReport => widgets_sync,
+    take_link(NoArgs) -> StringValue => take_link,
     calendar_log(NoArgs) -> Vec<CalendarLogEntry> => calendar_log,
     calendar_use_other_value(CalendarUseOtherArgs) -> CalendarSyncReport => calendar_use_other_value,
     calendar_forget(NoArgs) -> CalendarStatus => calendar_forget,

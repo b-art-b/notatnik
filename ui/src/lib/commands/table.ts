@@ -107,6 +107,8 @@ export const commands: Command[] = [
       if (app.route.kind === 'page') app.subpageFor = app.route.name
     },
   },
+  // AN-5: one input that adds a line to today's journal
+  { id: 'capture', title: 'Capture a note', keys: '', run: () => navigate({ kind: 'capture' }) },
   { id: 'journals', title: 'Go to journals', keys: '', run: () => navigate({ kind: 'journals' }) },
   { id: 'all-pages', title: 'Go to all pages', keys: '', run: () => navigate({ kind: 'pages' }) },
   // LN-13: the pages that no page links to and that link to no page

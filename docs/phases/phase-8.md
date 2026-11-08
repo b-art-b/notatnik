@@ -186,8 +186,9 @@ session only.
 
 ### P8.12 Quick capture (AN-2)
 
-- [ ] Capture screen (opens straight to an input) → appends to today's journal (or a configured inbox page)
-- [ ] Home-screen shortcut (app shortcut) to capture; widget as a stretch goal (needs native Kotlin code)
+- [x] Capture screen (opens straight to an input) → appends to today's journal (`#/capture`, `notatnik://capture`; an inbox page is not configurable yet)
+- [ ] Home-screen shortcut (app shortcut) to capture
+- [x] Widgets: a capture bar and today's tasks ([android-widgets.md](android-widgets.md)); checked on a device: open
 
 **Verify**
 

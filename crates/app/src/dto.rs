@@ -2554,3 +2554,25 @@ pub struct LocalOpened {
     /// For `backend.assetUrl` and `annotation_page`: `local/<token>`.
     pub path: String,
 }
+
+/// `capture`: one line added as the last block of a page (AN-5).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct CaptureArgs {
+    /// The text.
+    pub text: String,
+    /// The page; none or empty = today's journal.
+    pub page: Option<String>,
+}
+
+/// `widgets_sync` result (AN-6, AN-7).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+pub struct WidgetsReport {
+    /// Captured lines added to the graph.
+    pub drained: u32,
+    /// Lines for another graph, left in the queue.
+    pub kept: u32,
+    /// Lines that could not be added (kept in a file beside the queue).
+    pub failed: u32,
+    /// Tasks in the snapshot the task widget draws.
+    pub tasks: u32,
+}

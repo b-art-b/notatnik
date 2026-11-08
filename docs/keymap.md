@@ -205,7 +205,7 @@ The list at the left has ten sections in four groups: **Look and feel** (_Appear
 
 ## Local graph and pages with no links (LN-9, LN-13)
 
-- **Local graph** (palette, **Ctrl+K**): a tab _Graph_ in the right side panel (it opens the panel if it is hidden): the page you are on in the middle, the pages it links to and the pages that link to it around it (links, tags and page embeds, also through an alias; a link to the page itself and block references are not drawn), and the links between those pages. An arrow shows the direction. **1 step / 2 steps** set how far it reaches; **Only this namespace** keeps the pages of one namespace (the page itself stays). At most 60 pages are drawn, the nearest first, and it says so. Each page is a link (Tab to it, Enter opens it; the graph is then drawn around that page); long names are shortened in the picture and whole in the tooltip and in the lists below it (_Links to_, _Linked from_, _Further away_). × closes it. A page that is linked to by nobody and links to nobody says so. There is no picture of the whole graph.
+- **Local graph** (palette, **Ctrl+K**): a tab _Graph_ in the right side panel (it opens the panel if it is hidden): the page you are on in the middle, the pages it links to and the pages that link to it around it (links, tags and page embeds, also through an alias; a link to the page itself and block references are not drawn), and the links between those pages. An arrow shows the direction. **1 step / 2 steps** set how far it reaches; **Only this namespace** keeps the pages of one namespace (the page itself stays). At most 60 pages are drawn, the nearest first, and it says so. Each page is a link (Tab to it, Enter opens it; the graph is then drawn around that page); long names are shortened in the picture and whole in the tooltip and in the lists below it (_Links to_, _Linked from_, _Further away_). × closes it. A page that is linked to by nobody and links to nobody says so. There is no picture of the whole graph. **Settings → Appearance → Local graph** (a switch, on by default, this device) hides the command and closes the tab.
 - **Pages with no links** (palette, or _Only pages with no links_ in **All pages**): the pages that no page links to and that link to no page, so islands can be linked or deleted. Journal days, hidden/archived pages (unless _Hidden pages_ says so) and pages that only exist because something links to them are left out. Linking a page from elsewhere makes it leave the list. The address is `#/pages?links=none`.
 
 ## Block menu: copy a reference
@@ -544,3 +544,16 @@ A reference shows the linking block **with all its sub-bullets**, editable in pl
 A page ends with **Linked references** (blocks and pages that link to it) and **Unlinked references** (plain-text mentions of its name or
 aliases outside links, code and tags). Open the unlinked panel to search; **Link** turns the first mention in that block into `[[Page]]` (or
 `[[Page|mention]]` when written differently) and can be undone.
+
+## Android: capture screen and home-screen widgets (AN-5 to AN-7)
+
+- **Capture** (palette, **Ctrl+K**, or the link `notatnik://capture`): one input, focused; **Add** (or **Ctrl+Enter**) puts the text
+  as the last block of today's journal and goes back; **Cancel** (or Esc) writes nothing. An empty line says so.
+- **Widget "Add to journal…"** (4×1): a tap opens a small dialog over the home screen. **Add** keeps the line on the phone;
+  the app adds it to the journal of the day it was typed the next time it runs (start, coming to the foreground), and the
+  sync sends it on. **Open in app** goes to the capture screen. If the app has never run, the dialog asks to open it once.
+- **Widget "Today"** (4×2, resizable): today's tasks first, then the overdue ones (at most 20, by priority). A row opens its page, the
+  header the agenda. It shows _Nothing due today_, _Open the app to refresh_ (the list is from another day) or _Open Notatnik to
+  set up_. Tasks on encrypted pages are never listed. It follows the system light/dark theme.
+- The widgets read two files in the app's private storage (`widgets/capture-queue.jsonl`, `widgets/today.json`); they are not
+  part of the graph, are not synced and not in a backup.

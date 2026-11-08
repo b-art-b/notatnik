@@ -3121,6 +3121,9 @@ export type Commands = {
   calendar_move_inbox_copies: { args: NoArgs; result: MovedCopies };
   calendar_pause: { args: CalendarPauseArgs; result: CalendarStatus };
   calendar_set_color: { args: CalendarColorArgs; result: CalendarStatus };
+  capture: { args: CaptureArgs; result: StringValue };
+  widgets_sync: { args: NoArgs; result: WidgetsReport };
+  take_link: { args: NoArgs; result: StringValue };
   calendar_log: { args: NoArgs; result: CalendarLogEntry[] };
   calendar_use_other_value: { args: CalendarUseOtherArgs; result: CalendarSyncReport };
   calendar_forget: { args: NoArgs; result: CalendarStatus };

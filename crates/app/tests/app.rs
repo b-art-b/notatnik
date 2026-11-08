@@ -7582,3 +7582,136 @@ fn the_text_of_an_epub_highlight_is_found_by_the_search() {
     let block = t.ok("get_block", json!({"uid": "a1b2c3"})).to_string();
     assert!(block.contains("epubcfi(/6/14!/4/2/1,:20,:97)"), "{block}");
 }
+
+// ---- Android widgets (AN-5..AN-7, docs/phases/android-widgets.md) ---------------------------------
+
+/// `capture` puts a line at the end of today's journal and of any page named; empty text is refused.
+#[test]
+fn capture_adds_a_block_at_the_end_of_the_journal_or_a_page() {
+    let t = start("tasks"); // today is 2026-10-03
+    t.ok("capture", json!({"text": "  first  ", "page": null}));
+    t.ok(
+        "capture",
+        json!({"text": "second\nwith a second line", "page": ""}),
+    );
+    let j = t.read("journals/2026/2026-10-03.md");
+    assert_eq!(j, "- first\n- second\n  with a second line\n");
+    let p = t.ok("capture", json!({"text": "to inbox", "page": "Inbox"}));
+    assert_eq!(p["value"], "Inbox");
+    assert!(t.read("pages/Inbox.md").contains("- to inbox\n"));
+    assert_eq!(
+        t.call("capture", json!({"text": "   ", "page": null}))
+            .unwrap_err()
+            .code,
+        "invalid"
+    );
+}
+
+fn write_queue(t: &T, lines: &[Value]) {
+    let dir = t.tmp.path().join("device/data/widgets");
+    std::fs::create_dir_all(&dir).unwrap();
+    let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    std::fs::write(dir.join("capture-queue.jsonl"), text).unwrap();
+}
+
+/// The queue of the widget's dialog becomes blocks of the day each line was typed, once, in order.
+#[test]
+fn widgets_sync_adds_the_queued_lines_to_the_day_they_were_typed() {
+    let t = start("tasks");
+    let g = t.ok("graph_info", json!({}))["id"].clone();
+    write_queue(
+        &t,
+        &[
+            json!({"id": "a", "graph": g, "text": "late last night", "at": "2026-10-02T23:58"}),
+            json!({"id": "b", "graph": "", "text": "this morning", "at": "2026-10-03T07:30:12"}),
+            json!({"id": "c", "graph": "another graph", "text": "elsewhere", "at": ""}),
+        ],
+    );
+    let r = t.ok("widgets_sync", json!({}));
+    assert_eq!(
+        (r["drained"].as_u64(), r["kept"].as_u64()),
+        (Some(2), Some(1))
+    );
+    assert!(
+        t.read("journals/2026/2026-10-02.md")
+            .ends_with("- late last night\n")
+    );
+    assert!(
+        t.read("journals/2026/2026-10-03.md")
+            .ends_with("- this morning\n")
+    );
+    // the same ids again (a crash that kept the file): nothing is added twice
+    write_queue(
+        &t,
+        &[json!({"id": "b", "graph": "", "text": "this morning", "at": "2026-10-03T07:30"})],
+    );
+    let r = t.ok("widgets_sync", json!({}));
+    assert_eq!(r["drained"], 0);
+    assert_eq!(
+        t.read("journals/2026/2026-10-03.md")
+            .matches("this morning")
+            .count(),
+        1
+    );
+}
+
+/// The snapshot has today's tasks and the overdue ones, not the undated ones; encrypted pages stay out.
+#[test]
+fn the_task_snapshot_has_today_and_overdue_and_leaves_encrypted_pages_out() {
+    let t = start("tasks");
+    let snap = || -> Value {
+        let s =
+            std::fs::read_to_string(t.tmp.path().join("device/data/widgets/today.json")).unwrap();
+        serde_json::from_str(&s).unwrap()
+    };
+    t.ok(
+        "capture",
+        json!({"text": "TODO captured task\nscheduled:: 2026-10-03", "page": "Plan"}),
+    );
+    let r = t.ok("widgets_sync", json!({}));
+    assert!(r["tasks"].as_u64().unwrap() >= 2, "{r}");
+    let s = snap();
+    assert_eq!(s["date"], "2026-10-03");
+    let tasks = s["tasks"].as_array().unwrap();
+    let first = &tasks[0];
+    assert_eq!(first["text"], "Due today");
+    assert_eq!(first["overdue"], false);
+    assert!(tasks.iter().any(|x| x["overdue"] == true), "{s}");
+    assert!(tasks.iter().any(|x| x["page"] == "Plan"), "{s}");
+    assert!(tasks.iter().all(|x| x["due"].is_string()));
+    // an unchanged graph does not rewrite the file
+    let before = std::fs::metadata(t.tmp.path().join("device/data/widgets/today.json"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    t.ok("widgets_sync", json!({}));
+    let after = std::fs::metadata(t.tmp.path().join("device/data/widgets/today.json"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    assert_eq!(before, after);
+    // the page of the first task becomes an encrypted one: its tasks are no longer in the file
+    let cfg = t.graph().join(".notatnik/config.toml");
+    std::fs::create_dir_all(cfg.parent().unwrap()).unwrap();
+    std::fs::write(
+        &cfg,
+        "[encryption]\nscope = \"marked\"\npaths = [\"pages/Plan.md\"]\n",
+    )
+    .unwrap();
+    let root = t.graph();
+    t.ok(
+        "open_graph",
+        json!({"path": root.to_str().unwrap(), "create": false}),
+    );
+    t.ok("widgets_sync", json!({}));
+    let s = snap();
+    assert!(
+        s["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|x| x["page"] != "Plan"),
+        "{s}"
+    );
+}

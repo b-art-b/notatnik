@@ -5,6 +5,7 @@
 #   scripts/android.sh dev      runs the app on a connected phone or an emulator (`cargo tauri android dev`)
 #   scripts/android.sh build    builds a debug APK (`cargo tauri android build --apk --debug`); add --release for a
 #                               release build, which needs a signing key (docs/phases/phase-8.md)
+#   scripts/android.sh test     the Kotlin unit tests (the widget data), on the JVM
 #   scripts/android.sh doctor   only reports what is found and what is missing
 # The SDK is looked for in $ANDROID_HOME, else ~/Android/Sdk; it needs `platform-tools`, a `platforms;android-NN`, a
 # `build-tools;NN` and an `ndk;NN` installed with `sdkmanager` (after `sdkmanager --licenses`).
@@ -60,6 +61,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 case "${1:-}" in
   init) cargo tauri android init ;;
   dev) shift; cargo tauri android dev "$@" ;;
+  test) (cd src-tauri/gen/android && ./gradlew :app:testDebugUnitTest) ;;
   build)
     shift
     args=("${@:---debug}")
@@ -85,7 +87,7 @@ case "${1:-}" in
     echo "APK: dist/$name.apk"
     ;;
   *)
-    echo "usage: scripts/android.sh init | dev | build | doctor" >&2
+    echo "usage: scripts/android.sh init | dev | build | test | doctor" >&2
     exit 2
     ;;
 esac

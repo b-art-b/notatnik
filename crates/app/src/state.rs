@@ -287,8 +287,10 @@ mod remote_docs;
 pub mod slots;
 mod syncing;
 mod transfer;
+mod widgets;
 use backupcfg::BackupCfg;
 pub use syncing::{MemorySecrets, Secrets};
+pub use widgets::{NoWidgets, Widgets};
 
 struct Open {
     /// Keeps other programs from opening this graph; released when the graph is closed or the program ends.
@@ -320,6 +322,8 @@ pub struct AppState {
     backup_keys: Arc<Mutex<HashMap<String, Unlocked>>>,
     /// Passwords of server logins.
     secrets: Arc<dyn Secrets>,
+    /// What only the platform can do for the home-screen widgets (Android).
+    widgets: Arc<dyn Widgets>,
     /// The unlocked key of the open graph's vault (EN-13, EN-14), shared with the sync thread.
     graph_keys: encryption::SharedKeys,
     /// A graph vault that was made and not confirmed yet.
@@ -400,6 +404,7 @@ impl AppState {
             last_rename: Mutex::new(None),
             backup_keys: Arc::default(),
             secrets: Arc::new(MemorySecrets::default()),
+            widgets: Arc::new(NoWidgets),
             graph_keys: Arc::default(),
             graph_pending: Mutex::new(None),
             calendar_client: None,

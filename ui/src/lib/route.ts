@@ -4,6 +4,7 @@ export type Route =
   | { kind: 'page'; name: string; zoom: number[] }
   | { kind: 'settings' }
   | { kind: 'agenda' }
+  | { kind: 'capture' }
   | { kind: 'pages'; links?: 'none' }
   | { kind: 'property'; key: string; value: string | null }
   | { kind: 'blockprop'; key: string; value: string | null }
@@ -53,6 +54,7 @@ export function parseRoute(hash: string): Route {
   }
   if (path === '/settings') return { kind: 'settings' }
   if (path === '/agenda') return { kind: 'agenda' }
+  if (path === '/capture') return { kind: 'capture' }
   if (path === '/pages')
     return new URLSearchParams(query).get('links') === 'none'
       ? { kind: 'pages', links: 'none' }
@@ -85,6 +87,8 @@ function plainHash(r: Route): string {
       return '#/settings'
     case 'agenda':
       return '#/agenda'
+    case 'capture':
+      return '#/capture'
     case 'pages':
       return r.links === 'none' ? '#/pages?links=none' : '#/pages'
     case 'segment':

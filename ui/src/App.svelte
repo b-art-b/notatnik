@@ -60,6 +60,8 @@
   import Welcome from './lib/components/Welcome.svelte'
   import ConflictBanner from './lib/components/ConflictBanner.svelte'
   import AgendaView from './lib/components/AgendaView.svelte'
+  import { startWidgets } from './lib/widgets'
+  import CaptureView from './lib/components/CaptureView.svelte'
   import AllPagesView from './lib/components/AllPagesView.svelte'
   import PropertyPages from './lib/components/PropertyPages.svelte'
   import BlockProperties from './lib/components/BlockProperties.svelte'
@@ -109,6 +111,11 @@
     const title = g ? `${what} — ${g.name}` : 'Notatnik'
     document.title = title
     void setWindowTitle(title)
+  })
+
+  // Android widgets: once a graph is open, add what the widget captured and write the task snapshot (AN-6, AN-7)
+  $effect(() => {
+    if (app.graph) startWidgets()
   })
 
   // every page you open goes to the top of the "Recent" list
@@ -456,6 +463,8 @@
             <Settings />
           {:else if route.kind === 'agenda'}
             <AgendaView />
+          {:else if route.kind === 'capture'}
+            <CaptureView />
           {:else if route.kind === 'pages'}
             <AllPagesView />
           {:else if route.kind === 'segment'}

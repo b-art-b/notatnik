@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 #[cfg(target_os = "android")]
 mod keystore;
+#[cfg(target_os = "android")]
+mod widgets;
 
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "ios"))]
 use notatnik_app::Secrets;
@@ -296,7 +298,7 @@ pub fn run() {
     let builder = tauri::Builder::default();
     // the passwords of Android: a Kotlin plugin around the Android Keystore (AS1)
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(keystore::plugin());
+    let builder = builder.plugin(keystore::plugin()).plugin(widgets::plugin());
     // a phone or tablet: the UI leaves out what only a computer has (a folder chooser, paths of a computer)
     #[cfg(mobile)]
     let builder = builder.plugin(mobile_flag());
@@ -347,6 +349,11 @@ pub fn run() {
             #[cfg(target_os = "android")]
             let state = state.with_secrets(Arc::new(keystore::KeystoreSecrets::new(
                 app.state::<keystore::SecretsHandle>().0.clone(),
+            )));
+            // the home-screen widgets of Android: where their files are, a redraw, the link the app was opened with
+            #[cfg(target_os = "android")]
+            let state = state.with_widgets(Arc::new(widgets::AndroidWidgets::new(
+                app.state::<widgets::WidgetsHandle>().0.clone(),
             )));
             // a computer can read its own files for the viewers (LV-1); a phone or tablet cannot read a path of one
             #[cfg(desktop)]
