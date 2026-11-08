@@ -1478,7 +1478,11 @@ export type TemplateAsk = { label: string, default: string,
 /**
  * `{{askpage:Label}}`: the answer is a page (an existing one or a new name), inserted as `[[Page]]`.
  */
-page: boolean, };
+page: boolean, 
+/**
+ * `{{askchoice:Label|a|b|c}}`: the answer is one of these (the first is the `default`); empty for the other kinds.
+ */
+choices: Array<string>, };
 export type TemplateContent = { 
 /**
  * The blocks, in insertion order.

@@ -1054,6 +1054,14 @@
                 >
               </tr>
               <tr>
+                <td><code>{'{{askchoice:Status|Open|Doing|Done}}'}</code></td><td>templates</td><td
+                  >with <code>/template</code>: asks for one of the listed choices (radio buttons, or a list
+                  you narrow by typing when there are more than five). The first is the default, and the
+                  answer where nobody can be asked, such as a new page's template. Choices are separated by
+                  <code>|</code></td
+                >
+              </tr>
+              <tr>
                 <td><code>{'{{selection}}'}</code>, <code>{'{{clipboard}}'}</code></td><td>templates</td><td
                   >with <code>/template</code>: the text typed in the block, and the clipboard</td
                 >

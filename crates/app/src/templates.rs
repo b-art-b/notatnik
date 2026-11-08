@@ -41,40 +41,74 @@ pub struct Ask {
     pub default: String,
     /// `{{askpage:Label}}`: the answer is a page, picked from the existing ones or a new name.
     pub page: bool,
+    /// `{{askchoice:Label|a|b|c}}`: the answer is one of these; the first is the `default`. Empty for the other kinds.
+    pub choices: Vec<String>,
 }
 
-/// `Label`, `default`, is-a-page of the placeholder `name` if it is a question (the text between the braces):
-/// `ask:` or `askpage:`.
-fn parse_ask(name: &str) -> Option<(&str, &str, bool)> {
+/// What a placeholder `name` (the text between the braces) asks, if it is a question.
+struct Question<'a> {
+    label: &'a str,
+    /// The starting text (`ask`, `askpage`) or the first choice (`askchoice`).
+    default: &'a str,
+    page: bool,
+    choices: Vec<&'a str>,
+}
+
+/// `ask:Label`, `ask:Label|default`, `askpage:...` or `askchoice:Label|a|b|c`. The choices are split on `|` only (so
+/// they may hold commas and colons), trimmed, empty ones dropped; a label with no choice is a plain question.
+fn parse_ask(name: &str) -> Option<Question<'_>> {
     let rest = name.trim_start();
-    let (rest, page) = if rest
-        .get(..4)
-        .is_some_and(|p| p.eq_ignore_ascii_case("ask:"))
-    {
-        (&rest[4..], false)
-    } else if rest
-        .get(..8)
-        .is_some_and(|p| p.eq_ignore_ascii_case("askpage:"))
-    {
-        (&rest[8..], true)
+    let starts = |p: &str| {
+        rest.get(..p.len())
+            .is_some_and(|x| x.eq_ignore_ascii_case(p))
+    };
+    let (rest, page, choice) = if starts("ask:") {
+        (&rest[4..], false, false)
+    } else if starts("askpage:") {
+        (&rest[8..], true, false)
+    } else if starts("askchoice:") {
+        (&rest[10..], false, true)
     } else {
         return None;
     };
-    let (label, default) = rest.split_once('|').unwrap_or((rest, ""));
+    let (label, tail) = rest.split_once('|').unwrap_or((rest, ""));
     let label = label.trim();
-    (!label.is_empty()).then_some((label, default.trim(), page))
+    if label.is_empty() {
+        return None;
+    }
+    if choice {
+        let choices: Vec<&str> = tail
+            .split('|')
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .collect();
+        let default = choices.first().copied().unwrap_or("");
+        return Some(Question {
+            label,
+            default,
+            page: false,
+            choices,
+        });
+    }
+    Some(Question {
+        label,
+        default: tail.trim(),
+        page,
+        choices: Vec::new(),
+    })
 }
 
 /// The distinct questions of `text`, in the order they first appear (a label asked twice is asked once).
 pub fn asks(text: &str) -> Vec<Ask> {
     let mut out: Vec<Ask> = Vec::new();
     notatnik_core::placeholders::expand_with(text, |name| {
-        if let Some((label, default, page)) = parse_ask(name) {
-            if !out.iter().any(|a| a.label == label) {
+        if let Some(q) = parse_ask(name) {
+            if !out.iter().any(|a| a.label == q.label) {
                 out.push(Ask {
-                    label: label.to_string(),
-                    default: default.to_string(),
-                    page,
+                    label: q.label.to_string(),
+                    default: q.default.to_string(),
+                    page: q.page,
+                    choices: q.choices.iter().map(|c| c.to_string()).collect(),
                 });
             }
         }
@@ -166,12 +200,12 @@ fn fill(text: &str, v: &Vars) -> String {
             "selection" => Some(v.selection.to_string()),
             "clipboard" => Some(v.clipboard.to_string()),
             _ => {
-                let (label, default, _) = parse_ask(name)?;
+                let q = parse_ask(name)?;
                 Some(
                     v.answers
                         .iter()
-                        .find(|(l, _)| l == label)
-                        .map_or(default, |(_, a)| a.as_str())
+                        .find(|(l, _)| l == q.label)
+                        .map_or(q.default, |(_, a)| a.as_str())
                         .to_string(),
                 )
             }
@@ -511,23 +545,26 @@ mod tests {
                 Ask {
                     label: "Who".into(),
                     default: String::new(),
-                    page: false
+                    page: false,
+                    choices: vec![]
                 },
                 Ask {
                     label: "Topic".into(),
                     default: "status".into(),
-                    page: false
+                    page: false,
+                    choices: vec![]
                 },
             ]
         );
-        assert!(asks("{{ask:}} {{ask}} {{date}}").is_empty());
+        assert!(asks("{{ask:}} {{ask}} {{date}} {{askchoice:}}").is_empty());
         // a page question; asked once when the same label is also a plain question
         assert_eq!(
             asks("{{askpage:Partner}} {{ask:Partner}}"),
             vec![Ask {
                 label: "Partner".into(),
                 default: String::new(),
-                page: true
+                page: true,
+                choices: vec![]
             }]
         );
         let answers = vec![("Who".to_string(), "Ann {{date}}".to_string())];
@@ -671,5 +708,46 @@ mod tests {
         assert_eq!(type_name("[person, boss]").as_deref(), Some("person"));
         assert_eq!(type_name("../x"), None);
         assert_eq!(type_name(""), None);
+    }
+
+    #[test]
+    fn choice_questions_list_their_choices_and_default_to_the_first() {
+        let q = asks("{{askchoice:Status|Open| Doing |Done, archived||10:30}}");
+        assert_eq!(
+            q,
+            vec![Ask {
+                label: "Status".into(),
+                default: "Open".into(),
+                page: false,
+                choices: vec![
+                    "Open".into(),
+                    "Doing".into(),
+                    "Done, archived".into(),
+                    "10:30".into()
+                ],
+            }]
+        );
+        // the name is not case sensitive; a label with no choice is a plain free-text question
+        let q = asks("{{ASKCHOICE:Who}}");
+        assert_eq!(q[0].label, "Who");
+        assert!(q[0].choices.is_empty());
+        // one question per label, asked as the first use says
+        let q = asks("{{ask:S}} {{askchoice:S|a|b}} {{askchoice:T|x|y}} {{askchoice:T|x|y}}");
+        assert_eq!(q.len(), 2);
+        assert!(q[0].choices.is_empty());
+        assert_eq!(q[1].choices, vec!["x", "y"]);
+        // the answer, and the first choice where nobody answered
+        let tpl = "- {{askchoice:Status|Open|Doing}} / {{askchoice:Status|Open|Doing}}\n";
+        let answers = vec![("Status".to_string(), "Doing".to_string())];
+        let t = parse_template(
+            tpl,
+            &Vars {
+                answers: &answers,
+                ..V
+            },
+        );
+        assert_eq!(t.blocks[0].2, "Doing / Doing");
+        let t = parse_template(tpl, &V);
+        assert_eq!(t.blocks[0].2, "Open / Open");
     }
 }

@@ -3,6 +3,7 @@
   import { app } from '../stores/app.svelte'
   import { answerQuestions } from '../commands/asks'
   import PageField from './PageField.svelte'
+  import ChoiceField from './ChoiceField.svelte'
 
   // `app.templateAsks` is set when the dialog opens and not null while it is shown: a snapshot is enough
   const ask = app.templateAsks ?? { name: '', asks: [] }
@@ -12,7 +13,10 @@
   $effect(() => first?.focus())
 
   const pageLink = (v: string) => (/^\[\[.*\]\]$/.test(v.trim()) ? v.trim() : `[[${v.trim()}]]`)
+  // a choice question with no matching choice has no answer: nothing is inserted until there is one
+  const unanswered = () => ask.asks.some((q, i) => q.choices.length > 0 && values[i] === '')
   const done = () =>
+    !unanswered() &&
     answerQuestions(
       ask.asks.map((q, i) => ({
         label: q.label,
@@ -48,17 +52,21 @@
     >
       <h2>{ask.name.replace(/^snippets\//, '')}</h2>
       {#each ask.asks as q, i (q.label)}
-        <label>
-          {q.label}
-          <!-- `bind:this` only on the first input: it gets the focus -->
-          {#if q.page}
-            <PageField bind:value={values[i]} first={i === 0} />
-          {:else if i === 0}
-            <input bind:this={first} bind:value={values[i]} />
-          {:else}
-            <input bind:value={values[i]} />
-          {/if}
-        </label>
+        {#if q.choices.length}
+          <ChoiceField label={q.label} choices={q.choices} bind:value={values[i]} first={i === 0} />
+        {:else}
+          <label>
+            {q.label}
+            <!-- `bind:this` only on the first input: it gets the focus -->
+            {#if q.page}
+              <PageField bind:value={values[i]} first={i === 0} />
+            {:else if i === 0}
+              <input bind:this={first} bind:value={values[i]} />
+            {:else}
+              <input bind:value={values[i]} />
+            {/if}
+          </label>
+        {/if}
       {/each}
       <div class="row">
         <button type="submit">Insert</button>

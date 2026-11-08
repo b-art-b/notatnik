@@ -385,3 +385,128 @@ test('selected blocks are saved as a template and inserted with /template', asyn
   await expect(pane.getByTestId('no-snippets')).toBeVisible()
   await expect(pane.getByTestId('deleted-templates')).toContainText('saved blocks')
 })
+
+// The first block of an empty page is a draft (nothing is on disk yet). It used to turn into a block 500 ms after
+// the last key, which closed the template list under the user's hand; and a pick made on the draft was dropped.
+test('/template in the first block of an empty page: a slow pick still inserts the template', async ({
+  backend,
+  page,
+}) => {
+  backend.write('templates/person.md', PERSON)
+  await backend.open('/page/Fresh')
+  await page.getByText('Click here to start writing').click()
+  await page.keyboard.type('/template')
+  const tip = page.locator('.cm-tooltip-autocomplete')
+  await expect(tip).toContainText('Template…', { timeout: 5000 })
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Enter')
+  const list = page.getByTestId('template-picker')
+  await expect(list.getByRole('option', { name: 'person' })).toBeVisible()
+  await page.waitForTimeout(1500) // longer than the 500 ms the draft used to wait before it became a block
+  await expect(list).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect.poll(readOr(backend.read, 'pages/Fresh.md')).toContain('- Contact Fresh\n  - Phone\n')
+})
+
+test('/template-person typed in the first block of an empty page is not lost', async ({ backend, page }) => {
+  backend.write('templates/person.md', PERSON)
+  backend.write('pages/Other.md', '- x\n')
+  await backend.open('/page/Fresh2')
+  await page.getByText('Click here to start writing').click()
+  await page.keyboard.type('/template-person')
+  await page.waitForTimeout(900) // a pause while the command menu is open
+  const tip = page.locator('.cm-tooltip-autocomplete')
+  await expect(tip).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect.poll(readOr(backend.read, 'pages/Fresh2.md')).toContain('- Contact Fresh2\n  - Phone\n')
+})
+
+// TC-1..TC-5: {{askchoice:Label|a|b|c}} asks for one of a list: a radio group up to five choices, a filter beyond.
+const pickTemplate = async (page: import('@playwright/test').Page, name: string) => {
+  await page.getByRole('tree', { name: 'Blocks' }).getByText('start', { exact: true }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' /template')
+  await expect(page.locator('.cm-tooltip-autocomplete')).toContainText('Template…', { timeout: 5000 })
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Enter')
+  await page.getByTestId('template-picker').getByRole('option', { name }).click()
+}
+
+test('{{askchoice}} with a few choices: radio group, first selected, arrows and Enter, Escape inserts nothing', async ({
+  backend,
+  page,
+}) => {
+  backend.write(
+    'templates/snippets/Ticket.md',
+    '- Ticket {{ask:Title|new}} is {{askchoice:Status|Open|Doing|Done, archived}} ({{askchoice:Status|Open|Doing}})\n',
+  )
+  backend.write('pages/Choices.md', '- start\n')
+  await backend.open('/page/Choices')
+  const dialog = page.getByTestId('template-ask')
+  // Escape: nothing inserted
+  await pickTemplate(page, 'Ticket')
+  const group = dialog.getByRole('radiogroup', { name: 'Status' })
+  await expect(group.getByRole('radio', { name: 'Open' })).toBeChecked()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  expect(backend.read('pages/Choices.md')).toBe('- start\n')
+  // the question comes first in the template? the free-text one does: Tab to the choices, ↓↓ picks the third
+  await pickTemplate(page, 'Ticket')
+  await expect(dialog.getByLabel('Title')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(group.getByRole('radio', { name: 'Open' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(group.getByRole('radio', { name: 'Done, archived' })).toBeChecked()
+  await page.keyboard.press('Enter')
+  await expect(dialog).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  // one question for the label, used in both places
+  await expect
+    .poll(readOr(backend.read, 'pages/Choices.md'))
+    .toBe('- start\n- Ticket new is Done, archived (Done, archived)\n')
+})
+
+test('{{askchoice}} with many choices: type to narrow, arrows and Enter pick, no match inserts nothing', async ({
+  backend,
+  page,
+}) => {
+  const months = 'January|February|March|April|May|June|July|August'
+  backend.write('templates/snippets/Month.md', `- Month {{askchoice:Month|${months}}}\n`)
+  backend.write('pages/Many.md', '- start\n')
+  await backend.open('/page/Many')
+  const dialog = page.getByTestId('template-ask')
+  await pickTemplate(page, 'Month')
+  const field = dialog.getByRole('combobox', { name: 'Month' })
+  await expect(field).toBeFocused()
+  await expect(dialog.getByRole('option')).toHaveCount(8)
+  await field.fill('ju')
+  await expect(dialog.getByRole('option')).toHaveText(['June', 'July'])
+  await page.keyboard.press('ArrowDown') // July
+  await field.fill('zzz')
+  await expect(dialog.getByText('Nothing matches')).toBeVisible()
+  await page.keyboard.press('Enter') // nothing to pick: the dialog stays
+  await expect(dialog).toBeVisible()
+  await field.fill('ju') // June is selected first
+  await page.keyboard.press('ArrowDown') // July
+  await page.keyboard.press('Enter')
+  await expect(dialog).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect.poll(readOr(backend.read, 'pages/Many.md')).toBe('- start\n- Month July\n')
+})
+
+test('{{askchoice}}: by touch, rows are 44 px', async ({ backend, page }) => {
+  backend.write('templates/snippets/Pick.md', '- {{askchoice:Colour|Red|Green|Blue}}\n')
+  backend.write('pages/Touch.md', '- start\n')
+  await backend.open('/page/Touch')
+  await pickTemplate(page, 'Pick')
+  const dialog = page.getByTestId('template-ask')
+  const radio = dialog.getByText('Blue')
+  expect((await radio.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await radio.click()
+  await dialog.getByRole('button', { name: 'Insert' }).click()
+  await page.keyboard.press('Escape')
+  await expect.poll(readOr(backend.read, 'pages/Touch.md')).toBe('- start\n- Blue\n')
+})

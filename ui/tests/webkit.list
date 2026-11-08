@@ -26,3 +26,4 @@ tests/dock.spec.ts
 tests/dock-touch.spec.ts
 tests/list-styles.spec.ts
 tests/format-keys.spec.ts
+tests/templates.spec.ts

@@ -2879,11 +2879,32 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
     assert_eq!(
         q["asks"],
         json!([
-            {"label": "Who", "default": "", "page": false},
-            {"label": "Topic", "default": "status", "page": false},
-            {"label": "Partner", "default": "", "page": true}
+            {"label": "Who", "default": "", "page": false, "choices": []},
+            {"label": "Topic", "default": "status", "page": false, "choices": []},
+            {"label": "Partner", "default": "", "page": true, "choices": []}
         ])
     );
+    // TC-1..TC-3: a choice question lists its choices; the first is the default; an answer replaces the placeholder
+    t.ok(
+        "save_snippet",
+        json!({"name": "Pick", "text": "- Status {{askchoice:Status|Open|Doing|Done, archived}}\n", "replace": false}),
+    );
+    let c = t.ok(
+        "template_blocks",
+        json!({"name": "snippets/Pick", "page": "people/Eva"}),
+    );
+    assert_eq!(
+        c["asks"],
+        json!([{"label": "Status", "default": "Open", "page": false,
+                "choices": ["Open", "Doing", "Done, archived"]}])
+    );
+    assert_eq!(c["blocks"][0]["text"], "Status Open");
+    let c = t.ok(
+        "template_blocks",
+        json!({"name": "snippets/Pick", "page": "people/Eva",
+               "answers": [{"label": "Status", "value": "Done, archived"}]}),
+    );
+    assert_eq!(c["blocks"][0]["text"], "Status Done, archived");
     let a = t.ok(
         "template_blocks",
         json!({"name": "snippets/Ask", "page": "people/Eva", "answers": [{"label": "Who", "value": "Ann"}]}),
@@ -2906,6 +2927,28 @@ fn namespace_and_journal_templates_apply_to_new_pages() {
                "ops": [{"op": "insert", "parent": [], "index": 0, "text": "x"}]}),
     );
     assert_eq!(t.read("pages/people/Zed.md"), "- x\n");
+}
+
+/// TC-2: where nobody can be asked (a new page's template), a choice question gets its first choice.
+#[test]
+fn a_page_template_with_a_choice_question_starts_with_the_first_choice() {
+    let t = start("basic");
+    std::fs::create_dir_all(t.graph().join("templates")).unwrap();
+    std::fs::write(
+        t.graph().join("templates/ticket.md"),
+        "---\ntype: ticket\n---\n- Status {{askchoice:Status|Open|Done}}\n",
+    )
+    .unwrap();
+    t.ok(
+        "apply_ops",
+        json!({"page": "tickets/One", "base_hash": null,
+               "ops": [{"op": "set_page_property", "key": "type", "value": "ticket"}]}),
+    );
+    assert!(
+        t.read("pages/tickets/One.md").contains("- Status Open\n"),
+        "{}",
+        t.read("pages/tickets/One.md")
+    );
 }
 
 /// P5.11: a template that cannot be read inserts nothing and says why.

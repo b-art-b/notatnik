@@ -134,7 +134,10 @@ export const app = $state({
   /** The EPUB reader while it is open (EA-1): the book, and the place or highlight to show first. */
   book: null as BookOpen | null,
   /** The questions of a template being inserted (`{{ask:Label}}`), while the dialog waits for the answers. */
-  templateAsks: null as { name: string; asks: { label: string; default: string; page: boolean }[] } | null,
+  templateAsks: null as {
+    name: string
+    asks: { label: string; default: string; page: boolean; choices: string[] }[]
+  } | null,
   /** The page whose Hierarchy should open its "add subpage" field (set by the palette command). */
   subpageFor: '',
   /** The left sidebar is shown; remembered on this device. */

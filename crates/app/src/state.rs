@@ -1287,6 +1287,7 @@ impl AppState {
                         label: q.label,
                         default: q.default,
                         page: q.page,
+                        choices: q.choices,
                     })
                     .collect(),
             })

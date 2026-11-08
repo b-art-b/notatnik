@@ -274,6 +274,17 @@ A **graph** is a folder of notes.
 | FK-6 | The result is plain inline Markdown; the file format does not change.                                                                                                                                                           | V1       |
 | FK-7 | The keys are in `keymap.md`, with the Ctrl+B rule next to the Emacs keys.                                                                                                                                                       | V1       |
 
+### Choosing from a list in a template (TC1..TC3, [phases/template-choices.md](phases/template-choices.md))
+
+| ID   | Requirement                                                                                                   | Priority |
+| ---- | ------------------------------------------------------------------------------------------------------------- | -------- |
+| TC-1 | `{{askchoice:Label\|a\|b\|c}}` in a template asks for one of the listed choices; the chosen text is inserted. | V1       |
+| TC-2 | The first choice is the default and the answer where nobody can be asked (a new page's or journal template).  | V1       |
+| TC-3 | Choices are split on `\|` only, so they may hold commas, colons and spaces; the answer is plain text.         | V1       |
+| TC-4 | One question per label, in the same dialog as `ask` and `askpage`; Esc inserts nothing.                       | V1       |
+| TC-5 | The dialog is a radio group up to five choices and a filtered list beyond; keyboard and touch.                | V1       |
+| TC-6 | The file format does not change; the placeholder is documented in `placeholders.md`.                          | V1       |
+
 ## 5. Pages, links and namespaces
 
 | ID    | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Priority |

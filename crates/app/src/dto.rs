@@ -399,6 +399,8 @@ pub struct TemplateAsk {
     pub default: String,
     /// `{{askpage:Label}}`: the answer is a page (an existing one or a new name), inserted as `[[Page]]`.
     pub page: bool,
+    /// `{{askchoice:Label|a|b|c}}`: the answer is one of these (the first is the `default`); empty for the other kinds.
+    pub choices: Vec<String>,
 }
 
 /// What `/template` inserts.
