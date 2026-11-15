@@ -605,6 +605,11 @@
           // pasting an address is handled below (ED-27); the built-in version would not clean it
           markdown({ pasteURLAsLink: false }),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    // CodeMirror takes the text of the Android keyboard through Chrome's EditContext API. After an editor with an edit
+    // context is replaced (Enter makes a new block), the web view keeps that context active: every other text field
+    // (Search, Filter pages) then shows its cursor but gets no letters until the app restarts. Without it CodeMirror
+    // reads the keyboard through the ordinary input events, like on older Chrome.
+    ;(EditorView as unknown as { EDIT_CONTEXT: boolean }).EDIT_CONTEXT = false
           wikiPlugin,
           wikiCompletions(
             () => pageName,

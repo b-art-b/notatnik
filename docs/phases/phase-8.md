@@ -14,6 +14,8 @@ reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV s
 - **Open:** the share target (P8.13), CalDAV on Android (P8.14), the full mobile layout (P8.8 to P8.11, bottom bar), background
   sync (WorkManager), release/Play packaging beyond the signed APK (P8.15), and the device checks listed in each Verify
   block (the emulator was the test device; the maintainer now runs the app on a phone).
+- **Known phone trap:** CodeMirror's EditContext must stay off (`EditorView.EDIT_CONTEXT = false`, decision D62 in
+  [architecture.md](../architecture.md)): with it on, other text fields stop taking letters after Enter in a bullet.
 - **To find out what is true, look at the code and `git log --grep=android`, not only at the checkboxes.**
 
 **Requirements covered:** PL-3, NC-3, AN-1–4, IN-1 (share target), PG-7.
