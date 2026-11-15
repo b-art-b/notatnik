@@ -27,6 +27,7 @@
     toggleInSelection,
     selectionCopy,
     selectionCut,
+    deleteBlockOf,
     selectionDelete,
     sendSelectionToGraph,
     selectionDuplicate,
@@ -317,6 +318,14 @@
         label: 'Zoom in',
         run: () => navigate({ kind: 'page', name: docName, zoom: block.path }),
       })
+    if (!readonly && ctx) {
+      const c = ctx
+      items.push({
+        label: 'Delete',
+        hint: hasChildren ? 'with its children' : undefined,
+        run: () => void deleteBlockOf(c, block.id),
+      })
+    }
     return items
   }
 

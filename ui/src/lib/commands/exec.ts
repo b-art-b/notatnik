@@ -606,6 +606,15 @@ export async function selectionDelete(ctx: Ctx) {
   if (sent && after) stopEditing()
 }
 
+/** The block menu's Delete: this one block and its children, looked up by id when the request reaches the front of
+ * the queue (the path may have changed meanwhile). One undo step. */
+export async function deleteBlockOf(ctx: Ctx, blockId: number) {
+  const after = await ctx.doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    return view && hit ? (deleteBlocks(view.blocks, [hit.path])?.ops ?? null) : null
+  })
+  if (after) stopEditing()
+}
 
 /** Alt+↑/↓: the selected siblings move one place together. */
 export async function selectionMove(ctx: Ctx, dir: 'up' | 'down') {

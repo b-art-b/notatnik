@@ -34,6 +34,7 @@ test('right-click a bullet, copy the block reference, paste it into another bloc
     /Children as letters/,
     /Children as roman numerals/,
     /Zoom in/,
+    /Delete/,
   ])
   await menu.getByRole('menuitem', { name: /Copy block reference/ }).click()
   await expect(menu).toHaveCount(0)
@@ -59,4 +60,21 @@ test('right-click a bullet, copy the block reference, paste it into another bloc
     .catch(() => {})
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
+})
+
+test('right-click a bullet and pick Delete: the block goes with its children, one undo brings it back', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/del.md', '- keep\n- remove me\n  - child\n- also keep\n')
+  await backend.open('/page/del')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  await blocks.getByRole('button', { name: 'Zoom into block' }).nth(1).click({ button: 'right' })
+  await page
+    .getByTestId('block-menu')
+    .getByRole('menuitem', { name: /Delete/ })
+    .click()
+  await expect.poll(() => backend.read('pages/del.md')).toBe('- keep\n- also keep\n')
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => backend.read('pages/del.md')).toBe('- keep\n- remove me\n  - child\n- also keep\n')
 })
