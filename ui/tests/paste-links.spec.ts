@@ -161,3 +161,59 @@ test('several addresses, one per line, become one block each with its title', as
     server.close()
   }
 })
+
+test('several lines pasted into the first bullet of an empty page become blocks', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/Empty.md', '')
+  await backend.open('/page/Empty')
+  await page.getByRole('button', { name: 'Click here to start writing' }).click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await paste(page, 'lxc init a\n# note\nzfs create b')
+  await expect.poll(() => backend.read('pages/Empty.md')).toBe('- lxc init a\n- # note\n- zfs create b\n')
+})
+
+test('Ctrl+Shift+V pastes several lines into the one block, as they are (ED-29)', async ({
+  backend,
+  browserName,
+  context,
+  page,
+}) => {
+  test.skip(browserName !== 'chromium', 'clipboard permissions are a Chromium feature of the test driver')
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  backend.write('pages/Links.md', '- start\n')
+  await edit(page, backend, 'start')
+  await page.keyboard.press('End')
+  await page.evaluate(() =>
+    navigator.clipboard.writeText('\nlxc init a\n# note\nhttps://x.org/r?utm_source=n'),
+  )
+  await page.keyboard.press('Control+Shift+v')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() => backend.read('pages/Links.md'))
+    .toBe('- start\n  lxc init a\n  # note\n  https://x.org/r?utm_source=n\n')
+})
+
+test('inside a fenced code block a plain Ctrl+V keeps all lines in the block (ED-29)', async ({
+  backend,
+  browserName,
+  context,
+  page,
+}) => {
+  test.skip(browserName !== 'chromium', 'clipboard permissions are a Chromium feature of the test driver')
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  backend.write('pages/Links.md', '- ```sh\n  x\n  ```\n')
+  await backend.open('/page/Links')
+  await page.locator('.code-block').click()
+  await expect(page.getByTestId('block-editor')).toBeFocused()
+  await page.keyboard.press('Control+Home')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('End')
+  await page.evaluate(() => navigator.clipboard.writeText('\nlxc init a\n# note\n- zfs create b'))
+  await page.keyboard.press('Control+v')
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() => backend.read('pages/Links.md'))
+    .toBe('- ```sh\n  x\n  lxc init a\n  # note\n  - zfs create b\n  ```\n')
+})

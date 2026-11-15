@@ -4,6 +4,7 @@
   import Self from './Nodes.svelte'
   import QueryBlock from './QueryBlock.svelte'
   import MermaidDiagram from './MermaidDiagram.svelte'
+  import CodeBlock from './CodeBlock.svelte'
 
   let { nodes, chain = [] }: { nodes: Node[]; chain?: string[] } = $props()
 </script>
@@ -18,7 +19,7 @@
   {:else if n.type === 'code_block' && n.lang === 'mermaid'}
     <MermaidDiagram code={n.code} />
   {:else if n.type === 'code_block'}
-    <pre class="code-block" data-lang={n.lang ?? ''}><code>{n.code}</code></pre>
+    <CodeBlock code={n.code} lang={n.lang} />
   {:else if n.type === 'query'}
     <QueryBlock text={n.text} />
   {:else if n.type === 'quote'}
@@ -82,16 +83,6 @@
   .md-heading {
     margin: 0.1em 0;
     font-weight: 650;
-  }
-  pre.code-block {
-    margin: 0.2em 0;
-    padding: 0.5em 0.7em;
-    background: var(--code-bg);
-    border-radius: 6px;
-    overflow-x: auto;
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    white-space: pre;
   }
   blockquote {
     margin: 0.2em 0;

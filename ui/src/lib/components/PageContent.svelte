@@ -5,7 +5,7 @@
   import { getDoc } from '../stores/pages.svelte'
   import { bus } from '../stores/events.svelte'
   import { startEditing, stopEditing } from '../stores/editing.svelte'
-  import { getBlock } from '../tree'
+  import { getBlock, parsePasted } from '../tree'
   import { pageHash, propertyHash, segmentHash } from '../route'
   import BlockList from './BlockList.svelte'
   import Backlinks from './Backlinks.svelte'
@@ -13,7 +13,7 @@
   import DayEvents from './DayEvents.svelte'
   import Hierarchy from './Hierarchy.svelte'
   import Editor from './Editor.svelte'
-  import { editorAction, type EditorAction } from '../commands/exec'
+  import { editorAction, pastedOps, type EditorAction } from '../commands/exec'
   import RenameDialog from './RenameDialog.svelte'
   import DeleteDialog from './DeleteDialog.svelte'
   import { hasOtherGraph } from '../stores/workspace.svelte'
@@ -279,6 +279,17 @@
   // typed or chosen (`/template`, a picker open) it must stay an editor: turning it into a block unmounts the
   // editor, and the menu or picker the user is working in disappears with it.
   let draftEditor = $state<Editor>()
+
+  /** Several lines pasted into the draft of an empty page: the editor has already taken the paste over, so the
+   * blocks are made here, the first one from index 0 (the draft is not a block that could be replaced). */
+  async function pasteIntoDraft(text: string): Promise<boolean> {
+    const pasted = parsePasted(text)
+    if (pasted.length === 0) return false
+    draft = false
+    await doc.apply(pastedOps(pasted, [], 0))
+    stopEditing()
+    return true
+  }
   const typingCommand = (t: string) => /(^|\s)\/[\w-]*$/.test(t)
   function draftChanged(t: string) {
     if (draftEditor?.pickerOpen() || typingCommand(t)) return
@@ -625,7 +636,7 @@
               onchange={draftChanged}
               onaction={draftAction}
               onundo={() => {}}
-              onpaste={async () => false}
+              onpaste={pasteIntoDraft}
               onblur={(t) => {
                 if (t.trim() === '') draft = false
                 else void commitDraft(t)

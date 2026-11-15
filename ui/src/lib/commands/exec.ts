@@ -606,6 +606,7 @@ export async function selectionDelete(ctx: Ctx) {
   if (sent && after) stopEditing()
 }
 
+
 /** Alt+↑/↓: the selected siblings move one place together. */
 export async function selectionMove(ctx: Ctx, dir: 'up' | 'down') {
   await runOnSelection(ctx, (blocks, paths) => moveMany(blocks, paths, dir))
@@ -797,6 +798,16 @@ export async function globalUndo(kind: 'undo' | 'redo') {
   }
 }
 
+/** The ops that insert a pasted outline under `parent`, from index `start`. */
+export function pastedOps(list: PastedBlock[], parent: Path, start: number): BlockOp[] {
+  const ops: BlockOp[] = []
+  list.forEach((p, i) => {
+    ops.push({ op: 'insert', parent, index: start + i, text: p.text })
+    ops.push(...pastedOps(p.children, [...parent, start + i], 0))
+  })
+  return ops
+}
+
 /** Multi-line paste: the pasted outline replaces an empty block or follows the current one. */
 export async function pasteBlocks(ctx: Ctx, blockId: number, text: string): Promise<boolean> {
   const view = ctx.doc.view
@@ -804,20 +815,9 @@ export async function pasteBlocks(ctx: Ctx, blockId: number, text: string): Prom
   const block = view && path ? getBlock(view.blocks, path) : undefined
   const pasted = parsePasted(text)
   if (!view || !path || !block || pasted.length === 0) return false
-  const ops: BlockOp[] = []
   const parent = path.slice(0, -1)
-  let at = path[path.length - 1] + 1
-  const replaceCurrent = block.text.trim() === ''
-  const emit = (list: PastedBlock[], par: Path, start: number) => {
-    list.forEach((p, i) => {
-      ops.push({ op: 'insert', parent: par, index: start + i, text: p.text })
-      emit(p.children, [...par, start + i], 0)
-    })
-  }
-  emit(pasted, parent, at)
-  if (replaceCurrent) ops.push({ op: 'delete', block: { path, hash: null } })
-  void at
-  at = 0
+  const ops = pastedOps(pasted, parent, path[path.length - 1] + 1)
+  if (block.text.trim() === '') ops.push({ op: 'delete', block: { path, hash: null } })
   await ctx.doc.apply(ops)
   stopEditing()
   return true

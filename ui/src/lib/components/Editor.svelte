@@ -402,6 +402,16 @@
     return true
   }
 
+  // Ctrl+Shift+V: the browser sends the same `paste` event as for Ctrl+V, so the key press is remembered here and the
+  // paste that follows is inserted as it is: one block, line breaks kept, no link conversion (ED-27, ED-29).
+  let rawPaste = false
+  const rawPasteKey = EditorView.domEventHandlers({
+    keydown(e) {
+      rawPaste = (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === 'KeyV'
+      return false
+    },
+  })
+
   // Ctrl+Shift+A by its physical key, ahead of the keymap: CodeMirror would also match the plain `Ctrl-a` binding
   const selectKey = EditorView.domEventHandlers({
     keydown(e, v) {
@@ -441,6 +451,7 @@
   function keys(): Extension {
     return [
       Prec.highest(selectKey),
+      rawPasteKey,
       Prec.highest(
         keymap.of([
           ...(plain ? plainKeys() : []),
@@ -594,6 +605,11 @@
 
   onMount(() => {
     void refreshTemplateNames()
+    // CodeMirror takes the text of the Android keyboard through Chrome's EditContext API. After an editor with an edit
+    // context is replaced (Enter makes a new block), the web view keeps that context active: every other text field
+    // (Search, Filter pages) then shows its cursor but gets no letters until the app restarts. Without it CodeMirror
+    // reads the keyboard through the ordinary input events, like on older Chrome.
+    ;(EditorView as unknown as { EDIT_CONTEXT: boolean }).EDIT_CONTEXT = false
     view = new EditorView({
       parent: host,
       state: EditorState.create({
@@ -605,11 +621,6 @@
           // pasting an address is handled below (ED-27); the built-in version would not clean it
           markdown({ pasteURLAsLink: false }),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-    // CodeMirror takes the text of the Android keyboard through Chrome's EditContext API. After an editor with an edit
-    // context is replaced (Enter makes a new block), the web view keeps that context active: every other text field
-    // (Search, Filter pages) then shows its cursor but gets no letters until the app restarts. Without it CodeMirror
-    // reads the keyboard through the ordinary input events, like on older Chrome.
-    ;(EditorView as unknown as { EDIT_CONTEXT: boolean }).EDIT_CONTEXT = false
           wikiPlugin,
           wikiCompletions(
             () => pageName,
@@ -690,6 +701,13 @@
                 return true
               }
               const data = e.clipboardData?.getData('text/plain') ?? ''
+              // Ctrl+Shift+V: the text as it is, into this block
+              if (rawPaste) {
+                rawPaste = false
+                return false
+              }
+              // inside a fenced code block everything is code: it stays in this block as it is (ED-29)
+              if (insideFence(v.state.doc.toString(), v.state.selection.main.from)) return false
               // a link copied from Settings → Unused images: `![](assets/...)` is written relative to this page
               const asset = /^!\[\]\((assets\/[^)\s]+)\)$/.exec(data.trim())
               if (asset) {
