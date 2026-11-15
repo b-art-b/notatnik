@@ -24,6 +24,16 @@ describe('markerChanges', () => {
     expect(run('/todo buy milk', 'TODO')).toBe('TODO buy milk')
     expect(run('buy /doing milk', 'DOING')).toBe('DOING buy milk')
   })
+  it('keeps the space between the words when the command is typed between them', () => {
+    // the cursor is right behind `/todo`, the word that follows is already there
+    const doc = 'do /todosomething'
+    const state = EditorState.create({ doc })
+    expect(state.update({ changes: markerChanges(doc, 3, 8, 'TODO') }).state.doc.toString()).toBe(
+      'TODO do something',
+    )
+    expect(run('do /todo something', 'TODO')).toBe('TODO do something')
+    expect(run('two\nlines /doing x', 'DOING')).toBe('DOING two\nlines x')
+  })
   it('replaces an existing marker', () => {
     expect(run('TODO buy milk /done', 'DONE')).toBe('DONE buy milk')
     expect(run('DOING /waiting x', 'WAITING')).toBe('WAITING x')

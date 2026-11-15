@@ -226,11 +226,14 @@ export function markerChanges(
   to: number,
   marker: string,
 ): { from: number; to: number; insert: string }[] {
-  // remove one adjacent space too, so `buy milk /todo` and `/todo buy milk` leave no gap
+  // remove one adjacent space too, so `buy milk /todo` and `/todo buy milk` leave no gap; with words on both sides
+  // (`do /todo|something`, the cursor right behind the command) the space before it is the one between the words
   let a = from
   let b = to
-  if (a > 0 && doc[a - 1] === ' ') a--
-  else if (doc[b] === ' ') b++
+  const before = doc[a - 1]
+  const after = doc[b]
+  if (before === ' ' && (after === undefined || /\s/.test(after))) a--
+  else if ((before === undefined || before === '\n') && after === ' ') b++
   const headEnd = MARKER.exec(doc)?.[0].length ?? 0
   if (a > headEnd) {
     return [
