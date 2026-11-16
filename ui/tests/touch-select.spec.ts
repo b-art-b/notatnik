@@ -32,3 +32,26 @@ test('on a touch screen: Select in the menu, tap more blocks, Tasks in the bar',
   await bar.getByRole('button', { name: 'Done' }).click()
   await expect(bar).toHaveCount(0)
 })
+
+test('on a touch screen the bar moves, indents and outdents the selected blocks', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/tm.md', '- a\n- b\n- c\n')
+  await backend.open('/page/tm')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  await blocks.getByRole('button', { name: 'Zoom into block' }).nth(1).click({ button: 'right' })
+  await page
+    .getByTestId('block-menu')
+    .getByRole('menuitem', { name: /Select/ })
+    .click()
+  const bar = page.getByTestId('touch-selection-bar')
+  await bar.getByRole('button', { name: 'Move up' }).click()
+  await expect.poll(() => backend.read('pages/tm.md')).toBe('- b\n- a\n- c\n')
+  await bar.getByRole('button', { name: 'Move down' }).click()
+  await expect.poll(() => backend.read('pages/tm.md')).toBe('- a\n- b\n- c\n')
+  await bar.getByRole('button', { name: 'Indent' }).click()
+  await expect.poll(() => backend.read('pages/tm.md')).toBe('- a\n  - b\n- c\n')
+  await bar.getByRole('button', { name: 'Outdent' }).click()
+  await expect.poll(() => backend.read('pages/tm.md')).toBe('- a\n- b\n- c\n')
+})
