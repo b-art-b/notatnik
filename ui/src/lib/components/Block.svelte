@@ -28,6 +28,9 @@
     selectionCopy,
     selectionCut,
     deleteBlockOf,
+    setTaskOf,
+    selectionMakeTasks,
+    selectionCycleTask,
     selectionDelete,
     sendSelectionToGraph,
     selectionDuplicate,
@@ -261,6 +264,8 @@
     if (!ctx) return []
     const c = ctx
     return [
+      { label: 'Make tasks', run: () => void selectionMakeTasks(c) },
+      { label: 'Next task state', hint: 'Ctrl+Enter', run: () => void selectionCycleTask(c) },
       { label: 'Copy', hint: 'Ctrl+C', run: () => void selectionCopy(c) },
       { label: 'Cut', hint: 'Ctrl+X', run: () => void selectionCut(c) },
       { label: 'Duplicate', hint: 'Ctrl+D', run: () => void selectionDuplicate(c) },
@@ -301,6 +306,23 @@
           ),
       },
     ]
+    if (!readonly && ctx) {
+      const c = ctx
+      // a phone cannot Shift+click or Ctrl+click: this starts a selection, and a tap on another block adds it
+      items.unshift({ label: 'Select', run: () => toggleInSelection(c, block.id) })
+      const state = block.task?.state
+      const next = nextTaskState(state, block.task?.checkbox)
+      // a phone has no Ctrl+Enter: the menu makes a task, moves it on and takes the marker off
+      if (!state) items.unshift({ label: 'Make task', run: () => void setTaskOf(c, block.id, 'TODO') })
+      else {
+        items.unshift({
+          label: 'Next task state',
+          hint: `${state} → ${next ?? 'no task'}`,
+          run: () => void setTaskOf(c, block.id, next),
+        })
+        items.splice(1, 0, { label: 'Remove task', run: () => void setTaskOf(c, block.id, null) })
+      }
+    }
     if (!readonly && hasOtherGraph(app.graph?.id))
       items.push({
         label: 'To another graph…',
@@ -353,6 +375,14 @@
     // Shift+click selects from the block being edited or selected to this one; Ctrl+click adds or removes this one
     if (e.shiftKey && ctx) return selectRangeTo(ctx, block.id)
     if ((e.ctrlKey || e.metaKey) && ctx) return toggleInSelection(ctx, block.id)
+    // on a touch screen, while blocks are selected (menu item "Select"), a tap adds or removes a block like Ctrl+click
+    if (
+      ctx &&
+      (e as PointerEvent).pointerType === 'touch' &&
+      editing.mode === 'select' &&
+      editing.docName === docName
+    )
+      return toggleInSelection(ctx, block.id)
     startEditing(viewKey, docName, block.id, cursorFromClick(e))
   }
 

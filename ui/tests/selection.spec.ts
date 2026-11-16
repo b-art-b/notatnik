@@ -201,6 +201,8 @@ test('the right-click menu of a selection copies, duplicates and deletes it', as
   const menu = page.getByTestId('block-menu')
   await expect(page.getByTestId('block-menu-id')).toHaveText('4 blocks selected')
   await expect(menu.getByRole('menuitem')).toHaveText([
+    /Make tasks/,
+    /Next task state/,
     /Copy/,
     /Cut/,
     /Duplicate/,
@@ -283,4 +285,22 @@ test('Shift+Tab outdents a selection that spans levels; top-level blocks stay', 
   await expect.poll(() => backend.read('pages/t.md')).toBe('- a\n- a1\n- a2\n- b\n- c\n  - c1\n- d\n')
   await page.keyboard.press('Control+z')
   await expect.poll(() => backend.read('pages/t.md')).toBe(TREE)
+})
+
+test('Make tasks in the menu of a selection turns every plain block into a TODO and leaves tasks alone', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/mt.md', '- a\n- DOING b\n- c\n')
+  await backend.open('/page/mt')
+  await settle(page)
+  await pick(page, 'a')
+  await text(page, 'c').click({ modifiers: ['Shift'] })
+  await expect(selected(page)).toHaveCount(3)
+  await text(page, 'b').click({ button: 'right' })
+  await page
+    .getByTestId('block-menu')
+    .getByRole('menuitem', { name: /Make tasks/ })
+    .click()
+  await expect.poll(() => backend.read('pages/mt.md')).toBe('- TODO a\n- DOING b\n- TODO c\n')
 })

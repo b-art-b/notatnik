@@ -25,6 +25,8 @@ test('right-click a bullet, copy the block reference, paste it into another bloc
   await blocks.getByRole('button', { name: 'Zoom into block' }).first().click({ button: 'right' })
   const menu = page.getByTestId('block-menu')
   await expect(menu.getByRole('menuitem')).toHaveText([
+    /Make task/,
+    /Select/,
     /Copy block reference/,
     /Copy as embed/,
     /Copy block text/,
@@ -77,4 +79,27 @@ test('right-click a bullet and pick Delete: the block goes with its children, on
   await expect.poll(() => backend.read('pages/del.md')).toBe('- keep\n- also keep\n')
   await page.keyboard.press('Control+z')
   await expect.poll(() => backend.read('pages/del.md')).toBe('- keep\n- remove me\n  - child\n- also keep\n')
+})
+
+// a phone has no Ctrl+Enter: the menu makes a task, moves it on and takes the marker off
+test('the bullet menu makes a task, moves it to the next state and removes it; a selection gets Make tasks', async ({
+  backend,
+  page,
+}) => {
+  backend.write('pages/tk.md', '- one\n- two\n- three\n')
+  await backend.open('/page/tk')
+  const blocks = page.getByRole('tree', { name: 'Blocks' })
+  const menu = page.getByTestId('block-menu')
+  const open = () =>
+    blocks.getByRole('button', { name: 'Zoom into block' }).first().click({ button: 'right' })
+  await open()
+  await menu.getByRole('menuitem', { name: /Make task/ }).click()
+  await expect.poll(() => backend.read('pages/tk.md')).toBe('- TODO one\n- two\n- three\n')
+  await open()
+  await expect(menu.getByRole('menuitem', { name: /Next task state/ })).toContainText('TODO → DOING')
+  await menu.getByRole('menuitem', { name: /Next task state/ }).click()
+  await expect.poll(() => backend.read('pages/tk.md')).toBe('- DOING one\n- two\n- three\n')
+  await open()
+  await menu.getByRole('menuitem', { name: /Remove task/ }).click()
+  await expect.poll(() => backend.read('pages/tk.md')).toBe('- one\n- two\n- three\n')
 })

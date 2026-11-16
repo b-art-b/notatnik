@@ -48,6 +48,7 @@
   import { loadIcons } from './lib/stores/icons.svelte'
   import { refreshWorkspace } from './lib/stores/workspace.svelte'
   import SearchDialog from './lib/components/SearchDialog.svelte'
+  import TouchSelectionBar from './lib/components/TouchSelectionBar.svelte'
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import ClipDialog from './lib/components/ClipDialog.svelte'
   import DrawingEditor from './lib/components/DrawingEditor.svelte'
@@ -561,6 +562,7 @@
   </div>
 {/if}
 {#if app.searchOpen}<SearchDialog />{/if}
+<TouchSelectionBar />
 {#if app.paletteOpen}<Palette />{/if}
 {#if app.snippetText !== null}<SnippetDialog />{/if}
 {#if app.transfer}<TransferDialog />{/if}

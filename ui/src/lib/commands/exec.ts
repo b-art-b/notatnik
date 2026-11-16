@@ -767,6 +767,32 @@ export async function selectionCycleTask(ctx: Ctx): Promise<void> {
   })
 }
 
+/** The block menu's task items (for a phone, which has no Ctrl+Enter): one block gets `state` (null takes the task
+ * marker off), looked up by id when the request reaches the front of the queue. */
+export async function setTaskOf(
+  ctx: Ctx,
+  blockId: number,
+  state: import('../api').TaskState | null,
+): Promise<void> {
+  await ctx.doc.applyWith((view) => {
+    const hit = view ? findById(view.blocks, blockId) : undefined
+    return hit ? [taskStateOp(hit.path, state)] : null
+  })
+}
+
+/** "Make tasks" on a selection: every selected block that is no task yet becomes a TODO; tasks keep their state. */
+export async function selectionMakeTasks(ctx: Ctx): Promise<void> {
+  const ids = [...editing.selection]
+  await ctx.doc.applyWith((view) => {
+    if (!view) return null
+    const ops = ids
+      .map((id) => findById(view.blocks, id))
+      .filter((h) => !!h && !h.block.task)
+      .map((h) => taskStateOp(h!.path, 'TODO'))
+    return ops.length > 0 ? ops : null
+  })
+}
+
 /** Ctrl+Shift+C: a `((id))` reference per selected block (a block without an ID gets one), one per line. */
 export async function selectionCopyRefs(ctx: Ctx): Promise<void> {
   const view = ctx.doc.view
