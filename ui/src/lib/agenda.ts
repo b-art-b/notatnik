@@ -16,6 +16,8 @@ export const SORTS = [
   { value: '', label: 'date' },
   { value: 'deadline asc', label: 'deadline' },
   { value: 'scheduled asc', label: 'scheduled' },
+  { value: 'prop.created asc', label: 'created, oldest first' },
+  { value: 'prop.created desc', label: 'created, newest first' },
   { value: 'priority desc', label: 'priority' },
   { value: 'page asc', label: 'page' },
   { value: 'task asc', label: 'state' },
@@ -45,6 +47,11 @@ function sortKey(it: AgendaItem, field: string): string | number | null {
     case 'task':
       return t ? (STATE_RANK[t.state] ?? 9) : 9
     default:
+      // `prop.<key>`: the property's text (a date `YYYY-MM-DD` sorts as written); none goes last
+      if (field.startsWith('prop.')) {
+        const key = field.slice(5)
+        return it.block.props.find((p) => p.key.toLowerCase() === key)?.raw || null
+      }
       return null
   }
 }

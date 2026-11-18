@@ -275,6 +275,8 @@ pub struct GraphInfo {
     pub week_start: String,
     /// `[tasks] completed_log_limit` (0 = keep all dates of repeating tasks).
     pub completed_log_limit: u32,
+    /// `[tasks] created_date`: new tasks get `created::` with the day.
+    pub created_date: bool,
     /// `[tasks] priorities`: the priority labels, most important first.
     pub priority_labels: Vec<String>,
     /// The server folder this graph is kept in step with, if any.
@@ -1428,6 +1430,8 @@ pub struct SettingsView {
     pub page_icons: Vec<PageIconRuleView>,
     /// Graph: keep only the last N completion dates of repeating tasks (0 = all).
     pub completed_log_limit: u32,
+    /// Graph: new tasks get `created::` with the day.
+    pub created_date: bool,
     /// Graph: the priority labels (one to nine), most important first.
     pub priorities: Vec<String>,
     /// The open graph's folder.
@@ -1477,6 +1481,8 @@ pub struct SetSettingsArgs {
     pub week_start: Option<String>,
     /// Graph: completed log limit.
     pub completed_log_limit: Option<u32>,
+    /// Graph: new tasks get `created::`.
+    pub created_date: Option<bool>,
     /// Graph: the priority labels (validated: one to nine).
     pub priorities: Option<Vec<String>>,
     /// Graph: replaces the page-icon rules.

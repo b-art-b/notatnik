@@ -49,6 +49,19 @@ describe('sortItems', () => {
   })
 })
 
+describe('sortItems by a property', () => {
+  const withCreated = (page: string, created?: string) => {
+    const it = item(page, 'TODO')
+    ;(it.block as { props: unknown }).props = created ? [{ key: 'created', raw: created }] : []
+    return it
+  }
+  const list = [withCreated('b', '2026-11-12'), withCreated('none'), withCreated('a', '2026-11-02')]
+  it('puts the oldest first, or the newest, and tasks without the property last', () => {
+    expect(sortItems(list, 'prop.created asc').map((i) => i.page)).toEqual(['a', 'b', 'none'])
+    expect(sortItems(list, 'prop.created desc').map((i) => i.page)).toEqual(['b', 'a', 'none'])
+  })
+})
+
 describe('groupItems', () => {
   const list = [item('a', 'TODO'), item('b', 'DOING'), item('a', 'DOING', { deadline: '2026-10-05' })]
   it('is one group without a key', () => {

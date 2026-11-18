@@ -151,7 +151,7 @@ started: 2026-09-01
 
 ### 3.5 Timestamps
 
-- Blocks have **no** `created` or `modified` timestamps in the file, which keeps files clean and diffs small.
+- Blocks have **no** `created` or `modified` timestamps in the file by default, which keeps files clean and diffs small. The one exception is opt-in: with `[tasks] created_date = true` in `config.toml` (Settings → Tasks → Creation date) a block that becomes a task gets an ordinary property `created:: YYYY-MM-DD`; nothing else is stamped, and tasks that exist are not changed.
 - The only automatic timestamps are `done::` (non-repeating tasks) and `completed::` (repeating tasks).
 - File modification times are available in the index for "recently changed" views.
 

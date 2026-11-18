@@ -29,7 +29,7 @@ pub mod task;
 
 pub use edit::{
     BlockOp, BlockRef, EditError, EditResult, TextPatch, apply, apply_patches, invert_patches,
-    replace_block_id,
+    op_task_target, replace_block_id, task_created,
 };
 pub use identity::{BlockIdentity, Tracked};
 pub use merge::{BlockConflict, Choice, ConflictKind, MergeError, MergeResult, merge, merge_with};

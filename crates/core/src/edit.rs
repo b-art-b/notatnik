@@ -228,6 +228,44 @@ pub fn invert_patches(patches: &[TextPatch]) -> Vec<TextPatch> {
     out
 }
 
+/// The block an op may turn into a task: its path in the page *after* the op (`Insert`: the new block).
+/// With [`task_created`] it lets the caller add `created::` to a block that has just become a task.
+pub fn op_task_target(op: &BlockOp) -> Option<Vec<usize>> {
+    match op {
+        BlockOp::Insert { parent, index, .. } => {
+            let mut p = parent.clone();
+            p.push(*index);
+            Some(p)
+        }
+        BlockOp::UpdateText { block, .. } | BlockOp::SetTaskState { block, .. } => {
+            Some(block.path.clone())
+        }
+        _ => None,
+    }
+}
+
+/// `before`: the page before `op`, `after`: the page after it. When the block `op_task_target` names is a task now
+/// and was none before (or is new), and has no `created::` yet, returns the op that stamps it with `date`.
+pub fn task_created(before: &Page, after: &Page, op: &BlockOp, date: &str) -> Option<BlockOp> {
+    let path = op_task_target(op)?;
+    let b = find(after, &path)?;
+    b.task.as_ref()?;
+    let was_task = !matches!(op, BlockOp::Insert { .. })
+        && find(before, &path).is_some_and(|o| o.task.is_some());
+    if was_task
+        || b.properties
+            .iter()
+            .any(|p| p.key.eq_ignore_ascii_case("created"))
+    {
+        return None;
+    }
+    Some(BlockOp::SetProperty {
+        block: BlockRef { path, hash: None },
+        key: "created".into(),
+        value: date.into(),
+    })
+}
+
 fn find<'a>(page: &'a Page, path: &[usize]) -> Option<&'a Block> {
     let (first, rest) = path.split_first()?;
     let mut b = page.blocks.get(*first)?;

@@ -768,6 +768,18 @@ impl Graph {
         base_hash: Option<&str>,
         ops: &[BlockOp],
     ) -> Result<EditOutcome> {
+        self.edit_page_stamped(rel, base_hash, ops, None)
+    }
+
+    /// Like [`Graph::edit_page`]; with `created` (a date) every block that becomes a task in these ops gets
+    /// `created:: <date>` (`[tasks] created_date`).
+    pub fn edit_page_stamped(
+        &self,
+        rel: &str,
+        base_hash: Option<&str>,
+        ops: &[BlockOp],
+        created: Option<&str>,
+    ) -> Result<EditOutcome> {
         let (old_text, base) = match (self.read_page(rel), base_hash) {
             (Ok(file), Some(h)) if file.hash == h => (file.text, Some(h.to_string())),
             (Ok(_), _) => return Err(Error::Conflict { path: rel.into() }),
@@ -782,6 +794,14 @@ impl Graph {
             text = notatnik_core::apply(&text, &page, op)
                 .map_err(Error::Edit)?
                 .new_source;
+            if let Some(date) = created {
+                let after = notatnik_core::parse_page_with(&text, &opts);
+                if let Some(stamp) = notatnik_core::task_created(&page, &after, op, date) {
+                    text = notatnik_core::apply(&text, &after, &stamp)
+                        .map_err(Error::Edit)?
+                        .new_source;
+                }
+            }
         }
         let patches = whole_diff(&old_text, &text);
         let out = self.write_page(rel, &text, base.as_deref())?;

@@ -358,6 +358,10 @@ week_start: string,
  */
 completed_log_limit: number, 
 /**
+ * `[tasks] created_date`: new tasks get `created::` with the day.
+ */
+created_date: boolean, 
+/**
  * `[tasks] priorities`: the priority labels, most important first.
  */
 priority_labels: Array<string>, 
@@ -1822,6 +1826,10 @@ page_icons: Array<PageIconRuleView>,
  */
 completed_log_limit: number, 
 /**
+ * Graph: new tasks get `created::` with the day.
+ */
+created_date: boolean, 
+/**
  * Graph: the priority labels (one to nine), most important first.
  */
 priorities: Array<string>, 
@@ -1910,6 +1918,10 @@ week_start: string | null,
  * Graph: completed log limit.
  */
 completed_log_limit: number | null, 
+/**
+ * Graph: new tasks get `created::`.
+ */
+created_date: boolean | null, 
 /**
  * Graph: the priority labels (validated: one to nine).
  */

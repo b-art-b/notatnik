@@ -16,6 +16,14 @@ reading, with the graph synced to Nextcloud by the app itself (built-in WebDAV s
   block (the emulator was the test device; the maintainer now runs the app on a phone).
 - **Known phone trap:** CodeMirror's EditContext must stay off (`EditorView.EDIT_CONTEXT = false`, decision D62 in
   [architecture.md](../architecture.md)): with it on, other text fields stop taking letters after Enter in a bullet.
+- **Gradle warnings (harmless today, revisit when updating Tauri or the Android Gradle plugin):** the build prints
+  deprecation warnings (AGP 9.3.1; `applicationVariants` / `testVariants` / `libraryVariants` obsolete). They come from
+  three switches in `src-tauri/gen/android/gradle.properties` that Tauri's Android template sets for Gradle 9
+  (`android.builtInKotlin=false`, `android.newDsl=false`, `android.proguard.failOnMissingFiles=false`; the template's
+  own comment says to remove them in Tauri v3) and from the old variant API that Tauri's build scripts and plugins still
+  call. AGP 10 removes both and the build then fails. Do not remove the switches by hand: with `newDsl=false` gone the
+  build breaks until Tauri's template stops using the old API. When updating Tauri, take its newer template and check
+  whether those lines are gone.
 - **To find out what is true, look at the code and `git log --grep=android`, not only at the checkboxes.**
 
 **Requirements covered:** PL-3, NC-3, AN-1–4, IN-1 (share target), PG-7.

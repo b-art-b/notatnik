@@ -103,6 +103,7 @@ test.describe('tasks fixture', () => {
     const total = Number((await page.getByTestId('query-count').textContent())!.split(' ')[0])
     expect(total).toBeGreaterThan(20)
     await expect(results.locator('table')).toBeVisible()
+    await expect(results.locator('th', { hasText: 'page' })).toBeVisible()
     // the filters apply to every view
     await page.getByRole('search', { name: 'Agenda filters' }).getByLabel('Namespace').fill('work')
     await expect(async () => {
@@ -119,6 +120,16 @@ test.describe('tasks fixture', () => {
     await expect(modes.getByRole('button', { name: 'list' })).toHaveAttribute('aria-pressed', 'true')
     await modes.getByRole('button', { name: 'sections' }).click()
     await expect(page.locator('[data-section="overdue"]')).toBeVisible()
+  })
+  test('the agenda shows a count per section and clears its filters', async ({ backend, page }) => {
+    await backend.open('/agenda')
+    const nav = page.getByRole('navigation', { name: 'Sections' })
+    await expect(nav.getByRole('button', { name: /Overdue/ })).toContainText('7')
+    await expect(page.getByRole('button', { name: 'Clear filters' })).toHaveCount(0)
+    await page.getByRole('search', { name: 'Agenda filters' }).getByLabel('Namespace').fill('work')
+    await page.getByRole('button', { name: 'Clear filters' }).click()
+    await expect(page.getByRole('search', { name: 'Agenda filters' }).getByLabel('Namespace')).toHaveValue('')
+    await expect(page.getByRole('button', { name: 'Clear filters' })).toHaveCount(0)
   })
   test('sections honour group and sort', async ({ backend, page }) => {
     await backend.open('/agenda')

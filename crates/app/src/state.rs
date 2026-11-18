@@ -636,6 +636,7 @@ impl AppState {
             warnings,
             week_start: graph.config().graph.week_start,
             completed_log_limit: graph.config().tasks.completed_log_limit,
+            created_date: graph.config().tasks.created_date,
             priority_labels: graph.config().priority_labels(),
             remote: None,
             color: 0,
@@ -885,7 +886,15 @@ impl AppState {
                     }
                 }
             }
-            let out = o.graph.edit_page(&rel, a.base_hash.as_deref(), &ops)?;
+            let stamp = o
+                .graph
+                .config()
+                .tasks
+                .created_date
+                .then(|| today.format("%Y-%m-%d").to_string());
+            let out =
+                o.graph
+                    .edit_page_stamped(&rel, a.base_hash.as_deref(), &ops, stamp.as_deref())?;
             if !out.patches.is_empty() || created {
                 let entry = if created {
                     UndoEntry {
@@ -3360,6 +3369,7 @@ impl AppState {
             priorities: cfg.priority_labels(),
             week_start: cfg.graph.week_start.clone(),
             completed_log_limit: cfg.tasks.completed_log_limit,
+            created_date: cfg.tasks.created_date,
             page_icons: cfg
                 .page_icons
                 .iter()
@@ -3611,6 +3621,7 @@ impl AppState {
             }
             if a.week_start.is_some()
                 || a.completed_log_limit.is_some()
+                || a.created_date.is_some()
                 || a.page_icons.is_some()
                 || a.priorities.is_some()
                 || a.journal_template.is_some()
@@ -3653,6 +3664,9 @@ impl AppState {
                     }
                     if let Some(n) = a.completed_log_limit {
                         c.tasks.completed_log_limit = n;
+                    }
+                    if let Some(b) = a.created_date {
+                        c.tasks.created_date = b;
                     }
                     if let Some(p) = &a.priorities {
                         c.tasks.priorities = p.iter().map(|l| l.trim().to_string()).collect();

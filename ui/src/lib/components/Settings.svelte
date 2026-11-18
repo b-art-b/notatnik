@@ -494,6 +494,7 @@
     namespace_templates: { namespace: string; template: string }[]
     week_start: string
     completed_log_limit: number
+    created_date: boolean
     priorities: string[]
     page_icons: PageIconRuleView[]
   }>
@@ -529,6 +530,7 @@
         namespace_templates: null,
         week_start: null,
         completed_log_limit: null,
+        created_date: null,
         priorities: null,
         page_icons: null,
         ...change,
@@ -878,6 +880,17 @@
               />
               <span class="unit">dates</span></span
             >
+          </SettingRow>
+          <SettingRow
+            title="Creation date"
+            description="A block that becomes a task (typed, /todo, Ctrl+Enter, the capture dialog or the widget) gets a created:: line with the day. Tasks you already have are not changed. Off, the files keep no dates besides your own."
+            labelFor="created-date"
+          >
+            <Switch
+              id="created-date"
+              checked={s.created_date}
+              onchange={(e) => save({ created_date: (e.currentTarget as HTMLInputElement).checked })}
+            />
           </SettingRow>
           <SettingRow
             title="Priorities"

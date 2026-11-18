@@ -7607,6 +7607,36 @@ fn capture_adds_a_block_at_the_end_of_the_journal_or_a_page() {
     );
 }
 
+/// `[tasks] created_date`: a block that becomes a task gets `created::` with the day, however it was made.
+#[test]
+fn created_date_is_added_when_a_block_becomes_a_task() {
+    let t = start("tasks"); // today is 2026-10-03
+    // off by default: nothing is added
+    t.ok("capture", json!({"text": "TODO plain", "page": "Inbox"}));
+    assert_eq!(t.read("pages/Inbox.md"), "- TODO plain\n");
+    let s = t.ok("set_settings", json!({"created_date": true}));
+    assert_eq!(s["created_date"], true);
+    t.ok("capture", json!({"text": "TODO captured", "page": "Inbox"}));
+    t.ok("capture", json!({"text": "just a note", "page": "Inbox"}));
+    let v = t.ok("get_page", json!({"name": "Inbox"}));
+    // a note becomes a task by typing the marker, and by the state command
+    let h = v["hash"].as_str().unwrap().to_string();
+    t.ok(
+        "apply_ops",
+        json!({"page": "Inbox", "base_hash": h, "ops": [
+            {"op": "set_task_state", "block": {"path": [2], "hash": null}, "state": "TODO"},
+            {"op": "update_text", "block": {"path": [0], "hash": null}, "text": "TODO plain, edited"}
+        ]}),
+    );
+    // a task that already was one keeps its state changes without a stamp of its own
+    let got = t.read("pages/Inbox.md");
+    assert_eq!(
+        got,
+        "- TODO plain, edited\n- TODO captured\n  created:: 2026-10-03\n- TODO just a note\n  created:: 2026-10-03\n",
+        "{got}"
+    );
+}
+
 fn write_queue(t: &T, lines: &[Value]) {
     let dir = t.tmp.path().join("device/data/widgets");
     std::fs::create_dir_all(&dir).unwrap();

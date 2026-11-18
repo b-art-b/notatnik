@@ -133,6 +133,9 @@ pub struct TasksSection {
     /// 0 = keep all completion dates of repeating tasks; N = keep the last N.
     #[serde(default)]
     pub completed_log_limit: u32,
+    /// A block that becomes a task gets `created:: <date>` (off by default; the file keeps no other timestamps).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub created_date: bool,
     /// The priority labels, most important first (one to nine). Shown after the task marker (`TODO [#A] ...`); in a
     /// file `priority::` is one of them (`high`/`medium`/`low` still work). A task has no priority unless one is set.
     #[serde(
@@ -154,6 +157,7 @@ impl Default for TasksSection {
     fn default() -> Self {
         TasksSection {
             completed_log_limit: 0,
+            created_date: false,
             priorities: default_priorities(),
         }
     }
@@ -1051,4 +1055,8 @@ mod encryption_tests {
         .unwrap();
         assert_eq!(w.len(), 5, "{w:?}");
     }
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
