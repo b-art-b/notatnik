@@ -7353,6 +7353,41 @@ fn a_diagram_is_saved_in_place_listed_when_unused_and_searched_by_its_text() {
     assert!(find("sceneonlyword").as_array().unwrap().is_empty());
 }
 
+/// DG-9: the conflict copy of a diagram is listed, read and trashed like a drawing's; a copy of another kind or of a
+/// look-alike name is not.
+#[test]
+fn a_conflict_copy_of_a_diagram_is_listed_read_and_trashed() {
+    let t = start("basic");
+    let dir = t.graph().join("assets/drawings");
+    std::fs::create_dir_all(&dir).unwrap();
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0L1 1\"/></svg>";
+    let main = "assets/drawings/diagram-0a1b2c3d.svg";
+    let copy = "assets/drawings/diagram-0a1b2c3d (conflicted copy 2026-10-03 120000).svg";
+    std::fs::write(t.graph().join(main), svg).unwrap();
+    std::fs::write(t.graph().join(copy), svg.replace("L1 1", "L2 2")).unwrap();
+    // the copy of a drawing with the same digits is not this diagram's copy
+    std::fs::write(
+        dir.join("draw-0a1b2c3d (conflicted copy 2026-10-03 120000).svg"),
+        svg,
+    )
+    .unwrap();
+    let list = t.ok("drawing_copies", json!({"path": format!("../{main}")}));
+    assert_eq!(list["items"], json!([copy]));
+    assert!(
+        t.ok("read_drawing", json!({"path": copy}))["value"]
+            .as_str()
+            .unwrap()
+            .contains("L2 2")
+    );
+    assert!(
+        t.call("discard_drawing_copy", json!({"path": main}))
+            .is_err()
+    );
+    t.ok("discard_drawing_copy", json!({"path": copy}));
+    assert!(!t.graph().join(copy).exists());
+    assert!(t.graph().join(main).exists());
+}
+
 /// DR-23: the copy a sync leaves of a drawing changed on two devices can be listed, read and put in the trash; no
 /// other file can.
 #[test]

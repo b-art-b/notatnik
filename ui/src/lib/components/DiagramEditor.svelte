@@ -44,6 +44,10 @@
   let drafts: DraftStore | undefined
   let saver: DraftSaver | undefined
   let loadError = $state('')
+  // the copies a sync left of this diagram when it was changed on two devices (DR-23, DG-9), and the ones whose
+  // content is in the editor now: they go to the trash when the diagram is saved
+  let copies = $state<string[]>([])
+  let consumed: string[] = []
 
   const theme = (): 'light' | 'dark' => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
   const metaChanged = () => name.trim() !== target.name.trim() || mode !== target.mode
@@ -82,6 +86,13 @@
         if (found?.svg) draft = found
       } catch {
         /* no storage: nothing was kept */
+      }
+      if (target.path) {
+        try {
+          copies = (await backend.call('drawing_copies', { path: target.path })).items
+        } catch {
+          /* an older backend, or none: no copies are offered */
+        }
       }
     })()
     return () => {
@@ -123,6 +134,40 @@
     dialog?.focus()
   }
 
+  /** "Use that version": the editor shows the other device's diagram; this device's file is overwritten on Done and the
+   * copy goes to the trash then. There is no merge inside a diagram. */
+  async function useCopy(copy: string) {
+    loading = true
+    try {
+      await mountWith((await backend.call('read_drawing', { path: copy })).value)
+      forceDirty = true
+      consumed.push(copy)
+      copies = copies.filter((c) => c !== copy)
+      saver?.touch()
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+    loading = false
+    dialog?.focus()
+  }
+  /** "Keep this one": the other version is not wanted; its copy goes to the trash at once. */
+  async function keepMine(copy: string) {
+    try {
+      await backend.call('discard_drawing_copy', { path: copy })
+      copies = copies.filter((c) => c !== copy)
+    } catch (e) {
+      toast(errorMessage(e), 'error')
+    }
+    dialog?.focus()
+  }
+  /** "Keep both": the copy stays beside the diagram as a file; this window stops asking about it. */
+  function keepBoth(copy: string) {
+    copies = copies.filter((c) => c !== copy)
+    dialog?.focus()
+  }
+  /** The date and time of a copy, from its name (`… (conflicted copy 2026-10-03 120000).svg`). */
+  const copyWhen = (p: string) => /\(conflicted copy ([^)]*)\)/.exec(p)?.[1] ?? ''
+
   /** Done: a new diagram that is empty, or an old one with nothing changed, stores nothing. The file is written when
    * the shapes changed; a new name or form only rewrites the reference in the block. */
   async function done() {
@@ -156,6 +201,8 @@
       // an existing diagram: the block writes the new name and form around the target it already has
       if (!isNew && target.host && path && metaChanged())
         await target.host.replace(path, (href) => drawingMarkdown(href, name, mode))
+      // the copies whose content is in the diagram now are not needed any more
+      for (const c of consumed) await backend.call('discard_drawing_copy', { path: c }).catch(() => undefined)
       await leave({ path: path ?? '', markdown })
     } catch (e) {
       toast(errorMessage(e), 'error')
@@ -303,6 +350,24 @@
         >
         <button type="button" data-testid="diagram-draft-restore" onclick={restoreDraft}>Restore</button>
         <button type="button" data-testid="diagram-draft-discard" onclick={dropDraft}>Discard it</button>
+      </div>
+    {/if}
+    {#if copies.length}
+      <!-- DG-9: this diagram was changed on two devices; the sync kept the other version beside it -->
+      <div class="confirm banner" role="status" data-testid="diagram-copy-banner">
+        <span
+          >This diagram was changed on two devices. The other version ({copyWhen(copies[0])}) was saved as a
+          copy{copies.length > 1 ? `, and ${copies.length - 1} more` : ''}.</span
+        >
+        <button type="button" data-testid="diagram-copy-keep" onclick={() => void keepMine(copies[0])}
+          >Keep this one</button
+        >
+        <button type="button" data-testid="diagram-copy-use" onclick={() => void useCopy(copies[0])}
+          >Use that version</button
+        >
+        <button type="button" data-testid="diagram-copy-both" onclick={() => keepBoth(copies[0])}
+          >Keep both</button
+        >
       </div>
     {/if}
     {#if loadError}

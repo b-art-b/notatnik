@@ -241,3 +241,63 @@ test('Escape closes an empty diagram and does not reach the block behind it', as
   // one Escape was used by the dialog: the block is still being edited
   await expect(page.getByTestId('block-editor')).toBeFocused()
 })
+
+test('DG-9: a copy another device left of a diagram: keep this one, use that version, or keep both', async ({
+  backend,
+  page,
+}) => {
+  const copyName = (file: string) => file.replace('.svg', ' (conflicted copy 2026-10-03 120000).svg')
+  backend.write('pages/g9.md', '- start\n')
+  await slashDiagram(page, backend, 'g9', 'start')
+  await rectangle(page)
+  await page.getByTestId('diagram-done').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  await expect.poll(() => backend.read('pages/g9.md')).toMatch(LINK)
+  await page.keyboard.press('Escape')
+  const file = `assets/drawings/${LINK.exec(backend.read('pages/g9.md'))![1]}`
+  const mine = backend.read(file)
+  const open = async () => {
+    await page.getByRole('tree', { name: 'Blocks' }).locator('img').first().click()
+    await expect(page.getByTestId('diagram-done')).toBeEnabled({ timeout: 20_000 })
+    await expect(page.locator('.excalidraw canvas.interactive')).toBeVisible()
+  }
+  // the other device's version has a second shape: made here, then put back as a copy
+  await open()
+  await rectangle(page, 140)
+  await page.getByTestId('diagram-done').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  const theirs = backend.read(file)
+  expect(shapes(theirs)).toBe(2)
+  backend.write(file, mine)
+
+  // keep both: the copy stays as a file, this window stops asking, nothing is written
+  backend.write(copyName(file), theirs)
+  await open()
+  await expect(page.getByTestId('diagram-copy-banner')).toBeVisible()
+  await page.getByTestId('diagram-copy-both').click()
+  await expect(page.getByTestId('diagram-copy-banner')).toHaveCount(0)
+  await page.getByTestId('diagram-done').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  expect(backend.read(file)).toBe(mine)
+  expect(backend.exists(copyName(file))).toBe(true)
+
+  // keep this one: the copy goes at once, the diagram is as it was
+  await open()
+  await page.getByTestId('diagram-copy-keep').click()
+  await expect(page.getByTestId('diagram-copy-banner')).toHaveCount(0)
+  await expect.poll(() => backend.exists(copyName(file))).toBe(false)
+  await page.getByTestId('diagram-done').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  expect(backend.read(file)).toBe(mine)
+
+  // use that version: the editor shows two shapes, Done overwrites the file, the copy is gone
+  backend.write(copyName(file), theirs)
+  await open()
+  await page.getByTestId('diagram-copy-use').click()
+  await expect(page.getByTestId('diagram-copy-banner')).toHaveCount(0)
+  await expect(page.getByTestId('diagram-done')).toBeEnabled({ timeout: 20_000 })
+  await page.getByTestId('diagram-done').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  await expect.poll(() => shapes(backend.read(file))).toBe(2)
+  await expect.poll(() => backend.exists(copyName(file))).toBe(false)
+})

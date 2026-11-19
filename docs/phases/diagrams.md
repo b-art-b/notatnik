@@ -7,7 +7,7 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 **Requirements covered:** DG-1 to DG-10 (see `requirements.md`).
 **Depends on:** drawings ([drawing.md](drawing.md): storage, overlay host, name/form/delete header, drafts, search of
 `<text>`, conflict copies), assets (ST-8).
-**Status:** X1 (storage), X2 (the Excalidraw island) and X3 (the overlay, with `/diagram` to reach it) are built; X4 (checks of the page), X5 and X6 are next.
+**Status:** X1 (storage), X2 (the Excalidraw island) and X3 (the overlay, with `/diagram` to reach it) and the copies part of X5 are built; the phone checks of X5 are waiting for a device, then X4 (checks of the page) and X6.
 
 ## Design
 
@@ -127,9 +127,13 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 
 - A conflict copy of a diagram is offered when it is opened: keep this one, use the copy, keep both (the copy stays as it
   is). On the phone: the editor works by touch (pan with two fingers, pinch to zoom, the text tool with the keyboard).
+- **Built:** the banner of `DiagramEditor.svelte` (`drawing_copies`, `discard_drawing_copy` already covered diagram names
+  after X1): **Keep this one** trashes the copy at once, **Use that version** loads the copy into the editor and trashes
+  it when Done overwrites the file, **Keep both** leaves the copy as a file and stops asking in this window.
 - **Verify:**
-  - [ ] a `diagram-<hex> (conflicted copy …).svg` is listed when the diagram is opened; each of the three choices does
-        what it says; nothing else can be read or trashed through these commands
+  - [x] a `diagram-<hex> (conflicted copy …).svg` is listed when the diagram is opened; each of the three choices does
+        what it says (`tests/diagram.spec.ts`); nothing else can be read or trashed through these commands (an app test:
+        the copy of a `draw-` file with the same digits is not listed, the diagram itself cannot be discarded)
   - [ ] a diagram made on the desktop opens, and can be changed, on the phone; the reverse
   - [ ] on the phone: after closing the editor, Enter in a bullet and then typing in Search works (D62)
   - [ ] on the phone: a text typed in a shape keeps the letters (no lost input)
