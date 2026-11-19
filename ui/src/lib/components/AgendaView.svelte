@@ -50,7 +50,7 @@
     if (tag.trim()) lines.push(`tag: ${name(tag.trim().replace(/^#/, ''))}`)
     if (priority) lines.push(`priority: ${priority}`)
     // the table names the note each task is in, and the day it was made (Settings → Tasks → Creation date), as columns
-    if (mode === 'table') lines.push('columns: text, page, prop.created')
+    if (mode === 'table') lines.push('columns: task, priority, text, deadline, scheduled, page, prop.created')
     lines.push(`sort: ${sort || 'deadline asc'}`)
     if (group) lines.push(`group: ${group}`)
     return lines.join('\n')
@@ -321,6 +321,12 @@
   }
   .field.narrow {
     flex: 0 1 8em;
+  }
+  /* the suggestion input is a child component: its own style does not reach here */
+  .field :global(input) {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
   .cap {
     font-size: 0.75em;

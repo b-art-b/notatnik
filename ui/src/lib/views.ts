@@ -6,6 +6,7 @@ export function cellValue(r: ResultRow, col: string): string {
   if (col === 'text') return (r.block?.text ?? '').split('\n')[0]
   if (col === 'linked-from') return r.linked_from.join(', ')
   if (col === 'task') return r.task_state ?? ''
+  if (col === 'priority') return r.block?.task?.priority ?? ''
   if (col === 'scheduled') return r.scheduled ?? ''
   if (col === 'deadline') return r.deadline ?? ''
   if (col.startsWith('prop.')) return r.props[col.slice(5)] ?? ''

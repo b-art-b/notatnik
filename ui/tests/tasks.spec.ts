@@ -103,7 +103,16 @@ test.describe('tasks fixture', () => {
     const total = Number((await page.getByTestId('query-count').textContent())!.split(' ')[0])
     expect(total).toBeGreaterThan(20)
     await expect(results.locator('table')).toBeVisible()
-    await expect(results.locator('th', { hasText: 'page' })).toBeVisible()
+    // a table of tasks: the state, the text and the dates are columns of their own
+    const heads = results.locator('thead th')
+    await expect(heads.nth(0)).toHaveText('State')
+    await expect(heads.filter({ hasText: 'text' })).toBeVisible()
+    await expect(heads.filter({ hasText: 'deadline' })).toBeVisible()
+    await expect(heads.filter({ hasText: 'page' })).toBeVisible()
+    await expect(
+      results.locator('tbody tr').first().locator('td').first().locator('[data-task]'),
+    ).toBeVisible()
+    await expect(results.locator('td.text [data-task]')).toHaveCount(0)
     // the filters apply to every view
     await page.getByRole('search', { name: 'Agenda filters' }).getByLabel('Namespace').fill('work')
     await expect(async () => {
