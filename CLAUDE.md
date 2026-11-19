@@ -18,6 +18,7 @@ SQLite is a rebuildable cache. Linux desktop first (Tauri 2 + Svelte 5), Android
 - `docs/phases/nextcloud-annotation.md`: open and annotate PDFs and EPUBs of the graph's Nextcloud through a device cache, no copy in the graph (NA-1..NA-8)
 - `docs/phases/local-annotation.md`: open and annotate PDFs and EPUBs of this computer in place (`file:///` links), system viewer by modifier, ↗ or setting (LV-1..LV-8)
 - `docs/phases/docked-documents.md`: dock the PDF/EPUB viewer into the right side panel beside the notes, not the default (DD-1..DD-8)
+- `docs/phases/diagrams.md`: Excalidraw diagrams next to the handwriting editor, one SVG with the scene embedded, loaded only when opened (DG-1..DG-10), planned
 - `docs/phases/list-styles.md`: children of a block shown as bullets, numbers, letters or roman numerals, chosen from the bullet menu, kept as the hidden property `list::` (LS-1..LS-6)
 - `docs/phases/format-keys.md`: bold, italic, strike, highlight and code keys for the selected text in the block editor, Ctrl+B stays cursor-left without a selection (FK-1..FK-7)
 - `docs/phases/template-choices.md`: `{{askchoice:Label|a|b|c}}` in templates, pick one of a list in the ask dialog (TC-1..TC-6)
