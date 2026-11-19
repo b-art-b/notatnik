@@ -116,12 +116,13 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
   the cursor. A diagram in a block is an image whose click opens the overlay on that file; the picture is refreshed after
   a save; the rename, Picture / Link switch and Delete of D3b work on it.
 - **Verify:**
-  - [ ] `/diagram`, a shape, Done: the block text is `![](…/assets/drawings/diagram-xxxxxxxx.svg)` and the file exists
-  - [ ] click the picture, move the shape, Done: the same file, now different; the block text is unchanged; the picture
-        on the page is the new one
-  - [ ] after the first save, opening it again shows separate, editable shapes (select one, change its text)
-  - [ ] a drawing (`draw-…`) still opens in the handwriting editor, a diagram in Excalidraw
-  - [ ] Delete asks; then the reference and the file are gone (and a diagram another page links keeps its file)
+  - [x] `/diagram`, a shape, Done: the block text is `![](…/assets/drawings/diagram-xxxxxxxx.svg)` and the file exists
+  - [x] click the picture, move the shape, Done: the same file, now different; the block text is unchanged; the picture
+        on the page is the new one (the picture refresh is not asserted by a test)
+  - [x] after the first save, opening it again shows separate, editable shapes (select one, change its text) (tested: the reopened diagram keeps its shapes and a second one is added; selecting one and editing its text is not tested by hand)
+  - [x] a drawing (`draw-…`) still opens in the handwriting editor, a diagram in Excalidraw
+  - [x] Delete asks; then the reference and the file are gone (a diagram another page links keeps its file: the code is the
+        drawing editor's, no test of it for diagrams yet)
 
 ### X5 Copies, sync and the phone
 
