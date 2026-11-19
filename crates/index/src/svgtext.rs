@@ -1,4 +1,5 @@
-//! The words in a drawing (DR-14): the text of the `<text>` elements of an `assets/drawings/draw-<8 hex>.svg`, so a
+//! The words in a drawing or a diagram (DR-14, DG-7): the text of the `<text>` elements of an
+//! `assets/drawings/draw-<8 hex>.svg` or `diagram-<8 hex>.svg`, so a
 //! search for what was written with the text tool finds the block that shows the drawing. Handwriting is strokes and
 //! is not searched. No XML parser: js-draw writes `<text ...>` with `<tspan>` children, and the entities are decoded
 //! by hand; a drawing this does not understand just has no words.
@@ -68,26 +69,31 @@ fn decode(s: &str) -> String {
 /// The graph-relative paths of the drawings a page's text links, each once (`assets/drawings/draw-<8 hex>.svg`, however
 /// the link spells the way up to it).
 pub(crate) fn drawing_paths(text: &str) -> Vec<String> {
-    const DIR: &str = "assets/drawings/draw-";
-    let mut found: Vec<String> = Vec::new();
-    let mut from = 0;
-    while let Some(i) = text[from..].find(DIR) {
-        let start = from + i;
-        let tail = &text[start + DIR.len()..];
-        from = start + DIR.len();
-        let hex = tail.get(..8);
-        if hex.is_some_and(|h| {
-            h.bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        }) && tail.get(8..12) == Some(".svg")
-        {
-            let p = text[start..start + DIR.len() + 12].to_string();
-            if !found.contains(&p) {
-                found.push(p);
+    // `draw-` (handwriting) and `diagram-` (Excalidraw, DG-7): both are searched by their `<text>`
+    const DIRS: [&str; 2] = ["assets/drawings/draw-", "assets/drawings/diagram-"];
+    let mut found: Vec<(usize, String)> = Vec::new();
+    for dir in DIRS {
+        let mut from = 0;
+        while let Some(i) = text[from..].find(dir) {
+            let start = from + i;
+            let tail = &text[start + dir.len()..];
+            from = start + dir.len();
+            let hex = tail.get(..8);
+            if hex.is_some_and(|h| {
+                h.bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            }) && tail.get(8..12) == Some(".svg")
+            {
+                let p = text[start..start + dir.len() + 12].to_string();
+                if !found.iter().any(|(_, q)| *q == p) {
+                    found.push((start, p));
+                }
             }
         }
     }
-    found
+    // in the order the text names them
+    found.sort_by_key(|(at, _)| *at);
+    found.into_iter().map(|(_, p)| p).collect()
 }
 
 /// The words of every drawing a page links, by path. A missing or unreadable file has none.
@@ -131,6 +137,19 @@ mod tests {
             drawing_paths(t),
             vec![
                 "assets/drawings/draw-0123abcd.svg".to_string(),
+                "assets/drawings/draw-ffffffff.svg".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn finds_diagrams_as_well_in_the_order_the_text_names_them() {
+        let t = "- ![a](../assets/drawings/diagram-0123abcd.svg) ![b](../assets/drawings/draw-ffffffff.svg) \
+                 ![c](assets/drawings/diagram-0123abcd.svg) ![d](assets/drawings/diagram-nothex00.svg)";
+        assert_eq!(
+            drawing_paths(t),
+            vec![
+                "assets/drawings/diagram-0123abcd.svg".to_string(),
                 "assets/drawings/draw-ffffffff.svg".to_string()
             ]
         );

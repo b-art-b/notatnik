@@ -2467,7 +2467,13 @@ impl AppState {
         self.with_open(|o| {
             let page_rel = name.as_ref().map(|n| Self::page_file(o, n)).transpose()?;
             let existing = a.path.as_deref().map(Self::drawing_rel);
-            let path = o.graph.save_drawing(existing.as_deref(), &a.svg)?;
+            let kind = match a.kind.as_deref() {
+                None => notatnik_graph::DrawingKind::Draw,
+                Some(k) => notatnik_graph::DrawingKind::parse(k).ok_or_else(|| {
+                    ApiError::new("invalid", format!("unknown drawing kind `{k}`"))
+                })?,
+            };
+            let path = o.graph.save_drawing_of(existing.as_deref(), &a.svg, kind)?;
             // the words in the drawing are part of the search text of the blocks that show it (DR-14): index those
             // pages again; a new drawing is not in a page yet, the page is indexed when the link is written
             if existing.is_some() {

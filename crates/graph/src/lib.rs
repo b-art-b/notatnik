@@ -30,7 +30,7 @@ pub use config::{
     PropertiesSection, RemoteConfig, SavedQuery, TasksSection, default_priorities, new_graph_id,
     validate_priorities,
 };
-pub use drawings::{DRAWING_DIR, is_drawing_path};
+pub use drawings::{DRAWING_DIR, DrawingKind, is_drawing_path};
 pub use error::{Error, Result};
 pub use lock::{GraphLock, LockError};
 pub use pdfs::{

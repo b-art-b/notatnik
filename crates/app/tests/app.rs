@@ -7265,6 +7265,94 @@ fn search_finds_the_words_in_a_drawing_also_after_it_is_edited() {
     assert_eq!(find("guppy").as_array().unwrap().len(), 1);
 }
 
+/// DG-1, DG-2, DG-7: a diagram is `diagram-<8 hex>.svg` next to the drawings, overwritten in place, kept as an image
+/// of a page, and found by the words of its `<text>` (the embedded scene is not searched).
+#[test]
+fn a_diagram_is_saved_in_place_listed_when_unused_and_searched_by_its_text() {
+    let t = start("basic");
+    let svg = |w: &str| {
+        format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><metadata>\
+             <!-- payload-type:application/vnd.excalidraw+json -->Sceneonlyword</metadata>\
+             <text x=\"1\">{w}</text></svg>"
+        )
+    };
+    let first = t.ok(
+        "save_drawing",
+        json!({"page": "inbox", "path": null, "svg": svg("Router rack"), "kind": "diagram"}),
+    );
+    let path = first["path"].as_str().unwrap().to_string();
+    assert!(
+        path.starts_with("assets/drawings/diagram-") && path.ends_with(".svg") && path.len() == 36,
+        "{path}"
+    );
+    assert_eq!(first["markdown"], format!("![](../{path})"));
+    // edited again: the same file; a different kind in the request does not rename it
+    let again = t.ok(
+        "save_drawing",
+        json!({"page": "inbox", "path": &path, "svg": svg("Switch"), "kind": "draw"}),
+    );
+    assert_eq!(again["path"], path.as_str());
+    assert!(
+        t.ok("read_drawing", json!({"path": &path}))["value"]
+            .as_str()
+            .unwrap()
+            .contains("Switch")
+    );
+    // unknown kinds and look-alike names are refused
+    for bad in ["x", "Diagram", ""] {
+        assert!(
+            t.call(
+                "save_drawing",
+                json!({"page": null, "path": null, "svg": svg("a"), "kind": bad})
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    for bad in [
+        "assets/drawings/diagram-ABCDEF12.svg",
+        "assets/drawings/diagrams-0a1b2c3d.svg",
+    ] {
+        assert!(
+            t.call("read_drawing", json!({"path": bad})).is_err(),
+            "{bad}"
+        );
+    }
+    // unused until a page links it
+    let listed = |t: &T| {
+        t.ok("list_orphan_assets", json!({}))["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["path"] == path.as_str())
+    };
+    assert!(listed(&t));
+    let page = t.graph().join("pages/inbox.md");
+    let text = std::fs::read_to_string(&page).unwrap();
+    std::fs::write(
+        &page,
+        format!("{text}- the rack {}\n", first["markdown"].as_str().unwrap()),
+    )
+    .unwrap();
+    assert!(!listed(&t));
+    // search: the words of the diagram, not the scene
+    let g = t.graph();
+    t.ok(
+        "open_graph",
+        json!({"path": g.to_str().unwrap(), "create": false}),
+    );
+    let find = |q: &str| t.ok("search", json!({"text": q, "limit": 10}));
+    assert_eq!(
+        find("switch").as_array().unwrap().len(),
+        1,
+        "{}",
+        find("switch")
+    );
+    assert!(find("router").as_array().unwrap().is_empty());
+    assert!(find("sceneonlyword").as_array().unwrap().is_empty());
+}
+
 /// DR-23: the copy a sync leaves of a drawing changed on two devices can be listed, read and put in the trash; no
 /// other file can.
 #[test]

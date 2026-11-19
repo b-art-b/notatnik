@@ -2182,7 +2182,11 @@ path: string | null,
 /**
  * The SVG text.
  */
-svg: string, };
+svg: string, 
+/**
+ * The kind of a new file: `draw` (handwriting, the default) or `diagram` (Excalidraw). An existing file keeps its own.
+ */
+kind: string | null, };
 export type ReadDrawingArgs = { 
 /**
  * `assets/drawings/draw-<8 hex>.svg`, also as a page link writes it (`../../assets/...`).

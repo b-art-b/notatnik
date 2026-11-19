@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Diagram island</title>
+    <style>
+      html,
+      body,
+      #host {
+        height: 100%;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+    <script type="module">
+      // test harness for the Excalidraw island (X2): the editor mounted alone, served by the Vite dev server
+      import { mountDiagram } from '/src/lib/diagram/excalidraw.ts'
+      window.mountDiagram = (opts) => mountDiagram(document.getElementById('host'), opts)
+      window.harnessReady = true
+    </script>
+  </body>
+</html>

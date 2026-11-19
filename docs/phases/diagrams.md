@@ -7,7 +7,7 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 **Requirements covered:** DG-1 to DG-10 (see `requirements.md`).
 **Depends on:** drawings ([drawing.md](drawing.md): storage, overlay host, name/form/delete header, drafts, search of
 `<text>`, conflict copies), assets (ST-8).
-**Status:** planned, not started. Do not start building before the user says so.
+**Status:** X1 (storage) and X2 (the Excalidraw island, tested on its own page) are built; X3 to X6 are not started.
 
 ## Design
 
@@ -56,26 +56,41 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
   `crates/graph/src/drawings.rs` accept `diagram-<8 hex>.svg` as well as `draw-<8 hex>.svg` (`is_drawing_path`,
   `drawing_of_copy`, the id generator takes a prefix). The commands stay `save_drawing`, `read_drawing` (the path says
   what it is); `save_drawing(None, …)` takes a `kind` (`draw` default, `diagram`).
+- **Built:** `DrawingKind` (`draw`, `diagram`) in `crates/graph/src/drawings.rs`; `save_drawing_of(existing, svg, kind)`; the command
+  `save_drawing` takes `kind` (absent = `draw`; an existing file keeps its name whatever `kind` says); `svgtext::drawing_paths`
+  finds both names. Unused images and Delete use the generic asset rules and needed no change.
 - **Verify:**
-  - [ ] a new diagram is stored as `assets/drawings/diagram-<8 hex>.svg` and the reply has `![](…)` relative to the page
-  - [ ] saving again with the path overwrites it; path and link stay the same
-  - [ ] a path outside `assets/drawings/`, a name that is neither `draw-` nor `diagram-`, text that is not an SVG, an SVG with
+  - [x] a new diagram is stored as `assets/drawings/diagram-<8 hex>.svg` and the reply has `![](…)` relative to the page
+  - [x] saving again with the path overwrites it; path and link stay the same
+  - [x] a path outside `assets/drawings/`, a name that is neither `draw-` nor `diagram-`, text that is not an SVG, an SVG with
         a `<script>`, and more than 25 MB are refused (as for drawings)
-  - [ ] a diagram that a page links is not listed under Unused images; one that no page links is
-  - [ ] the words of the diagram's `<text>` are found by search, the embedded scene is not (`notatnik-index`)
+  - [x] a diagram that a page links is not listed under Unused images; one that no page links is
+  - [x] the words of the diagram's `<text>` are found by search, the embedded scene is not (`notatnik-index`)
 
 ### X2 Excalidraw as a lazy, offline island
 
 - `ui/src/lib/diagram/excalidraw.ts` loads React and Excalidraw on first use; fonts and CSS are bundled
   (`EXCALIDRAW_ASSET_PATH` points at them); the UI options hide the library browser, the collaboration, share and
   excalidraw.com entries.
+- **Built:** `ui/src/lib/diagram/excalidraw.ts` (`mountDiagram(container, {svg?, theme, onChange?})` returns
+  `getSvg`, `isEmpty`, `changed`, `markSaved`, `unmount`); the build copies the fonts to `excalidraw/fonts/`
+  (`excalidrawFiles` in `vite.config.ts`, the 13 MB CJK font Xiaolai is left out). Versions: `@excalidraw/excalidraw`
+  0.18.1 (2026-04-20), `react` and `react-dom` 18.3.1, all exact. Tested on its own page of the Vite dev server
+  (`tests/harness/diagram.html`, started by `tests/diagram-island.spec.ts`) because the overlay is X3.
+- **Size (measured with a build of the harness page alone):** the island is a separate set of chunks, about 7.6 MB
+  before and 2.5 MB after gzip (React 130 KB, Excalidraw 1.8 MB + 1.1 MB, CSS 140 KB, fonts 480 KB), loaded only when a
+  diagram is opened. About half of it is a second copy of mermaid (11.17.2, Excalidraw's own dependency, next to the
+  app's 11.4.1) with its diagram chunks; pinning both to one version would remove it (not done: it needs a check of the
+  app's own mermaid blocks).
 - **Verify:**
-  - [ ] the main bundle has no React and no Excalidraw; opening a diagram loads one more chunk (checked in the build output)
-  - [ ] a browser test with the network blocked (`context.route('**/*', …)` for everything not from the app) opens the
+  - [x] the main bundle has no React and no Excalidraw (checked in the build output; nothing imports the island until X3 wires
+        the overlay, so this is to be checked again then); the harness page requests none of it until `mountDiagram` runs
+  - [x] a browser test with the network blocked (`context.route('**/*', …)` for everything not from the app) opens the
         editor and draws a rectangle; no request leaves the app
-  - [ ] the editor shows no library browser, collaboration or share entries
-  - [ ] a unit test: the scene → SVG → scene round trip (`exportToSvg` with the scene embedded, then `loadFromBlob`) keeps
-        the elements (ids, text, positions)
+  - [x] the editor shows no library browser, collaboration or share entries
+  - [x] the scene → SVG → scene round trip (`exportToSvg` with the scene embedded, then `loadFromBlob`) gives back a shape that
+        can be exported again; done in the browser test, not as a unit test (jsdom has no canvas or `FontFace`, which
+        Excalidraw needs). Ids, text and positions are still to be compared in X3 with a drawing made by hand
 
 ### X3 The overlay
 

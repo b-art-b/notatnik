@@ -1,6 +1,7 @@
-//! Drawings (DR-1, DR-5, DR-7): a drawing is one SVG file, `assets/drawings/draw-<8 hex>.svg`, linked from a note as
-//! an image. Editing it again overwrites the same file (written atomically), so the link never changes and no orphan
-//! is left. Only files of exactly that name can be written or read through these two functions; other assets keep
+//! Drawings (DR-1, DR-5, DR-7) and diagrams (DG-1, DG-2): a drawing is one SVG file, `assets/drawings/draw-<8 hex>.svg`,
+//! a diagram (Excalidraw, with its scene inside the SVG) `assets/drawings/diagram-<8 hex>.svg`; both are linked from a
+//! note as an image. Editing one again overwrites the same file (written atomically), so the link never changes and no
+//! orphan is left. Only files of exactly these names can be written or read through these functions; other assets keep
 //! the rules of `assets.rs`.
 
 use crate::{Error, Graph, MAX_ASSET_BYTES, Result, atomic_write, hash_bytes};
@@ -8,7 +9,37 @@ use crate::{Error, Graph, MAX_ASSET_BYTES, Result, atomic_write, hash_bytes};
 /// The folder of the drawings, graph-relative.
 pub const DRAWING_DIR: &str = "assets/drawings";
 
-/// `assets/drawings/draw-<8 hex>.svg` (graph-relative, lower-case hex), and nothing else.
+/// What a drawing file holds: handwriting (js-draw, `draw-`) or a diagram (Excalidraw, `diagram-`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DrawingKind {
+    /// Handwriting, `draw-<8 hex>.svg`.
+    #[default]
+    Draw,
+    /// A diagram, `diagram-<8 hex>.svg`.
+    Diagram,
+}
+
+impl DrawingKind {
+    /// The start of the file name.
+    pub const fn prefix(self) -> &'static str {
+        match self {
+            DrawingKind::Draw => "draw-",
+            DrawingKind::Diagram => "diagram-",
+        }
+    }
+
+    /// `"draw"` or `"diagram"`.
+    pub fn parse(s: &str) -> Option<DrawingKind> {
+        match s {
+            "draw" => Some(DrawingKind::Draw),
+            "diagram" => Some(DrawingKind::Diagram),
+            _ => None,
+        }
+    }
+}
+
+/// `assets/drawings/draw-<8 hex>.svg` or `assets/drawings/diagram-<8 hex>.svg` (graph-relative, lower-case hex), and
+/// nothing else.
 pub fn is_drawing_path(path: &str) -> bool {
     let Some(name) = path
         .strip_prefix(DRAWING_DIR)
@@ -17,7 +48,8 @@ pub fn is_drawing_path(path: &str) -> bool {
         return false;
     };
     let Some(hex) = name
-        .strip_prefix("draw-")
+        .strip_prefix(DrawingKind::Draw.prefix())
+        .or_else(|| name.strip_prefix(DrawingKind::Diagram.prefix()))
         .and_then(|r| r.strip_suffix(".svg"))
     else {
         return false;
@@ -64,6 +96,16 @@ impl Graph {
     /// Stores a drawing. With `existing` (a drawing path) that file is overwritten; without it a new name is made.
     /// Returns the graph-relative path.
     pub fn save_drawing(&self, existing: Option<&str>, svg: &str) -> Result<String> {
+        self.save_drawing_of(existing, svg, DrawingKind::Draw)
+    }
+
+    /// Like [`Graph::save_drawing`]; `kind` is the kind of a new file (an existing one keeps its own name).
+    pub fn save_drawing_of(
+        &self,
+        existing: Option<&str>,
+        svg: &str,
+        kind: DrawingKind,
+    ) -> Result<String> {
         check_svg(svg)?;
         let rel = match existing {
             Some(p) if is_drawing_path(p) => p.to_string(),
@@ -75,7 +117,7 @@ impl Graph {
                         .duration_since(std::time::UNIX_EPOCH)
                         .map_or(0, |d| d.as_nanos());
                     let hash = hash_bytes(format!("{now}-{salt}-{svg}").as_bytes());
-                    let rel = format!("{DRAWING_DIR}/draw-{}.svg", &hash[..8]);
+                    let rel = format!("{DRAWING_DIR}/{}{}.svg", kind.prefix(), &hash[..8]);
                     if !self.root().join(&rel).exists() {
                         break rel;
                     }
@@ -155,6 +197,27 @@ mod tests {
         ] {
             assert!(!is_drawing_path(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_diagram_is_named_diagram_and_only_so() {
+        assert!(is_drawing_path("assets/drawings/diagram-0123abcd.svg"));
+        for bad in [
+            "assets/drawings/diagram-0123ABCD.svg",
+            "assets/drawings/diagram-0123abc.svg",
+            "assets/drawings/diagram-.svg",
+            "assets/drawings/diagrams-0123abcd.svg",
+            "assets/drawings/diagram-0123abcd.excalidraw",
+        ] {
+            assert!(!is_drawing_path(bad), "{bad}");
+        }
+        let c = "assets/drawings/diagram-0123abcd (conflicted copy 2026-10-03 120000).svg";
+        assert_eq!(
+            drawing_of_copy(c).as_deref(),
+            Some("assets/drawings/diagram-0123abcd.svg")
+        );
+        assert_eq!(DrawingKind::parse("diagram"), Some(DrawingKind::Diagram));
+        assert_eq!(DrawingKind::parse("x"), None);
     }
 
     #[test]

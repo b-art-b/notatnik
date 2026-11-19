@@ -29,8 +29,42 @@ function pdfjsFiles(): Plugin {
   }
 }
 
+// Excalidraw (DG-5) loads its fonts from `window.EXCALIDRAW_ASSET_PATH` (`/excalidraw/`) and otherwise from a CDN: the
+// fonts are served from the package in development and copied into the build, so a diagram needs no network. The big
+// CJK font (Xiaolai, 13 MB) is left out: text in Chinese, Japanese or Korean falls back to the system's fonts.
+function excalidrawFiles(): Plugin {
+  const root = path.resolve('node_modules/@excalidraw/excalidraw/dist/prod/fonts')
+  const skip = new Set(['Xiaolai'])
+  const files = (): string[] => {
+    const out: string[] = []
+    for (const d of fs.readdirSync(root)) {
+      if (skip.has(d)) continue
+      for (const f of fs.readdirSync(path.join(root, d))) out.push(`${d}/${f}`)
+    }
+    return out
+  }
+  return {
+    name: 'excalidraw-files',
+    configureServer(server) {
+      server.middlewares.use('/excalidraw/fonts', (req, res, next) => {
+        const file = path.join(root, decodeURIComponent((req.url ?? '').split('?')[0]))
+        if (!file.startsWith(root) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return next()
+        res.end(fs.readFileSync(file))
+      })
+    },
+    generateBundle() {
+      for (const f of files())
+        this.emitFile({
+          type: 'asset',
+          fileName: `excalidraw/fonts/${f}`,
+          source: fs.readFileSync(path.join(root, f)),
+        })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [svelte(), pdfjsFiles()],
+  plugins: [svelte(), pdfjsFiles(), excalidrawFiles()],
   // Tauri serves the built files from disk, so asset URLs must be relative.
   base: './',
   clearScreen: false,

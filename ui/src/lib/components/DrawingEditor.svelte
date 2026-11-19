@@ -598,7 +598,7 @@
       let markdown = ''
       if (isNew || strokesChanged()) {
         const svg = serialize(ed)
-        const saved = await backend.call('save_drawing', { page: target.page, path: target.path, svg })
+        const saved = await backend.call('save_drawing', { page: target.page, path: target.path, svg, kind: null })
         path = saved.path
         // `![](…)` as the server wrote it: the path as this page links it, to write again with a name
         if (isNew) {

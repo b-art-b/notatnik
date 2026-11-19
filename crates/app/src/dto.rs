@@ -1744,6 +1744,9 @@ pub struct SaveDrawingArgs {
     pub path: Option<String>,
     /// The SVG text.
     pub svg: String,
+    /// The kind of a new file: `draw` (handwriting, the default) or `diagram` (Excalidraw). An existing file keeps its own.
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 /// `read_drawing`
