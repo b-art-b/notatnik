@@ -7,7 +7,7 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 **Requirements covered:** DG-1 to DG-10 (see `requirements.md`).
 **Depends on:** drawings ([drawing.md](drawing.md): storage, overlay host, name/form/delete header, drafts, search of
 `<text>`, conflict copies), assets (ST-8).
-**Status:** X1 (storage), X2 (the Excalidraw island) and X3 (the overlay, with `/diagram` to reach it) and the copies part of X5 are built; the phone checks of X5 are waiting for a device, then X4 (checks of the page) and X6.
+**Status:** X1 (storage), X2 (the Excalidraw island) and X3 (the overlay, with `/diagram` to reach it), X4, X6 and the copies part of X5 are built and tested in Chromium and WebKit; the phone checks of X5 are waiting for a device.
 
 ## Design
 
@@ -143,11 +143,20 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 
 ### X6 Documentation, size and tests in WebKit
 
-- `docs/keymap.md` (`/diagram`), `docs/file-format.md` (the diagram file, the embedded scene), `docs/requirements.md`
-  (DG-1 to DG-10), `docs/architecture.md` (a decision row), `docs/TODO.md`; the size of the lazy chunk is written down
-  here; the browser tests run in WebKit as well (`ui/tests/webkit.list`).
-- **Verify:** `scripts/check.sh` and `scripts/check-webkit.sh tests/diagram.spec.ts` pass; the chunk size and the APK size
-  increase are noted in this file.
+- `docs/keymap.md` (`/diagram`, drafts, copies), `docs/file-format.md` (the diagram file, the embedded scene),
+  `docs/requirements.md` (DG-1 to DG-10), `docs/architecture.md` (D63), `docs/TODO.md`; `tests/diagram.spec.ts` is in
+  `ui/tests/webkit.list`.
+- **Size:** the Excalidraw island is separate chunks, about 7.7 MB of JavaScript before and 2.5 MB after gzip (see X2),
+  loaded only when a diagram opens; the main chunk grew by about 10 KB. Fonts: 480 KB (`excalidraw/fonts`). One mermaid
+  for the app and the island removed 1.4 MB of JavaScript from the build. The signed arm64 APK went from 26.3 MB to
+  32.5 MB with the island, before the single mermaid (not rebuilt since).
+- **A file without its scene** (an SVG that another program saved again): the editor says so, keeps Done off, and only
+  a deliberate "Start a new diagram" lets the picture be replaced; closing leaves the file as it was
+  (`tests/diagram.spec.ts`). Not built: starting a new diagram from the picture as an image element.
+- **Verify:**
+  - [x] `scripts/check.sh` passes (see the commit that closes X6 for the run)
+  - [x] `scripts/check-webkit.sh tests/diagram.spec.ts` passes (9 tests, WebKit)
+  - [x] the chunk size and the APK size increase are noted above
 
 ## Risks to look at first
 
@@ -159,4 +168,5 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 - **WebKitGTK (the desktop app).** Excalidraw's clipboard and file-system calls may be refused there; the tests in
   WebKit show what works, and `save_export`-style desktop commands (DR-22) are the way out.
 - **A scene stripped from the file** by an outside tool: the picture shows, but it is not editable. The editor says so
-  and offers to start a new diagram from the picture (the SVG is added as an image element).
+  and only replaces it after a deliberate choice (built, X6). Offering to start a new diagram from the picture, with the
+  SVG as an image element, is not built.

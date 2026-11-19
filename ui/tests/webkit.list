@@ -28,3 +28,4 @@ tests/list-styles.spec.ts
 tests/format-keys.spec.ts
 tests/templates.spec.ts
 tests/local-graph.spec.ts
+tests/diagram.spec.ts

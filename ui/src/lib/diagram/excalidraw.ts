@@ -10,6 +10,8 @@ import type { Root } from 'react-dom/client'
 
 /** What a mounted editor offers the overlay around it. */
 export interface DiagramHandle {
+  /** A stored file was given but holds no Excalidraw scene (another program rewrote the SVG): the editor is blank. */
+  readonly noScene: boolean
   /** The diagram as an SVG with its scene embedded, on a white background. */
   getSvg(): Promise<string>
   /** Nothing is drawn (the SVG of an empty diagram is not stored). */
@@ -65,8 +67,18 @@ export async function mountDiagram(container: HTMLElement, opts: MountOptions): 
 
   // the stored scene, when there is one: `loadFromBlob` reads the scene back out of the SVG
   let initial: Awaited<ReturnType<typeof ex.loadFromBlob>> | null = null
+  let noScene = false
   if (opts.svg) {
-    initial = await ex.loadFromBlob(new Blob([opts.svg], { type: 'image/svg+xml' }), null, null)
+    try {
+      initial = await ex.loadFromBlob(new Blob([opts.svg], { type: 'image/svg+xml' }), null, null)
+    } catch {
+      noScene = true
+    }
+    // an SVG without the embedded scene: the picture shows in a note, but there are no shapes to edit
+    if (initial && initial.elements.length === 0 && !opts.svg.includes('application/vnd.excalidraw+json')) {
+      noScene = true
+      initial = null
+    }
   }
 
   let api: ExcalidrawImperativeAPI | null = null
@@ -111,6 +123,7 @@ export async function mountDiagram(container: HTMLElement, opts: MountOptions): 
     return api
   }
   return {
+    noScene,
     async getSvg() {
       const a = live()
       const svg = await ex.exportToSvg({

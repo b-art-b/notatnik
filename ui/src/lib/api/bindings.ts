@@ -2192,6 +2192,32 @@ export type ReadDrawingArgs = {
  * `assets/drawings/draw-<8 hex>.svg`, also as a page link writes it (`../../assets/...`).
  */
 path: string, };
+export type CaptureArgs = { 
+/**
+ * The text.
+ */
+text: string, 
+/**
+ * The page; none or empty = today's journal.
+ */
+page: string | null, };
+export type WidgetsReport = { 
+/**
+ * Captured lines added to the graph.
+ */
+drained: number, 
+/**
+ * Lines for another graph, left in the queue.
+ */
+kept: number, 
+/**
+ * Lines that could not be added (kept in a file beside the queue).
+ */
+failed: number, 
+/**
+ * Tasks in the snapshot the task widget draws.
+ */
+tasks: number, };
 export type AnnotationPageArgs = { 
 /**
  * The PDF: `assets/.../name.pdf`, also as a page link writes it (`../../assets/...`). For a document of the

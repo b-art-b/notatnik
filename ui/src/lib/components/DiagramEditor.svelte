@@ -44,6 +44,8 @@
   let drafts: DraftStore | undefined
   let saver: DraftSaver | undefined
   let loadError = $state('')
+  // the file has no Excalidraw scene: Done stays off until the person chooses to replace it with a new diagram
+  let noScene = $state(false)
   // the copies a sync left of this diagram when it was changed on two devices (DR-23, DG-9), and the ones whose
   // content is in the editor now: they go to the trash when the diagram is saved
   let copies = $state<string[]>([])
@@ -72,6 +74,7 @@
         let svg: string | undefined
         if (target.path) svg = (await backend.call('read_drawing', { path: target.path })).value
         await mountWith(svg)
+        noScene = !!handle?.noScene
       } catch (e) {
         loadError = errorMessage(e)
         loading = false
@@ -301,7 +304,7 @@
         <button
           type="button"
           onclick={done}
-          disabled={loading || saving || !!loadError}
+          disabled={loading || saving || !!loadError || noScene}
           data-testid="diagram-done">{saving ? 'Saving…' : 'Done'}</button
         >
       </div>
@@ -367,6 +370,24 @@
         >
         <button type="button" data-testid="diagram-copy-both" onclick={() => keepBoth(copies[0])}
           >Keep both</button
+        >
+      </div>
+    {/if}
+    {#if noScene}
+      <!-- the picture is fine, but it has no shapes to edit: say so instead of showing a blank page that would replace it -->
+      <div class="confirm banner" role="alert" data-testid="diagram-noscene">
+        <span
+          >This file has no editable diagram in it (another program may have saved it again). A new diagram
+          here would replace the picture.</span
+        >
+        <button
+          type="button"
+          class="danger"
+          data-testid="diagram-noscene-replace"
+          onclick={() => {
+            noScene = false
+            dialog?.focus()
+          }}>Start a new diagram</button
         >
       </div>
     {/if}

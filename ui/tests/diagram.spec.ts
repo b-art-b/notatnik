@@ -301,3 +301,23 @@ test('DG-9: a copy another device left of a diagram: keep this one, use that ver
   await expect.poll(() => shapes(backend.read(file))).toBe(2)
   await expect.poll(() => backend.exists(copyName(file))).toBe(false)
 })
+
+test('a diagram file without its scene says so and is not overwritten by accident', async ({
+  backend,
+  page,
+}) => {
+  // a picture that another program rewrote: no embedded scene
+  const plain =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" fill="#ffffff"/><path d="M0 0L50 50" stroke="black"/></svg>'
+  backend.write('assets/drawings/diagram-0a1b2c3d.svg', plain)
+  backend.write('pages/g10.md', '- ![](../assets/drawings/diagram-0a1b2c3d.svg)\n')
+  await backend.open('/page/g10')
+  await page.getByRole('tree', { name: 'Blocks' }).locator('img').first().click()
+  await expect(page.getByTestId('diagram-editor')).toBeVisible()
+  await expect(page.getByTestId('diagram-noscene')).toBeVisible({ timeout: 20_000 })
+  // Done is off until a choice is made, and closing leaves the picture as it was
+  await expect(page.getByTestId('diagram-done')).toBeDisabled()
+  await page.getByTestId('diagram-cancel').click()
+  await expect(page.getByTestId('diagram-editor')).toHaveCount(0)
+  expect(backend.read('assets/drawings/diagram-0a1b2c3d.svg')).toBe(plain)
+})

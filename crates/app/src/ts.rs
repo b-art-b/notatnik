@@ -181,6 +181,8 @@ pub fn typescript_bindings() -> String {
         SaveAssetArgs,
         SaveDrawingArgs,
         ReadDrawingArgs,
+        CaptureArgs,
+        WidgetsReport,
         AnnotationPageArgs,
         ClipPageArgs,
         ClippedPage,
