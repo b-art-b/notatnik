@@ -79,9 +79,11 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
   (`tests/harness/diagram.html`, started by `tests/diagram-island.spec.ts`) because the overlay is X3.
 - **Size (measured with a build of the harness page alone):** the island is a separate set of chunks, about 7.6 MB
   before and 2.5 MB after gzip (React 130 KB, Excalidraw 1.8 MB + 1.1 MB, CSS 140 KB, fonts 480 KB), loaded only when a
-  diagram is opened. About half of it is a second copy of mermaid (11.17.2, Excalidraw's own dependency, next to the
-  app's 11.4.1) with its diagram chunks; pinning both to one version would remove it (not done: it needs a check of the
-  app's own mermaid blocks).
+  diagram is opened. Excalidraw brought a second copy of mermaid (11.17.2, its Mermaid-to-shapes dialog, next to the app's
+  11.4.1), about a quarter of the island (an earlier note here said half; measured by the package of each chunk it is
+  about 2.2 MB of 7.7 MB). The app's own `mermaid` is now 11.17.2 as well (exact, `pnpm add -E mermaid@11.17.2`;
+  Excalidraw's bridge asks for `^11.12.1`), so there is one copy: the built JS went from 11.4 MB to 10.0 MB. The tests of
+  mermaid blocks (render, error pictures not drawn, dark theme, round trip) pass on 11.17.2.
 - **Verify:**
   - [x] the main bundle has no React and no Excalidraw (checked in the build output, again after X3 wired it in: the main chunk grew by about
         10 KB, React and Excalidraw are in chunks of their own); the harness page requests none of it until `mountDiagram` runs
