@@ -2,6 +2,9 @@
 import { app } from '../stores/app.svelte'
 import { fileLink } from '../filelinks'
 
+/** What the editor edits: handwriting (js-draw) or a diagram (Excalidraw, DG-1). */
+export type DrawingKind = 'draw' | 'diagram'
+
 /** How a drawing is written in the note: a picture (`![name](…)`) or a link that opens the editor (`[name](…)`). */
 export type DrawingMode = 'picture' | 'link'
 
@@ -26,10 +29,12 @@ export interface DrawingOpen {
   mode: DrawingMode
   /** The block it is in; without it name, form and delete cannot be changed. */
   host: DrawingHost | null
+  /** Which editor opens; a new one defaults to handwriting, an existing one is known by its file name. */
+  kind?: DrawingKind
 }
 
 export interface DrawingResult {
-  /** Graph-relative path of the stored SVG, `assets/drawings/draw-<8 hex>.svg`. */
+  /** Graph-relative path of the stored SVG, `assets/drawings/draw-<8 hex>.svg` (`diagram-…` for a diagram). */
   path: string
   /** The Markdown to write into a block (a new drawing); for an existing one the block was rewritten already. */
   markdown: string
@@ -57,8 +62,13 @@ export function finishDrawing(r: DrawingResult | null): void {
 
 /** A drawing of this app in the text of a block: the path as a link writes it, or null for any other image. */
 export function drawingPath(src: string): string | null {
-  const m = /(?:^|\/)(assets\/drawings\/draw-[0-9a-f]{8}\.svg)$/.exec(src)
+  const m = /(?:^|\/)(assets\/drawings\/(?:draw|diagram)-[0-9a-f]{8}\.svg)$/.exec(src)
   return m ? m[1] : null
+}
+
+/** The editor a stored file belongs to: `diagram-…` is Excalidraw, `draw-…` handwriting. */
+export function kindOfPath(path: string): DrawingKind {
+  return /(?:^|\/)diagram-[0-9a-f]{8}\.svg$/.test(path) ? 'diagram' : 'draw'
 }
 
 /** The Markdown of a drawing: `![name](href)` as a picture, `[name](href)` as a link (named `Drawing` without a name). */

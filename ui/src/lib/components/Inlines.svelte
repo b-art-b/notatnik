@@ -13,6 +13,7 @@
     DRAWING_HOST,
     drawingPath,
     openDrawing,
+    kindOfPath,
     type DrawingHost,
     type DrawingMode,
   } from '../commands/drawing'
@@ -42,7 +43,7 @@
   /** A click on a drawing (a picture, or a link that is written as one): the editor opens on it with its name and
    * form; a new name or form rewrites the reference in the block (DR-6). */
   function editDrawing(path: string, name: string, mode: DrawingMode) {
-    void openDrawing({ page: null, path, name, mode, host: drawingHost })
+    void openDrawing({ page: null, path, name, mode, host: drawingHost, kind: kindOfPath(path) })
   }
 
   /** The address of an image; a drawing that was saved in this session gets a new one, so the cached picture is not shown. */

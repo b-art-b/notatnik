@@ -16,8 +16,13 @@ export interface DraftStore {
 }
 
 /** What a draft belongs to: the drawing it edits, or for a new one the page it is being made on. */
-export function draftKey(target: { path: string | null; page: string | null }): string {
-  return target.path ? `file:${target.path.replace(/^(\.\.\/)+/, '')}` : `new:${target.page ?? ''}`
+export function draftKey(
+  target: { path: string | null; page: string | null },
+  kind: 'draw' | 'diagram' = 'draw',
+): string {
+  if (target.path) return `file:${target.path.replace(/^(\.\.\/)+/, '')}`
+  // a new drawing and a new diagram on one page do not share a draft
+  return kind === 'diagram' ? `new:diagram:${target.page ?? ''}` : `new:${target.page ?? ''}`
 }
 
 const DB = 'notatnik-drawing'
@@ -65,7 +70,7 @@ export class DraftSaver {
   constructor(
     private readonly store: DraftStore,
     private readonly key: string,
-    private readonly svg: () => string | null,
+    private readonly svg: () => string | null | Promise<string | null>,
     private readonly delayMs = 3000,
     private readonly now: () => number = Date.now,
   ) {}
@@ -82,7 +87,7 @@ export class DraftSaver {
     this.timer = null
     if (this.gone) return
     try {
-      const svg = this.svg()
+      const svg = await this.svg()
       if (svg === null) await this.store.delete(this.key)
       else await this.store.put(this.key, { svg, savedAt: this.now() })
     } catch {

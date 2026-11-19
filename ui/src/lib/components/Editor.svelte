@@ -249,9 +249,9 @@
     closePicker()
   }
 
-  /** `/draw`: the drawing editor opens; what is saved is linked where the command was typed (DR-1). The block stays
+  /** `/draw` and `/diagram`: the editor opens; what is saved is linked where the command was typed (DR-1). The block stays
    * in edit mode meanwhile (the blur handler leaves it alone while a drawing is open). */
-  async function drawHere(at: number) {
+  async function drawHere(at: number, kind: 'draw' | 'diagram' = 'draw') {
     const v = view
     if (!v) return
     const saved = await openDrawing({
@@ -260,6 +260,7 @@
       name: '',
       mode: 'picture',
       host: null,
+      kind,
     })
     if (view !== v) return
     if (saved) insertLinks(v, [saved.markdown], at)
@@ -641,6 +642,7 @@
             (at) => openPicker('example', at),
             (at) => void drawHere(at),
             (at) => void clipHere(at),
+            (at) => void drawHere(at, 'diagram'),
           ),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Block text', 'data-testid': 'block-editor' }),

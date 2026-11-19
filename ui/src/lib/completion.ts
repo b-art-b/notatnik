@@ -437,6 +437,7 @@ export function wikiCompletions(
   onpickexample: (at: number) => void = () => {},
   onpickdraw: (at: number) => void = () => {},
   onpickclip: (at: number) => void = () => {},
+  onpickdiagram: (at: number) => void = () => {},
 ): Extension {
   return [
     autocompletion({
@@ -726,6 +727,13 @@ export function wikiCompletions(
                     const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
                     view.dispatch({ changes: { from: cut, to: t, insert: '' } })
                     onpickdraw(cut)
+                    return
+                  }
+                  if (c.pickDiagram) {
+                    // the command goes away (with the space before it); the diagram is linked where it was
+                    const cut = view.state.sliceDoc(f - 1, f) === ' ' ? f - 1 : f
+                    view.dispatch({ changes: { from: cut, to: t, insert: '' } })
+                    onpickdiagram(cut)
                     return
                   }
                   if (c.pickClip) {

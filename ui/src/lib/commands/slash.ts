@@ -45,6 +45,8 @@ export interface SlashCommand {
   pickExample?: boolean
   /** `/draw` opens the drawing editor; the saved drawing is linked where the command was. */
   pickDraw?: boolean
+  /** `/diagram` opens the diagram editor (Excalidraw); the saved diagram is linked where the command was (DG-1). */
+  pickDiagram?: boolean
   /** `/clip` opens the dialog that clips a web page; the link goes where the command was (WA-1). */
   pickClip?: boolean
 }
@@ -537,6 +539,17 @@ function baseCommands(): SlashCommand[] {
       keywords: ['draw', 'sketch', 'handwriting', 'write', 'pen', 'canvas', 'stylus'],
       title: 'Draw or write by hand on a canvas; the drawing is an image in the note',
       pickDraw: true,
+      insert: () => ({ text: '' }),
+    },
+    {
+      name: 'diagram',
+      label: 'Diagram…',
+      icon: '🔷',
+      group: 'Insert',
+      keywords: ['diagram', 'flowchart', 'excalidraw', 'boxes', 'arrows', 'architecture', 'shapes', 'chart'],
+      title:
+        'Draw a diagram with boxes and arrows; the diagram is an image in the note and can be edited again',
+      pickDiagram: true,
       insert: () => ({ text: '' }),
     },
     {

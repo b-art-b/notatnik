@@ -7,7 +7,7 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 **Requirements covered:** DG-1 to DG-10 (see `requirements.md`).
 **Depends on:** drawings ([drawing.md](drawing.md): storage, overlay host, name/form/delete header, drafts, search of
 `<text>`, conflict copies), assets (ST-8).
-**Status:** X1 (storage) and X2 (the Excalidraw island, tested on its own page) are built; X3 to X6 are not started.
+**Status:** X1 (storage), X2 (the Excalidraw island) and X3 (the overlay, with `/diagram` to reach it) are built; X4 (checks of the page), X5 and X6 are next.
 
 ## Design
 
@@ -83,8 +83,8 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
   app's 11.4.1) with its diagram chunks; pinning both to one version would remove it (not done: it needs a check of the
   app's own mermaid blocks).
 - **Verify:**
-  - [x] the main bundle has no React and no Excalidraw (checked in the build output; nothing imports the island until X3 wires
-        the overlay, so this is to be checked again then); the harness page requests none of it until `mountDiagram` runs
+  - [x] the main bundle has no React and no Excalidraw (checked in the build output, again after X3 wired it in: the main chunk grew by about
+        10 KB, React and Excalidraw are in chunks of their own); the harness page requests none of it until `mountDiagram` runs
   - [x] a browser test with the network blocked (`context.route('**/*', …)` for everything not from the app) opens the
         editor and draws a rectangle; no request leaves the app
   - [x] the editor shows no library browser, collaboration or share entries
@@ -97,12 +97,18 @@ an image in the note; a click opens it again as an editable Excalidraw scene.
 - `DiagramEditor.svelte` in the drawing overlay: Excalidraw full size, the header of D3b (Name, Picture / Link, Delete…,
   Cancel, Done), **Done** exports the SVG with the scene and stores it, **Cancel** and Escape ask first when something
   changed, drafts (DR-13) keyed `file:<path>` / `new:<page>`, the app's theme.
-- **Verify:**
-  - [ ] a labelled dialog that takes the focus; Escape does not reach the editor behind it (as D2)
-  - [ ] a rectangle, an arrow and a text, Done: one SVG with the three shapes and an embedded scene
-  - [ ] Cancel after drawing asks first; Cancel on an empty diagram closes at once and stores nothing
-  - [ ] the draft of an unsaved diagram is offered again with Restore / Discard (DR-13)
-  - [ ] the dark theme shows a dark editor, and the stored picture is on white
+- **Built:** `DiagramEditor.svelte` (mounted by `App.svelte` when `app.drawing.kind === 'diagram'`); `DrawingOpen.kind`,
+  `kindOfPath` and the wider `drawingPath` in `commands/drawing.ts`; `/diagram` in `slash.ts` and `completion.ts`; a click on
+  a diagram picture or link opens it (`Inlines.svelte` passes `kindOfPath`); `DraftSaver` takes a function that may be
+  async and `draftKey(target, kind)` keeps a new drawing's and a new diagram's drafts apart. `/diagram` and the click
+  are part of X4 in the plan but were needed to test the overlay; X4 now only has to check the page side. The header, the
+  save and the delete are the drawing editor's code copied and kept in step (a shared component is a later clean-up).
+- **Verify** (`tests/diagram.spec.ts`, Chromium):
+  - [x] a labelled dialog that takes the focus; Escape does not reach the editor behind it (as D2)
+  - [x] a rectangle, an arrow and a text, Done: one SVG with the three shapes and an embedded scene
+  - [x] Cancel after drawing asks first; Cancel on an empty diagram closes at once and stores nothing
+  - [x] the draft of an unsaved diagram is offered again with Restore / Discard (DR-13)
+  - [x] the dark theme shows a dark editor, and the stored picture is on white
 
 ### X4 In the page
 

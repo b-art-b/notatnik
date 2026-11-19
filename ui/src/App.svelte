@@ -52,6 +52,7 @@
   import TemplateAskDialog from './lib/components/TemplateAskDialog.svelte'
   import ClipDialog from './lib/components/ClipDialog.svelte'
   import DrawingEditor from './lib/components/DrawingEditor.svelte'
+  import DiagramEditor from './lib/components/DiagramEditor.svelte'
   import PdfViewer from './lib/components/PdfViewer.svelte'
   import EpubViewer from './lib/components/EpubViewer.svelte'
   import SnippetDialog from './lib/components/SnippetDialog.svelte'
@@ -567,7 +568,7 @@
 {#if app.snippetText !== null}<SnippetDialog />{/if}
 {#if app.transfer}<TransferDialog />{/if}
 {#if app.templateAsks}<TemplateAskDialog />{/if}
-{#if app.drawing}<DrawingEditor />{/if}
+{#if app.drawing}{#if app.drawing.kind === 'diagram'}<DiagramEditor />{:else}<DrawingEditor />{/if}{/if}
 {#if app.clip}<ClipDialog />{/if}
 {#if app.pdf}<PdfViewer />{/if}
 {#if app.book}<EpubViewer />{/if}

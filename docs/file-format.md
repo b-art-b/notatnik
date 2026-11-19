@@ -483,6 +483,18 @@ A sync that finds the drawing changed on two devices keeps the server's file and
 `draw-<8 hex> (conflicted copy <date and time>).svg` (the usual conflict name); the editor offers it when the drawing is
 opened (DR-23).
 
+### Diagrams (DG-1, DG-2, DG-7)
+
+A diagram made with `/diagram` (Excalidraw) is the same kind of file with another name,
+`assets/drawings/diagram-<8 lower-case hex>.svg`, linked from a block the same way (`![name](../assets/drawings/diagram-0f3a9c21.svg)`
+or `[name](…)`). It is an ordinary SVG with the Excalidraw scene embedded (`exportEmbedScene`: a
+`<!-- payload-type:application/vnd.excalidraw+json -->` comment and the encoded scene in `<metadata>`), on a white
+background; the shapes are `<g stroke-linecap="round" …>` groups and text is `<text>`. Opening a diagram reads the scene
+back, so every shape stays a separate object; a tool that rewrites the SVG and drops `<metadata>` leaves a picture that
+can no longer be edited as shapes. Saving overwrites the same file (written atomically); the 25 MB limit, the refusal of
+a `<script>` and the sync and conflict-copy rules are those of drawings. The words of the `<text>` elements are added to
+the search text of the blocks that show it; the embedded scene is not searched.
+
 ## PDF annotations (PA-2, PA-3, PA-5)
 
 The highlights of a PDF in `assets/` are blocks of an ordinary page, the _sidecar_ `pages/hls/<pdf name>.md`
